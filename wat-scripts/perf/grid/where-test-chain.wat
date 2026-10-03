@@ -62,12 +62,12 @@
                                    (:wat::string::concat
                                      (:wat::i64::to-string
                                        (:wat::core::Option/expect
-                                         (:wat::map::get p "?a")
+                                         (:wat::core::get p "?a")
                                          "q-Pair: ?a"))
                                      (:wat::string::concat ","
                                        (:wat::i64::to-string
                                          (:wat::core::Option/expect
-                                           (:wat::map::get p "?b")
+                                           (:wat::core::get p "?b")
                                            "q-Pair: ?b")))))))
                              ""
                              pairs)]

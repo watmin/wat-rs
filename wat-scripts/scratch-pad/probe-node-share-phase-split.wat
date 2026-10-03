@@ -87,7 +87,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:phase::build-rule i n)))
+      (:wat::core::conj acc (:phase::build-rule i n)))
     (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
@@ -102,7 +102,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  x <- wat.type/i64]
       -> (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::vector::conj acc x))
+      (:wat::core::conj acc x))
     (wat.type/PersistentVector :- [wat.type/i64])
     v))
 
@@ -112,7 +112,7 @@
     (:wat::core::sort
       (:wat::core::into (wat.type/Vector :- [wat.type/i64])
         (:wat::core::map
-          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:phase::Out/k f)))
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:phase::Out/k f)))
           (:wat::rete::query fired (:phase::q-Out)))))))
 
 (:wat::core::defn :phase::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64

@@ -133,13 +133,13 @@
 (:wat::core::defn :lnc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
-    (:wat::vector::conj
+    (:wat::core::conj
       (:wat::core::foldl
         (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                         -> (wat.type/PersistentVector :- [wat.type/Record])
-          (:wat::core::let [a2 (:wat::vector::conj acc (:lnc::Wind i))
-                            a3 (:wat::vector::conj a2 (:lnc::Wind i))]
-            (:wat::vector::conj a3 (:lnc::Tag i))))
+          (:wat::core::let [a2 (:wat::core::conj acc (:lnc::Wind i))
+                            a3 (:wat::core::conj a2 (:lnc::Wind i))]
+            (:wat::core::conj a3 (:lnc::Tag i))))
         (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::range 0 items))
       (:lnc::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -161,7 +161,7 @@
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-                                (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+                                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                                   (:lnc::Final/loc f)))
                               (:wat::rete::query fired (:lnc::q-Final))))]
     (:lnc::vec->pvec (:wat::core::sort codes))))

@@ -412,7 +412,7 @@
    fact <- wat.type/Record]
   -> :wat::rete::DerivationNode
   (:wat::core::let [support (:wat::rete::Explained/support ex)
-                    sv-opt  (:wat::map::get support fact)]
+                    sv-opt  (:wat::core::get support fact)]
     (:wat::core::match sv-opt 
       [:wat::core::Option.Some {:value sv}
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
@@ -509,13 +509,13 @@
   [session <- :wat::rete::Session]
   -> wat.type/String
   (:wat::core::let [network (:wat::rete::Session/network session)
-                    keys    (:wat::map::keys network)]
+                    keys    (:wat::core::keys network)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- wat.type/String
                        k   <- wat.type/i64]
         -> wat.type/String
         (:wat::core::let [node  (:wat::core::Option/expect  
-                                    (:wat::map::get network k)
+                                    (:wat::core::get network k)
                                     "render-dag: node not found")
                           kind  (:wat::rete::node-kind-label node)
                           id-s  (:wat::i64::to-string k)

@@ -121,6 +121,6 @@
 ;; ─── lookup-define renders the synthesised primitive form ────────────────────
 
 (:wat::core::defn :t::lookup-vector-length-render [] -> wat.type/String
-  (:wat::core::let [def-opt  (:wat::runtime::lookup-define :wat::vec::length)
+  (:wat::core::let [def-opt  (:wat::runtime::lookup-define :wat::core::length)
                    rendered (:wat::edn::write def-opt)]
     rendered))

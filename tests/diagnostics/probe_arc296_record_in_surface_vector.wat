@@ -19,4 +19,4 @@
 (:wat::core::defn :probe::drive [] -> wat.type/i64
   (:wat::core::let
     [v (wat.type/Vector :- [:g::E] (:g::Boom :msg "x"))]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))

@@ -90,7 +90,7 @@
 (:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-    (:wat::vector::concat
+    (:wat::core::into
       (:vlx::counts (:wat::core::match (:wat::rete::fire-rules (:vlx::staged2))
         [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
         [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}

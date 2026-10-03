@@ -48,7 +48,7 @@
        [name (:wat::telemetry::Span::IncrRequest/name req)
         rec  (:wat::telemetry::span::State/durable s)
         cs   (:wat::telemetry::span::Record/counters rec)
-        next (:wat::core::match (:wat::hashmap::get cs name) 
+        next (:wat::core::match (:wat::core::get cs name) 
                [:wat::core::Option.None {} 1]
                [:wat::core::Option.Some {:value v} (:wat::core::+ v 1)])
         rec' (:wat::telemetry::span::Record
@@ -56,7 +56,7 @@
                :uuid (:wat::telemetry::span::Record/uuid rec)
                :tags (:wat::telemetry::span::Record/tags rec)
                :start-time-ns (:wat::telemetry::span::Record/start-time-ns rec)
-               :counters (:wat::hashmap::assoc cs name next)
+               :counters (:wat::core::assoc cs name next)
                :durations (:wat::telemetry::span::Record/durations rec))]
        (:wat::service::Outcome.Reply
          {:state (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))
@@ -69,7 +69,7 @@
         nanos (:wat::telemetry::Span::TimedRequest/nanos req)
         rec   (:wat::telemetry::span::State/durable s)
         ds    (:wat::telemetry::span::Record/durations rec)
-        samples (:wat::core::match (:wat::hashmap::get ds name) 
+        samples (:wat::core::match (:wat::core::get ds name) 
                   [:wat::core::Option.None {} (wat.type/Vector :- [wat.type/i64])]
                   [:wat::core::Option.Some {:value v} v])
         rec'  (:wat::telemetry::span::Record
@@ -78,7 +78,7 @@
                 :tags (:wat::telemetry::span::Record/tags rec)
                 :start-time-ns (:wat::telemetry::span::Record/start-time-ns rec)
                 :counters (:wat::telemetry::span::Record/counters rec)
-                :durations (:wat::hashmap::assoc ds name (:wat::core::conj samples nanos)))]
+                :durations (:wat::core::assoc ds name (:wat::core::conj samples nanos)))]
        (:wat::service::Outcome.Reply
          {:state (:wat::telemetry::span::State :durable rec' :sink (:wat::telemetry::span::State/sink s))
          :reply (:wat::telemetry::Span::TimedResponse.Ok {})})))
@@ -151,17 +151,17 @@
               (:wat::telemetry::Metric :namespace ns :uuid uuid :tags tags :time-ns now
                 :start-time-ns start :name name
                 :value (:wat::telemetry::Numeric.I64
-                         {:val (:wat::core::Option/expect (:wat::hashmap::get cs name) "counter present")})
+                         {:val (:wat::core::Option/expect (:wat::core::get cs name) "counter present")})
                 :unit :wat::telemetry::Unit.Count)))
           (wat.type/Vector :- [:wat::telemetry::Metric])
-          (:wat::hashmap::keys cs))
+          (:wat::core::keys cs))
         ;; duration metrics: <name>/count + <name>/duration per duration key, folded onto the counters.
         all-metrics
         (:wat::core::foldl
           (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::telemetry::Metric]) name <- wat.type/keyword]
             -> (wat.type/Vector :- [:wat::telemetry::Metric])
             (:wat::core::let
-              [samples (:wat::core::Option/expect (:wat::hashmap::get ds name) "duration present")
+              [samples (:wat::core::Option/expect (:wat::core::get ds name) "duration present")
                cnt (:wat::core::count samples)
                total (:wat::core::foldl
                        (:wat::core::fn [a <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ a x))
@@ -178,7 +178,7 @@
                   :start-time-ns start :name dur-name
                   :value (:wat::telemetry::Numeric.I64 {:val total}) :unit :wat::telemetry::Unit.Nanos))))
           counter-metrics
-          (:wat::hashmap::keys ds))
+          (:wat::core::keys ds))
         resp (:wat::telemetry::Journal/write-metrics (:wat::telemetry::span::State/sink s)
                (:wat::telemetry::Journal::WriteMetricsRequest all-metrics))
         cresp (:wat::core::match resp

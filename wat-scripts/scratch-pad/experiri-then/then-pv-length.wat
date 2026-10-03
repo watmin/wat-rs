@@ -26,7 +26,7 @@
        fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
       (:wat::core::foldl
         (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
-          (:wat::core::if (:probe::Out/ok (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact"))
+          (:wat::core::if (:probe::Out/ok (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact"))
             (:wat::i64::+ acc 1)
             acc))
         0

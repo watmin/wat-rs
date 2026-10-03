@@ -62,7 +62,7 @@ use crate::span::Span;
 /// @arg     msg :wat::type::String the message evaluated and raised if `opt` is `None`
 /// @ret     :T the wrapped value, if `opt` is `Some`
 /// @example (:wat::core::Option/expect (:wat::core::Option::Some {:value 3}) "unreachable") #=> 3
-/// @see     :wat::core::Record/field-at
+/// @see     :wat::record::field-at
 #[wat_intrinsic(":wat::core::Option/expect")]
 pub(crate) fn eval_option_expect(
     opt: &WatAST,

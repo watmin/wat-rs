@@ -103,7 +103,7 @@
                      node-id <- wat.type/i64]
       -> wat.type/PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::map::get network node-id)
+                                (:wat::core::get network node-id)
                                 "collect-query-memory: node")]
         (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "QueryNode")
           (:wat::core::let [qname (:wat::rete::QueryNode/query-name node)
@@ -113,11 +113,11 @@
                                      (:wat::core::fn [a   <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                                       tok <- :wat::rete::Token]
                                        -> (wat.type/PersistentVector :- [wat.type/PersistentMap])
-                                       (:wat::vector::conj a
+                                       (:wat::core::conj a
                                          (:wat::rete::Token/bindings tok)))
                                      (wat.type/PersistentVector :- [wat.type/PersistentMap])
                                      toks)]
-            (:wat::map::assoc acc qname maps))
+            (:wat::core::assoc acc qname maps))
           acc)))
     (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/PersistentMap])])
     (:wat::rete::topological-node-ids network)))
@@ -204,11 +204,11 @@
         (:wat::core::fn [a <- wat.type/PersistentVector
                          f <- wat.type/Record]
           -> wat.type/PersistentVector
-          (:wat::vector::conj a f))
+          (:wat::core::conj a f))
         acc
         pv))
     (wat.type/PersistentVector :- [wat.type/Record])
-    (:wat::map::values prod-mem)))
+    (:wat::core::values prod-mem)))
 
 ;; merge-facts — fold derived facts into the existing fact PV, conj-ing only new ones (dedup by value-equality).
 ;; WHY contains?-before-conj: the dedup guard is the termination invariant — if a derived fact is already in
@@ -221,9 +221,9 @@
     (:wat::core::fn [acc <- wat.type/PersistentVector
                      f   <- wat.type/Record]
       -> wat.type/PersistentVector
-      (:wat::core::if (:wat::vector::contains? acc f)
+      (:wat::core::if (:wat::core::contains? acc f)
         acc
-        (:wat::vector::conj acc f)))
+        (:wat::core::conj acc f)))
     facts
     derived))
 
@@ -246,8 +246,8 @@
     (:wat::core::fn [acc <- wat.type/PersistentVector
                      f   <- wat.type/Record]
       -> wat.type/PersistentVector
-      (:wat::core::if (:wat::vector::contains? supported f)
-        (:wat::vector::conj acc f)
+      (:wat::core::if (:wat::core::contains? supported f)
+        (:wat::core::conj acc f)
         acc))
     (wat.type/PersistentVector :- [wat.type/Record])
     facts))
@@ -351,7 +351,7 @@
                     old-bag   (:wat::rete::factbag::of session)
                     new-bag   (:wat::rete::factbag::retain old-bag
                                 (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool
-                                  (:wat::vector::contains? supported f)))]
+                                  (:wat::core::contains? supported f)))]
     (:wat::core::if (:wat::core::= (:wat::rete::factbag::size new-bag) (:wat::rete::factbag::size old-bag))
       fired
       (:wat::rete::fire-support-fixpoint base
@@ -481,7 +481,7 @@
                                 (wat.type/PersistentVector :- [wat.type/Record]))
                     all-d     (:wat::rete::FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
-                    fprod-m   (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
+                    fprod-m   (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/i64 wat.type/PersistentVector]) 0 all-d)
                     closed    (:wat::rete::FireStratAcc/facts final-acc)
                     q-seed    (:wat::rete::Session
                                 :network (:wat::rete::Session/network session)
@@ -529,7 +529,7 @@
       (:wat::core::if acc
         true
         (:wat::core::let [node (:wat::core::Option/expect
-                                  (:wat::map::get net k)
+                                  (:wat::core::get net k)
                                   "network-has-production?: node")]
           (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode"))))
     false

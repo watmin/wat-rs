@@ -42,7 +42,7 @@
 ;; `service-request-malformed.wat` do.
 
 ;; ── dial — the separately-typed verb, load-bearing (pins K,V) per the parametric precedent ──
-(:wat::core::defn :wat-tests::cache-svc/dial
+(:wat::core::defn :wat-tests::cache-svc::dial
   [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [wat.type/String wat.type/i64]) (:wat::cache::Cache::Reply :- [wat.type/String wat.type/i64])])]
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [wat.type/String wat.type/i64]) (:wat::cache::Cache::Reply :- [wat.type/String wat.type/i64])])
   (:wat::core::match (:wat::kernel::connect a)
@@ -58,7 +58,7 @@
 ;; ── labels — extract the response's fields apart, render the one honest token ────────────────
 
 ;; one result -> one token; NEVER a rendered-string `contains`, a real pattern match per element.
-(:wat::core::defn :wat-tests::cache-svc/result-label
+(:wat::core::defn :wat-tests::cache-svc::result-label
   [r <- (:wat::cache::Cache::GetResult :- [wat.type/i64])]
   -> wat.type/String
   (:wat::core::match r
@@ -67,7 +67,7 @@
 
 ;; the whole batch's results, index order preserved, rendered "[tok,tok,...]" — the fold walks
 ;; `results` LEFT TO RIGHT and `conj` appends, so this string's token order IS `results`' order.
-(:wat::core::defn :wat-tests::cache-svc/get-label
+(:wat::core::defn :wat-tests::cache-svc::get-label
   [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [wat.type/i64])])]
   -> wat.type/String
   (:wat::core::match r
@@ -81,7 +81,7 @@
                   (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String])
                                    res <- (:wat::cache::Cache::GetResult :- [wat.type/i64])]
                     -> (wat.type/Vector :- [wat.type/String])
-                    (:wat::core::conj acc (:wat-tests::cache-svc/result-label res)))
+                    (:wat::core::conj acc (:wat-tests::cache-svc::result-label res)))
                   (wat.type/Vector :- [wat.type/String])
                   results))
               "]"))]
@@ -99,7 +99,7 @@
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the ONLY
 ;; honest token is whether the batch was accepted at all.
-(:wat::core::defn :wat-tests::cache-svc/put-label
+(:wat::core::defn :wat-tests::cache-svc::put-label
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
   -> wat.type/String
   (:wat::core::match r
@@ -118,15 +118,15 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SIX behaviours in one round trip ──────────────────
-(:wat::core::defn :wat-tests::cache-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
+(:wat::core::defn :wat-tests::cache-svc::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h (:wat::cache::lru-svc/start :locus locus
          :record (:wat::cache::lru-svc::Record :capacity 2))
-     a (:wat-tests::cache-svc/dial (:wat::cache::lru-svc::Handle/addr h))
-     b (:wat-tests::cache-svc/dial (:wat::cache::lru-svc::Handle/addr h))
+     a (:wat-tests::cache-svc::dial (:wat::cache::lru-svc::Handle/addr h))
+     b (:wat-tests::cache-svc::dial (:wat::cache::lru-svc::Handle/addr h))
      ;; BATCH PUT — two entries, ONE round trip. Capacity has room for both: {k1(LRU), k2(MRU)}.
      ;; MULTI-CLIENT set-up: A writes, B (below) reads.
-     put-batch (:wat-tests::cache-svc/put-label
+     put-batch (:wat-tests::cache-svc::put-label
                  (:wat::cache::lru-svc/put a
                    (:wat::cache::Cache::PutRequest
                      :entries (wat.type/Vector :- [(:wat::cache::Entry :- [wat.type/String wat.type/i64])]
@@ -138,26 +138,26 @@
      ;; Also proves MULTI-CLIENT (B reads A's batch put) and BATCH GET reading BOTH entries the
      ;; batch put wrote, in one round trip. Side effect: hits bump k2 then k1 to MRU, leaving
      ;; {k2(LRU), k1(MRU)} — so k2, not k1, is next evicted.
-     get-jumbled (:wat-tests::cache-svc/get-label
+     get-jumbled (:wat-tests::cache-svc::get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
                        :probes (wat.type/Vector :- [wat.type/String] "k2" "missing" "k1"))))
      ;; BATCH-OF-ONE put — the degenerate case, still meaningful: overflows capacity 2; k2 is LRU.
      ;; `PutResponse` carries nothing back (file-header departure note) — eviction is provable only
      ;; via a later `get` miss, which is exactly the next probe.
-     put-k3 (:wat-tests::cache-svc/put-label
+     put-k3 (:wat-tests::cache-svc::put-label
               (:wat::cache::lru-svc/put a
                 (:wat::cache::Cache::PutRequest
                   :entries (wat.type/Vector :- [(:wat::cache::Entry :- [wat.type/String wat.type/i64])]
                              (:wat::cache::Entry :key "k3" :value 300)))))
      ;; BATCH-OF-ONE get + EVICTION IS OBSERVABLE THROUGH THE ACTOR — k2 was evicted by the put
      ;; above; a batch-of-one get names it a Miss, not an error.
-     get-k2-miss (:wat-tests::cache-svc/get-label
+     get-k2-miss (:wat-tests::cache-svc::get-label
                    (:wat::cache::lru-svc/get b
                      (:wat::cache::Cache::GetRequest
                        :probes (wat.type/Vector :- [wat.type/String] "k2"))))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
-     get-empty (:wat-tests::cache-svc/get-label
+     get-empty (:wat-tests::cache-svc::get-label
                  (:wat::cache::lru-svc/get b
                    (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [wat.type/String]))))
      _ (:wat::cache::lru-svc/stop h)]
@@ -171,7 +171,7 @@
 (:wat::test::deftest :wat-tests::service::cache-lru-multi-client-on-thread
 
   (:wat::test::assert-eq
-    (:wat-tests::cache-svc/run (:wat::spawn::thread))
+    (:wat-tests::cache-svc::run (:wat::spawn::thread))
     "Ok | [Hit:200,Miss,Hit:100] | Ok | [Miss] | []"))
 
 ;; ── process tier ───────────────────────────────────────────────────────────────────────────
@@ -181,5 +181,5 @@
 (:wat::test::deftest :wat-tests::service::cache-lru-multi-client-on-process
 
   (:wat::test::assert-eq
-    (:wat-tests::cache-svc/run (:wat::spawn::process))
+    (:wat-tests::cache-svc::run (:wat::spawn::process))
     "Ok | [Hit:200,Miss,Hit:100] | Ok | [Miss] | []"))

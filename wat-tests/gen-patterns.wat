@@ -174,8 +174,8 @@
                      c <- :wat-tests::pat::Cmd]
                     -> (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::match c
-        [:wat-tests::pat::Cmd.Put {:k k :v v} (:wat::map::assoc m k v)]
-        [:wat-tests::pat::Cmd.Del {:k k}   (:wat::map::dissoc m k)]))
+        [:wat-tests::pat::Cmd.Put {:k k :v v} (:wat::core::assoc m k v)]
+        [:wat-tests::pat::Cmd.Del {:k k}   (:wat::core::dissoc m k)]))
     (wat.type/PersistentMap :- [wat.type/i64 wat.type/i64])
     cmds))
 
@@ -197,7 +197,7 @@
 (:wat::core::defn :wat-tests::pat::agrees-at
   [cmds <- (wat.type/PersistentVector :- [:wat-tests::pat::Cmd])  k <- wat.type/i64]
   -> wat.type/bool
-  (:wat::core::let [real  (:wat::map::get (:wat-tests::pat::run-real cmds) k)
+  (:wat::core::let [real  (:wat::core::get (:wat-tests::pat::run-real cmds) k)
                     model (:wat-tests::pat::model-get cmds k)]
     (:wat::core::match model
       [:wat::core::Option.Some {:value mv}
@@ -242,18 +242,18 @@
     [a  (:wat::gen::nth c 0)
      b  (:wat::gen::nth c 1)
      s0 (wat.type/HashSet :- [wat.type/i64])
-     ab (:wat::hashset::conj (:wat::hashset::conj s0 a) b)
-     ba (:wat::hashset::conj (:wat::hashset::conj s0 b) a)
+     ab (:wat::core::conj (:wat::core::conj s0 a) b)
+     ba (:wat::core::conj (:wat::core::conj s0 b) a)
      ;; idempotence: adding `a` twice adds nothing the second time
-     aa (:wat::hashset::conj (:wat::hashset::conj s0 a) a)]
+     aa (:wat::core::conj (:wat::core::conj s0 a) a)]
     (:wat::core::and
-      (:wat::core::= (:wat::hashset::length aa) 1)
+      (:wat::core::= (:wat::core::length aa) 1)
       (:wat::core::and
-        (:wat::core::= (:wat::hashset::length ab) (:wat::hashset::length ba))
-        (:wat::core::and (:wat::hashset::contains? ab a)
-          (:wat::core::and (:wat::hashset::contains? ab b)
-            (:wat::core::and (:wat::hashset::contains? ba a)
-                             (:wat::hashset::contains? ba b))))))))
+        (:wat::core::= (:wat::core::length ab) (:wat::core::length ba))
+        (:wat::core::and (:wat::core::contains? ab a)
+          (:wat::core::and (:wat::core::contains? ab b)
+            (:wat::core::and (:wat::core::contains? ba a)
+                             (:wat::core::contains? ba b))))))))
 
 (:wat::test::deftest :wat-tests::pat::p4-algebraic
   (:wat-tests::pat::held
@@ -292,7 +292,7 @@
              (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64
                (:wat::i64::* i 10))
              (:wat::core::range 0 len)))]
-    (:wat::core::match (:wat::vector::get v idx)
+    (:wat::core::match (:wat::core::get v idx)
       [:wat::core::Option.Some {:value got} (:wat::core::= got (:wat::i64::* idx 10))]
       [:wat::core::Option.None {}       false])))
 

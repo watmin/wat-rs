@@ -85,7 +85,7 @@
 
 (:wat::core::defn :user::hashmap-value [] -> wat.type/bool
   (:wat::core::=
-    (:wat::hashmap::get (wat.type/HashMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
+    (:wat::core::get (wat.type/HashMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
     (:wat::core::Option.Some {:value 1})))
 
 (:wat::core::defn :user::hashset-value [] -> wat.type/bool
@@ -102,7 +102,7 @@
 
 (:wat::core::defn :user::persistentmap-value [] -> wat.type/bool
   (:wat::core::=
-    (:wat::map::get (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
+    (:wat::core::get (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1) :a)
     (:wat::core::Option.Some {:value 1})))
 
 (:wat::core::defn :user::record-value [] -> wat.type/bool

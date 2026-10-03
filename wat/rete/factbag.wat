@@ -44,13 +44,13 @@
    f <- wat.type/Record]
   -> :wat::rete::FactBag
   (:wat::rete::FactBag :items
-    (:wat::vector::conj (:wat::rete::factbag::items b) f)))
+    (:wat::core::conj (:wat::rete::factbag::items b) f)))
 
 (:wat::core::defn :wat::rete::factbag::add-if-absent
   [b <- :wat::rete::FactBag
    f <- wat.type/Record]
   -> :wat::rete::FactBag
-  (:wat::core::if (:wat::vector::contains? (:wat::rete::factbag::items b) f)
+  (:wat::core::if (:wat::core::contains? (:wat::rete::factbag::items b) f)
     b
     (:wat::rete::factbag::add b f)))
 
@@ -74,7 +74,7 @@
                              (:wat::core::if (:wat::core::or (:wat::rete::FactBagDrop/dropped acc)
                                                             (:wat::core::not (:wat::core::= f fact)))
                                (:wat::rete::FactBagDrop
-                                 :items (:wat::vector::conj (:wat::rete::FactBagDrop/items acc) f)
+                                 :items (:wat::core::conj (:wat::rete::FactBagDrop/items acc) f)
                                  :dropped (:wat::rete::FactBagDrop/dropped acc))
                                (:wat::rete::FactBagDrop
                                  :items (:wat::rete::FactBagDrop/items acc)
@@ -95,7 +95,7 @@
                        f   <- wat.type/Record]
         -> (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::if (pred f)
-          (:wat::vector::conj acc f)
+          (:wat::core::conj acc f)
           acc))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::rete::factbag::items b))))

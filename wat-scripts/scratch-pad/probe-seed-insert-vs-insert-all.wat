@@ -48,7 +48,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::vector::conj acc (:seedp::Left :key i :lid i)))
+        (:wat::core::conj acc (:seedp::Left :key i :lid i)))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 n))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
@@ -72,5 +72,5 @@
         :batch-ns       (:seedp::ns-between b0 b1)
         ;; both paths must stage the SAME number of facts — a faster path that stages fewer
         ;; is not faster, it is wrong. This is the non-vacuity guard on the comparison.
-        :per-fact-facts (:wat::vector::length (:wat::rete::factbag::items (:wat::rete::Session/facts sa)))
-        :batch-facts    (:wat::vector::length (:wat::rete::factbag::items (:wat::rete::Session/facts sb)))))))
+        :per-fact-facts (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sa)))
+        :batch-facts    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sb)))))))

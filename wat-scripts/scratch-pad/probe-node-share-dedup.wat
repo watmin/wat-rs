@@ -67,7 +67,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:nsp::build-rule i n)))
+      (:wat::core::conj acc (:nsp::build-rule i n)))
     (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
@@ -77,19 +77,19 @@
 (:wat::core::defn :nsp::count-kinds
   [session <- :wat::rete::Session] -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
   (:wat::core::let [network (:wat::rete::Session/network session)
-                    keys    (:wat::map::keys network)]
+                    keys    (:wat::core::keys network)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
                        k   <- wat.type/i64]
         -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
         (:wat::core::let [node (:wat::core::Option/expect
-                                 (:wat::map::get network k)
+                                 (:wat::core::get network k)
                                  "count-kinds: node not found")
                           kind (:wat::rete::node-kind-label node)
-                          cur  (:wat::core::match (:wat::hashmap::get acc kind)
+                          cur  (:wat::core::match (:wat::core::get acc kind)
                                  [:wat::core::Option.Some {:value v} v]
                                  [:wat::core::Option.None {} 0])]
-          (:wat::hashmap::assoc acc kind (:wat::i64::+ cur 1))))
+          (:wat::core::assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (wat.type/HashMap :- [wat.type/String wat.type/i64])
       keys)))
@@ -107,7 +107,7 @@
                     session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
                     kinds   (:nsp::count-kinds session)
                     network (:wat::rete::Session/network session)
-                    total   (:wat::core::length (:wat::map::keys network))]
+                    total   (:wat::core::length (:wat::core::keys network))]
     (:wat::kernel::println
       (:probe::NodeCounts :n n :total total
         :next-id (:wat::rete::Session/next-id session)

@@ -29,7 +29,7 @@
     ""))
 
 (:wat::core::defn :user::line-of [node <- wat.type/AST] -> wat.type/i64
-  (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span node) :line) "line"))
+  (:wat::core::Option/expect (:wat::core::get (:wat::core::ast-span node) :line) "line"))
 
 (:wat::core::defn :user::report-binder [path <- wat.type/String kind <- wat.type/String node <- wat.type/AST name <- wat.type/String] -> wat.type/nil
   (:wat::kernel::println

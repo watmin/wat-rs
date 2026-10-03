@@ -76,7 +76,7 @@
   [acc <- (wat.type/Vector :- [wat.type/String])
    s   <- wat.type/String]
   -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::vec::contains? acc s) acc (:wat::core::conj acc s)))
+  (:wat::core::if (:wat::core::contains? acc s) acc (:wat::core::conj acc s)))
 
 (:wat::core::defn :user::collect-keywords
   [acc  <- (wat.type/Vector :- [wat.type/String])

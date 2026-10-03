@@ -195,7 +195,7 @@
                           tags     (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
                                      (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 tags-len)))
                           lim      (:wat::i64::* (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7)) 20)]
-          (:wat::vector::conj acc
+          (:wat::core::conj acc
             (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags :limit lim))))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -206,7 +206,7 @@
   (:wat::core::sort
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
         (:wat::rete::query fired (:wsh::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer, because the two
@@ -249,7 +249,7 @@
                     staged  (:wsh::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wsh::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wsh::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     derived (:wsh::derived-ints fired)
-                    n       (:wat::vec::length derived)]
+                    n       (:wat::core::length derived)]
     (:wat::string::concat
       (:wat::string::concat
         (:wat::string::concat "row " (:wat::i64::to-string row))

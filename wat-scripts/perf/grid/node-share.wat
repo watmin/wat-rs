@@ -99,7 +99,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:nsh::build-rule i n)))
+      (:wat::core::conj acc (:nsh::build-rule i n)))
     (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
@@ -113,7 +113,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::vector::conj (:wat::vector::conj acc (:nsh::A i)) (:nsh::B i)))
+        (:wat::core::conj (:wat::core::conj acc (:nsh::A i)) (:nsh::B i)))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
@@ -131,7 +131,7 @@
     (:wat::core::sort
       (:wat::core::into (wat.type/Vector :- [wat.type/i64])
         (:wat::core::map
-          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
           (:wat::rete::query fired (:nsh::q-Out)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).

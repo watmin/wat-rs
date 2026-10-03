@@ -141,7 +141,7 @@ pub(crate) fn eval_record_field_at(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Record/field-at";
+    const OP: &str = ":wat::record::field-at";
     if args.len() != 2 {
         return Err(RuntimeError::new(
             list_span.clone(),

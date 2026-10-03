@@ -45,7 +45,7 @@ use crate::value::{
     Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 
-/// `(:wat::core::Record/field-at record index) -> :T` — arc 234 Stone 234.2a.
+/// `(:wat::record::field-at record index) -> :T` — arc 234 Stone 234.2a.
 ///
 /// Positional accessor for a Record/HolonRecord Aggregate: returns `fields[index]`. Consumed by
 /// the Stone 234.2b `defrecord` macro's per-field accessor codegen. Homed here arc 255 Stone
@@ -80,9 +80,9 @@ use crate::value::{
 /// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate (not Struct)
 /// @arg     index :wat::type::i64 the zero-based positional field index; raises a TypeMismatch if negative or out of bounds
 /// @ret     :T the field value at `fields[index]`
-/// @example (:wat::core::do (:wat::core::defrecord :probe::FieldAtExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:probe::FieldAtExample :sk 7) 0)) #=> 7
+/// @example (:wat::core::do (:wat::core::defrecord :probe::FieldAtExample [sk <- :wat::core::i64]) (:wat::record::field-at (:probe::FieldAtExample :sk 7) 0)) #=> 7
 /// @see     :wat::core::Option/expect
-#[wat_intrinsic(":wat::core::Record/field-at")]
+#[wat_intrinsic(":wat::record::field-at")]
 pub(crate) fn eval_record_field_at(
     record: &WatAST,
     index: &WatAST,
@@ -132,8 +132,8 @@ pub(crate) fn eval_record_field_at(
 /// @arg     x :T the value being projected; its concrete type must implement every field accessor the surface declares
 /// @arg     surface :wat::type::keyword a literal surface keyword (e.g. :my::Surface), NOT evaluated; must name a registered `SurfaceDef`
 /// @ret     :T the freshly-built `$core-record`-tier Record Aggregate carrying the surface's fields
-/// @example (:wat::core::Record/field-at (:wat::core::to-record (:wat::core::Fault/of "boom") :wat::core::Error) 0) #=> "boom"
-/// @see     :wat::core::Record/field-at
+/// @example (:wat::record::field-at (:wat::core::to-record (:wat::core::Fault/of "boom") :wat::core::Error) 0) #=> "boom"
+/// @see     :wat::record::field-at
 #[wat_intrinsic(":wat::core::to-record")]
 pub(crate) fn eval_to_core_record(
     x: &WatAST,
@@ -178,8 +178,8 @@ pub(crate) fn eval_to_core_record(
 /// @Category      Transform
 /// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
 /// @ret     (:wat::type::HashMap :- [:wat::type::keyword T]) field-name keyword → field value, one entry per declared field
-/// @example (:wat::core::do (:wat::core::defrecord :probe::ToMapExample [sk <- :wat::core::i64]) (:wat::hashmap::get (:wat::core::record->map (:probe::ToMapExample :sk 3)) :sk)) #=> (:wat::core::Option::Some {:value 3})
-/// @see     :wat::core::Record/same-data?
+/// @example (:wat::core::do (:wat::core::defrecord :probe::ToMapExample [sk <- :wat::core::i64]) (:wat::core::get (:wat::core::record->map (:probe::ToMapExample :sk 3)) :sk)) #=> (:wat::core::Option::Some {:value 3})
+/// @see     :wat::record::same-data?
 #[wat_intrinsic(":wat::core::record->map")]
 pub(crate) fn eval_record_to_map(
     record: &WatAST,
@@ -190,60 +190,7 @@ pub(crate) fn eval_record_to_map(
     crate::record::update::eval_record_to_map(std::slice::from_ref(record), list_span, env, sym)
 }
 
-/// `(:wat::core::Record/assoc record key new-value) -> :wat::core::Record` — arc 234 Stone
-/// 234.3b.
-///
-/// Write verb in the polymorphic record-y family: returns a NEW `Value::Aggregate` (same nature)
-/// with the field named by `key` replaced by `new-value`. The original record is unchanged
-/// (immutable, Arc-functional). For a `HolonRecord`, the hologram is rebuilt in lockstep with the
-/// positional fields (PARITY invariant).
-///
-/// **Purity ground:** all three args are evaluated by ordinary call-by-value. Past that, the body
-/// (`record_assoc_inner`) classifies the already-evaluated receiver, resolves the field index via
-/// the TypeEnv, and rebuilds a same-kind `Aggregate`/hologram — no `eval_inner`/`apply_function`
-/// on caller-supplied code anywhere. Pure ∧ Deterministic.
-///
-/// **Totality ground — measured `Partial`, `Record/assoc` is `assoc`'s sibling and shares exactly
-/// that shape (read the inner helper, not copied from `assoc`'s prose).** `record_assoc_inner`'s
-/// domain-level gate is `Value::Aggregate(a) if a.nature != Nature::Struct`, but WITHIN that
-/// domain it raises on two VALUE-level holes the gate does not see: `key` naming no field on the
-/// record's registered class → `RuntimeErrorKind::UnknownField` (`:18319`, the
-/// `record_def.field_names().position(...)` miss), and `new_val`'s type variant differing from
-/// the old field's → `RuntimeErrorKind::TypeMismatch` (`:18337`, `old_type != new_type`). `Partial`.
-///
-/// **Expand-time ground —** reads the type registry (already required for evaluation), no
-/// effect. Legal.
-///
-/// @added         1.0.0
-/// @Purity        Pure
-/// @Determinism   Deterministic
-/// @Totality         Partial
-/// @ExpandTime    Legal
-/// @Category      Transform
-/// @arg     record :wat::type::Record the receiver — a Record/HolonRecord Aggregate
-/// @arg     key :wat::type::keyword the field name written; raises UnknownField if the record has no such field
-/// @arg     new_value :T the value written at `key`; raises a TypeMismatch if its type variant differs from the original field's
-/// @ret     :wat::type::Record a NEW record, same class/nature, with `key` bound to `new_value`; the original is unchanged
-/// @example (:wat::core::do (:wat::core::defrecord :probe::AssocExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::Record/assoc (:probe::AssocExample :sk 1) :sk 9) 0)) #=> 9
-/// @see     :wat::core::assoc
-#[wat_intrinsic(":wat::core::Record/assoc")]
-pub(crate) fn eval_record_assoc(
-    record: &WatAST,
-    key: &WatAST,
-    new_value: &WatAST,
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    crate::record::update::eval_record_assoc(
-        &[record.clone(), key.clone(), new_value.clone()],
-        list_span,
-        env,
-        sym,
-    )
-}
-
-/// `(:wat::core::Record/same-data? a b) -> :wat::core::bool` — arc 237 Stone S-C.2d.
+/// `(:wat::record::same-data? a b) -> :wat::core::bool` — arc 237 Stone S-C.2d.
 ///
 /// Type-BLIND record data equality: compares the field-name→value maps of two records (via the
 /// same `record_field_map` helper `record->map` delegates to), ignoring class (type) AND flavor
@@ -272,9 +219,9 @@ pub(crate) fn eval_record_assoc(
 /// @arg     a :wat::type::Record the first record — a Record/HolonRecord Aggregate whose class is registered in the TypeEnv
 /// @arg     b :wat::type::Record the second record — same requirement
 /// @ret     :wat::type::bool true iff `a` and `b`'s field-name→value maps are equal, regardless of class or flavor
-/// @example (:wat::core::do (:wat::core::defrecord :probe::PtEx [sk <- :wat::core::i64]) (:wat::core::defrecord :probe::CoordEx [sk <- :wat::core::i64]) (:wat::core::Record/same-data? (:probe::PtEx :sk 0) (:probe::CoordEx :sk 0))) #=> true
+/// @example (:wat::core::do (:wat::core::defrecord :probe::PtEx [sk <- :wat::core::i64]) (:wat::core::defrecord :probe::CoordEx [sk <- :wat::core::i64]) (:wat::record::same-data? (:probe::PtEx :sk 0) (:probe::CoordEx :sk 0))) #=> true
 /// @see     :wat::core::record->map
-#[wat_intrinsic(":wat::core::Record/same-data?")]
+#[wat_intrinsic(":wat::record::same-data?")]
 pub(crate) fn eval_record_same_data(
     a: &WatAST,
     b: &WatAST,
@@ -319,7 +266,7 @@ pub(crate) fn eval_record_same_data(
 /// @arg     index :wat::type::i64 the zero-based positional field index; raises a TypeMismatch on a non-Aggregate receiver, or a MalformedForm if the index is out of range
 /// @ret     :T the field value at `fields[index]`
 /// @example (:wat::core::do (:wat::core::defstruct :probe::StructFieldExample [sk <- :wat::core::i64]) (:wat::core::struct-field (:probe::StructFieldExample :sk 5) 0)) #=> 5
-/// @see     :wat::core::Record/field-at
+/// @see     :wat::record::field-at
 #[wat_intrinsic(":wat::core::struct-field")]
 pub(crate) fn eval_struct_field(
     record: &WatAST,
@@ -512,7 +459,7 @@ pub(crate) fn eval_variant_name(
 /// @Category      Transform
 /// @arg     xs… :wat::type::Value arg0 is a literal keyword naming a registered aggregate type; the rest are the field values, evaluated in declaration order
 /// @ret     :T the newly constructed aggregate
-/// @example (:wat::core::do (:wat::core::defrecord :probe::AggNewExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::aggregate-new :probe::AggNewExample 7) 0)) #=> 7
+/// @example (:wat::core::do (:wat::core::defrecord :probe::AggNewExample [sk <- :wat::core::i64]) (:wat::record::field-at (:wat::core::aggregate-new :probe::AggNewExample 7) 0)) #=> 7
 /// @see     :wat::core::kwargs-construct
 /// @see     :wat::core::struct-new
 #[wat_intrinsic(":wat::core::aggregate-new")]
@@ -560,7 +507,7 @@ pub(crate) fn eval_aggregate_new_home(
 /// @Category      Transform
 /// @arg     xs… :wat::type::Value arg0 is a literal keyword naming a registered aggregate type; the rest are either kwargs (`:field value …`) or positional field values
 /// @ret     :T the newly constructed aggregate
-/// @example (:wat::core::do (:wat::core::defrecord :probe::KwargsConstructExample [sk <- :wat::core::i64]) (:wat::core::Record/field-at (:wat::core::kwargs-construct :probe::KwargsConstructExample :sk 9) 0)) #=> 9
+/// @example (:wat::core::do (:wat::core::defrecord :probe::KwargsConstructExample [sk <- :wat::core::i64]) (:wat::record::field-at (:wat::core::kwargs-construct :probe::KwargsConstructExample :sk 9) 0)) #=> 9
 /// @see     :wat::core::aggregate-new
 #[wat_intrinsic(":wat::core::kwargs-construct")]
 pub(crate) fn eval_kwargs_construct_home(

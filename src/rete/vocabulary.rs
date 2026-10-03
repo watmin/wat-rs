@@ -101,11 +101,11 @@
 //! three onto `:wat::rete::core::first`, caught immediately by
 //! `rete_name_is_core_name_with_rete_inserted_after_wat` going red (three rows, one name — the
 //! exact class the equality trio already needed an exception for). Same fix, same reasoning:
-//! these three also keep their per-container qualifier. `NAMING_RULE_EXCEPTIONS` totals
-//! **nineteen** rows today (six original, plus this three-row `first` trio, plus the later enum
-//! quartet and `Tuple` accessors named beside the list below, plus arc 255.81's 5-row container-
-//! constructor carve-out — see that list's own trailing comment) — enforced by
-//! `naming_rule_exceptions_are_exactly_the_documented_nineteen`, not restated as a number here.
+//! these three also keep their per-container qualifier. `NAMING_RULE_EXCEPTIONS` is the
+//! allowlist (six original, plus this three-row `first` trio, plus the later enum quartet
+//! and `Tuple` accessors, plus arc 255.81's 5-row container-constructor carve-out, plus
+//! 255.86's six per-type collection rows that call one polymorphic core verb). The count
+//! is enforced by `naming_rule_exceptions_are_exactly_the_documented_set`.
 //! "One core verb serving several rete rows" is not a one-off, it recurs whenever a core op is
 //! polymorphic across something the rete surface wants to monomorphise per-leaf (per-type for
 //! equality, per-container for `first`).
@@ -785,7 +785,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::vector::length",
-        core_name: ":wat::vector::length",
+        core_name: ":wat::core::length",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T")],
         ret: Ret::Is(ParamType::I64),
@@ -874,7 +874,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::vector::contains?",
-        core_name: ":wat::vector::contains?",
+        core_name: ":wat::core::contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
         ret: Ret::Is(ParamType::Bool),
@@ -910,7 +910,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["K", "V"],
         rete_name: ":wat::rete::map::contains-key?",
-        core_name: ":wat::map::contains-key?",
+        core_name: ":wat::core::contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentMapOf("K", "V"), ParamType::Var("K")],
         ret: Ret::Is(ParamType::Bool),
@@ -939,7 +939,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::vector::get",
-        core_name: ":wat::vector::get",
+        core_name: ":wat::core::get",
         class: OpClass::Fallback,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: Ret::Is(ParamType::Var("T")),
@@ -950,7 +950,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::vec::get",
-        core_name: ":wat::vec::get",
+        core_name: ":wat::core::get",
         class: OpClass::Fallback,
         params: &[ParamType::VectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: Ret::Is(ParamType::Var("T")),
@@ -964,7 +964,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     ReteOp {
         type_params: &["T"],
         rete_name: ":wat::rete::linkedlist::get",
-        core_name: ":wat::linkedlist::get",
+        core_name: ":wat::core::get",
         class: OpClass::Fallback,
         params: &[ParamType::ListOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: Ret::Is(ParamType::Var("T")),
@@ -1860,6 +1860,16 @@ mod naming_rule_tests {
         ":wat::rete::core::List",
         ":wat::rete::core::PersistentMap",
         ":wat::rete::core::Tuple",
+        // 255.86 — six per-type collection rows now call the one polymorphic core verb.
+        // The rete head stays per-container (a where-clause's rank-1 scheme). The literal
+        // insert rule would rename each head to `:wat::rete::core::<verb>`, and the three
+        // `get` rows would collide on that one name. Same exception `first` already uses.
+        ":wat::rete::vector::length",
+        ":wat::rete::vector::contains?",
+        ":wat::rete::map::contains-key?",
+        ":wat::rete::vector::get",
+        ":wat::rete::vec::get",
+        ":wat::rete::linkedlist::get",
     ];
 
     /// ★★ Every row satisfies [`rete_vocabulary_admitted`] over its OWN `rete_name` — the
@@ -1914,8 +1924,8 @@ mod naming_rule_tests {
     /// The exception NAMES are frozen (this list) AND counted. A silent
     /// `+1 new, −1 fixed` fails the equality on the slice, not only the length.
     #[test]
-    fn naming_rule_exceptions_are_exactly_the_documented_nineteen() {
-        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 19);
+    fn naming_rule_exceptions_are_exactly_the_documented_set() {
+        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 25);
         let mut frozen: Vec<&str> = NAMING_RULE_EXCEPTIONS.to_vec();
         frozen.sort_unstable();
         let mut live: Vec<&str> = NAMING_RULE_EXCEPTIONS

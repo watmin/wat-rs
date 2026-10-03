@@ -85,7 +85,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::vector::conj acc (:ufh::Src :k k)))
+      (:wat::core::conj acc (:ufh::Src :k k)))
     (:ufh::empty-records)
     (:wat::core::range 0 items)))
 
@@ -116,13 +116,13 @@
     [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:ufh::enc 0 (:ufh::Rate/count f))))
             (:wat::rete::query fired (:ufh::q-Rate))))
      c1 (:wat::core::into c0
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:ufh::enc 1 (:ufh::Out/n f))))
             (:wat::rete::query fired (:ufh::q-Out))))]
     (:ufh::vec->pvec (:wat::core::sort c1))))

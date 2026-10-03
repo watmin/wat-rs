@@ -227,7 +227,7 @@
                     tstr (:wat::core::if (:wat::core::= (:wat::string::subs traw 0 1) ":")
                            (:wat::string::subs traw 1 (:wat::string::length traw))
                            traw)]
-                   (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
+                   (:wat::core::if (:wat::core::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                acc
                then-forms)))
          (wat.type/Vector :- [wat.type/String])
@@ -257,7 +257,7 @@
                     cstr (:wat::core::if (:wat::core::= (:wat::string::subs craw 0 1) ":")
                            (:wat::string::subs craw 1 (:wat::string::length craw))
                            craw)]
-                   (:wat::core::if (:wat::vec::contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
+                   (:wat::core::if (:wat::core::contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
                acc
                conds)))
          (wat.type/Vector :- [wat.type/String])
@@ -270,7 +270,7 @@
        (:wat::core::foldl
          (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) tstr <- wat.type/String]
            -> (wat.type/Vector :- [wat.type/String])
-           (:wat::core::if (:wat::vec::contains? fired-upon-type-strs tstr)
+           (:wat::core::if (:wat::core::contains? fired-upon-type-strs tstr)
              acc
              (:wat::core::conj acc tstr)))
          (wat.type/Vector :- [wat.type/String])
@@ -306,7 +306,7 @@
                 (:wat::core::map
                   (:wat::core::fn [~pmap-sym <- wat.type/PersistentMap] -> wat.type/Value
                     (:wat::core::Option/expect
-                      (:wat::map::get ~pmap-sym "?fact")
+                      (:wat::core::get ~pmap-sym "?fact")
                       "sift-rules: ?fact"))
                   ;; `query` is a macro. This AST is spliced from an outer macro and is
                   ;; not re-expanded; emit the expansion (`query-read` + empty params).
@@ -453,7 +453,7 @@
                               (:wat::core::match
                                 (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
                                 [:wat::edn::ReadForeignOutcome.Value {:value ~payload-sym}
-                                  (:wat::vec::contains?
+                                  (:wat::core::contains?
                                     (wat.type/Vector :- [wat.type/String] ~@def-type-strs)
                                     (:wat::core::type ~payload-sym))]
                                 [:wat::edn::ReadForeignOutcome.Malformed {:cause ~cause-sym}

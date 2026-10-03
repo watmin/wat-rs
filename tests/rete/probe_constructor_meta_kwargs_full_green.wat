@@ -28,10 +28,10 @@
      r       (:wat::core::first derived)]
     (:wat::i64::+
       (:wat::core::Option/expect
-        (:wat::map::get r "?count")
+        (:wat::core::get r "?count")
         "q-Rate: ?count")
       (:wat::core::Option/expect
-        (:wat::map::get r "?window")
+        (:wat::core::get r "?window")
         "q-Rate: ?window"))))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
@@ -45,8 +45,8 @@
      r       (:wat::core::first derived)]
     (:wat::i64::+
       (:wat::core::Option/expect
-        (:wat::map::get r "?count")
+        (:wat::core::get r "?count")
         "q-Rate: ?count")
       (:wat::core::Option/expect
-        (:wat::map::get r "?window")
+        (:wat::core::get r "?window")
         "q-Rate: ?window"))))

@@ -7,5 +7,5 @@
 ;; HashMap arm — regression contract (works today via alias; works post via intrinsic)
 (:wat::core::defn :user::assoc-hashmap [] -> wat.type/i64
   (:wat::core::length
-    (:wat::hashmap::keys
+    (:wat::core::keys
       (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "k" 1))))

@@ -46,7 +46,7 @@
 
 (:wat::core::defn :d7w::count
   [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::core::into (wat.type/Vector :- [wat.type/PersistentMap])
       (:wat::rete::query s q))))
 

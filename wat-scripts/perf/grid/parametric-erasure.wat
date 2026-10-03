@@ -138,25 +138,25 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::vector::conj
-          (:wat::vector::conj acc (:pe::box-for i))
+        (:wat::core::conj
+          (:wat::core::conj acc (:pe::box-for i))
           (:pe::as-record (:pe::Plain :k i))))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 (:wat::core::defn :pe::hit-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 0 (:pe::Hit/k f))))
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 0 (:pe::Hit/k f))))
       (:wat::rete::query fired (:pe::q-hit)))))
 
 (:wat::core::defn :pe::plain-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 1 (:pe::PlainHit/k f))))
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 1 (:pe::PlainHit/k f))))
       (:wat::rete::query fired (:pe::q-plain)))))
 
 (:wat::core::defn :pe::pair-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pe::encode 2 (:pe::Pair/k f))))
+    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 2 (:pe::Pair/k f))))
       (:wat::rete::query fired (:pe::q-pair)))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]).

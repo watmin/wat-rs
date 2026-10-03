@@ -85,7 +85,7 @@
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
         (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:d7g::Hit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
+          (:d7g::Hit/k (:wat::core::Option/expect (:wat::core::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-hit))))))
 
 (:wat::core::defn :d7g::plain-keys [s <- :wat::rete::Session] -> wat.type/String
@@ -93,7 +93,7 @@
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
         (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:d7g::PlainHit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
+          (:d7g::PlainHit/k (:wat::core::Option/expect (:wat::core::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-plain))))))
 
 (:wat::core::defn :d7g::pair-keys [s <- :wat::rete::Session] -> wat.type/String
@@ -101,7 +101,7 @@
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
         (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:d7g::Pair/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
+          (:d7g::Pair/k (:wat::core::Option/expect (:wat::core::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7g::q-pair))))))
 
 ;; ── the driver ───────────────────────────────────────────────────────────────

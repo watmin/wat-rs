@@ -324,17 +324,17 @@
      ;; known-clauses: durable, ephemeral, ops (REQUIRED), init, hibernate, stop, durable-parent.
      ;; Arc 293 S2: :satisfies (name a surface — reference its S1-synthesized protocol) and
      ;; :impls (bodies-only op implementations, in place of :ops) join the recognized clauses.
-     known-clauses  (:wat::hashmap::assoc
-                      (:wat::hashmap::assoc
-                       (:wat::hashmap::assoc
-                        (:wat::hashmap::assoc
-                          (:wat::hashmap::assoc
-                            (:wat::hashmap::assoc
-                              (:wat::hashmap::assoc
-                                (:wat::hashmap::assoc
-                                  (:wat::hashmap::assoc
-                                    (:wat::hashmap::assoc
-                                      (:wat::hashmap::assoc
+     known-clauses  (:wat::core::assoc
+                      (:wat::core::assoc
+                       (:wat::core::assoc
+                        (:wat::core::assoc
+                          (:wat::core::assoc
+                            (:wat::core::assoc
+                              (:wat::core::assoc
+                                (:wat::core::assoc
+                                  (:wat::core::assoc
+                                    (:wat::core::assoc
+                                      (:wat::core::assoc
                                         (wat.type/HashMap :- [wat.type/String wat.type/bool])
                                         "durable" true)
                                       "ephemeral" true)
@@ -379,9 +379,9 @@
                            key (:wat::keyword::to-string
                                  (:wat::core::Option/expect
                                    (:wat::core::get clauses-body k) "defservice: malformed clause key"))]
-                          (:wat::core::if (:wat::hashmap::contains-key? known-clauses key)
+                          (:wat::core::if (:wat::core::contains? known-clauses key)
 
-                            (:wat::hashmap::assoc m key
+                            (:wat::core::assoc m key
                               (:wat::core::Option/expect
                                 (:wat::core::get clauses-body (:wat::i64::+ k 1))
                                 "defservice: clause missing a value"))
@@ -394,9 +394,9 @@
      ;; ── Arc 293 S2: :ops vs :satisfies mode ────────────────────────────────────
      ;; A service EITHER mints its own protocol (:ops) OR wears a surface's (:satisfies +
      ;; :impls). Exactly one of {:ops, :satisfies}; :impls iff :satisfies; :ops iff not.
-     satisfies?     (:wat::hashmap::contains-key? clause-map "satisfies")
-     has-ops?       (:wat::hashmap::contains-key? clause-map "ops")
-     has-impls?     (:wat::hashmap::contains-key? clause-map "impls")
+     satisfies?     (:wat::core::contains? clause-map "satisfies")
+     has-ops?       (:wat::core::contains? clause-map "ops")
+     has-impls?     (:wat::core::contains? clause-map "impls")
      ;; ── Arc 278 S4c: :satisfies + :impls MANDATORY; :ops RETIRED (illegal) ─────────
      ;; Every service declares a surface and wears it (the AWS service model). :ops
      ;; (mint-your-own-protocol) is annihilated — a heretic screams and migrates.
@@ -416,17 +416,17 @@
      ops            (:wat::core::if satisfies?
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "impls")
+                        (:wat::core::get clause-map "impls")
                         "defservice: :impls clause missing value")
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "ops")
+                        (:wat::core::get clause-map "ops")
                         "defservice: :ops clause missing value"))
      ;; The protocol namespace: the surface's when :satisfies (its S1 ::Op/::Reply +
      ;; user-declared request/response records), else the service's own fqdn.
      surface-node   (:wat::core::if satisfies?
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "satisfies")
+                        (:wat::core::get clause-map "satisfies")
                         "defservice: :satisfies needs a surface")
                       fqdn)
      ;; BRIEF-STONE-defservice-compares-types-as-data.md — `surface-node` may be a Keyword
@@ -504,18 +504,18 @@
      ;; The empty vector node is built by using with-children on a fresh Vector.
      ;; We need a Vector WatAST node; use the ops node as a shape carrier with empty children.
      empty-vec      (:wat::core::with-children ops (wat.type/Vector :- [wat.type/AST]))
-     durable-fields (:wat::core::if (:wat::hashmap::contains-key? clause-map "durable")
+     durable-fields (:wat::core::if (:wat::core::contains? clause-map "durable")
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "durable")
+                        (:wat::core::get clause-map "durable")
                         "defservice: :durable needs a value")
                       empty-vec)
 
      ;; :ephemeral [fields] — optional, default empty vector node []
-     ephemeral-fields (:wat::core::if (:wat::hashmap::contains-key? clause-map "ephemeral")
+     ephemeral-fields (:wat::core::if (:wat::core::contains? clause-map "ephemeral")
                         
                         (:wat::core::Option/expect
-                          (:wat::hashmap::get clause-map "ephemeral")
+                          (:wat::core::get clause-map "ephemeral")
                           "defservice: :ephemeral needs a value")
                         empty-vec)
      ;; ── THE SHAPE WALL: :durable / :ephemeral take a FIELD VECTOR ────────────────
@@ -544,10 +544,10 @@
      ;; this macro is); the default must be minted as one too — `type-equal?` (below)
      ;; requires a node on both sides. A string of the retired `:wat::core::Record` key
      ;; is the old name itself, and `type-equal?` refuses it.
-     state-parent   (:wat::core::if (:wat::hashmap::contains-key? clause-map "durable-parent")
+     state-parent   (:wat::core::if (:wat::core::contains? clause-map "durable-parent")
 
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "durable-parent")
+                        (:wat::core::get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
                       'wat.type/Record)
 
@@ -557,10 +557,10 @@
      ;; call as the 4th arg, so the accepted-connection receivers read client requests at
      ;; this budget. A frame over it → RecvError::FrameTooLarge → ServiceEvent::Lost (a
      ;; reasoned close), never a mute clean-hangup. Thread tier has no byte frames → no-op.
-     max-frame-bytes-node (:wat::core::if (:wat::hashmap::contains-key? clause-map "max-frame-bytes")
+     max-frame-bytes-node (:wat::core::if (:wat::core::contains? clause-map "max-frame-bytes")
                             
                             (:wat::core::Option/expect
-                              (:wat::hashmap::get clause-map "max-frame-bytes")
+                              (:wat::core::get clause-map "max-frame-bytes")
                               "defservice: :max-frame-bytes needs a value")
                             `524288)
 
@@ -635,10 +635,10 @@
      state-new-kw   (:wat::keyword::from-string
                       (:wat::string::interpolate "{b}::State'" :b fqdn-base))
      ;; init-fn-node: user-provided fn, or default, or macro-error
-     init-fn-node   (:wat::core::if (:wat::hashmap::contains-key? clause-map "init")
+     init-fn-node   (:wat::core::if (:wat::core::contains? clause-map "init")
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "init")
+                        (:wat::core::get clause-map "init")
                         "defservice: :init needs a value")
                       (:wat::core::if has-ephemeral
                         
@@ -712,10 +712,10 @@
      ;; User-provided :stop keeps its own declared resp-ty (any EDN-portable type).
      state-durable-kw (:wat::keyword::from-string
                         (:wat::string::interpolate "{b}::State/durable" :b fqdn-base))
-     stop-fn-node   (:wat::core::if (:wat::hashmap::contains-key? clause-map "stop")
+     stop-fn-node   (:wat::core::if (:wat::core::contains? clause-map "stop")
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "stop")
+                        (:wat::core::get clause-map "stop")
                         "defservice: :stop needs a value")
                       `(:wat::core::fn [~s-sym <- ~state-ty-ann] -> ~record-ty-ann (~state-durable-kw ~s-sym)))
      stop-fn-ch     (:wat::core::ast->children stop-fn-node)
@@ -734,10 +734,10 @@
      ;; Return type FORCED to ::Record (resume = :init consumes it).
      ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
      ;; User-provided :hibernate: if it declares a different return type → macro-error.
-     hibernate-fn-node (:wat::core::if (:wat::hashmap::contains-key? clause-map "hibernate")
+     hibernate-fn-node (:wat::core::if (:wat::core::contains? clause-map "hibernate")
                          
                          (:wat::core::Option/expect
-                           (:wat::hashmap::get clause-map "hibernate")
+                           (:wat::core::get clause-map "hibernate")
                            "defservice: :hibernate needs a value")
                          `(:wat::core::fn [~s-sym <- ~state-ty-ann] -> ~record-ty-ann (~state-durable-kw ~s-sym)))
      hibernate-fn-ch  (:wat::core::ast->children hibernate-fn-node)
@@ -759,7 +759,7 @@
      ;; one a service declaring no `:hibernate`). `type-equal?` reads both sides AS TYPES —
      ;; spelling-agnostic — so a user who writes `-> (::Record :- [K V])` after ②-iii now
      ;; compares correctly too; this closes the caveat the old comment recorded here.
-     hib-user-supplied? (:wat::hashmap::contains-key? clause-map "hibernate")
+     hib-user-supplied? (:wat::core::contains? clause-map "hibernate")
      _hib-ty-check    (:wat::core::if hib-user-supplied?
 
                         (:wat::core::if (:wat::core::type-equal? hib-ret-ty record-ty-ann)
@@ -841,10 +841,10 @@
      ;;
      ;; :peers is OPTIONAL: a service with no dialed peers omits it. But if it has ephemeral peer
      ;; fields, :peers is REQUIRED to match them (an unmatched ephemeral peer → the "extra" error).
-     peers-node     (:wat::core::if (:wat::hashmap::contains-key? clause-map "peers")
+     peers-node     (:wat::core::if (:wat::core::contains? clause-map "peers")
                       
                       (:wat::core::Option/expect
-                        (:wat::hashmap::get clause-map "peers")
+                        (:wat::core::get clause-map "peers")
                         "defservice: :peers needs a value")
                       empty-vec)
      peers-children (:wat::core::ast->children peers-node)
@@ -904,7 +904,7 @@
      _peers-missing (:wat::core::foldl
                       (:wat::core::fn [ok <- wat.type/bool  ps <- wat.type/String]
                         -> wat.type/bool
-                        (:wat::core::if (:wat::vec::contains? ephemeral-peer-surfaces ps)
+                        (:wat::core::if (:wat::core::contains? ephemeral-peer-surfaces ps)
                           
                           ok
                           (:wat::core::macro-error
@@ -921,7 +921,7 @@
      _peers-extra   (:wat::core::foldl
                       (:wat::core::fn [ok <- wat.type/bool  es <- wat.type/String]
                         -> wat.type/bool
-                        (:wat::core::if (:wat::vec::contains? peers-surfaces es)
+                        (:wat::core::if (:wat::core::contains? peers-surfaces es)
                           
                           ok
                           (:wat::core::macro-error

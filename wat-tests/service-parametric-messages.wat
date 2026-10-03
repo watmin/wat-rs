@@ -112,7 +112,7 @@
 ;; two-level type-arg nest, `(Address' :- [(PCache::Op :- [String i64]) (PCache::Reply :- [String i64])])` — is the
 ;; honest fix AND a second assertion in its own right: the whole parametric protocol has to be
 ;; spellable by hand, at concrete args, for a caller to hold one.
-(:wat::core::defn :wat-tests::pcache/dial
+(:wat::core::defn :wat-tests::pcache::dial
   [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])]
   -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])
   (:wat::core::match (:wat::kernel::connect a)
@@ -125,7 +125,7 @@
     [:wat::kernel::ConnectOutcome.Failed {:cause cz}
       (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
 
-(:wat::core::defn :wat-tests::pcache/label
+(:wat::core::defn :wat-tests::pcache::label
   [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [wat.type/String wat.type/i64])])]
   -> wat.type/String
   (:wat::core::match r
@@ -160,15 +160,15 @@
     [:wat::kernel::RecvOutcome.Closed {}
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :wat-tests::pcache/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
+(:wat::core::defn :wat-tests::pcache::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h (:wat-tests::pcache-svc/start :locus locus
          :record (:wat-tests::pcache-svc::Record
                    :fills (wat.type/Vector :- [wat.type/i64] 11 22)))
-     c (:wat-tests::pcache/dial (:wat-tests::pcache-svc::Handle/addr h))
+     c (:wat-tests::pcache::dial (:wat-tests::pcache-svc::Handle/addr h))
      ;; (1) THE ROUND TRIP — a well-formed parametric request, real K-typed Strings out,
      ;;     real V-typed i64s back.
-     good (:wat-tests::pcache/label
+     good (:wat-tests::pcache::label
             (:wat-tests::pcache-svc/get c
               (:wat-tests::PCache::GetRequest
                 :probes (wat.type/Vector :- [wat.type/String] "alpha" "beta")
@@ -177,7 +177,7 @@
      ;;     is REFUSED by the request-shape wall, on both tiers. This is what stops the
      ;;     type-param opacity below from being indistinguishable from "the wall gave up on
      ;;     parametric messages": the wall is live, it walked past `probes` and bit on `limit`.
-     bad  (:wat-tests::pcache/label
+     bad  (:wat-tests::pcache::label
             (:wat-tests::pcache-svc/get c
               (:wat::edn::read
                 "#wat-tests.PCache/GetRequest {:probes [\"alpha\" \"beta\"] :limit \"seven\"}")))
@@ -191,7 +191,7 @@
      ;;     that verbatim (`[1 2]`). Read that token as the guarantee's boundary line, written
      ;;     down where it cannot be forgotten: the boundary enforces every CONCRETE field, and a
      ;;     type-param position it cannot enforce it does not pretend to.
-     opaque (:wat-tests::pcache/label
+     opaque (:wat-tests::pcache::label
               (:wat-tests::pcache-svc/get c
                 (:wat::edn::read
                   "#wat-tests.PCache/GetRequest {:probes [1 2] :limit 7}")))
@@ -204,7 +204,7 @@
 (:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-thread
 
   (:wat::test::assert-eq
-    (:wat-tests::pcache/run (:wat::spawn::thread))
+    (:wat-tests::pcache::run (:wat::spawn::thread))
     "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
@@ -218,5 +218,5 @@
 (:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-process
 
   (:wat::test::assert-eq
-    (:wat-tests::pcache/run (:wat::spawn::process))
+    (:wat-tests::pcache::run (:wat::spawn::process))
     "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))

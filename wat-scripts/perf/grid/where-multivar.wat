@@ -250,7 +250,7 @@
            d (:wat::i64::mod i 5)
            e (:wat::i64::mod i 3)
            s (:wat::i64::to-string i)]
-          (:wat::vector::conj acc
+          (:wat::core::conj acc
             (:wmv::Req :k i :a a :b b :c c :d d :e e :s s))))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -261,7 +261,7 @@
   (:wat::core::sort
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wmv::Hit/k f)))
         (:wat::rete::query fired (:wmv::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
@@ -298,7 +298,7 @@
      staged  (:wmv::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wmv::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wmv::items))
      fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      derived (:wmv::derived-ints fired)
-     n       (:wat::vec::length derived)]
+     n       (:wat::core::length derived)]
     (:wat::string::concat
       (:wat::string::concat
         (:wat::string::concat "row " (:wat::i64::to-string row))

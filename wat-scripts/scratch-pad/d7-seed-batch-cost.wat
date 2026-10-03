@@ -73,7 +73,7 @@
              [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __x}
                (:wat::kernel::assertion-failed! :message "cap")])
      ;; Force the result so the fire cannot be elided or deferred out of the window.
-     n (:wat::vec::length
+     n (:wat::core::length
          (:wat::core::into (wat.type/Vector :- [wat.type/PersistentMap])
            (:wat::rete::query fired (:d7p::q))))
      t1 (:wat::time::now)]

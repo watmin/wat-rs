@@ -17,24 +17,24 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [_01 (:wat::kernel::println (:wat::string::concat "length        " (:wat::edn::write (:wat::vector::length (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
-     _02 (:wat::kernel::println (:wat::string::concat "empty? true   " (:wat::edn::write (:wat::vector::empty? (wat.type/PersistentVector :- [wat.type/i64])))))
-     _03 (:wat::kernel::println (:wat::string::concat "empty? false  " (:wat::edn::write (:wat::vector::empty? (wat.type/PersistentVector :- [wat.type/i64] 1)))))
-     _04 (:wat::kernel::println (:wat::string::concat "contains? true  " (:wat::edn::write (:wat::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2))))
-     _05 (:wat::kernel::println (:wat::string::concat "contains? false " (:wat::edn::write (:wat::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
-     _06 (:wat::kernel::println (:wat::string::concat "get in-range  " (:wat::edn::write (:wat::vector::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 0))))
-     _07 (:wat::kernel::println (:wat::string::concat "get oob       " (:wat::edn::write (:wat::vector::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
-     _08 (:wat::kernel::println (:wat::string::concat "conj          " (:wat::edn::write (:wat::vector::length (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/i64]) 1)))))
-     _09 (:wat::kernel::println (:wat::string::concat "concat        " (:wat::edn::write (:wat::vector::length (:wat::vector::concat (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2))))))
+    [_01 (:wat::kernel::println (:wat::string::concat "length        " (:wat::edn::write (:wat::core::length (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
+     _02 (:wat::kernel::println (:wat::string::concat "empty? true   " (:wat::edn::write (:wat::core::empty? (wat.type/PersistentVector :- [wat.type/i64])))))
+     _03 (:wat::kernel::println (:wat::string::concat "empty? false  " (:wat::edn::write (:wat::core::empty? (wat.type/PersistentVector :- [wat.type/i64] 1)))))
+     _04 (:wat::kernel::println (:wat::string::concat "contains? true  " (:wat::edn::write (:wat::core::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 2))))
+     _05 (:wat::kernel::println (:wat::string::concat "contains? false " (:wat::edn::write (:wat::core::contains? (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
+     _06 (:wat::kernel::println (:wat::string::concat "get in-range  " (:wat::edn::write (:wat::core::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 0))))
+     _07 (:wat::kernel::println (:wat::string::concat "get oob       " (:wat::edn::write (:wat::core::get (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) 9))))
+     _08 (:wat::kernel::println (:wat::string::concat "conj          " (:wat::edn::write (:wat::core::length (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) 1)))))
+     _09 (:wat::kernel::println (:wat::string::concat "concat        " (:wat::edn::write (:wat::core::length (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2))))))
 
      ;; error path — type mismatch, direct call, real span (bypasses eval-ast! entirely).
-     _10 (:wat::kernel::println (:wat::string::concat "length type-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::length 5))))))
+     _10 (:wat::kernel::println (:wat::string::concat "length type-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::length 5))))))
 
      ;; error path — arity mismatch, via eval-ast! (the checker would refuse this statically).
-     _11 (:wat::kernel::println (:wat::string::concat "length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::length (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2)))))))
-     _12 (:wat::kernel::println (:wat::string::concat "concat arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::concat (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
-     _13 (:wat::kernel::println (:wat::string::concat "conj arity-mismatch: "   (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/i64])))))))
-     _14 (:wat::kernel::println (:wat::string::concat "get arity-mismatch: "    (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::get (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
-     _15 (:wat::kernel::println (:wat::string::concat "contains? arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::contains? (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
-     _16 (:wat::kernel::println (:wat::string::concat "empty? arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::vector::empty? (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2)))))))]
+     _11 (:wat::kernel::println (:wat::string::concat "length arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::length (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2)))))))
+     _12 (:wat::kernel::println (:wat::string::concat "concat arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
+     _13 (:wat::kernel::println (:wat::string::concat "conj arity-mismatch: "   (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64])))))))
+     _14 (:wat::kernel::println (:wat::string::concat "get arity-mismatch: "    (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::get (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
+     _15 (:wat::kernel::println (:wat::string::concat "contains? arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::contains? (wat.type/PersistentVector :- [wat.type/i64] 1)))))))
+     _16 (:wat::kernel::println (:wat::string::concat "empty? arity-mismatch: " (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::core::empty? (wat.type/PersistentVector :- [wat.type/i64] 1) (wat.type/PersistentVector :- [wat.type/i64] 2)))))))]
     nil))

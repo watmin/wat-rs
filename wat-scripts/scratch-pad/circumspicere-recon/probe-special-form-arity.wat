@@ -9,5 +9,5 @@
     (:wat::core::match m
       [:wat::core::Option.Some {:value hm}
         (:wat::kernel::println
-          (:wat::string::concat "if arity=" (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+          (:wat::string::concat "if arity=" (:wat::edn::write (:wat::core::get hm :arity))))]
       [:wat::core::Option.None {} (:wat::kernel::println "NONE")])))

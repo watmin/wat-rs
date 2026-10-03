@@ -103,8 +103,8 @@
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [hm-keys-total   (:wat::rete::total? (:wat::core::quote (:wat::hashmap::keys m)))
-     map-keys-total  (:wat::rete::total? (:wat::core::quote (:wat::map::keys m)))
+    [hm-keys-total   (:wat::rete::total? (:wat::core::quote (:wat::core::keys m)))
+     map-keys-total  (:wat::rete::total? (:wat::core::quote (:wat::core::keys m)))
      tpui-total      (:wat::rete::total? (:wat::core::quote (:wat::core::type-params-used-in p n)))
      teq-total       (:wat::rete::total? (:wat::core::quote (:wat::core::type-equal? a b)))
      stream-empty-total (:wat::rete::total? (:wat::core::quote (:wat::stream::empty)))

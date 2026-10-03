@@ -41,18 +41,18 @@
      acc0  (:wat::core::foldl
              (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Value])  p <- wat.type/PersistentMap]
                -> (wat.type/PersistentVector :- [wat.type/Value])
-               (:wat::vector::conj a
+               (:wat::core::conj a
                  (:wat::core::Option/expect
-                   (:wat::map::get p "?fact")
+                   (:wat::core::get p "?fact")
                    "q-Hot: ?fact")))
              (wat.type/PersistentVector :- [wat.type/Value])
              hots)]
     (:wat::core::foldl
       (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Value])  p <- wat.type/PersistentMap]
         -> (wat.type/PersistentVector :- [wat.type/Value])
-        (:wat::vector::conj a
+        (:wat::core::conj a
           (:wat::core::Option/expect
-            (:wat::map::get p "?fact")
+            (:wat::core::get p "?fact")
             "q-Warn: ?fact")))
       acc0
       warns)))

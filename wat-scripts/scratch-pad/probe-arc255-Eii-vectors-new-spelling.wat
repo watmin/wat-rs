@@ -3,9 +3,9 @@
 ;; quick smoke test that the intrinsic registry actually dispatches both new namespaces.
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
-    [pv (:wat::vector::conj (wat.type/PersistentVector :- [wat.type/i64] 1) 2)
-     v  (:wat::vec::conj (wat.type/Vector :- [wat.type/i64] 10) 20)
-     total (:wat::core::+ (:wat::vector::length pv) (:wat::vec::length v))]
+    [pv (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64] 1) 2)
+     v  (:wat::core::conj (wat.type/Vector :- [wat.type/i64] 10) 20)
+     total (:wat::core::+ (:wat::core::length pv) (:wat::core::length v))]
     (:wat::core::if (:wat::core::= total 4)
       (:wat::kernel::println "OK")
       (:wat::kernel::assertion-failed! :message (:wat::string::concat "expected 4, got " (:wat::core::str total))))))

@@ -65,27 +65,27 @@
 (:wat::core::defn :t::p4-a-val [] -> wat.type/i64
   (:wat::core::let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::hashmap::assoc m :tag-a 10)
-     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::hashmap::get m3 :tag-a) 
+     m2  (:wat::core::assoc m :tag-a 10)
+     m3  (:wat::core::assoc m2 :tag-b 20)]
+    (:wat::core::match (:wat::core::get m3 :tag-a) 
       [:wat::core::Option.Some {:value v} v]
       [_ -1])))
 
 (:wat::core::defn :t::p4-b-val [] -> wat.type/i64
   (:wat::core::let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::hashmap::assoc m :tag-a 10)
-     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::hashmap::get m3 :tag-b) 
+     m2  (:wat::core::assoc m :tag-a 10)
+     m3  (:wat::core::assoc m2 :tag-b 20)]
+    (:wat::core::match (:wat::core::get m3 :tag-b) 
       [:wat::core::Option.Some {:value v} v]
       [_ -1])))
 
 (:wat::core::defn :t::p4-len [] -> wat.type/i64
   (:wat::core::let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::hashmap::assoc m :tag-a 10)
-     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
-    (:wat::hashmap::length m3)))
+     m2  (:wat::core::assoc m :tag-a 10)
+     m3  (:wat::core::assoc m2 :tag-b 20)]
+    (:wat::core::length m3)))
 
 ;; ─── Probe 5 — (HashSet :- [keyword]) insert + contains? ───────────────────────────
 
@@ -108,7 +108,7 @@
 (:wat::core::defn :t::p5-len [] -> wat.type/i64
   (:wat::core::let
     [tags (wat.type/HashSet :- [wat.type/keyword] :foo :bar :baz)]
-    (:wat::hashset::length tags)))
+    (:wat::core::length tags)))
 
 ;; ─── Probe 6 — (HashMap :- [Uuid String]) insert + lookup — closes arc 207 ────────
 
@@ -117,8 +117,8 @@
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
      m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
-     m2   (:wat::hashmap::assoc m u1 "world-entry")]
-    (:wat::core::match (:wat::hashmap::get m2 u1) 
+     m2   (:wat::core::assoc m u1 "world-entry")]
+    (:wat::core::match (:wat::core::get m2 u1) 
       [:wat::core::Option.Some {:value v} v]
       [_ "NOT-FOUND"])))
 
@@ -128,7 +128,7 @@
      u1   (:wat::uuid::v5 ns "hello")
      u2   (:wat::uuid::v5 ns "world")
      m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
-     m2   (:wat::hashmap::assoc m u1 "hello-entry")]
-    (:wat::core::match (:wat::hashmap::get m2 u2) 
+     m2   (:wat::core::assoc m u1 "hello-entry")]
+    (:wat::core::match (:wat::core::get m2 u2) 
       [:wat::core::Option.Some {:value v} v]
       [_ "NOT-FOUND"])))

@@ -22,12 +22,12 @@
       (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
         (:wat::core::map
           (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
-            (:wat::core::Option/expect (:wat::map::get p "?fact") "sift-rules: ?fact"))
+            (:wat::core::Option/expect (:wat::core::get p "?fact") "sift-rules: ?fact"))
           (:wat::rete::query fired (:user::hot-q))))
       (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
         (:wat::core::map
           (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
-            (:wat::core::Option/expect (:wat::map::get p "?fact") "sift-rules: ?fact"))
+            (:wat::core::Option/expect (:wat::core::get p "?fact") "sift-rules: ?fact"))
           (:wat::rete::query fired (:user::warn-q)))))))
 
 (:wat::core::defn :user::main [] -> wat.type/nil

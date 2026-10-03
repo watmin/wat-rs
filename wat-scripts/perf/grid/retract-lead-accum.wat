@@ -100,7 +100,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:rla::build-link k)))
+      (:wat::core::conj acc (:rla::build-link k)))
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:rla::busy-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
@@ -111,21 +111,21 @@
 (:wat::core::defn :rla::seed-facts [items <- wat.type/i64  anchors <- wat.type/i64]
   -> (wat.type/PersistentVector :- [wat.type/Record])
   (:wat::core::let
-    [with-read (:wat::vector::conj
+    [with-read (:wat::core::conj
                   (:wat::core::foldl
                     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  v <- wat.type/i64]
                                     -> (wat.type/PersistentVector :- [wat.type/Record])
-                      (:wat::vector::conj acc (:rla::Reading :v v)))
+                      (:wat::core::conj acc (:rla::Reading :v v)))
                     (wat.type/PersistentVector :- [wat.type/Record])
                     (:wat::core::range 0 items))
                   (:rla::Reading :v 0))
      with-anch (:wat::core::foldl
                   (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
                                   -> (wat.type/PersistentVector :- [wat.type/Record])
-                    (:wat::vector::conj acc (:rla::Anchor :k k)))
+                    (:wat::core::conj acc (:rla::Anchor :k k)))
                   with-read
                   (:wat::core::range 0 anchors))]
-    (:wat::vector::conj with-anch (:rla::Link :level 0))))
+    (:wat::core::conj with-anch (:rla::Link :level 0))))
 
 (:wat::core::defn :rla::seed [session <- :wat::rete::Session  items <- wat.type/i64  anchors <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all session (:rla::seed-facts items anchors))
@@ -152,7 +152,7 @@
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-                                (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+                                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                                   (:rla::enc (:rla::Busy/k f) (:rla::Busy/n f))))
                               (:wat::rete::query fired (:rla::q-Busy))))]
     (:rla::vec->pvec (:wat::core::sort codes))))

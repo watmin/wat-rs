@@ -41,9 +41,9 @@ use crate::value::{
 /// @Category      Transform
 /// @arg     bs :wat::type::Bytes the bytes to encode
 /// @ret     :wat::type::String the lowercase hex string, two chars per byte, no separators
-/// @example (:wat::core::Bytes/to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
-/// @see     :wat::core::Bytes/from-hex
-#[wat_intrinsic(":wat::core::Bytes/to-hex")]
+/// @example (:wat::bytes::to-hex (:wat::core::Vector :- [:u8] (:wat::core::u8 255) (:wat::core::u8 0) (:wat::core::u8 16))) #=> "ff0010"
+/// @see     :wat::bytes::from-hex
+#[wat_intrinsic(":wat::bytes::to-hex")]
 pub(crate) fn eval_bytes_to_hex(
     bs: &WatAST,
     env: &Environment,
@@ -51,7 +51,7 @@ pub(crate) fn eval_bytes_to_hex(
     span: &Span,
 
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Bytes/to-hex";
+    const OP: &str = ":wat::bytes::to-hex";
     let xs = match eval_inner(bs, env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
@@ -106,10 +106,10 @@ const NIBBLE: [char; 16] = [
 /// @Category      Transform
 /// @arg        s :wat::type::String the hex-encoded string to decode
 /// @ret        (:wat::core::Option :- [:wat::type::Bytes]) Some(Bytes) on success, None on malformed input
-/// @example    (:wat::core::Bytes/from-hex "gg") #=> :None
-/// @example-norun (:wat::core::Bytes/from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
-/// @see        :wat::core::Bytes/to-hex
-#[wat_intrinsic(":wat::core::Bytes/from-hex")]
+/// @example    (:wat::bytes::from-hex "gg") #=> :None
+/// @example-norun (:wat::bytes::from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
+/// @see        :wat::bytes::to-hex
+#[wat_intrinsic(":wat::bytes::from-hex")]
 pub(crate) fn eval_bytes_from_hex(
     s: &WatAST,
     env: &Environment,
@@ -117,7 +117,7 @@ pub(crate) fn eval_bytes_from_hex(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the arg type error locates at `arg_span` (`s.span()`); bad hex is a non-error `Ok(None)`
 
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Bytes/from-hex";
+    const OP: &str = ":wat::bytes::from-hex";
     let arg_span = s.span().clone();
     let s = match eval_inner(s, env, sym)?.value_owned() {
         Value::String(s) => s,

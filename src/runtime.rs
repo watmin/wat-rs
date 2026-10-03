@@ -6971,6 +6971,95 @@ pub(crate) fn eval_assoc(
     }
 }
 
+/// `(:wat::core::dissoc m k)` — HashMap and PersistentMap. 255.86.
+/// The HashMap arm is `hashmap_dissoc_inner`; the PersistentMap arm is
+/// `persistentmap_dissoc_inner`. Anything else is a TypeMismatch.
+pub(crate) fn eval_dissoc(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::dissoc";
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg1_val = eval_inner(&args[1], env, sym)?.value_owned();
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg0_val) {
+        Some(MapContainer::HashMap) => {
+            crate::collection::eval::hashmap_dissoc_inner(&arg0_val, &arg1_val)
+        }
+        Some(MapContainer::PersistentMap) => {
+            crate::collection::eval::persistentmap_dissoc_inner(&arg0_val, &arg1_val)
+        }
+        Some(MapContainer::Record) | None => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "(HashMap :- [K V]) or (PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(&arg0_val)),
+            },
+        )
+        .into()),
+    }
+}
+
+fn eval_map_projection(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+    op: &str,
+    keys: bool,
+) -> Result<Value, EvalBreak> {
+    let arg0_val = eval_inner(&args[0], env, sym)?.value_owned();
+    use crate::collection::map_container::MapContainer;
+    match MapContainer::of_value(&arg0_val) {
+        Some(MapContainer::HashMap) => {
+            if keys {
+                crate::collection::eval::hashmap_keys_inner(&arg0_val)
+            } else {
+                crate::collection::eval::hashmap_values_inner(&arg0_val)
+            }
+        }
+        Some(MapContainer::PersistentMap) => {
+            if keys {
+                crate::collection::eval::persistentmap_keys_inner(&arg0_val)
+            } else {
+                crate::collection::eval::persistentmap_values_inner(&arg0_val)
+            }
+        }
+        Some(MapContainer::Record) | None => Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "(HashMap :- [K V]) or (PersistentMap :- [K V])",
+                got: Box::new(ValueSnapshot::of(&arg0_val)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::core::keys m)` — Vector of keys. HashMap and PersistentMap. 255.86.
+pub(crate) fn eval_keys(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_map_projection(args, list_span, env, sym, ":wat::core::keys", true)
+}
+
+/// `(:wat::core::values m)` — Vector of values. HashMap and PersistentMap. 255.86.
+pub(crate) fn eval_values(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    eval_map_projection(args, list_span, env, sym, ":wat::core::values", false)
+}
+
 // Arc 146 slice 3 — `eval_contains_q` retired. The polymorphism is
 // honest now: a Dispatch (declared in `wat/core.wat`) routes
 // `:wat::core::contains?` to per-Type impls with MIXED VERBS:
@@ -19172,7 +19261,7 @@ mod tests {
     fn bytes_to_hex_emits_lowercase_no_separators() {
         // 0xde 0xad 0xbe 0xef → "deadbeef" (lowercase, no spaces).
         let src = r#"
-            (:wat::core::Bytes/to-hex
+            (:wat::bytes::to-hex
               (wat.type/Vector :- [:u8]
                 (wat.type/u8 222)   ;; 0xde
                 (wat.type/u8 173)   ;; 0xad
@@ -19196,9 +19285,9 @@ mod tests {
                   (wat.type/u8 2)
                   (wat.type/u8 254)
                   (wat.type/u8 255))
-               hex (:wat::core::Bytes/to-hex bs1)
+               hex (:wat::bytes::to-hex bs1)
                maybe-bs2
-                (:wat::core::Bytes/from-hex hex)
+                (:wat::bytes::from-hex hex)
                bs2
                 (:wat::core::match maybe-bs2
                   [:wat::core::Option.Some {:value b} b]
@@ -19217,9 +19306,9 @@ mod tests {
         let src = r#"
             (:wat::core::let
               [mixed
-                (:wat::core::Bytes/from-hex "AbCd")
+                (:wat::bytes::from-hex "AbCd")
                lower
-                (:wat::core::Bytes/from-hex "abcd")]
+                (:wat::bytes::from-hex "abcd")]
               (:wat::core::= mixed lower))
         "#;
         match eval_expr(src).unwrap() {
@@ -19232,7 +19321,7 @@ mod tests {
     fn bytes_from_hex_empty_string_round_trips() {
         // "" → :Some(empty Bytes); to-hex of empty Bytes → "".
         let empty_decode = r#"
-            (:wat::core::match (:wat::core::Bytes/from-hex "")
+            (:wat::core::match (:wat::bytes::from-hex "")
               [:wat::core::Option.Some {:value b} (:wat::core::length b)]
               [:wat::core::Option.None {} -1])
         "#;
@@ -19241,7 +19330,7 @@ mod tests {
             v => panic!("expected 0 (empty Bytes), got {:?}", v),
         }
         let empty_encode = r#"
-            (:wat::core::Bytes/to-hex (wat.type/Vector :- [:u8]))
+            (:wat::bytes::to-hex (wat.type/Vector :- [:u8]))
         "#;
         match eval_expr(empty_encode).unwrap() {
             Value::String(s) => assert_eq!(&*s, ""),
@@ -19252,7 +19341,7 @@ mod tests {
     #[test]
     fn bytes_from_hex_rejects_odd_length() {
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes/from-hex "abc")
+            (:wat::core::match (:wat::bytes::from-hex "abc")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19266,7 +19355,7 @@ mod tests {
     fn bytes_from_hex_rejects_non_hex_chars() {
         // "zz" — z is not a hex character.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes/from-hex "zz")
+            (:wat::core::match (:wat::bytes::from-hex "zz")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19280,7 +19369,7 @@ mod tests {
     fn bytes_from_hex_rejects_0x_prefix() {
         // Per DESIGN Q6: no `0x` tolerance in v1.
         let src = r#"
-            (:wat::core::match (:wat::core::Bytes/from-hex "0xdead")
+            (:wat::core::match (:wat::bytes::from-hex "0xdead")
               [:wat::core::Option.Some {:value _} false]
               [:wat::core::Option.None {} true])
         "#;
@@ -19292,7 +19381,7 @@ mod tests {
 
     #[test]
     fn bytes_to_hex_arity_mismatch() {
-        let err = eval_expr("(:wat::core::Bytes/to-hex)").unwrap_err();
+        let err = eval_expr("(:wat::bytes::to-hex)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -19300,7 +19389,7 @@ mod tests {
 
     #[test]
     fn bytes_from_hex_arity_mismatch() {
-        let err = eval_expr("(:wat::core::Bytes/from-hex)").unwrap_err();
+        let err = eval_expr("(:wat::bytes::from-hex)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );

@@ -69,7 +69,7 @@
 ;; ── the probe verbs ──────────────────────────────────────────────────────────────────────
 ;; One call → one label. The exhaustive match is the shield: `:RequestMalformed` is a variant
 ;; the caller CANNOT ignore (arc 109 — no wildcard arm), so a refusal can never be silent.
-(:wat::core::defn :wat-tests::mal/try
+(:wat::core::defn :wat-tests::mal::try
   [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
    req <- :wat-tests::MalBag::PutRequest] -> wat.type/String
   (:wat::core::match (:wat-tests::MalBag/put c req)
@@ -88,7 +88,7 @@
     [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
     [:wat::kernel::RecvOutcome.Closed {} "Closed"]))
 
-(:wat::core::defn :wat-tests::mal/dial
+(:wat::core::defn :wat-tests::mal::dial
   [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]
   -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
   (:wat::core::match (:wat::kernel::connect a)
@@ -103,19 +103,19 @@
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.
-(:wat::core::defn :wat-tests::mal/run :- [T]
+(:wat::core::defn :wat-tests::mal::run :- [T]
   [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
   (:wat::core::let
     [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
      good (:wat-tests::MalBag::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
      bad  (:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
-     a    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
-     r1   (:wat-tests::mal/try a good)
-     r2   (:wat-tests::mal/try a bad)
+     a    (:wat-tests::mal::dial (:wat-tests::mal-bag::Handle/addr h))
+     r1   (:wat-tests::mal::try a good)
+     r2   (:wat-tests::mal::try a bad)
      ;; a SECOND, INNOCENT client connects AFTER the malformed frame
-     b    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
-     r3   (:wat-tests::mal/try b good)
+     b    (:wat-tests::mal::dial (:wat-tests::mal-bag::Handle/addr h))
+     r3   (:wat-tests::mal::try b good)
      _    (:wat-tests::mal-bag/stop h)]
     (:wat::string::concat r1
       (:wat::string::concat " | " (:wat::string::concat r2
@@ -125,7 +125,7 @@
 (:wat::test::deftest :wat-tests::service::request-malformed-on-thread
 
   (:wat::test::assert-eq
-    (:wat-tests::mal/run (:wat::spawn::thread))
+    (:wat-tests::mal::run (:wat::spawn::thread))
     "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))
 
 ;; ── process tier ─────────────────────────────────────────────────────────────────────────
@@ -135,5 +135,5 @@
 (:wat::test::deftest :wat-tests::service::request-malformed-on-process
 
   (:wat::test::assert-eq
-    (:wat-tests::mal/run (:wat::spawn::process))
+    (:wat-tests::mal::run (:wat::spawn::process))
     "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))

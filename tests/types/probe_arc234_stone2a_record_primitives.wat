@@ -34,7 +34,7 @@
 (:wat::core::defn :user::probe-5 [] -> wat.type/i64
   (:wat::core::let
     [v (:myapp::Point :x 3 :y 4)]
-    (:wat::core::Record/field-at v 1)))
+    (:wat::record::field-at v 1)))
 
 ;; ─── Probe 7: equality via holon_form ────────────────────────────────────────
 (:wat::core::defn :user::probe-7 [] -> :wat::holon::Record

@@ -35,7 +35,7 @@
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas0::Tally/n
-              (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
+              (:wat::core::Option/expect (:wat::core::get r "?f") "?f"))))
         0
         rows))))
 
@@ -76,7 +76,7 @@
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas1::Tally/n
-              (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
+              (:wat::core::Option/expect (:wat::core::get r "?f") "?f"))))
         0
         rows))))
 
@@ -127,7 +127,7 @@
         (:wat::core::fn [acc <- wat.type/i64  r <- wat.type/PersistentMap] -> wat.type/i64
           (:wat::i64::+ acc
             (:oas2::Tally/n
-              (:wat::core::Option/expect (:wat::map::get r "?f") "?f"))))
+              (:wat::core::Option/expect (:wat::core::get r "?f") "?f"))))
         0
         rows))))
 
@@ -149,9 +149,9 @@
 (:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-    (:wat::vector::concat
-      (:wat::vector::concat
-        (:wat::vector::concat
+    (:wat::core::into
+      (:wat::core::into
+        (:wat::core::into
           (:oas0::readback (:wat::core::match (:wat::rete::fire-rules (:oas0::staged))
             [:wat::rete::FireOutcome.Fired {:value __f} __f]
             [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
@@ -170,8 +170,8 @@
             (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
           [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
             (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-      (:wat::vector::concat
-        (:wat::vector::concat
+      (:wat::core::into
+        (:wat::core::into
           (:oas0::readback (:wat::core::match (:wat::rete::fire-rules$oracle (:oas0::staged))
             [:wat::rete::FireOutcome.Fired {:value __f} __f]
             [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}

@@ -119,7 +119,7 @@
    match <- wat.type/AST] -> wat.type/nil
   (:wat::core::let [span (:wat::core::ast-span match)
                     line (:wat::core::Option/expect
-                           (:wat::hashmap::get span :line)
+                           (:wat::core::get span :line)
                            "report-match: :line")
                     ch   (:wat::core::ast->children match)
                     name (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch)))]

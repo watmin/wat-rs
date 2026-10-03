@@ -24,5 +24,5 @@
      fired (:wat::core::match (:wat::rete::fire-rules s0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      hits  (:wat::rete::query fired (:en::q-Box))]
     (:wat::core::Option/expect
-      (:wat::map::get (:wat::core::first hits) "?label")
+      (:wat::core::get (:wat::core::first hits) "?label")
       "q-Box: ?label")))

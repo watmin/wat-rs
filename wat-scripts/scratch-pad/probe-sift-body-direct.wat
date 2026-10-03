@@ -58,7 +58,7 @@
           [class-ok (:wat::core::foldl
                       (:wat::core::fn [ok <- wat.type/bool log <- :wat::telemetry::Log] -> wat.type/bool
                         (:wat::core::if ok
-                          (:wat::vec::contains?
+                          (:wat::core::contains?
                             (wat.type/Vector :- [wat.type/String] "usr::Temp" "usr::Hot" "usr::Warn")
                             (:wat::core::match
                               (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
@@ -83,14 +83,14 @@
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
-                                  (:wat::map::get p "?fact")
+                                  (:wat::core::get p "?fact")
                                   "q-Hot: ?fact"))
                               (:wat::rete::query fired (:usr::q-Hot))))
                           (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
                             (:wat::core::map
                               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
                                 (:wat::core::Option/expect
-                                  (:wat::map::get p "?fact")
+                                  (:wat::core::get p "?fact")
                                   "q-Warn: ?fact"))
                               (:wat::rete::query fired (:usr::q-Warn))))))))
                   (wat.type/PersistentVector :- [wat.type/Value])

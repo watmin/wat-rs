@@ -11,9 +11,9 @@
   (:wat::core::do
     (:wat::kernel::println (:wat::string::concat "i64+ show-source= " (:wat::core::show-source :wat::i64::+)))
     (:wat::core::match (:wat::runtime::metadata-of :wat::i64::+)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "i64+ :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "i64+ :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
       [:wat::core::Option.None {} (:wat::kernel::println "i64+ :arity= NONE")])
-    (:wat::kernel::println (:wat::string::concat "map-length show-source= " (:wat::core::show-source :wat::map::length)))
-    (:wat::core::match (:wat::runtime::metadata-of :wat::map::length)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "map-length :arity= " (:wat::edn::write (:wat::hashmap::get hm :arity))))]
+    (:wat::kernel::println (:wat::string::concat "map-length show-source= " (:wat::core::show-source :wat::core::length)))
+    (:wat::core::match (:wat::runtime::metadata-of :wat::core::length)
+      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "map-length :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
       [:wat::core::Option.None {} (:wat::kernel::println "map-length :arity= NONE")])))

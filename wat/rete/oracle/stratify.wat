@@ -80,7 +80,7 @@
                           ;; return-type-of raises "unknown type" itself for an unrecognised
                           ;; head — no separate check, and no colon-strip fallback.
                           type-nm   (:wat::runtime::return-type-of head-fn)]
-          (:wat::vector::conj acc type-nm)))
+          (:wat::core::conj acc type-nm)))
       (wat.type/PersistentVector :- [wat.type/String])
       rhs)))
 
@@ -123,7 +123,7 @@
             (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
                              t <- wat.type/String]
               -> (wat.type/PersistentVector :- [wat.type/String])
-              (:wat::vector::conj a t))
+              (:wat::core::conj a t))
             acc
             (:wat::rete::negated-types-under kid)))
         (wat.type/PersistentVector :- [wat.type/String])
@@ -160,7 +160,7 @@
             (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
                              t <- wat.type/String]
               -> (wat.type/PersistentVector :- [wat.type/String])
-              (:wat::vector::conj a t))
+              (:wat::core::conj a t))
             acc
             (:wat::rete::rule-negates-in kid)))
         (wat.type/PersistentVector :- [wat.type/String])
@@ -185,7 +185,7 @@
           (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/String])
                            t <- wat.type/String]
             -> (wat.type/PersistentVector :- [wat.type/String])
-            (:wat::vector::conj a t))
+            (:wat::core::conj a t))
           acc
           (:wat::rete::rule-negates-in form)))
       (wat.type/PersistentVector :- [wat.type/String])
@@ -232,7 +232,7 @@
                                false)]
           (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
             (:wat::core::match (:wat::rete::type-name-of (:wat::core::second ch))
-              [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+              [:wat::core::Option.Some {:value t} (:wat::core::conj acc t)]
               [:wat::core::Option.None {} acc])
             (:wat::core::if (:wat::core::if q?
                               (:wat::core::if (:wat::i64::>= (:wat::core::length ch) 5)
@@ -247,14 +247,14 @@
                                    (:wat::core::Option/expect
                                      (:wat::core::get ch 4)
                                      "rule-consumes: acc :from inner"))
-                [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+                [:wat::core::Option.Some {:value t} (:wat::core::conj acc t)]
                 [:wat::core::Option.None {} acc])
               (:wat::core::if (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs hd 0 12) ":wat::rete::")
                                 false)
                 acc
                 (:wat::core::match (:wat::rete::type-name-of form)
-                  [:wat::core::Option.Some {:value t} (:wat::vector::conj acc t)]
+                  [:wat::core::Option.Some {:value t} (:wat::core::conj acc t)]
                   [:wat::core::Option.None {} acc]))))))
       (wat.type/PersistentVector :- [wat.type/String])
       lhs)))
@@ -278,7 +278,7 @@
                                                     neg <- wat.type/String]
                                      -> wat.type/i64
                                      (:wat::core::let [ns (:wat::core::match
-                                                             (:wat::hashmap::get ts neg)
+                                                             (:wat::core::get ts neg)
                                                              
                                                            [:wat::core::Option.Some {:value v} v]
                                                            [:wat::core::Option.None {} 0])
@@ -294,7 +294,7 @@
                                                     con <- wat.type/String]
                                      -> wat.type/i64
                                      (:wat::core::let [cs (:wat::core::match
-                                                             (:wat::hashmap::get ts con)
+                                                             (:wat::core::get ts con)
                                                            [:wat::core::Option.Some {:value v} v]
                                                            [:wat::core::Option.None {} 0])]
                                        (:wat::core::if (:wat::i64::> cs mx) cs mx)))
@@ -309,13 +309,13 @@
                                      (:wat::core::let [its (:wat::rete::StratifyAcc/type-strata inner)
                                                        ich (:wat::rete::StratifyAcc/changed inner)
                                                        cur (:wat::core::match
-                                                              (:wat::hashmap::get its p)
+                                                              (:wat::core::get its p)
                                                               
                                                             [:wat::core::Option.Some {:value v} v]
                                                             [:wat::core::Option.None {} 0])]
                                        (:wat::core::if (:wat::i64::> required cur)
                                          (:wat::rete::StratifyAcc
-                                           :type-strata (:wat::hashmap::assoc its p required)
+                                           :type-strata (:wat::core::assoc its p required)
                                            :changed true)
                                          inner)))
                                    (:wat::rete::StratifyAcc :type-strata ts :changed changed)
@@ -358,7 +358,7 @@
                                                 p  <- wat.type/String]
                                  -> wat.type/i64
                                  (:wat::core::let [ps (:wat::core::match
-                                                         (:wat::hashmap::get type-strata p)
+                                                         (:wat::core::get type-strata p)
                                                          
                                                        [:wat::core::Option.Some {:value v} v]
                                                        [:wat::core::Option.None {} 0])]
@@ -370,7 +370,7 @@
                                                 n  <- wat.type/String]
                                  -> wat.type/i64
                                  (:wat::core::let [ns (:wat::core::match
-                                                         (:wat::hashmap::get type-strata n)
+                                                         (:wat::core::get type-strata n)
                                                          
                                                        [:wat::core::Option.Some {:value v} v]
                                                        [:wat::core::Option.None {} 0])

@@ -22,7 +22,7 @@
     ;; `:wat::core::HashMap/get` accessor applies directly — no destructure sugar needed.
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
       [:wat::edn::ReadJsonOutcome.Value {:value m}
-        (:wat::core::match (:wat::hashmap::get m "edn")
+        (:wat::core::match (:wat::core::get m "edn")
           [:wat::core::Option.Some {:value s}
             (:wat::core::do
               (:wat::test::assert-eq s "42")

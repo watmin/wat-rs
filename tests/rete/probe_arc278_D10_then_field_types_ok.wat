@@ -61,9 +61,9 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s (:dok::fired)
-     out (:wat::core::Option/expect (:wat::map::get (:dok::one s (:dok::q-out)) "?f") "out")
-     sum (:wat::core::Option/expect (:wat::map::get (:dok::one s (:dok::q-sum)) "?f") "sum")
-     pos (:wat::core::Option/expect (:wat::map::get (:dok::one s (:dok::q-pos)) "?f") "pos")]
+     out (:wat::core::Option/expect (:wat::core::get (:dok::one s (:dok::q-out)) "?f") "out")
+     sum (:wat::core::Option/expect (:wat::core::get (:dok::one s (:dok::q-sum)) "?f") "sum")
+     pos (:wat::core::Option/expect (:wat::core::get (:dok::one s (:dok::q-pos)) "?f") "pos")]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::format "{n} {t}" :n (:dok::Out/n out) :t (:dok::Out/t out)))
       (:wat::kernel::println (:wat::core::format "{n} {t}" :n (:dok::Sum/n sum) :t (:dok::Sum/t sum)))

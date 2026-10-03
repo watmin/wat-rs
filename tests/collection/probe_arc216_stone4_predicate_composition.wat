@@ -9,7 +9,7 @@
      m       (wat.type/HashMap :- [wat.type/keyword :wat::type::Infer] :a inner1 :b inner2)
      h       (:wat::holon::to-holon m)
      back    (:wat::holon::from-holon h)]
-    (:wat::hashmap::length back)))
+    (:wat::core::length back)))
 
 ;; Probe 2: (Vector :- [(HashSet :- [i64])]) round-trip length = 2
 (:wat::core::defn :t::probe2-vector-of-hashset [] -> wat.type/i64
@@ -19,7 +19,7 @@
      outer   (wat.type/Vector :- [:wat::type::Infer] set1 set2)
      h       (:wat::holon::to-holon outer)
      back    (:wat::holon::from-holon h)]
-    (:wat::vec::length back)))
+    (:wat::core::length back)))
 
 ;; Probe 3: (HashSet :- [(Vector :- [i64])]) round-trip length = 2
 (:wat::core::defn :t::probe3-hashset-of-vector [] -> wat.type/i64
@@ -29,7 +29,7 @@
      outer  (wat.type/HashSet :- [:wat::type::Infer] v1 v2)
      h      (:wat::holon::to-holon outer)
      back   (:wat::holon::from-holon h)]
-    (:wat::hashset::length back)))
+    (:wat::core::length back)))
 
 ;; Probe 4: (HashMap :- [keyword (Vector :- [(HashSet :- [i64])])]) round-trip length = 1
 (:wat::core::defn :t::probe4-triple-nested [] -> wat.type/i64
@@ -40,4 +40,4 @@
      m       (wat.type/HashMap :- [wat.type/keyword :wat::type::Infer] :data vec)
      h       (:wat::holon::to-holon m)
      back    (:wat::holon::from-holon h)]
-    (:wat::hashmap::length back)))
+    (:wat::core::length back)))

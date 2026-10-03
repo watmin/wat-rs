@@ -104,8 +104,8 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap]
       -> wat.type/i64
-      (:wat::core::let [a (:wat::core::Option/expect (:wat::map::get p "?a") "?a")
-                        b (:wat::core::Option/expect (:wat::map::get p "?b") "?b")]
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get p "?a") "?a")
+                        b (:wat::core::Option/expect (:wat::core::get p "?b") "?b")]
         (:wat::i64::+ acc (:wat::i64::+ (:wat::i64::* a 1000) b))))
     0
     (:wat::rete::query s q)))
@@ -150,8 +150,8 @@
   [s <- :wat::rete::Session  qparam <- wat.type/i64] -> wat.type/i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
-      (:wat::core::let [a (:wat::core::Option/expect (:wat::map::get p "?a") "?a")
-                        b (:wat::core::Option/expect (:wat::map::get p "?b") "?b")]
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::get p "?a") "?a")
+                        b (:wat::core::Option/expect (:wat::core::get p "?b") "?b")]
         (:wat::i64::+ acc (:wat::i64::+ (:wat::i64::* a 1000) b))))
     0
     (:wat::core::if (:wat::core::= qparam 1)

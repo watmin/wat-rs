@@ -71,9 +71,9 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::let [a2 (:wat::vector::conj acc (:neg::Item i))]
+        (:wat::core::let [a2 (:wat::core::conj acc (:neg::Item i))]
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
-            (:wat::vector::conj a2 (:neg::Bad i))
+            (:wat::core::conj a2 (:neg::Bad i))
             a2)))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -89,7 +89,7 @@
 (:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
                               (:wat::rete::query fired (:neg::q-Ok))))]
     (:neg::vec->pvec (:wat::core::sort codes))))
 

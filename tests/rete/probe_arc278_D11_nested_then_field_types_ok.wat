@@ -90,11 +90,11 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s  (:d11o::fired)
-     fa (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qa)) "?f") "okA")
-     fb (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qb)) "?f") "okB")
-     fc (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qc)) "?f") "okC")
-     fd (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qd)) "?f") "okD")
-     fe (:wat::core::Option/expect (:wat::map::get (:d11o::one s (:d11o::qe)) "?f") "okE")]
+     fa (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qa)) "?f") "okA")
+     fb (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qb)) "?f") "okB")
+     fc (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qc)) "?f") "okC")
+     fd (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qd)) "?f") "okD")
+     fe (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qe)) "?f") "okE")]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::OutA/i fa))))
       (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::OutB/i fb))))

@@ -166,7 +166,7 @@ pub(crate) fn eval_record_same_data(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Record/same-data?";
+    const OP: &str = ":wat::record::same-data?";
     if args.len() != 2 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -209,7 +209,7 @@ pub(crate) fn record_assoc_inner(
     list_span: &Span,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Record/assoc";
+    const OP: &str = ":wat::core::assoc";
 
     // Arc 293.R2.1 — unified Aggregate path (Record + HolonRecord).
     let agg = match record_val {
@@ -378,28 +378,3 @@ pub(crate) fn record_assoc_inner(
     ))))
 }
 
-/// Thin wrapper: evaluates args then delegates to `record_assoc_inner`.
-/// Callers that already have evaluated values (e.g. `eval_assoc`) call `record_assoc_inner` directly.
-pub(crate) fn eval_record_assoc(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Record/assoc";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let key_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let new_val = eval_inner(&args[2], env, sym)?.value_owned();
-    record_assoc_inner(record_val, key_val, new_val, list_span, sym)
-}

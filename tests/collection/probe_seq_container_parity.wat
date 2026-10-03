@@ -12,7 +12,7 @@
   (:wat::core::third (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)))
 
 (:wat::core::defn :p::rest-pv [] -> wat.type/i64
-  (:wat::vector::length
+  (:wat::core::length
     (:wat::core::rest (wat.type/PersistentVector :- [wat.type/i64] 10 20 30))))
 
 (:wat::core::defn :p::conj-list [] -> wat.type/i64

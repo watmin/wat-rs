@@ -132,7 +132,7 @@
                   (:wat::core::if (:wat::i64::> n-arrow-lines 0)
                     (:wat::core::str
                       (:wat::core::Option/expect
-                        (:wat::map::get (:wat::core::first arrow-lines) "?l")
+                        (:wat::core::get (:wat::core::first arrow-lines) "?l")
                         "q-ArrowLine: ?l"))
                     "none"))))))))))
 
@@ -150,7 +150,7 @@
      fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      matches (:wat::rete::query fired (:wat::grep::q-match))
      m       (:wat::core::Option/expect
-               (:wat::map::get (:wat::core::first matches) "?fact")
+               (:wat::core::get (:wat::core::first matches) "?fact")
                "q-match: ?fact")]
     (:wat::kernel::println (:wat::core::str m))))
 

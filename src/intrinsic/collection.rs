@@ -544,7 +544,7 @@ pub(crate) fn eval_sort_native(
 ///           — a hashable K for a map receiver (raises a TypeMismatch if unhashable), or a :wat::core::keyword field name for a Record (raises UnknownField if the Record has no such field)
 /// @arg     new_value :T the value written at `key` (V, flattened to the scheme's single :T)
 /// @ret     :T the same-kind collection with `key` bound to `new-value`
-/// @example (:wat::hashmap::get (:wat::core::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
+/// @example (:wat::core::get (:wat::core::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Option::Some {:value 1})
 /// @see     :wat::core::conj
 #[wat_intrinsic(":wat::core::assoc")]
 pub(crate) fn eval_assoc(
@@ -556,6 +556,134 @@ pub(crate) fn eval_assoc(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     crate::runtime::eval_assoc(&[coll.clone(), key.clone(), new_value.clone()], list_span, env, sym)
+}
+
+/// `(:wat::core::dissoc m k)` removes `k` from a HashMap or a PersistentMap.
+///
+/// 255.86 — was a defalias of `:wat::hashmap::dissoc`, so a PersistentMap was a
+/// check error. Both arms call the existing inners (`hashmap_dissoc_inner`,
+/// `persistentmap_dissoc_inner`). An unhashable key is a no-op in both inners
+/// (the key cannot be present). A missing key is a no-op. The original map is
+/// not mutated.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     m :T the receiver — (HashMap :- [K V]) or (PersistentMap :- [K V])
+/// @arg     k :T the key removed
+/// @ret     :T the same-kind map with `k` removed
+/// @example (:wat::core::length (:wat::core::keys (:wat::core::dissoc (wat.type/HashMap :- [wat.type/String wat.type/i64] "a" 1) "a"))) #=> 0
+/// @example (:wat::core::length (:wat::core::keys (:wat::core::dissoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1) "a"))) #=> 0
+/// @see     :wat::core::assoc
+#[wat_intrinsic(":wat::core::dissoc")]
+pub(crate) fn eval_dissoc(
+    m: &WatAST,
+    k: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_dissoc(&[m.clone(), k.clone()], list_span, env, sym)
+}
+
+/// `(:wat::core::keys m)` — a Vector of `m`'s keys. HashMap or PersistentMap.
+/// Order is not part of the contract on either backend.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     m :T the receiver — (HashMap :- [K V]) or (PersistentMap :- [K V])
+/// @ret     (:wat::type::Vector :- [K]) `m`'s keys, order unspecified
+/// @example (:wat::core::length (:wat::core::keys (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
+/// @see     :wat::core::values
+#[wat_intrinsic(":wat::core::keys")]
+pub(crate) fn eval_keys(
+    m: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_keys(std::slice::from_ref(m), list_span, env, sym)
+}
+
+/// `(:wat::core::values m)` — a Vector of `m`'s values. HashMap or PersistentMap.
+/// Order is not part of the contract on either backend.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Nondeterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Projection
+/// @arg     m :T the receiver — (HashMap :- [K V]) or (PersistentMap :- [K V])
+/// @ret     (:wat::type::Vector :- [V]) `m`'s values, order unspecified
+/// @example (:wat::core::length (:wat::core::values (wat.type/PersistentMap :- [wat.type/String wat.type/i64] "a" 1))) #=> 1
+/// @see     :wat::core::keys
+#[wat_intrinsic(":wat::core::values")]
+pub(crate) fn eval_values(
+    m: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    crate::runtime::eval_values(std::slice::from_ref(m), list_span, env, sym)
+}
+
+/// `(:wat::core::concat left right)` — same-kind append. Vector×Vector,
+/// PersistentVector×PersistentVector, or List×List. A mixed pair is a
+/// TypeMismatch (`vector_concat_inner`). 255.86: this name is no longer an
+/// alias of `:wat::vec::concat`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Totality         Total
+/// @ExpandTime    Legal
+/// @Category      Transform
+/// @arg     left :T the left half — Vector, PersistentVector, or List
+/// @arg     right :T the right half, the same kind as `left`
+/// @ret     :T `left` followed by `right`, same kind
+/// @example (:wat::core::length (:wat::core::concat (wat.type/Vector :- [wat.type/i64] 1) (wat.type/Vector :- [wat.type/i64] 2))) #=> 2
+/// @see     :wat::core::into
+#[wat_intrinsic(":wat::core::concat")]
+pub(crate) fn eval_core_concat(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_concat_inner(left, right)
+}
+
+/// `(:wat::core::into to from)` — append every element of `from` onto `to`.
+/// `to` decides the result kind. Six pairs, the old defclause's set:
+/// Vector×Vector, Vector×Stream, PersistentVector×Stream,
+/// PersistentVector×Vector, Vector×PersistentVector,
+/// PersistentVector×PersistentVector. Anything else is `NoMatchingClause`.
+///
+/// @added         1.0.0
+/// @Purity        Preserving
+/// @Determinism   Preserving
+/// @Totality      Preserving
+/// @ExpandTime    Preserving
+/// @Category      Transform
+/// @arg     to :T the receiver — Vector or PersistentVector
+/// @arg     from :T Vector, PersistentVector, or Stream, per the six pairs
+/// @ret     :T `to`'s kind, with `from`'s elements appended
+/// @example (:wat::core::length (:wat::core::into (wat.type/Vector :- [wat.type/i64] 1) (wat.type/Vector :- [wat.type/i64] 2))) #=> 2
+/// @see     :wat::core::concat
+#[wat_intrinsic(":wat::core::into")]
+pub(crate) fn eval_into(
+    to: &WatAST,
+    from: &WatAST,
+    list_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let to_v = crate::runtime::eval_inner(to, env, sym)?.value_owned();
+    let from_v = crate::runtime::eval_inner(from, env, sym)?.value_owned();
+    crate::collection::transform::eval_into_values(&to_v, &from_v, list_span, sym)
 }
 
 /// `(:wat::core::conj coll elem) -> coll's own type` — arc 237 Stone 237.7b-iii.

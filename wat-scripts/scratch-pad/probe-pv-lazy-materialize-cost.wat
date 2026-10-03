@@ -85,7 +85,7 @@
                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
                                               i   <- wat.type/i64]
                                -> (wat.type/PersistentVector :- [wat.type/i64])
-                               (:wat::vector::conj acc i))
+                               (:wat::core::conj acc i))
                              (wat.type/PersistentVector :- [wat.type/i64])
                              (:wat::core::range 0 n))
                     b1     (:wat::time::now)
@@ -109,7 +109,7 @@
                                               x   <- wat.type/i64]
                                -> (wat.type/PersistentVector :- [wat.type/i64])
                                (:wat::core::if (:cx::keep? x)
-                                 (:wat::vector::conj acc x)
+                                 (:wat::core::conj acc x)
                                  acc))
                              (wat.type/PersistentVector :- [wat.type/i64])
                              pv)

@@ -13,7 +13,7 @@
     (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
                      n <- :wat::grep::Named]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
-      (:wat::hashmap::assoc m (:wat::grep::Named/id n) true))
+      (:wat::core::assoc m (:wat::grep::Named/id n) true))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     named))
 
@@ -24,7 +24,7 @@
     (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
                      w <- :wat::grep::Written]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
-      (:wat::hashmap::assoc m (:wat::grep::Written/id w) true))
+      (:wat::core::assoc m (:wat::grep::Written/id w) true))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     ws))
 
@@ -47,7 +47,7 @@
     (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
                      n <- :wat::grep::Node]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
-      (:wat::hashmap::assoc m (:wat::grep::Node/id n) (:wat::grep::Node/parent n)))
+      (:wat::core::assoc m (:wat::grep::Node/id n) (:wat::grep::Node/parent n)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     nodes))
 
@@ -61,7 +61,7 @@
     (:wat::core::match (:wat::core::get tainted id)
       [:wat::core::Option.Some {:value _} tainted]
       [:wat::core::Option.None {}
-        (:wat::core::let [t2 (:wat::hashmap::assoc tainted id true)
+        (:wat::core::let [t2 (:wat::core::assoc tainted id true)
                           p  (:wat::core::match (:wat::core::get parents id)
                                 [:wat::core::Option.None {} 0]
                                 [:wat::core::Option.Some {:value x} x])]

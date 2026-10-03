@@ -54,6 +54,6 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s        (:clw::fired)
-     where-n  (:wat::vector::length (:wat::rete::query s (:clw::q-seen)))
-     control-n (:wat::vector::length (:wat::rete::query s (:clw::q-seen-control)))]
+     where-n  (:wat::core::length (:wat::rete::query s (:clw::q-seen)))
+     control-n (:wat::core::length (:wat::rete::query s (:clw::q-seen-control)))]
     (:wat::kernel::println (:wat::core::format "where-arm {w}, control {c}" :w where-n :c control-n))))

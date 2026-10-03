@@ -265,7 +265,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  j <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/i64])
-        (:wat::vector::conj acc
+        (:wat::core::conj acc
           (:wat::i64::mod (:wat::i64::+ i (:wat::i64::* j 3)) 13)))
       (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::core::range 0 len))))
@@ -277,7 +277,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  b <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/i64])
-        (:wat::vector::conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
+        (:wat::core::conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
       (wat.type/PersistentVector :- [wat.type/i64])
       (:wat::core::range 0 len))))
 
@@ -287,7 +287,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])  a <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
-        (:wat::vector::conj acc (:wc::build-inner i a)))
+        (:wat::core::conj acc (:wc::build-inner i a)))
       (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
       (:wat::core::range 0 outer-len))))
 
@@ -300,7 +300,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                       -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::vector::conj acc
+        (:wat::core::conj acc
           (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::i64::mod i 8) :grid (:wc::build-grid i))))
       (wat.type/PersistentVector :- [wat.type/Record])
       (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
@@ -311,7 +311,7 @@
   (:wat::core::sort
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wc::Hit/k f)))
+        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wc::Hit/k f)))
         (:wat::rete::query fired (:wc::q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
@@ -346,7 +346,7 @@
                     staged  (:wc::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wc::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wc::items))
                     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
                     derived (:wc::derived-ints fired)
-                    n       (:wat::vec::length derived)]
+                    n       (:wat::core::length derived)]
     (:wat::string::concat
       (:wat::string::concat
         (:wat::string::concat "row " (:wat::i64::to-string row))

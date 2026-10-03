@@ -9,7 +9,7 @@
 
 (:wat::core::defn :user::probe-line [] -> wat.type/i64
   (:wat::core::Option/expect
-    (:wat::hashmap::get
+    (:wat::core::get
       (:wat::core::ast-span (:wat::core::macroexpand-1 (:wat::core::quote (:user::mk-kw))))
       :line)
     "ast-span should carry :line"))

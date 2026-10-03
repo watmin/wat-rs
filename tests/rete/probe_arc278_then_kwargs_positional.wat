@@ -23,8 +23,8 @@
     (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
       (:wat::i64::+ acc
         (:wat::i64::+
-          (:wat::i64::* (:wat::core::Option/expect (:wat::map::get p "?a") "a") 1000)
-          (:wat::core::Option/expect (:wat::map::get p "?b") "b"))))
+          (:wat::i64::* (:wat::core::Option/expect (:wat::core::get p "?a") "a") 1000)
+          (:wat::core::Option/expect (:wat::core::get p "?b") "b"))))
     0
     (:wat::rete::query
       (:wat::core::match (:wat::rete::fire-rules

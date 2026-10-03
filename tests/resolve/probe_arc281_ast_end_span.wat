@@ -4,5 +4,5 @@
      form (:wat::core::first (:wat::core::ast->children tree))
      espan (:wat::core::ast-end-span form)]
     (:wat::core::Option/expect
-      (:wat::hashmap::get espan :col)
+      (:wat::core::get espan :col)
       "end :col")))

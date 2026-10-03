@@ -1000,7 +1000,7 @@ pub(crate) fn eval_stream_to_vec(
         .into());
     };
     let s = eval_inner(&args[1], env, sym)?.value_owned();
-    let Some(mut cur) = crate::stream::value_as_stream(&s) else {
+    let Some(cur) = crate::stream::value_as_stream(&s) else {
         return Err(RuntimeError::new(
             args[1].span().clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -1011,10 +1011,21 @@ pub(crate) fn eval_stream_to_vec(
         )
         .into());
     };
-    let mut out: Vec<Value> = match Arc::try_unwrap(acc) {
+    let out: Vec<Value> = match Arc::try_unwrap(acc) {
         Ok(v) => v,
         Err(shared) => (*shared).clone(),
     };
+    drain_stream_into_vec(out, cur, call_span, sym)
+}
+
+/// One pass, one accumulator. `eval_stream_to_vec` and `:wat::core::into`'s
+/// Vector×Stream arm both drain through here.
+pub(crate) fn drain_stream_into_vec(
+    mut out: Vec<Value>,
+    mut cur: Arc<crate::stream::Stream>,
+    call_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     loop {
         let realized = crate::stream::realize(&cur, sym, call_span)?;
         match realized.as_ref() {
@@ -1056,7 +1067,7 @@ pub(crate) fn eval_stream_to_pvec(
         .into());
     }
     let acc = eval_inner(&args[0], env, sym)?.value_owned();
-    let Value::wat__core__PersistentVector(mut pv) = acc else {
+    let Value::wat__core__PersistentVector(pv) = acc else {
         return Err(RuntimeError::new(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -1068,7 +1079,7 @@ pub(crate) fn eval_stream_to_pvec(
         .into());
     };
     let s = eval_inner(&args[1], env, sym)?.value_owned();
-    let Some(mut cur) = crate::stream::value_as_stream(&s) else {
+    let Some(cur) = crate::stream::value_as_stream(&s) else {
         return Err(RuntimeError::new(
             args[1].span().clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -1079,6 +1090,17 @@ pub(crate) fn eval_stream_to_pvec(
         )
         .into());
     };
+    drain_stream_into_pvec(pv, cur, call_span, sym)
+}
+
+/// One pass, one accumulator. `eval_stream_to_pvec` and `:wat::core::into`'s
+/// PersistentVector×Stream arm both drain through here.
+pub(crate) fn drain_stream_into_pvec(
+    mut pv: crate::value::pvec::PVec,
+    mut cur: Arc<crate::stream::Stream>,
+    call_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     loop {
         let realized = crate::stream::realize(&cur, sym, call_span)?;
         match realized.as_ref() {
@@ -1093,6 +1115,96 @@ pub(crate) fn eval_stream_to_pvec(
                 unreachable!("crate::stream::realize always returns Empty|Cons")
             }
         }
+    }
+}
+
+/// `(:wat::core::into to from)` — the six pairs the old `defclause` accepted, in that
+/// order. Each arm calls the implementation that clause body called:
+/// Vector×Vector → `vector_concat_inner`; Vector×Stream → `drain_stream_into_vec`;
+/// PersistentVector×Stream → `drain_stream_into_pvec`; PersistentVector×Vector and
+/// PersistentVector×PersistentVector → `persistentvector_concat_inner`;
+/// Vector×PersistentVector → `vector_extend_inner`.
+///
+/// A Stream is `Value::wat__stream__Stream` only. `value_as_stream` also accepts an
+/// eager container, and using it here would steal the Vector×Vector arm.
+pub(crate) fn eval_into_values(
+    to: &Value,
+    from: &Value,
+    call_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    match (to, from) {
+        (Value::Vec(_), Value::Vec(_)) => {
+            crate::collection::eval::vector_concat_inner(to, from)
+        }
+        (Value::Vec(acc), Value::wat__stream__Stream(s)) => {
+            let out = match Arc::try_unwrap(Arc::clone(acc)) {
+                Ok(v) => v,
+                Err(shared) => (*shared).clone(),
+            };
+            drain_stream_into_vec(out, Arc::clone(s), call_span, sym)
+        }
+        (Value::wat__core__PersistentVector(pv), Value::wat__stream__Stream(s)) => {
+            drain_stream_into_pvec(pv.clone(), Arc::clone(s), call_span, sym)
+        }
+        (Value::wat__core__PersistentVector(_), Value::Vec(_))
+        | (Value::wat__core__PersistentVector(_), Value::wat__core__PersistentVector(_)) => {
+            crate::collection::eval::persistentvector_concat_inner(to, from)
+        }
+        (Value::Vec(_), Value::wat__core__PersistentVector(_)) => {
+            crate::collection::eval::vector_extend_inner(to, from)
+        }
+        _ => Err(into_no_match(to, from, call_span)),
+    }
+}
+
+fn into_no_match(to: &Value, from: &Value, call_span: &Span) -> EvalBreak {
+    let got_to = into_type_label(to);
+    let got_from = into_type_label(from);
+    let declared: [(&str, &str); 6] = [
+        ("(wat.type/Vector :- [T])", "(wat.type/Vector :- [T])"),
+        ("(wat.type/Vector :- [T])", "(wat.stream/Stream :- [T])"),
+        ("(wat.type/PersistentVector :- [T])", "(wat.stream/Stream :- [T])"),
+        ("(wat.type/PersistentVector :- [T])", "(wat.type/Vector :- [T])"),
+        ("(wat.type/Vector :- [T])", "(wat.type/PersistentVector :- [T])"),
+        ("(wat.type/PersistentVector :- [T])", "(wat.type/PersistentVector :- [T])"),
+    ];
+    let attempted: Vec<crate::value::ClauseAttempt> = declared
+        .iter()
+        .enumerate()
+        .map(|(i, (exp_to, exp_from))| {
+            let to_miss = got_to != *exp_to;
+            crate::value::ClauseAttempt {
+                clause_index: i,
+                declared_arity: 2,
+                declared_arg_types: vec![(*exp_to).to_string(), (*exp_from).to_string()],
+                failure_reason: crate::value::ClauseFailureReason::ArgTypeMismatch {
+                    position: if to_miss { 0 } else { 1 },
+                    expected: if to_miss { (*exp_to).to_string() } else { (*exp_from).to_string() },
+                    got: if to_miss { got_to.clone() } else { got_from.clone() },
+                },
+            }
+        })
+        .collect();
+    RuntimeError::new(
+        call_span.clone(),
+        RuntimeErrorKind::NoMatchingClause {
+            name: ":wat::core::into".into(),
+            called_arity: 2,
+            called_args: vec![ValueSnapshot::of(to), ValueSnapshot::of(from)],
+            attempted_clauses: Box::new(attempted),
+        },
+    )
+    .into()
+}
+
+fn into_type_label(v: &Value) -> String {
+    match v {
+        Value::Vec(_) => "(wat.type/Vector :- [T])".into(),
+        Value::wat__core__PersistentVector(_) => "(wat.type/PersistentVector :- [T])".into(),
+        Value::wat__core__List(_) => "(wat.type/List :- [T])".into(),
+        Value::wat__stream__Stream(_) => "(wat.stream/Stream :- [T])".into(),
+        other => format!("{:?}", ValueSnapshot::of(other)),
     }
 }
 
@@ -1755,7 +1867,7 @@ mod seqable_to_stream_tests {
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64]\n\
       -> (wat.type/PersistentVector :- [wat.type/i64])\n\
-      (:wat::vector::conj acc i))\n\
+      (:wat::core::conj acc i))\n\
     (wat.type/PersistentVector :- [wat.type/i64])\n\
     (:wat::core::range 0 n)))\n\
 ";
@@ -1820,7 +1932,7 @@ mod filter_native_tests {
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  i <- wat.type/i64]\n\
       -> (wat.type/PersistentVector :- [wat.type/i64])\n\
-      (:wat::vector::conj acc i))\n\
+      (:wat::core::conj acc i))\n\
     (wat.type/PersistentVector :- [wat.type/i64])\n\
     (:wat::core::range 0 n)))\n\
 ";

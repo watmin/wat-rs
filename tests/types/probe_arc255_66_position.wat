@@ -65,7 +65,7 @@
 (:wat::core::defn :user::pmap [] -> wat.type/bool
   (:wat::core::let [a (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)
                     b (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :a 1)]
-    (:wat::core::= (:wat::map::get a :a) (:wat::map::get b :a))))
+    (:wat::core::= (:wat::core::get a :a) (:wat::core::get b :a))))
 
 (:wat::core::defmacro :user::touch-vec [] -> wat.type/AST
   (:wat::core::let [_ (wat.type/Vector :- [wat.type/i64])]

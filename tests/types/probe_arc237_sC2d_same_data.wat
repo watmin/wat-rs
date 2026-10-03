@@ -20,10 +20,10 @@
 
 ;; samedata_* — the verb :wat::core::Record/same-data?
 (:wat::core::defn :user::samedata-same-type-equal [] -> wat.type/bool
-  (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 0)))
+  (:wat::record::same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 0)))
 
 (:wat::core::defn :user::samedata-cross-type-equal [] -> wat.type/bool
-  (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Coord :x 0 :y 0)))
+  (:wat::record::same-data? (:my::Pt :x 0 :y 0) (:my::Coord :x 0 :y 0)))
 
 (:wat::core::defn :user::samedata-diff-value [] -> wat.type/bool
-  (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 9)))
+  (:wat::record::same-data? (:my::Pt :x 0 :y 0) (:my::Pt :x 0 :y 9)))

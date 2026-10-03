@@ -65,7 +65,7 @@
           (:wat::kernel::println (:wat::core::format "{v}" :v
             (:d11r::Inner/n (:d11r::Outer/i
               (:wat::core::Option/expect
-                (:wat::map::get (:wat::core::first (:wat::rete::query __f (:d11r::qo))) "?f")
+                (:wat::core::get (:wat::core::first (:wat::rete::query __f (:d11r::qo))) "?f")
                 "control")))))
           (:wat::kernel::println "SUBJECT (was `:nh::bad`) is now refused at rule-compile — see the header"))]
       [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::println "ceil")]

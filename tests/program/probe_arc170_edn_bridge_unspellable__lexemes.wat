@@ -7,7 +7,7 @@
 ;; or evaluated. The subject under test is the crossing, not the semantics.
 
 ;; 1. Type/method accessor — `Vector/length` puts a second `/` in the keyword.
-(:wat::core::defn :u::acc [] -> wat.type/i64 (:wat::vec::length xs))
+(:wat::core::defn :u::acc [] -> wat.type/i64 (:wat::core::length xs))
 
 ;; 2. generic type — `<` `>` in a keyword body.
 (:wat::core::defn :u::gen [xs <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64 1)

@@ -22,11 +22,11 @@
         "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"eval\",\"arguments\":{\"edn\":\"(:wat::core::+ 2 2)\"}}}")
 
     [:wat::edn::ReadJsonOutcome.Value {:value top}
-      (:wat::core::match (:wat::hashmap::get top "params")
+      (:wat::core::match (:wat::core::get top "params")
         [:wat::core::Option.Some {:value params}
-          (:wat::core::match (:wat::hashmap::get params "arguments")
+          (:wat::core::match (:wat::core::get params "arguments")
             [:wat::core::Option.Some {:value args}
-              (:wat::core::match (:wat::hashmap::get args "edn")
+              (:wat::core::match (:wat::core::get args "edn")
                 [:wat::core::Option.Some {:value s}
                   (:wat::kernel::println (:wat::string::concat "WALKS -> " s))]
                 [:wat::core::Option.None {} (:wat::kernel::println "MISS at edn")])]

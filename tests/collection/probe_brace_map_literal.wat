@@ -21,7 +21,7 @@
 
 ;; probe 2b: single pair contains :foo
 (:wat::core::defn :t::p2b-single-contains [] -> wat.type/bool
-  (:wat::hashmap::contains-key? {:foo 42} :foo))
+  (:wat::core::contains? {:foo 42} :foo))
 
 ;; probe 3a: multi pair {a 1 b 2 c 3} length 3
 (:wat::core::defn :t::p3a-multi-len [] -> wat.type/i64
@@ -29,7 +29,7 @@
 
 ;; probe 3b: multi pair contains :b
 (:wat::core::defn :t::p3b-multi-contains [] -> wat.type/bool
-  (:wat::hashmap::contains-key? {:a 1 :b 2 :c 3} :b))
+  (:wat::core::contains? {:a 1 :b 2 :c 3} :b))
 
 ;; probe 4: nested in expression (:wat::core::length {:a 1 :b 2}) → 2
 (:wat::core::defn :t::p4-nested-expr-len [] -> wat.type/i64

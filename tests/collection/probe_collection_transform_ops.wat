@@ -23,7 +23,7 @@
     [zipped (:wat::seq::zip
                (wat.type/Vector :- [wat.type/i64] 1 2 3)
                (wat.type/Vector :- [wat.type/i64] 4 5 6))]
-    (:wat::vec::length zipped)))
+    (:wat::core::length zipped)))
 
 ;; item4b: zip with empty first vector → length 0
 (:wat::core::defn :t::item4b-zip-empty-len [] -> wat.type/i64
@@ -31,32 +31,32 @@
     [zipped (:wat::seq::zip
                (wat.type/Vector :- [wat.type/i64])
                (wat.type/Vector :- [wat.type/i64] 1 2 3))]
-    (:wat::vec::length zipped)))
+    (:wat::core::length zipped)))
 
 ;; item4c: window happy path — 3 windows of size 2 over 4 elements
 (:wat::core::defn :t::item4c-window-happy-len [] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::seq::window
        (wat.type/Vector :- [wat.type/i64] 1 2 3 4)
        2)))
 
 ;; item4d: window n > len → empty output
 (:wat::core::defn :t::item4d-window-n-gt-len [] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::seq::window
        (wat.type/Vector :- [wat.type/i64] 1 2)
        5)))
 
 ;; item4e: remove-at happy path — length after removal
 (:wat::core::defn :t::item4e-remove-at-happy-len [] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::seq::remove-at
        (wat.type/Vector :- [wat.type/i64] 10 20 30)
        1)))
 
 ;; item4f: remove-at out-of-range — length unchanged
 (:wat::core::defn :t::item4f-remove-at-oob-len [] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::seq::remove-at
        (wat.type/Vector :- [wat.type/i64] 10 20 30)
        99)))
@@ -78,7 +78,7 @@
 ;; item4h: map-indexed empty input → length 0. `:wat::vec::length` is Vector-only, so `into []`
 ;; materializes the lazy Stream first.
 (:wat::core::defn :t::item4h-map-indexed-empty [] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::core::into []
       (:wat::core::map-indexed
         (:wat::core::fn [i <- wat.type/i64 v <- wat.type/i64] -> wat.type/i64 i)
@@ -110,23 +110,23 @@
 (:wat::core::defn :t::item5a-conj-immutable-len [] -> wat.type/i64
   (:wat::core::let
     [v0 (wat.type/Vector :- [wat.type/i64] 1 2)
-     _  (:wat::vec::conj v0 3)]
-    (:wat::vec::length v0)))
+     _  (:wat::core::conj v0 3)]
+    (:wat::core::length v0)))
 
 ;; item5b: conj returns new vector of length 3
 (:wat::core::defn :t::item5b-conj-new-len [] -> wat.type/i64
   (:wat::core::let
     [v0 (wat.type/Vector :- [wat.type/i64] 1 2)
-     v1 (:wat::vec::conj v0 3)]
-    (:wat::vec::length v1)))
+     v1 (:wat::core::conj v0 3)]
+    (:wat::core::length v1)))
 
 ;; item5c: conj appends element at last position
 (:wat::core::defn :t::item5c-conj-new-elem [] -> wat.type/i64
   (:wat::core::let
     [v0 (wat.type/Vector :- [wat.type/i64] 1 2)
-     v1 (:wat::vec::conj v0 99)]
+     v1 (:wat::core::conj v0 99)]
     (:wat::core::match
-      (:wat::vec::get v1 2)
+      (:wat::core::get v1 2)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))

@@ -84,7 +84,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:dc::build-rule i n)))
+      (:wat::core::conj acc (:dc::build-rule i n)))
     (wat.type/PersistentVector :- [:wat::rete::Rule])
     (:wat::core::range 0 n)))
 
@@ -116,7 +116,7 @@
                     q       (:wat::rete::query fired (:dc::q-Out))
                     q1      (:wat::time::now)
                     mapped  (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
                               q)
                     q2      (:wat::time::now)
                     vec     (:wat::core::into (wat.type/Vector :- [wat.type/i64]) mapped)
@@ -127,7 +127,7 @@
                               (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
                                                x   <- wat.type/i64]
                                 -> (wat.type/PersistentVector :- [wat.type/i64])
-                                (:wat::vector::conj acc x))
+                                (:wat::core::conj acc x))
                               (wat.type/PersistentVector :- [wat.type/i64])
                               sorted)
                     q5      (:wat::time::now)
@@ -141,9 +141,9 @@
                                                p   <- wat.type/PersistentMap]
                                 -> (wat.type/PersistentVector :- [wat.type/i64])
                                 (:wat::core::let [f (:wat::core::Option/expect
-                                                      (:wat::map::get p "?fact")
+                                                      (:wat::core::get p "?fact")
                                                       "q-Out: ?fact")]
-                                  (:wat::vector::conj acc (:dc::Out/k f))))
+                                  (:wat::core::conj acc (:dc::Out/k f))))
                               (wat.type/PersistentVector :- [wat.type/i64])
                               q)
                     d1      (:wat::time::now)]

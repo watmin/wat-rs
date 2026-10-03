@@ -1,5 +1,5 @@
 #wat.runtime/TypeMismatch {
-  :message ":wat::core::Record/assoc: expected wat::type::f64, got wat::type::i64 `42`"
+  :message ":wat::core::assoc: expected wat::type::f64, got wat::type::i64 `42`"
   :location #wat.core/Span {
     :file "tests/types/probe_arc234_stone3b_record_assoc.wat"
     :line 29
@@ -7,12 +7,12 @@
     :end #wat.core/Option.Some {
       :value #wat.core/Pos {
         :line 29
-        :col 47
+        :col 40
       }
     }
   }
   :causes []
-  :op ":wat::core::Record/assoc"
+  :op ":wat::core::assoc"
   :expected "wat::type::f64"
   :got {
     :type "wat::type::i64"

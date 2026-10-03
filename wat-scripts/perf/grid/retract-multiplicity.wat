@@ -53,12 +53,12 @@
 (:wat::core::defn :rm::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
   (:wat::core::match (:wat::rete::insert-all
     session
-    (:wat::vector::conj
+    (:wat::core::conj
       (:wat::core::foldl
         (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                         -> (wat.type/PersistentVector :- [wat.type/Record])
-          (:wat::vector::conj
-            (:wat::vector::conj acc (:rm::F i))
+          (:wat::core::conj
+            (:wat::core::conj acc (:rm::F i))
             (:rm::G i)))
         (wat.type/PersistentVector :- [wat.type/Record])
         (:wat::core::range 0 items))
@@ -76,7 +76,7 @@
 (:wat::core::defn :rm::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                             (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:rm::Out/k f)))
+                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:rm::Out/k f)))
                               (:wat::rete::query fired (:rm::q-Out))))]
     (:rm::vec->pvec (:wat::core::sort codes))))
 

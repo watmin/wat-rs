@@ -94,7 +94,7 @@
                      (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/String]) c <- wat.type/AST]
                        -> (wat.type/HashSet :- [wat.type/String])
                        (:wat::core::if (:user::kind-binding? c)
-                         (:wat::hashset::conj s (:user::sym-name (:wat::core::first (:wat::core::ast->children c))))
+                         (:wat::core::conj s (:user::sym-name (:wat::core::first (:wat::core::ast->children c))))
                          s))
                      acc
                      ch)
@@ -134,7 +134,7 @@
            s (:wat::core::nth ch 2)]
           (:wat::core::if
             (:wat::core::if (:wat::string::empty? newh) false
-              (:wat::core::if (:wat::hashset::contains? vars (:user::sym-name v))
+              (:wat::core::if (:wat::core::contains? vars (:user::sym-name v))
                 (:wat::core::= (:wat::core::ast-kind s) "string")
                 false))
             (:wat::core::let [varn (:user::variant-of (:wat::core::ast-name s))]

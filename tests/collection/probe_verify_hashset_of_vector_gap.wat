@@ -7,4 +7,4 @@
     [v1     (wat.type/Vector :- [wat.type/i64] 1 2)
      v2     (wat.type/Vector :- [wat.type/i64] 3 4)
      outer  (wat.type/HashSet :- [:wat::type::Infer] v1 v2)]
-    (:wat::hashset::length outer)))
+    (:wat::core::length outer)))

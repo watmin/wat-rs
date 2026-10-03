@@ -48,7 +48,7 @@
 (:wat::core::defn :perf::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:perf::build-rule k)))
+      (:wat::core::conj acc (:perf::build-rule k)))
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:perf::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
@@ -64,7 +64,7 @@
 (:wat::core::defn :perf::count-at-level [fired <- :wat::rete::Session  lvl <- wat.type/i64] -> wat.type/i64
   (:wat::core::length
     (:wat::core::filter
-      (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool (:wat::core::let [n (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
+      (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool (:wat::core::let [n (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
       (:wat::rete::query fired (:cascade::q-Node)))))
 
 ;; elapsed-ns thunk-result-start-end — nanoseconds between two Instants.

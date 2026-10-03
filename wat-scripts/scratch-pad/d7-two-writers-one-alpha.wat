@@ -42,11 +42,11 @@
 (:wat::rete::defquery :d7::q :params [] :when [(?fact :- :d7::Hit)])
 
 (:wat::core::defn :d7::hits [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::vec::length
+  (:wat::core::length
     (:wat::core::into (wat.type/Vector :- [wat.type/i64])
       (:wat::core::map
         (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:d7::Hit/k (:wat::core::Option/expect (:wat::map::get p "?fact") "?fact")))
+          (:d7::Hit/k (:wat::core::Option/expect (:wat::core::get p "?fact") "?fact")))
         (:wat::rete::query s (:d7::q))))))
 
 

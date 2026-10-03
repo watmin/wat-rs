@@ -80,7 +80,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:aod::build-step k)))
+      (:wat::core::conj acc (:aod::build-step k)))
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:aod::tally-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
@@ -91,8 +91,8 @@
   (wat.type/PersistentVector :- [wat.type/Record]))
 
 (:wat::core::defn :aod::seed-facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::vector::conj
-    (:wat::vector::conj
+  (:wat::core::conj
+    (:wat::core::conj
       (:aod::empty-records)
       (:aod::Seed :id 0))
     (:aod::Step :level 0)))
@@ -126,17 +126,17 @@
     [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:aod::enc 0 (:aod::Step/level f) 0)))
             (:wat::core::filter
               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool
-                (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                   (:wat::i64::> (:aod::Step/level f) 0)))
               (:wat::rete::query fired (:aod::q-Step)))))
      c1 (:wat::core::into c0
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:aod::enc 1 0 (:aod::Tally/n f))))
             (:wat::rete::query fired (:aod::q-Tally))))]
     (:aod::vec->pvec (:wat::core::sort c1))))

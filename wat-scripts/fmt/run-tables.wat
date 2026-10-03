@@ -16,8 +16,8 @@
    g <- wat.type/i64]
   -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
   (:wat::core::match (:wat::core::get m g)
-    [:wat::core::Option.None {} (:wat::hashmap::assoc m g 1)]
-    [:wat::core::Option.Some {:value n} (:wat::hashmap::assoc m g (:wat::i64::+ n 1))]))
+    [:wat::core::Option.None {} (:wat::core::assoc m g 1)]
+    [:wat::core::Option.Some {:value n} (:wat::core::assoc m g (:wat::i64::+ n 1))]))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
@@ -34,7 +34,7 @@
                      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
                                       s   <- :wat::fmt::FormSig]
                        -> (wat.type/PersistentVector :- [wat.type/Record])
-                       (:wat::vector::conj acc s))
+                       (:wat::core::conj acc s))
                      rec0
                      (:wat::fmt::form-sigs-of forms))
            queries (wat.type/PersistentVector :- [:wat::rete::Query]
@@ -62,7 +62,7 @@
                                           binding <- wat.type/PersistentMap]
                            -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
                            (:wat::core::let [tr (:wat::core::Option/expect
-                                                  (:wat::map::get binding "?t")
+                                                  (:wat::core::get binding "?t")
                                                   "no ?t")]
                              (:user::inc-group m (:wat::fmt::TableRow/group tr))))
                          (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
@@ -72,13 +72,13 @@
                         (:wat::core::let [sz (:wat::core::Option/expect (:wat::core::get sizes g) "sz")]
                           (:wat::core::if (:wat::i64::>= sz 2) (:wat::i64::+ n 1) n)))
                       0
-                      (:wat::hashmap::keys sizes))
+                      (:wat::core::keys sizes))
                  n3 (:wat::core::foldl
                       (:wat::core::fn [n <- wat.type/i64  g <- wat.type/i64] -> wat.type/i64
                         (:wat::core::let [sz (:wat::core::Option/expect (:wat::core::get sizes g) "sz")]
                           (:wat::core::if (:wat::i64::>= sz 3) (:wat::i64::+ n 1) n)))
                       0
-                      (:wat::hashmap::keys sizes))
+                      (:wat::core::keys sizes))
                  rows (:wat::core::length
                          (:wat::rete::query fired (:wat::fmt::q-table)))
                  out (:wat::fmt::emit forms comments

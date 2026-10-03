@@ -46,7 +46,7 @@
 
 (:wat::core::defn :cnb::n [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
   (:cnb::Plain/n (:wat::core::Option/expect
-    (:wat::map::get (:wat::core::first (:wat::rete::query s q)) "?f") "row")))
+    (:wat::core::get (:wat::core::first (:wat::rete::query s q)) "?f") "row")))
 
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
@@ -64,6 +64,6 @@
              [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "cap")])
      plain (:cnb::n fired (:cnb::q-plain))
      extra (:wat::i64::- (:cnb::Extra/n (:wat::core::Option/expect
-             (:wat::map::get (:wat::core::first (:wat::rete::query fired (:cnb::q-extra))) "?f") "row")) 0)]
+             (:wat::core::get (:wat::core::first (:wat::rete::query fired (:cnb::q-extra))) "?f") "row")) 0)]
     (:wat::kernel::println (:wat::core::format
       "3 readings inserted -> plain={p}  with-unused-bind={e}   (both must be 3)" :p plain :e extra))))

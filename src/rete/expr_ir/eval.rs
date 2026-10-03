@@ -873,18 +873,6 @@ impl OpExec {
             ":wat::string::trim" => Self::StrTrim,
             ":wat::string::to-lowercase" => Self::StrLower,
             ":wat::string::subs" => Self::StrSubs,
-            // Arc 255 Stone E-ii — `core` arrives as `row.core_name`, which for the moved
-            // PersistentVector/Vector verbs now reads `:wat::vector::*`/`:wat::vec::*` (E-ii's
-            // homes), not `:wat::core::PersistentVector/*`/`:wat::core::Vector/*`. Mirrors Stone
-            // C's numerics fold-removal note above: keyed on the new spelling directly.
-            ":wat::vector::length" => Self::PvLen,
-            ":wat::vector::contains?" => Self::PvContains,
-            ":wat::vector::get" => Self::PvGet,
-            ":wat::vec::get" => Self::VecGet,
-            // Arc 255 Stone E-iii — `:wat::core::List/get` retired this stone;
-            // `:wat::linkedlist::get` is its replacement. Mirrors the E-ii note above.
-            ":wat::linkedlist::get" => Self::ListGet,
-            ":wat::map::contains-key?" => Self::PmContainsKey,
             ":wat::core::first" => Self::First,
             ":wat::core::second" => Self::Second,
             ":wat::core::third" => Self::Third,
@@ -898,6 +886,21 @@ impl OpExec {
             ":wat::holon::coincident?" => Self::Coincident,
             ":wat::holon::presence?" => Self::Presence,
             _ => Self::Unknown,
+        }
+    }
+
+    /// 255.86 — six collection rows retargeted `core_name` onto a polymorphic verb
+    /// (`:wat::core::length`, `:wat::core::contains?`, `:wat::core::get`). Those
+    /// core names are shared, so the fast path stays keyed on the rete name.
+    fn of_row(row: &crate::rete::vocabulary::ReteOp) -> Self {
+        match row.rete_name {
+            ":wat::rete::vector::length" => Self::PvLen,
+            ":wat::rete::vector::contains?" => Self::PvContains,
+            ":wat::rete::map::contains-key?" => Self::PmContainsKey,
+            ":wat::rete::vector::get" => Self::PvGet,
+            ":wat::rete::vec::get" => Self::VecGet,
+            ":wat::rete::linkedlist::get" => Self::ListGet,
+            _ => Self::of(row.core_name),
         }
     }
 }
@@ -914,7 +917,7 @@ pub(crate) fn apply_op(
     // rune:sequi(ambient-context) — opcode table interned once; not fire-domain state.
     static KINDS: OnceLock<Vec<OpExec>> = OnceLock::new();
     let kinds = KINDS.get_or_init(|| {
-        RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()
+        RETE_OPS.iter().map(OpExec::of_row).collect()
     });
     let Some(&kind) = kinds.get(op as usize) else {
         return Err(RuntimeError::new(

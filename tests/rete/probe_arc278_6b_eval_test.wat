@@ -10,42 +10,42 @@
 (:wat::core::defn :user::comparison-true [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::core::> ?a ?b))
-    (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 5) "?b" 3)))
+    (:wat::core::assoc (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 5) "?b" 3)))
 
 ;; 2 — a false comparison over bindings → false.
 (:wat::core::defn :user::comparison-false [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::core::> ?a ?b))
-    (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 3) "?b" 5)))
+    (:wat::core::assoc (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 3) "?b" 5)))
 
 ;; 3 — a pure intrinsic predicate (string::starts-with?) over a string binding.
 (:wat::core::defn :user::string-predicate-over-binding [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::string::starts-with? ?path "/admin"))
-    (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/String]) "?path" "/admin/x")))
+    (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/String]) "?path" "/admin/x")))
 
 ;; 4 — a COMPUTED operand `(> (- ?hi ?lo) 10)` → true (the "any pure expr" proof, not just a 2-var cmp).
 (:wat::core::defn :user::computed-operand-true [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::core::> (:wat::core::- ?hi ?lo) 10))
-    (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?hi" 20) "?lo" 5)))
+    (:wat::core::assoc (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?hi" 20) "?lo" 5)))
 
 ;; 5 — the same computed operand, false branch.
 (:wat::core::defn :user::computed-operand-false [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::core::> (:wat::core::- ?hi ?lo) 10))
-    (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?hi" 12) "?lo" 5)))
+    (:wat::core::assoc (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?hi" 12) "?lo" 5)))
 
 ;; 6 — a USER-defined predicate over a binding (THE load-bearing case: filter with your own fn).
 (:wat::core::defn :user::user-fn-predicate [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:test::big? ?x))
-    (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?x" 150)))
+    (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?x" 150)))
 
 ;; 7 — a non-bool result is a TypeMismatch (a `where` must be a predicate). Declared bool per eval-test's
 ;; contract; the raise happens at runtime when the quoted expr's actual result is non-bool.
 (:wat::core::defn :user::non-bool-result-is-error [] -> wat.type/bool
   (:wat::rete::eval-test
     (:wat::core::quote (:wat::core::+ ?a ?b))
-    (:wat::map::assoc (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 1) "?b" 2)))
+    (:wat::core::assoc (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "?a" 1) "?b" 2)))
 

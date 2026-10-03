@@ -47,7 +47,7 @@
   (:wat::core::let [rows (:wat::rete::query s (:jb::q))]
     (:wat::core::if (:wat::core::= (:wat::core::length rows) 1)
       (:wat::core::let [f (:wat::core::Option/expect
-                            (:wat::map::get (:wat::core::first rows) "?fact") "fact")]
+                            (:wat::core::get (:wat::core::first rows) "?fact") "fact")]
         (wat.type/PersistentVector :- [wat.type/i64] (:wat::core::length rows) (:jb::Both/celsius f) (:jb::Both/kph f)))
       (wat.type/PersistentVector :- [wat.type/i64] (:wat::core::length rows) 0 0))))
 
@@ -55,6 +55,6 @@
 (:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-    (:wat::vector::concat
+    (:wat::core::into
       (:jb::readback (:wat::core::match (:wat::rete::fire-rules (:jb::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
       (:jb::readback (:wat::core::match (:wat::rete::fire-rules$oracle (:jb::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

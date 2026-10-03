@@ -525,8 +525,10 @@ fn is_expand_time_legal(head: &str) -> bool {
     //     this time caught by the gate (`the_residues_cannot_shadow_the_registry`,
     //     `src/intrinsic/mod.rs`) at registration time rather than by a rider noticing later.
     //   collection / sequence ops still on the pre-registry dispatch path —
-    //     `count`, `into`, `filterv`, `reduce`, `reduce-stream`, `doall`, `dorun`,
+    //     `count`, `filterv`, `reduce`, `reduce-stream`, `doall`, `dorun`,
     //     `stream->pvec`
+    //   ~~into~~ — DELETED 255.86. `#[wat_intrinsic]` (`src/intrinsic/collection.rs`,
+    //     `@ExpandTime Preserving`), so the registry door above answers first.
     //   ~~Option/Result unwrappers~~ — DELETED 2026-08-31. All four (`Option/expect`,
     //     `Option/try`, `Result/expect`, `Result/try`) are now `#[wat_intrinsic]`-registered,
     //     so the `registry().lookup_entry` door above answers first and these arms were
@@ -549,7 +551,6 @@ fn is_expand_time_legal(head: &str) -> bool {
     matches!(head, |":wat::core::i64/to-f64"| ":wat::core::i64/to-string"
         | ":wat::core::List?"
         | ":wat::core::count"
-        | ":wat::core::into"
         | ":wat::core::filterv"
         | ":wat::core::reduce"
         | ":wat::core::reduce-stream"

@@ -42,7 +42,7 @@
   (:wat::rete::DerivationStep/pattern (:user::explain-cw-step0)))
 
 (:wat::core::defn :user::step-bindings-c [] -> (:wat::core::Option :- [wat.type/Value])
-  (:wat::map::get (:wat::rete::DerivationStep/bindings (:user::explain-cw-step0)) "?c"))
+  (:wat::core::get (:wat::rete::DerivationStep/bindings (:user::explain-cw-step0)) "?c"))
 
 (:wat::core::defn :user::derived-node-rule [] -> (:wat::core::Option :- [wat.type/String])
   (:wat::rete::DerivationNode/rule (:user::explain-cw-root)))

@@ -65,7 +65,7 @@
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
 ;; Expected: item 7 + 1 (durable is `Some`) = 8.
-(:wat::core::defn :wat-tests::barebox/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
+(:wat::core::defn :wat-tests::barebox::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
   (:wat::core::let
     [h (:wat-tests::barebox-svc/start :locus locus
          :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option.Some {:value 42})))
@@ -101,7 +101,7 @@
 (:wat::test::deftest :wat-tests::service::parametric-bare-messages-round-trip-on-thread
 
   (:wat::test::assert-eq
-    (:wat-tests::barebox/run (:wat::spawn::thread))
+    (:wat-tests::barebox::run (:wat::spawn::thread))
     8))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
@@ -112,5 +112,5 @@
 (:wat::test::deftest :wat-tests::service::parametric-bare-messages-round-trip-on-process
 
   (:wat::test::assert-eq
-    (:wat-tests::barebox/run (:wat::spawn::process))
+    (:wat-tests::barebox::run (:wat::spawn::process))
     8))

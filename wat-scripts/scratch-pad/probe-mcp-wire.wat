@@ -35,7 +35,7 @@
     ;; ASSUMPTION 2: a String-keyed map through write-json.
     (:wat::kernel::println
       (:wat::edn::write-json
-        (:wat::hashmap::assoc
+        (:wat::core::assoc
           (wat.type/HashMap :- [wat.type/String wat.type/String])
           "edn" "#some.edn/Thing {:whatever 42}")))
     (:probe::show-frame)))

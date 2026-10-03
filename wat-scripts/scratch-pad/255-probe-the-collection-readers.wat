@@ -63,7 +63,7 @@
     (:wat::kernel::println "── section 1 — behaviour unchanged ──")
     (:wat::kernel::println
       (:wat::string::concat "assoc on HashMap             => "
-        (:wat::edn::write (:wat::hashmap::get
+        (:wat::edn::write (:wat::core::get
           (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1) "a"))))
     (:wat::kernel::println
       (:wat::string::concat "conj on Vector                => "
@@ -89,7 +89,7 @@
       (:wat::string::concat "assoc :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::assoc)
           [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::hashmap::get hm :totality)
+           (:wat::core::match (:wat::core::get hm :totality)
              [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
              [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
           [:wat::core::Option.None {} "None (not registered in this binary)"])))
@@ -97,7 +97,7 @@
       (:wat::string::concat "conj  :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::conj)
           [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::hashmap::get hm :totality)
+           (:wat::core::match (:wat::core::get hm :totality)
              [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
              [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
           [:wat::core::Option.None {} "None (not registered in this binary)"])))
@@ -105,7 +105,7 @@
       (:wat::string::concat "drop  :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::drop)
           [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::hashmap::get hm :totality)
+           (:wat::core::match (:wat::core::get hm :totality)
              [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
              [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
           [:wat::core::Option.None {} "None (not registered in this binary)"])))
@@ -113,7 +113,7 @@
       (:wat::string::concat "take  :totality => "
         (:wat::core::match (:wat::runtime::metadata-of :wat::core::take)
           [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::hashmap::get hm :totality)
+           (:wat::core::match (:wat::core::get hm :totality)
              [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
              [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
           [:wat::core::Option.None {} "None (not registered in this binary)"])))

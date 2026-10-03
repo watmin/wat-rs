@@ -11,14 +11,14 @@
   [m <- (wat.type/PersistentMap :- [wat.type/i64 wat.type/Record])
    k <- wat.type/i64]
   -> (:wat::core::Option :- [wat.type/Record])
-  (:wat::map::get m k))
+  (:wat::core::get m k))
 
 ;; alpha-mem-shaped: (PersistentMap :- [i64 (PersistentVector :- [Element])])
 (:wat::core::defn :scratch::stone2a::alpha-mem-get
   [m <- (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Element])])
    k <- wat.type/i64]
   -> (:wat::core::Option :- [(wat.type/PersistentVector :- [:wat::rete::Element])])
-  (:wat::map::get m k))
+  (:wat::core::get m k))
 
 ;; beta-mem-shaped: (PersistentMap :- [i64 (PersistentVector :- [Token])])
 (:wat::core::defn :scratch::stone2a::beta-mem-assoc
@@ -26,14 +26,14 @@
    k <- wat.type/i64
    v <- (wat.type/PersistentVector :- [:wat::rete::Token])]
   -> (wat.type/PersistentMap :- [wat.type/i64 (wat.type/PersistentVector :- [:wat::rete::Token])])
-  (:wat::map::assoc m k v))
+  (:wat::core::assoc m k v))
 
 ;; bindings-shaped: (PersistentMap :- [String Value])
 (:wat::core::defn :scratch::stone2a::bindings-get
   [b <- (wat.type/PersistentMap :- [wat.type/String wat.type/Value])
    k <- wat.type/String]
   -> (:wat::core::Option :- [wat.type/Value])
-  (:wat::map::get b k))
+  (:wat::core::get b k))
 
 ;; query-memory-shaped: (PersistentMap :- [String (PersistentVector :- [(PersistentMap :- [String Value])])])
 (:wat::core::defn :scratch::stone2a::query-memory-get
@@ -41,13 +41,13 @@
            (wat.type/PersistentVector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/Value])])])
    k  <- wat.type/String]
   -> (:wat::core::Option :- [(wat.type/PersistentVector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/Value])])])
-  (:wat::map::get qm k))
+  (:wat::core::get qm k))
 
 ;; support-shaped: (PersistentMap :- [Record Support])
 (:wat::core::defn :scratch::stone2a::support-get
   [s <- (wat.type/PersistentMap :- [wat.type/Record :wat::rete::Support])
    f <- wat.type/Record]
   -> (:wat::core::Option :- [:wat::rete::Support])
-  (:wat::map::get s f))
+  (:wat::core::get s f))
 
 (:wat::kernel::println "probe-stone-2a-bracket-mechanics: loaded")

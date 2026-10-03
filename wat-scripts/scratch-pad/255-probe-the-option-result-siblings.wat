@@ -36,7 +36,7 @@
 (:wat::core::defn :user::totality-of [name <- wat.type/keyword] -> wat.type/String
   (:wat::core::match (:wat::runtime::metadata-of name)
     [:wat::core::Option.Some {:value hm}
-     (:wat::core::match (:wat::hashmap::get hm :totality)
+     (:wat::core::match (:wat::core::get hm :totality)
        [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
        [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
     [:wat::core::Option.None {} "None (not registered in this binary)"]))

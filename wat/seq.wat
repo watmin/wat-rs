@@ -128,7 +128,7 @@
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
 (:wat::core::defn :wat::core::stream->vec-spec :- [T]
   [acc <- (wat.type/Vector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (wat.type/Vector :- [T])
-  (:wat::vec::extend
+  (:wat::core::into
     acc
     (:wat::core::stream->pvec-spec (wat.type/PersistentVector :- [:T]) s)))
 
@@ -169,38 +169,16 @@
   [acc <- (wat.type/PersistentVector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (wat.type/PersistentVector :- [T])
   (:wat::core::match (:wat::stream::next s)
     [:wat::stream::NextOutcome.Item {:value value :rest rest}
-      (:wat::core::stream->pvec-spec (:wat::vector::conj acc value) rest)]
+      (:wat::core::stream->pvec-spec (:wat::core::conj acc value) rest)]
     [:wat::stream::NextOutcome.Exhausted {} acc]))
 
-;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines
-;; the output container kind (Vector or PersistentVector, both in scope); `from` may be a
-;; same-kind eager container (Vector×Vector delegates to `concat`; PersistentVector×PersistentVector
-;; delegates to the native `PersistentVector/concat`, which is the verb that accepts that pair),
-;; a Vector (PersistentVector receiver only — delegates to that same native call,
-;; DESIGN-STONE-into-pv-from-vector.md), a PersistentVector into a Vector (delegates to
-;; `Vector/extend`), or a Stream (delegates to `stream->vec`/`stream->pvec`, seeded by `to`).
-(:wat::core::defclause :wat::core::into
-  ([to <- (wat.type/Vector :- [T]) from <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::concat to from))
-  ([to <- (wat.type/Vector :- [T]) from <- (:wat::stream::Stream :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::core::stream->vec to from))
-  ([to <- (wat.type/PersistentVector :- [T]) from <- (:wat::stream::Stream :- [T])] -> (wat.type/PersistentVector :- [T])
-    (:wat::core::stream->pvec to from))
-  ;; DESIGN-STONE-into-pv-from-vector.md — the missing fourth clause: materialize a Vector
-  ;; into a PersistentVector in ONE native call, retiring the nine grid axes' hand-rolled
-  ;; `foldl`+`conj` bridge (N interpreted closure invocations -> one native concat).
-  ([to <- (wat.type/PersistentVector :- [T]) from <- (wat.type/Vector :- [T])] -> (wat.type/PersistentVector :- [T])
-    (:wat::vector::concat to from))
-  ;; Arc 278 — the MIRROR of the clause above, and the one `stream->vec` now needs. Its absence
-  ;; was flagged as owed the moment the (PV,Vector) clause landed, and tripped a probe an hour
-  ;; later: `query-by-type-string` returns a PersistentVector, so materialising one into a Vector
-  ;; had no clause at all. Native one-shot, no per-element conj.
-  ([to <- (wat.type/Vector :- [T]) from <- (wat.type/PersistentVector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::vec::extend to from))
-  ;; 255.86 — `:wat::vector::concat` also accepts PersistentVector×PersistentVector. `into` had
-  ;; no clause for that pair (NoMatchingClauseAtCallSite). Body is that same native call.
-  ([to <- (wat.type/PersistentVector :- [T]) from <- (wat.type/PersistentVector :- [T])] -> (wat.type/PersistentVector :- [T])
-    (:wat::vector::concat to from)))
+;; into — clojure's `(into to from)`. 255.86 moved the six pairs into Rust
+;; (`eval_into_values`, `src/collection/transform.rs`) so the bodies do not name
+;; `:wat::vector::concat` or `:wat::vec::extend`. The pairs, in the old clause order:
+;; Vector×Vector → `vector_concat_inner`; Vector×Stream → `drain_stream_into_vec`;
+;; PersistentVector×Stream → `drain_stream_into_pvec`; PersistentVector×Vector and
+;; PersistentVector×PersistentVector → `persistentvector_concat_inner`;
+;; Vector×PersistentVector → `vector_extend_inner`. Check-side is `infer_into`.
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER

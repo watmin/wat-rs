@@ -99,12 +99,12 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::vector::conj acc (:ald::build-step k)))
+      (:wat::core::conj acc (:ald::build-step k)))
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:ald::tally-rule))
     (:wat::core::range 1 (:wat::i64::+ depth 1))))
 
 (:wat::core::defn :ald::seed-facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::vector::conj
+  (:wat::core::conj
     (wat.type/PersistentVector :- [:ald::Step])
     (:ald::Step :level 0)))
 
@@ -137,17 +137,17 @@
     [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:ald::enc 0 (:ald::Step/level f) 0)))
             (:wat::core::filter
               (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool
-                (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                   (:wat::i64::> (:ald::Step/level f) 0)))
               (:wat::rete::query fired (:ald::q-Step)))))
      c1 (:wat::core::into c0
           (:wat::core::map
             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
+              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
                 (:ald::enc 1 0 (:ald::Tally/n f))))
             (:wat::rete::query fired (:ald::q-Tally))))]
     (:ald::vec->pvec (:wat::core::sort c1))))

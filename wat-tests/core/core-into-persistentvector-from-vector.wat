@@ -69,7 +69,7 @@
   (:wat::core::let
     [to       (wat.type/PersistentVector :- [wat.type/i64] 1 2)
      from     (wat.type/PersistentVector :- [wat.type/i64] 3 4)
-     combined (:wat::vector::concat to from)
+     combined (:wat::core::into to from)
      expected (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)]
     (:wat::test::assert-eq combined expected)))
 
@@ -80,5 +80,5 @@
   (:wat::core::let
     [to       (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)
      from     (wat.type/Vector :- [wat.type/i64] 4 5)
-     combined (:wat::vector::concat to from)]
+     combined (:wat::core::into to from)]
     (:wat::test::assert-eq (:wat::core::length combined) 5)))

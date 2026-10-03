@@ -266,10 +266,10 @@
    lines <- (wat.type/Vector :- [wat.type/String])]
   -> wat.type/i64
   (:wat::core::let [ln (:wat::core::Option/expect  
-                           (:wat::hashmap::get loc :line)
+                           (:wat::core::get loc :line)
                            "fix-text-offset-of: :line")
                     co (:wat::core::Option/expect  
-                           (:wat::hashmap::get loc :col)
+                           (:wat::core::get loc :col)
                            "fix-text-offset-of: :col")]
     (:wat::core::+ (:wat::fix::fix-text-line-start ln lines)
                    (:wat::core::- co 1))))
@@ -1562,12 +1562,12 @@
           " ")))))
 
 (:wat::core::defn :wat::fix::span-line [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::match (:wat::hashmap::get (:wat::core::ast-span n) :line)
+  (:wat::core::match (:wat::core::get (:wat::core::ast-span n) :line)
     [:wat::core::Option.Some {:value v} v]
     [:wat::core::Option.None {} 0]))
 
 (:wat::core::defn :wat::fix::span-col [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::match (:wat::hashmap::get (:wat::core::ast-span n) :col)
+  (:wat::core::match (:wat::core::get (:wat::core::ast-span n) :col)
     [:wat::core::Option.Some {:value v} v]
     [:wat::core::Option.None {} 0]))
 
@@ -1640,11 +1640,11 @@
    leaf   <- wat.type/String
    fields <- (wat.type/Vector :- [wat.type/String])]
   -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-  (:wat::core::match (:wat::hashmap::get m leaf)
-    [:wat::core::Option.None {} (:wat::hashmap::assoc m leaf fields)]
+  (:wat::core::match (:wat::core::get m leaf)
+    [:wat::core::Option.None {} (:wat::core::assoc m leaf fields)]
     [:wat::core::Option.Some {:value existing}
       (:wat::core::if (:wat::fix::names-eq? existing fields) m m)]
-    [_ (:wat::hashmap::assoc m leaf fields)]))
+    [_ (:wat::core::assoc m leaf fields)]))
 
 (:wat::core::defn :wat::fix::fill-enum
   [m         <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
@@ -1662,14 +1662,14 @@
             [leaf   (:wat::keyword::to-string (:wat::runtime::TypeVariant/name v))
              fields (:wat::fix::variant-field-names v)
              fq     (:wat::string::concat enum-path (:wat::string::concat "::" leaf))
-             acc2   (:wat::hashmap::assoc acc fq fields)
+             acc2   (:wat::core::assoc acc fq fields)
              acc3   (:wat::fix::index-leaf acc2 leaf fields)
              short  (:wat::string::concat (:wat::fix::leaf-of enum-path) (:wat::string::concat "::" leaf))
              acc4   (:wat::fix::index-leaf acc3 short fields)]
             (:wat::core::if (:wat::core::or
                               (:wat::core::= enum-path ":wat::core::Option")
                               (:wat::core::= enum-path ":wat::core::Result"))
-              (:wat::hashmap::assoc acc4 (:wat::string::concat ":wat::core::" leaf) fields)
+              (:wat::core::assoc acc4 (:wat::string::concat ":wat::core::" leaf) fields)
               acc4)))
         m vs)]
     [_ m]))
@@ -1699,7 +1699,7 @@
       (:wat::runtime::variant-parent-of (:wat::fix::name->kw nm))
       [:wat::core::Option.Some {:value _} true]
       [:wat::core::Option.None {}
-        (:wat::vec::contains? enum-names (:wat::fix::dotted-parent nm))])))
+        (:wat::core::contains? enum-names (:wat::fix::dotted-parent nm))])))
 
 (:wat::core::defn :wat::fix::enum-row-names
   [types <- (wat.type/Vector :- [:wat::runtime::TypeInfo])]
@@ -1738,7 +1738,7 @@
                 (:wat::core::let [nm (:wat::fix::kw-text (:wat::runtime::TypeInfo/name info))]
                   (wat.type/Tuple :- [(wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])]) (wat.type/Vector :- [wat.type/String])]
                     (:wat::fix::fill-enum (:wat::core::first acc) info nm)
-                    (:wat::core::if (:wat::vec::contains? (:wat::core::second acc) nm)
+                    (:wat::core::if (:wat::core::contains? (:wat::core::second acc) nm)
                       (:wat::core::second acc)
                       (:wat::core::conj (:wat::core::second acc) nm))))
                 acc))
@@ -1810,8 +1810,8 @@
    ep     <- wat.type/String]
   -> wat.type/bool
   (:wat::core::or
-    (:wat::vec::contains? filled ep)
-    (:wat::vec::contains? filled (:wat::fix::parent-path ep))))
+    (:wat::core::contains? filled ep)
+    (:wat::core::contains? filled (:wat::fix::parent-path ep))))
 
 (:wat::core::defn :wat::fix::fill-stdlib-one
   [ef <- :wat::fix::EnumFields
@@ -1833,7 +1833,7 @@
             (:wat::fix::EnumFields
               :fields m2
               :answered
-                (:wat::core::if (:wat::vec::contains? fl nm) fl (:wat::core::conj fl nm))))
+                (:wat::core::if (:wat::core::contains? fl nm) fl (:wat::core::conj fl nm))))
           ef))
       ef)))
 
@@ -1962,7 +1962,7 @@
   [world <- :wat::fix::StdlibWorld
    path  <- wat.type/String]
   -> wat.type/bool
-  (:wat::vec::contains? (:wat::fix::StdlibWorld/paths world) path))
+  (:wat::core::contains? (:wat::fix::StdlibWorld/paths world) path))
 
 (:wat::core::defn :wat::fix::src-forms [src <- wat.type/String]
   -> (wat.type/Vector :- [wat.type/AST])
@@ -1989,7 +1989,7 @@
         (:wat::core::filter
           (:wat::core::fn [info <- :wat::runtime::TypeInfo] -> wat.type/bool
             (:wat::core::not
-              (:wat::vec::contains? names (:wat::fix::type-name-of info))))
+              (:wat::core::contains? names (:wat::fix::type-name-of info))))
           acc))
       rows)))
 
@@ -2084,13 +2084,13 @@
   [ef <- :wat::fix::EnumFields
    k  <- wat.type/String]
   -> (:wat::core::Option :- [(wat.type/Vector :- [wat.type/String])])
-  (:wat::hashmap::get (:wat::fix::EnumFields/fields ef) k))
+  (:wat::core::get (:wat::fix::EnumFields/fields ef) k))
 
 (:wat::core::defn :wat::fix::known-enum?
   [ef     <- :wat::fix::EnumFields
    parent <- wat.type/String]
   -> wat.type/bool
-  (:wat::vec::contains? (:wat::fix::EnumFields/answered ef) parent))
+  (:wat::core::contains? (:wat::fix::EnumFields/answered ef) parent))
 
 (:wat::core::defn :wat::fix::forms-children [node <- wat.type/AST]
   -> (wat.type/Vector :- [wat.type/AST])

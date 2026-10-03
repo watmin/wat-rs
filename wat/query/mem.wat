@@ -66,7 +66,7 @@
 ;; projected into this GSI.
 (:wat::core::defn :wat::query::row-index-key
   [row <- :wat::query::StoredRow index <- wat.type/String] -> (:wat::core::Option :- [:wat::query::IndexKey])
-  (:wat::hashmap::get (:wat::query::StoredRow/index-keys row) index))
+  (:wat::core::get (:wat::query::StoredRow/index-keys row) index))
 
 (:wat::core::defn :wat::query::index-key-in-range?
   [ik <- :wat::query::IndexKey ipk <- wat.type/String lo <- wat.type/String
@@ -111,7 +111,7 @@
                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::query::StoredRow])
                                   r   <- :wat::query::StoredRow]
                    -> (wat.type/PersistentVector :- [:wat::query::StoredRow])
-                   (:wat::vector::conj acc r))
+                   (:wat::core::conj acc r))
                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
        (:wat::service::Outcome.Reply

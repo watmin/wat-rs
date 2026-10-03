@@ -26,13 +26,13 @@
      _01 (:wat::kernel::println
            (:wat::string::concat "AST-door  wrong arity: "
              (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::vector::concat (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))))
+               (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))))
 
      ;; row 2 — the AST door with RIGHT arity, so row 3 cannot be blamed on the verb.
      _02 (:wat::kernel::println
            (:wat::string::concat "AST-door  right arity: "
              (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::vector::concat (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 4 5)))))))
+               (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 4 5)))))))
 
      ;; row 3 — THE FINDING. Same verb, same wrong arity, through apply's value door.
      ;; BEFORE Stone O-i: the process dies here and nothing below prints.
@@ -40,7 +40,7 @@
      _03 (:wat::kernel::println
            (:wat::string::concat "value-door wrong arity: "
              (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::core::apply :wat::vector::concat
+               (:wat::core::apply :wat::core::into
                  (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])]
                    (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))))))]
     nil))

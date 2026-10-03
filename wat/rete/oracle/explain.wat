@@ -17,7 +17,7 @@
                      node-id <- wat.type/i64]
       -> wat.type/PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::map::get network node-id)
+                                (:wat::core::get network node-id)
                                 "harvest-support: node")]
         (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode")
           (:wat::core::let [rname (:wat::rete::ProductionNode/rule-name node)
@@ -35,10 +35,10 @@
                     -> wat.type/PersistentMap
                     (:wat::core::let [derived (:wat::rete::eval-insert form
                                                  (:wat::rete::Token/bindings tok))]
-                      (:wat::core::match (:wat::map::get s2 derived)
+                      (:wat::core::match (:wat::core::get s2 derived)
                         [:wat::core::Option.Some {:value _} s2]
                         [:wat::core::Option.None {}
-                         (:wat::map::assoc s2 derived
+                         (:wat::core::assoc s2 derived
                            (:wat::rete::Support :rule rname :token tok))])))
                   s
                   rhs))

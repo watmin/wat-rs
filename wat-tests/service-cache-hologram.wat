@@ -43,7 +43,7 @@
 ;; `contains`-match would be exactly the anti-pattern the brief rules out.
 
 ;; ── dial — the separately-typed verb, load-bearing (pins the wire's type args) ────────────────
-(:wat::core::defn :wat-tests::hologram-svc/dial
+(:wat::core::defn :wat-tests::hologram-svc::dial
   [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])]
   -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST])])
   (:wat::core::match (:wat::kernel::connect a)
@@ -60,7 +60,7 @@
 
 ;; unwraps down to the raw index-aligned results Vector — the CALLER `assert-eq`s it against a
 ;; literal expected Vector (structural, position-sensitive), never a per-element helper here.
-(:wat::core::defn :wat-tests::hologram-svc/get-results
+(:wat::core::defn :wat-tests::hologram-svc::get-results
   [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::holon::HolonAST])])]
   -> (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
   (:wat::core::match r
@@ -80,7 +80,7 @@
 
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the only
 ;; honest assertion is that the batch was accepted at all.
-(:wat::core::defn :wat-tests::hologram-svc/assert-put-ok
+(:wat::core::defn :wat-tests::hologram-svc::assert-put-ok
   [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
   -> wat.type/nil
   (:wat::core::match r
@@ -99,13 +99,13 @@
       (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
 
 ;; ── the gate: ONE service, TWO clients, ALL SEVEN behaviours in one round trip ────────────────
-(:wat::core::defn :wat-tests::hologram-svc/run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/nil
+(:wat::core::defn :wat-tests::hologram-svc::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/nil
   (:wat::core::let
     [h (:wat::cache::hologram-svc/start :locus locus
          :record (:wat::cache::hologram-svc::Record :capacity 2
                    :filter (:wat::cache::HologramFilterKind.Coincident {})))
-     a (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
-     b (:wat-tests::hologram-svc/dial (:wat::cache::hologram-svc::Handle/addr h))
+     a (:wat-tests::hologram-svc::dial (:wat::cache::hologram-svc::Handle/addr h))
+     b (:wat-tests::hologram-svc::dial (:wat::cache::hologram-svc::Handle/addr h))
      ;; k1 — a Thermometer @ 50.0; probe-near-k1 is a DIFFERENT HolonAST, coincident by cosine.
      k1            (:wat::holon::Thermometer 50.0 0.0 100.0)
      v1            (:wat::holon::leaf :fifty)
@@ -119,7 +119,7 @@
      probe-far (:wat::holon::leaf :nope)
 
      ;; BATCH PUT — two entries, ONE round trip. Fills the cache to capacity 2: {k1(LRU), k2(MRU)}.
-     _put-batch (:wat-tests::hologram-svc/assert-put-ok
+     _put-batch (:wat-tests::hologram-svc::assert-put-ok
                   (:wat::cache::hologram-svc/put a
                     (:wat::cache::Cache::PutRequest
                       :entries (wat.type/Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
@@ -132,7 +132,7 @@
      ;; the batch put wrote). Side effect: the similarity hit bumps k1 to MRU, then the exact hit
      ;; on k2 bumps k2 to MRU — leaving {k1(LRU), k2(MRU)}.
      _align (:wat::test::assert-eq
-              (:wat-tests::hologram-svc/get-results
+              (:wat-tests::hologram-svc::get-results
                 (:wat::cache::hologram-svc/get b
                   (:wat::cache::Cache::GetRequest
                     :probes (wat.type/Vector :- [:wat::holon::HolonAST] probe-near-k1 probe-far k2))))
@@ -142,21 +142,21 @@
                 (:wat::cache::Cache::GetResult.Hit {:value v2})))
      ;; BATCH-OF-ONE put — overflow: k3 pushes past capacity 2; k1 is LRU (dual-evicted from the
      ;; Hologram too). `PutResponse` carries nothing back — eviction provable only via a later get.
-     _put-k3 (:wat-tests::hologram-svc/assert-put-ok
+     _put-k3 (:wat-tests::hologram-svc::assert-put-ok
                (:wat::cache::hologram-svc/put a
                  (:wat::cache::Cache::PutRequest
                    :entries (wat.type/Vector :- [(:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
                               (:wat::cache::Entry :key k3 :value v3)))))
      ;; BATCH-OF-ONE get + EVICTION IS VISIBLE THROUGH THE SERVICE — k1 was evicted.
      _evicted (:wat::test::assert-eq
-                (:wat-tests::hologram-svc/get-results
+                (:wat-tests::hologram-svc::get-results
                   (:wat::cache::hologram-svc/get b
                     (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [:wat::holon::HolonAST] k1))))
                 (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]
                   (:wat::cache::Cache::GetResult.Miss {})))
      ;; EMPTY PROBE VECTOR — `Ok` with an empty results Vector, not an error.
      _empty (:wat::test::assert-eq
-              (:wat-tests::hologram-svc/get-results
+              (:wat-tests::hologram-svc::get-results
                 (:wat::cache::hologram-svc/get b
                   (:wat::cache::Cache::GetRequest :probes (wat.type/Vector :- [:wat::holon::HolonAST]))))
               (wat.type/Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])]))
@@ -165,7 +165,7 @@
 
 ;; ── thread tier ────────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::cache-hologram-multi-client-on-thread
-  (:wat-tests::hologram-svc/run (:wat::spawn::thread)))
+  (:wat-tests::hologram-svc::run (:wat::spawn::thread)))
 
 ;; ── process tier ───────────────────────────────────────────────────────────────────────────
 ;; The SAME sequence — tier-generality is the requirement, not a bonus: a forked child re-registers
@@ -173,4 +173,4 @@
 ;; EDN, decoded on the way in — the wire hop `probe-near-k1` must survive for gate behaviour 2 to
 ;; mean anything at all.
 (:wat::test::deftest :wat-tests::service::cache-hologram-multi-client-on-process
-  (:wat-tests::hologram-svc/run (:wat::spawn::process)))
+  (:wat-tests::hologram-svc::run (:wat::spawn::process)))

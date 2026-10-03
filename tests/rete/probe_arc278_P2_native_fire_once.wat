@@ -49,9 +49,9 @@
 
 (:wat::core::defn :test::cw-loc [s <- :wat::rete::Session] -> wat.type/String
   (:wat::core::Option/expect
-    (:wat::map::get
+    (:wat::core::get
       (:wat::core::Option/expect
-        (:wat::vector::get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
+        (:wat::core::get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
         "row")
       "?loc")
     "loc"))

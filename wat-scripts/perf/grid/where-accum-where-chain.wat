@@ -54,7 +54,7 @@
                      p   <- wat.type/PersistentMap]
       -> wat.type/i64
       (:wat::core::let [f (:wat::core::Option/expect
-                             (:wat::map::get p "?fact")
+                             (:wat::core::get p "?fact")
                              "query: ?fact")]
         (:wat::i64::+ acc (:wawc::Busy/n f))))
     0

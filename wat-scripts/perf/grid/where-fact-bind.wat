@@ -40,7 +40,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     "empty"
     (:wat::core::match
-      (:wat::map::get (:wat::core::first answers) k)
+      (:wat::core::get (:wat::core::first answers) k)
       [:wat::core::Option.Some {:value _} "yes"]
       [:wat::core::Option.None {} "none"])))
 
@@ -86,7 +86,7 @@
         (:wat::string::concat " -> "
           (:wat::i64::to-string
             (:wat::core::Option/expect
-              (:wat::map::get (:wat::core::first hits) "?c")
+              (:wat::core::get (:wat::core::first hits) "?c")
               "q-Hit: ?c")))))
     (:wfb::line 5 "from"
       (:wat::core::let [only-q (:wat::core::match (:wat::rete::fire-rules

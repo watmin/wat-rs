@@ -104,10 +104,10 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [s  (:d11n::fired)
-     f1 (:wat::core::Option/expect (:wat::map::get (:d11n::one s (:d11n::q1)) "?f") "nk1")
-     f2 (:wat::core::Option/expect (:wat::map::get (:d11n::one s (:d11n::q2)) "?f") "nk2")
-     f3 (:wat::core::Option/expect (:wat::map::get (:d11n::one s (:d11n::q3)) "?f") "nk3")
-     f4 (:wat::core::Option/expect (:wat::map::get (:d11n::one s (:d11n::q4)) "?f") "nk4")]
+     f1 (:wat::core::Option/expect (:wat::core::get (:d11n::one s (:d11n::q1)) "?f") "nk1")
+     f2 (:wat::core::Option/expect (:wat::core::get (:d11n::one s (:d11n::q2)) "?f") "nk2")
+     f3 (:wat::core::Option/expect (:wat::core::get (:d11n::one s (:d11n::q3)) "?f") "nk3")
+     f4 (:wat::core::Option/expect (:wat::core::get (:d11n::one s (:d11n::q4)) "?f") "nk4")]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::format "{v}" :v (:d11n::In1/n (:d11n::Nk1/i f1))))
       (:wat::kernel::println (:wat::core::format "{v}" :v (:d11n::Pair/a (:d11n::In2/p (:d11n::Nk2/i f2)))))

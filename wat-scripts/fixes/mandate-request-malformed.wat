@@ -71,7 +71,7 @@
 ;; inserted sibling therefore lands at the same indentation as the node it follows.
 (:wat::core::defn :user::col-of [n <- wat.type/AST] -> wat.type/i64
   (:wat::core::Option/expect
-    (:wat::hashmap::get (:wat::core::ast-span n) :col)
+    (:wat::core::get (:wat::core::ast-span n) :col)
     "col-of: :col"))
 
 (:wat::core::defn :user::spaces [n <- wat.type/i64] -> wat.type/String

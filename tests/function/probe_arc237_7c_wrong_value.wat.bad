@@ -4,5 +4,5 @@
 
 (:wat::core::defn :user::bad [] -> wat.type/i64
   (:wat::core::length
-    (:wat::hashmap::keys
+    (:wat::core::keys
       (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "k" "v"))))

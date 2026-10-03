@@ -13,4 +13,4 @@
        right-opt  (:wat::holon::Bind/right h)
        right      (:wat::core::Option/expect right-opt "right missing")
        children   (:wat::holon::Bundle/children right)]
-      (:wat::vec::length children)))
+      (:wat::core::length children)))

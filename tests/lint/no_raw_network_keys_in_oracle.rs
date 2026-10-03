@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 
 const ORACLE: &str = "wat/rete/oracle";
 const VERB: &str = ":wat::rete::topological-node-ids";
-const KEYS: &str = ":wat::map::keys";
+const KEYS: &str = ":wat::core::keys";
 // ⛔ RE-SPELLED at replay #398 (finding 33's class) — grok's own literal was
 // `"PersistentMap/keys network"`, the accessor's spelling on grok's tree. This tree's own
 // (pre-existing, earlier) rename retired `:wat::core::PersistentMap/keys` in favor of
@@ -45,7 +45,7 @@ struct KeysWalk {
     defn: String,
 }
 
-/// `(:wat::map::keys network)` / `(wat.map/keys network)`, by identity of the head.
+/// `(:wat::core::keys network)` / `(wat.map/keys network)`, by identity of the head.
 fn keys_walks(src: &str) -> Vec<KeysWalk> {
     let forms = wat::parse_all_with_file(src, "<oracle>")
         .unwrap_or_else(|e| panic!("parse <oracle>: {e:?}"));
@@ -108,21 +108,21 @@ mod detector {
 
     #[test]
     fn a_raw_walk_outside_the_verb_is_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::harvest-support\n  [n <- :wat::core::PersistentMap]\n  (:wat::map::keys network))\n");
+        let src = specimen(":wat::core::defn :wat::rete::harvest-support\n  [n <- :wat::core::PersistentMap]\n  (:wat::core::keys network))\n");
         let v = violations_in("explain.wat", &src);
         assert_eq!(v.len(), 1, "raw walk must redden; got {v:?}");
     }
 
     #[test]
     fn the_verb_body_is_not_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::topological-node-ids\n  [network <- :wat::core::PersistentMap]\n  (:wat::map::keys network))\n");
+        let src = specimen(":wat::core::defn :wat::rete::topological-node-ids\n  [network <- :wat::core::PersistentMap]\n  (:wat::core::keys network))\n");
         let v = violations_in("pass.wat", &src);
         assert!(v.is_empty(), "the verb is the one allowed walk; got {v:?}");
     }
 
     #[test]
     fn a_runed_walk_is_still_a_hit() {
-        let src = specimen(":wat::core::defn :wat::rete::node-parents\n  [c <- :wat::core::i64 network <- :wat::core::PersistentMap]\n    (:wat::map::keys network))  ;; rune:lint(oracle-keys-order-insensitive) — fold builds a set\n");
+        let src = specimen(":wat::core::defn :wat::rete::node-parents\n  [c <- :wat::core::i64 network <- :wat::core::PersistentMap]\n    (:wat::core::keys network))  ;; rune:lint(oracle-keys-order-insensitive) — fold builds a set\n");
         let v = violations_in("pass.wat", &src);
         assert_eq!(v.len(), 1, "the exemption list is empty; a rune must not save a raw walk; got {v:?}");
     }

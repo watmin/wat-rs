@@ -56,7 +56,7 @@
   (:wat::core::let [facts (:wat::core::foldl
                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:iac::Reading])  i <- wat.type/i64]
                                -> (wat.type/PersistentVector :- [:iac::Reading])
-                               (:wat::vector::conj acc (:iac::Reading :g 0 :v i)))
+                               (:wat::core::conj acc (:iac::Reading :g 0 :v i)))
                              (wat.type/PersistentVector :- [:iac::Reading])
                              (:wat::core::range 0 n))]
     (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))

@@ -13,4 +13,4 @@
     (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::match))
     (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::if))
     (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::quasiquote))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::vec::length))))
+    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::length))))

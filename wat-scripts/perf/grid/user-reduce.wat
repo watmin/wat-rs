@@ -90,8 +90,8 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Record])  j <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::vector::conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::i64::+ loc j)))))
-    (:wat::vector::conj acc (:ur::Station loc))
+      (:wat::core::conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::i64::+ loc j)))))
+    (:wat::core::conj acc (:ur::Station loc))
     (:wat::core::range 0 reads)))
 
 ;; seed-all session locs reads — stage every location's Station + Reading block.
@@ -120,7 +120,7 @@
   -> (wat.type/PersistentVector :- [wat.type/i64])
   (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                            (:wat::core::map
-                             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f))))
+                             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f))))
                              (:wat::rete::query fired (:ur::q-Agg))))]
     (:ur::vec->pvec (:wat::core::sort codes))))
 

@@ -68,7 +68,7 @@ fn run_for(n: usize) {
              [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __cap :still-deriving __still}} \
                (:wat::kernel::assertion-failed! :message \"fire-rules: fixpoint round cap exceeded\")])\n \
            pmem (:wat::rete::Session/production-memory fired)]\
-           (:wat::core::length (:wat::map::keys pmem)))"
+           (:wat::core::length (:wat::core::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
 
@@ -122,7 +122,7 @@ fn run_native(n: usize) {
              [:wat::rete::FireOutcome.RoundCapExceeded {{:cap __c :still-deriving __s}} \
                (:wat::kernel::assertion-failed! :message \"bench: round cap\")])\n \
            pmem (:wat::rete::Session/production-memory fired)]\
-           (:wat::core::length (:wat::map::keys pmem)))"
+           (:wat::core::length (:wat::core::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
     let t = Instant::now();

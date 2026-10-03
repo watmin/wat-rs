@@ -47,8 +47,8 @@
            (:wat::core::quote (:wat::core::apply :wat::string::to-uppercase (wat.type/Vector :- [wat.type/String] "wat"))))
 
      _04 (:probe::both ":wat::vector::length[no val]"
-           (:wat::core::quote (:wat::vector::length (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
-           (:wat::core::quote (:wat::core::apply :wat::vector::length (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])] (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
+           (:wat::core::quote (:wat::core::length (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))
+           (:wat::core::quote (:wat::core::apply :wat::core::length (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])] (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
 
      _05 (:probe::both ":wat::math::sqrt   [no val]"
            (:wat::core::quote (:wat::math::sqrt 16.0))

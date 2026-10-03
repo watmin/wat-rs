@@ -289,7 +289,7 @@
    src   <- wat.type/String]
   -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (:wat::core::if (:c69::is-hit? node)
-    (:wat::core::match (:wat::hashmap::get table (:c69::table-key node))
+    (:wat::core::match (:wat::core::get table (:c69::table-key node))
       [:wat::core::Option.Some {:value raw} (:c69::build-edit node raw lines src)]
       [:wat::core::Option.None {} (:wat::fix::empty-edits)])
     (:wat::fix::empty-edits)))
@@ -350,7 +350,7 @@
   [tables <- (wat.type/HashMap :- [wat.type/String (wat.type/HashMap :- [wat.type/String wat.type/String])])
    path   <- wat.type/String]
   -> (wat.type/HashMap :- [wat.type/String wat.type/String])
-  (:wat::core::match (:wat::hashmap::get tables path)
+  (:wat::core::match (:wat::core::get tables path)
     [:wat::core::Option.Some {:value t} t]
     [:wat::core::Option.None {} (wat.type/HashMap :- [wat.type/String wat.type/String])]))
 

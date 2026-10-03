@@ -493,7 +493,7 @@
                  sigs
                  (:wat::core::if (:wat::core::not (:wat::grep::nameable? (:wat::core::nth kids 0)))
                    sigs
-                   (:wat::vector::conj sigs
+                   (:wat::core::conj sigs
                      (:wat::fmt::FormSig
                        :form id
                        :head (:wat::core::ast-name (:wat::core::nth kids 0))
@@ -531,7 +531,7 @@
         (:wat::fmt::WAcc
           :next-id (:wat::i64::+ id 1)
           :last-w  w
-          :facts   (:wat::vector::conj (:wat::fmt::WAcc/facts acc)
+          :facts   (:wat::core::conj (:wat::fmt::WAcc/facts acc)
                      (:wat::fmt::Width :id id :w w))))
       (:wat::core::let
         [acc1 (:wat::fmt::WAcc
@@ -552,7 +552,7 @@
         (:wat::fmt::WAcc
           :next-id (:wat::fmt::WAcc/next-id acc2)
           :last-w  w
-          :facts   (:wat::vector::conj (:wat::fmt::WAcc/facts acc2)
+          :facts   (:wat::core::conj (:wat::fmt::WAcc/facts acc2)
                      (:wat::fmt::Width :id id :w w)))))))
 
 (:wat::core::defn :wat::fmt::widths-of
@@ -575,7 +575,7 @@
     (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
                      x <- :wat::fmt::Width]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
-      (:wat::hashmap::assoc m (:wat::fmt::Width/id x) (:wat::fmt::Width/w x)))
+      (:wat::core::assoc m (:wat::fmt::Width/id x) (:wat::fmt::Width/w x)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     ws))
 
@@ -586,7 +586,7 @@
     (:wat::core::fn [v <- (wat.type/PersistentVector :- [wat.type/i64])
                      c <- wat.type/AST]
       -> (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::vector::conj v (:wat::string::length (:wat::core::ast->source c))))
+      (:wat::core::conj v (:wat::string::length (:wat::core::ast->source c))))
     (wat.type/PersistentVector :- [wat.type/i64])
     (:wat::core::ast->children node)))
 
@@ -604,7 +604,7 @@
         [va (:wat::core::if (:wat::i64::< i na) (:wat::core::nth a i) 0)
          vb (:wat::core::if (:wat::i64::< i nb) (:wat::core::nth b i) 0)
          v  (:wat::core::if (:wat::i64::> va vb) va vb)]
-        (:wat::fmt::max-vec a b (:wat::i64::+ i 1) (:wat::vector::conj acc v))))))
+        (:wat::fmt::max-vec a b (:wat::i64::+ i 1) (:wat::core::conj acc v))))))
 
 (:wat::core::defn :wat::fmt::merge-widths
   [gw <- (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
@@ -612,9 +612,9 @@
    tw <- (wat.type/PersistentVector :- [wat.type/i64])]
   -> (wat.type/HashMap :- [wat.type/i64 (wat.type/PersistentVector :- [wat.type/i64])])
   (:wat::core::match (:wat::core::get gw g)
-    [:wat::core::Option.None {} (:wat::hashmap::assoc gw g tw)]
+    [:wat::core::Option.None {} (:wat::core::assoc gw g tw)]
     [:wat::core::Option.Some {:value prev}
-      (:wat::hashmap::assoc gw g
+      (:wat::core::assoc gw g
         (:wat::fmt::max-vec prev tw 0 (wat.type/PersistentVector :- [wat.type/i64])))]))
 
 ;; '(' + tokens + one space between + ')'. The emitter consults 120;
@@ -981,16 +981,16 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 :wat::fmt::BreakKind])
       (:wat::core::let [b (:wat::core::Option/expect
-                            (:wat::map::get binding "?b")
+                            (:wat::core::get binding "?b")
                             "fmt::breaks-map: no ?b")
                         id (:wat::fmt::Break/id b)
                         k  (:wat::fmt::Break/kind b)]
         (:wat::core::match (:wat::core::get m id)
           [:wat::core::Option.None {}
-            (:wat::hashmap::assoc m id k)]
+            (:wat::core::assoc m id k)]
           [:wat::core::Option.Some {:value prev}
             (:wat::core::if (:wat::core::= prev k)
-              (:wat::hashmap::assoc m id k)
+              (:wat::core::assoc m id k)
               (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
                   "fmt: conflicting Breaks for node {n} — {a} vs {b}"
                   :n (:wat::i64::to-string id)
@@ -1007,9 +1007,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [c (:wat::core::Option/expect
-                            (:wat::map::get binding "?c")
+                            (:wat::core::get binding "?c")
                             "fmt::claims-set: no ?c")]
-        (:wat::hashmap::assoc m (:wat::fmt::Claim/form c) true)))
+        (:wat::core::assoc m (:wat::fmt::Claim/form c) true)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-claim))))
 
@@ -1021,9 +1021,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [f (:wat::core::Option/expect
-                            (:wat::map::get binding "?f")
+                            (:wat::core::get binding "?f")
                             "fmt::owned-set: no ?f")]
-        (:wat::hashmap::assoc m (:wat::fmt::Fallback/node f) true)))
+        (:wat::core::assoc m (:wat::fmt::Fallback/node f) true)))
     (:wat::fmt::claims-set session)
     (:wat::rete::query session (:wat::fmt::q-fallback))))
 
@@ -1035,9 +1035,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [bl (:wat::core::Option/expect
-                             (:wat::map::get binding "?bl")
+                             (:wat::core::get binding "?bl")
                              "fmt::blanks-set: no ?bl")]
-        (:wat::hashmap::assoc m (:wat::fmt::BlankBefore/id bl) true)))
+        (:wat::core::assoc m (:wat::fmt::BlankBefore/id bl) true)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-blank))))
 
@@ -1049,9 +1049,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [ap (:wat::core::Option/expect
-                             (:wat::map::get binding "?ap")
+                             (:wat::core::get binding "?ap")
                              "fmt::aligns-set: no ?ap")]
-        (:wat::hashmap::assoc m (:wat::fmt::AlignPairs/form ap) true)))
+        (:wat::core::assoc m (:wat::fmt::AlignPairs/form ap) true)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-align))))
 
@@ -1063,9 +1063,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::let [tr (:wat::core::Option/expect
-                             (:wat::map::get binding "?t")
+                             (:wat::core::get binding "?t")
                              "fmt::tables-map: no ?t")]
-        (:wat::hashmap::assoc m (:wat::fmt::TableRow/form tr) (:wat::fmt::TableRow/group tr))))
+        (:wat::core::assoc m (:wat::fmt::TableRow/form tr) (:wat::fmt::TableRow/group tr))))
     (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     (:wat::rete::query session (:wat::fmt::q-table))))
 
@@ -1077,9 +1077,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
       (:wat::core::let [st (:wat::core::Option/expect
-                             (:wat::map::get binding "?st")
+                             (:wat::core::get binding "?st")
                              "fmt::strides-map: no ?st")]
-        (:wat::hashmap::assoc m (:wat::fmt::AlignStride/form st) (:wat::fmt::AlignStride/stride st))))
+        (:wat::core::assoc m (:wat::fmt::AlignStride/form st) (:wat::fmt::AlignStride/stride st))))
     (wat.type/HashMap :- [wat.type/i64 wat.type/i64])
     (:wat::rete::query session (:wat::fmt::q-stride))))
 
@@ -1091,9 +1091,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [ev (:wat::core::Option/expect
-                             (:wat::map::get binding "?ev")
+                             (:wat::core::get binding "?ev")
                              "fmt::empties-set: no ?ev")]
-        (:wat::hashmap::assoc m (:wat::fmt::EmptyVecAfter/id ev) true)))
+        (:wat::core::assoc m (:wat::fmt::EmptyVecAfter/id ev) true)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-empty-vec))))
 
@@ -1105,9 +1105,9 @@
                      binding <- wat.type/PersistentMap]
       -> (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
       (:wat::core::let [aa (:wat::core::Option/expect
-                             (:wat::map::get binding "?aa")
+                             (:wat::core::get binding "?aa")
                              "fmt::atoms-set: no ?aa")]
-        (:wat::hashmap::assoc m (:wat::fmt::AllAtoms/form aa) true)))
+        (:wat::core::assoc m (:wat::fmt::AllAtoms/form aa) true)))
     (wat.type/HashMap :- [wat.type/i64 wat.type/bool])
     (:wat::rete::query session (:wat::fmt::q-atoms))))
 
@@ -1125,7 +1125,7 @@
                    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])
                                     s   <- :wat::fmt::FormSig]
                      -> (wat.type/PersistentVector :- [wat.type/Record])
-                     (:wat::vector::conj acc s))
+                     (:wat::core::conj acc s))
                    rec0
                    (:wat::fmt::form-sigs-of forms))
          queries (wat.type/PersistentVector :- [:wat::rete::Query]

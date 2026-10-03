@@ -63,7 +63,7 @@
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind cur) "symbol")
                 (:wat::core::if (:wat::core::= (:wat::core::ast-name cur) "->")
                   (:wat::core::= (:wat::core::ast-kind nn) "keyword") false) false)
-              (:wat::hashset::conj s (:user::strip-params (:wat::core::ast-name nn)))
+              (:wat::core::conj s (:user::strip-params (:wat::core::ast-name nn)))
               s)])))
     acc
     (:wat::core::range 0 (:wat::core::length ch))))
@@ -96,7 +96,7 @@
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
               (:wat::core::let [fch (:wat::core::ast->children fv)]
                 (:wat::core::if (:wat::core::= (:wat::core::length fch) 3)
-                  (:wat::hashmap::assoc m tyname
+                  (:wat::core::assoc m tyname
                     (wat.type/Tuple :- [wat.type/String wat.type/String]
                       (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get fch 0) "fn"))
                       (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get fch 2) "ft"))))
@@ -138,11 +138,11 @@
     (:wat::core::foldl
       (:wat::core::fn [m <- (wat.type/HashMap :- [wat.type/String (wat.type/Tuple :- [wat.type/String wat.type/String])]) k <- wat.type/String]
         -> (wat.type/HashMap :- [wat.type/String (wat.type/Tuple :- [wat.type/String wat.type/String])])
-        (:wat::core::if (:wat::hashset::contains? rets k)
-          (:wat::hashmap::assoc m k (:wat::core::Option/expect (:wat::hashmap::get recs k) "resp"))
+        (:wat::core::if (:wat::core::contains? rets k)
+          (:wat::core::assoc m k (:wat::core::Option/expect (:wat::core::get recs k) "resp"))
           m))
       (wat.type/HashMap :- [wat.type/String (wat.type/Tuple :- [wat.type/String wat.type/String])])
-      (:wat::hashmap::keys recs))))
+      (:wat::core::keys recs))))
 
 ;; ── EDITS ──────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::defrecord-edits
@@ -223,14 +223,14 @@
            this
            (:wat::core::if
              (:wat::core::if (:wat::core::= hname ":wat::core::defrecord")
-               (:wat::hashmap::contains-key? rm tyname) false)
+               (:wat::core::contains? rm tyname) false)
              (:user::defrecord-edits ch lines)
-             (:wat::core::if (:wat::hashmap::contains-key? rm hname)
+             (:wat::core::if (:wat::core::contains? rm hname)
                (:user::ctor-edits ch src lines)
                (:wat::core::if
                  (:wat::core::if (:wat::string::contains? hname "/")
-                   (:wat::hashmap::contains-key? rm prefix) false)
-                 (:wat::core::let [ft (:wat::core::Option/expect (:wat::hashmap::get rm prefix) "ft")]
+                   (:wat::core::contains? rm prefix) false)
+                 (:wat::core::let [ft (:wat::core::Option/expect (:wat::core::get rm prefix) "ft")]
                    (:user::field-edits ch prefix (:wat::core::first ft) (:wat::core::second ft) lines))
                  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))]
           (:wat::core::concat this (:user::seq-edits ch rm src lines)))))

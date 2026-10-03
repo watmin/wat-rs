@@ -64,7 +64,7 @@
                                 (:wat::kernel::assertion-failed! :message "compile: MayNotTerminate")])]
     (:wat::core::match
       (:wat::rete::insert-all session
-        (:wat::vector::conj
+        (:wat::core::conj
           (:a2::empty-records)
           (:a2::Src :k 1)))
       [:wat::rete::InsertOutcome.Inserted {:session __s} __s]

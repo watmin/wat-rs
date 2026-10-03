@@ -373,7 +373,7 @@
                     seen (:wat::core::foldl
                            (:wat::core::fn [acc <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
                                            -> (wat.type/HashSet :- [wat.type/i64])
-                             (:wat::hashset::conj acc (:wat::gen::reverse-index bs k)))
+                             (:wat::core::conj acc (:wat::gen::reverse-index bs k)))
                            (wat.type/HashSet :- [wat.type/i64])
                            (:wat::core::range 0 card))]
     (:wat::core::if (:wat::core::= (:wat::core::length seen) card) 0 1)))
@@ -841,7 +841,7 @@
     (:wat::core::foldl
       (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
                       -> (wat.type/HashSet :- [wat.type/i64])
-        (:wat::hashset::conj s (:wat::gen::reverse-index (:wat-tests::gen::sbases) k)))
+        (:wat::core::conj s (:wat::gen::reverse-index (:wat-tests::gen::sbases) k)))
       (wat.type/HashSet :- [wat.type/i64])
       (:wat::core::range 0 (:wat::gen::card-of (:wat-tests::gen::sbases))))))
 
@@ -858,7 +858,7 @@
       (:wat::core::foldl
         (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/i64])  k <- wat.type/i64]
                         -> (wat.type/HashSet :- [wat.type/i64])
-          (:wat::hashset::conj s (:wat::gen::nth (at k) dim)))
+          (:wat::core::conj s (:wat::gen::nth (at k) dim)))
         (wat.type/HashSet :- [wat.type/i64])
         (:wat::core::range 0 k-count)))))
 

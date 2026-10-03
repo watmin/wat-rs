@@ -397,7 +397,7 @@ pub(crate) struct ReteStringToLowercase;
 /// to `:wat::vector::length`; no separate implementation exists at this name.
 ///
 /// @added 1.0.0
-/// @alias :wat::vector::length
+/// @alias :wat::core::length
 /// @arg v (:wat::type::PersistentVector :- [T]) the vector probed
 /// @ret :wat::type::i64 the number of elements in `v` — the target's answer, unchanged
 /// @example (:wat::rete::vector::length (:wat::core::PersistentVector 1 2 3)) #=> 3
@@ -409,7 +409,7 @@ pub(crate) struct ReteVectorLength;
 /// straight to `:wat::vector::contains?`; no separate implementation exists at this name.
 ///
 /// @added 1.0.0
-/// @alias :wat::vector::contains?
+/// @alias :wat::core::contains?
 /// @arg v (:wat::type::PersistentVector :- [T]) the vector probed
 /// @arg item :T the candidate element
 /// @ret :wat::type::bool true iff `item` occurs in `v` — the target's answer, unchanged
@@ -424,11 +424,11 @@ pub(crate) struct ReteVectorContains;
 /// straight to `:wat::map::contains-key?`; no separate implementation exists at this name.
 ///
 /// @added 1.0.0
-/// @alias :wat::map::contains-key?
+/// @alias :wat::core::contains?
 /// @arg m (:wat::type::PersistentMap :- [K V]) the map probed
 /// @arg k :K the candidate key
 /// @ret :wat::type::bool true iff `k` occurs as a key in `m` — the target's answer, unchanged
-/// @example (:wat::rete::map::contains-key? (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> true
+/// @example (:wat::rete::map::contains-key? (:wat::core::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> true
 #[wat_special_form(":wat::rete::map::contains-key?")]
 pub(crate) struct ReteMapContainsKey;
 

@@ -88,7 +88,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
       (:wat::core::let [o (:wat::core::Option/expect
-                            (:wat::map::get p "?fact")
+                            (:wat::core::get p "?fact")
                             "q-Out: ?fact")]
         (:wat::i64::+ a (:nia::Out/g o))))
     0

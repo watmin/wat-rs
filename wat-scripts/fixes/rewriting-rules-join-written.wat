@@ -39,7 +39,7 @@
 
 (:wat::core::defn :user::line-of [n <- wat.type/AST] -> wat.type/i64
   (:wat::core::Option/expect
-    (:wat::hashmap::get (:wat::core::ast-span n) :line)
+    (:wat::core::get (:wat::core::ast-span n) :line)
     "rewriting-rules-join-written: node has no :line"))
 
 (:wat::core::defn :user::binder-sym [binder <- wat.type/AST] -> wat.type/String

@@ -83,7 +83,7 @@
   [n <- wat.type/AST lines <- (wat.type/Vector :- [wat.type/String])] -> wat.type/i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 (:wat::core::defn :user::node-line [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span n) :line) "one-param-spec: :line"))
+  (:wat::core::Option/expect (:wat::core::get (:wat::core::ast-span n) :line) "one-param-spec: :line"))
 
 ;; ── arity source 1 — the substrate table ─────────────────────────────────────────────────
 ;; Every entry justified: these seven built-ins have NO wat-level `defrecord`/`defstruct` of

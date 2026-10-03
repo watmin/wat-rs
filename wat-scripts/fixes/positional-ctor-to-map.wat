@@ -90,7 +90,7 @@
 (:wat::core::defn :user::node-line [node <- wat.type/AST] -> wat.type/String
   (:wat::i64::to-string
     (:wat::core::Option/expect
-      (:wat::hashmap::get (:wat::core::ast-span node) :line)
+      (:wat::core::get (:wat::core::ast-span node) :line)
       "node-line")))
 
 (:wat::core::defn :user::report-site
@@ -119,7 +119,7 @@
   [acc <- (wat.type/Vector :- [wat.type/String])
    s   <- wat.type/String]
   -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::vec::contains? acc s) acc (:wat::core::conj acc s)))
+  (:wat::core::if (:wat::core::contains? acc s) acc (:wat::core::conj acc s)))
 
 (:wat::core::defn :user::names-eq?
   [a <- (wat.type/Vector :- [wat.type/String])
@@ -142,13 +142,13 @@
    leaf   <- wat.type/String
    fields <- (wat.type/Vector :- [wat.type/String])]
   -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-  (:wat::core::match (:wat::hashmap::get m leaf)
-    [:wat::core::Option.None {} (:wat::hashmap::assoc m leaf fields)]
+  (:wat::core::match (:wat::core::get m leaf)
+    [:wat::core::Option.None {} (:wat::core::assoc m leaf fields)]
     [:wat::core::Option.Some {:value existing}
       (:wat::core::if (:user::names-eq? existing fields)
         m
         m)]
-    [_ (:wat::hashmap::assoc m leaf fields)]))
+    [_ (:wat::core::assoc m leaf fields)]))
 
 (:wat::core::defn :user::collect-keywords
   [acc  <- (wat.type/Vector :- [wat.type/String])
@@ -234,14 +234,14 @@
   (:wat::core::let
     [b-fields (:wat::fix::EnumFields/fields base)
      f-fields (:wat::fix::EnumFields/fields file-m)
-     keys (:wat::hashmap::keys f-fields)
+     keys (:wat::core::keys f-fields)
      m (:wat::core::foldl
          (:wat::core::fn
            [acc <- (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
             k   <- wat.type/String]
            -> (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])
-           (:wat::core::match (:wat::hashmap::get f-fields k)
-             [:wat::core::Option.Some {:value v} (:wat::hashmap::assoc acc k v)]
+           (:wat::core::match (:wat::core::get f-fields k)
+             [:wat::core::Option.Some {:value v} (:wat::core::assoc acc k v)]
              [:wat::core::Option.None {} acc]))
          b-fields
          keys)]
@@ -349,8 +349,8 @@
                     (:wat::core::let [leaf (:user::leaf-in-form val)]
                       (:wat::core::if (:wat::core::= leaf "")
                         acc
-                        (:wat::core::match (:wat::hashmap::get acc leaf)
-                          [:wat::core::Option.Some {:value fields} (:wat::hashmap::assoc acc nm fields)]
+                        (:wat::core::match (:wat::core::get acc leaf)
+                          [:wat::core::Option.Some {:value fields} (:wat::core::assoc acc nm fields)]
                           [:wat::core::Option.None {} acc]
                           [_ acc]))))))))))
       m
@@ -801,7 +801,7 @@
   [paths <- (wat.type/Vector :- [wat.type/String])
    extra <- wat.type/String]
   -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::vec::contains? paths extra)
+  (:wat::core::if (:wat::core::contains? paths extra)
     paths
     (:wat::core::conj paths extra)))
 
@@ -823,7 +823,7 @@
                (:wat::kernel::assertion-failed! :message "readln: end of input")]
              [:wat::kernel::ReadlnOutcome.Stopped {}
                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-     audit (:wat::vec::contains? paths "--audit")
+     audit (:wat::core::contains? paths "--audit")
      paths1 (:user::drop-audit paths)
      paths2 (:user::ensure-path paths1 "wat/service.wat")
      base (wat.type/HashMap :- [wat.type/String (wat.type/Vector :- [wat.type/String])])]

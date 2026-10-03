@@ -12,8 +12,8 @@
 (:wat::core::defn :user::main [] -> wat.type/nil
   (:wat::core::let
     [v    (:probe::mk-vec)
-     ok   (:wat::vec::contains? v "usr::Hot")
-     bad  (:wat::vec::contains? v "nope")]
+     ok   (:wat::core::contains? v "usr::Hot")
+     bad  (:wat::core::contains? v "nope")]
     (:wat::core::do
       (:wat::kernel::println (:wat::string::concat "ok="  (:wat::core::str ok)))
       (:wat::kernel::println (:wat::string::concat "bad=" (:wat::core::str bad))))))

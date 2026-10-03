@@ -102,7 +102,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Record])  _r <- wat.type/i64]
                     -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::vector::conj a (:mf::Reading loc)))
+      (:wat::core::conj a (:mf::Reading loc)))
     acc
     (:wat::core::range 0 count)))
 
@@ -119,7 +119,7 @@
         (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
                         -> (wat.type/PersistentVector :- [wat.type/Record])
           (:mf::reading-facts
-            (:wat::vector::conj acc (:mf::Station i))
+            (:wat::core::conj acc (:mf::Station i))
             i
             (:mf::i64-mod i span)))
         (wat.type/PersistentVector :- [wat.type/Record])
@@ -140,7 +140,7 @@
     (:wat::core::sort
       (:wat::core::into (wat.type/Vector :- [wat.type/i64])
         (:wat::core::map
-          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
+          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
           (:wat::rete::query fired (:mf::q-Busy)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).

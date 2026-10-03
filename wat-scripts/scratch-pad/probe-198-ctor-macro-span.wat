@@ -7,11 +7,11 @@
   [id <- wat.type/i64])
 
 (:wat::core::defn :probe::pos-str [p <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] -> wat.type/String
-  (:wat::string::concat "l" (:wat::i64::to-string (:wat::core::Option/expect (:wat::hashmap::get p :line) "line"))
-    ":c" (:wat::i64::to-string (:wat::core::Option/expect (:wat::hashmap::get p :col) "col"))))
+  (:wat::string::concat "l" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::get p :line) "line"))
+    ":c" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::get p :col) "col"))))
 
 (:wat::core::defn :probe::dump-children [kids <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64 depth <- wat.type/i64] -> wat.type/nil
-  (:wat::core::match (:wat::vec::get kids i)
+  (:wat::core::match (:wat::core::get kids i)
     [:wat::core::Option.Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
     [:wat::core::Option.None {} nil]))
 

@@ -1029,7 +1029,6 @@ mod tests {
     /// - `:wat::holon::` 7 of 91 — coincident-explain, coincident?, cosine, dot, literal,
     ///   simhash, to-record
     /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
-    /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
     /// - `:wat::runtime::` 4 of 14 (arc 255 Stone P6-c-W4 + arc 296 L) — field-names-of, field-types-of,
     ///   metadata-of, type-of. NOT UNIFORM: field-names-of/field-types-of/type-of ARE type-checked, by
     ///   hand-written special-case inference inside `infer_list` (`src/check.rs:2543`;
@@ -1210,11 +1209,6 @@ mod tests {
         ":wat::kernel::spawn-process",
         ":wat::kernel::spawn-thread",
         ":wat::kernel::try-send",
-        ":wat::linkedlist::conj",
-        ":wat::linkedlist::contains?",
-        ":wat::linkedlist::empty?",
-        ":wat::linkedlist::get",
-        ":wat::linkedlist::length",
         // arc 255 Stone P6-c-W4 — field-names-of/field-types-of ARE typed (infer_list
         // special-case, check.rs); metadata-of has neither scheme nor inference.
         // Arc 296 L — type-of is typed the same way as field-names-of (infer_list
@@ -1538,10 +1532,6 @@ mod tests {
         ":wat::core::type-params-used-in",
         ":wat::kernel::peer-pid",
         ":wat::runtime::metadata-of",
-        ":wat::linkedlist::get",
-        ":wat::linkedlist::length",
-        ":wat::linkedlist::empty?",
-        ":wat::linkedlist::contains?",
     ];
 
     /// One wrong-typed call per `FROZEN_TYPES_UNCHECKED` row, each derived from that row's own
@@ -1557,10 +1547,9 @@ mod tests {
     ///   - `type-params-used-in`  @arg params (:wat::core::Vector :- [:wat::WatAST]) → pass `5`
     ///   - `peer-pid`             @arg peer   (:wat::kernel::Peer :- [I O]) → pass `5` (i64)
     ///   - `metadata-of`          @arg name_ast :wat::core::keyword         → pass `5` (i64)
-    ///   - `linkedlist::get`      @arg l      (:wat::core::List :- [T])     → pass a `String`
-    ///   - `linkedlist::length`   @arg l      (:wat::core::List :- [T])     → pass a `String`
-    ///   - `linkedlist::empty?`   @arg l      (:wat::core::List :- [T])     → pass a `String`
-    ///   - `linkedlist::contains?` @arg l     (:wat::core::List :- [T])     → pass a `String`
+    ///
+    /// 255.86 — the four `:wat::linkedlist::*` rows left this list. Those verbs are
+    /// retired, and `:wat::core::{get,length,empty?,contains?}` reject a String.
     const TYPE_RESIDUE_PROBES: &[(&str, &str)] = &[
         (":wat::core::fresh-symbol", "(:wat::core::fresh-symbol 5)"),
         (":wat::core::struct-field", "(:wat::core::struct-field 5 0)"),
@@ -1568,10 +1557,6 @@ mod tests {
         (":wat::core::type-params-used-in", "(:wat::core::type-params-used-in 5 5)"),
         (":wat::kernel::peer-pid", "(:wat::kernel::peer-pid 5)"),
         (":wat::runtime::metadata-of", "(:wat::runtime::metadata-of 5)"),
-        (":wat::linkedlist::get", "(:wat::linkedlist::get \"not-a-list\" 0)"),
-        (":wat::linkedlist::length", "(:wat::linkedlist::length \"not-a-list\")"),
-        (":wat::linkedlist::empty?", "(:wat::linkedlist::empty? \"not-a-list\")"),
-        (":wat::linkedlist::contains?", "(:wat::linkedlist::contains? \"not-a-list\" 1)"),
     ];
 
     /// The bidirectional gate `FROZEN_TYPES_UNCHECKED` needs — the exact shape

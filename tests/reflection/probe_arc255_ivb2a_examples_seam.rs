@@ -60,7 +60,7 @@ fn examples_seam_returns_bytes_to_hex_runnable() {
         })
         .find(|sf| match sf.first() {
             Some(Value::wat__core__keyword(k)) => {
-                k.trim_start_matches(':') == "wat::core::Bytes/to-hex"
+                k.trim_start_matches(':') == "wat::bytes::to-hex"
             }
             _ => false,
         })

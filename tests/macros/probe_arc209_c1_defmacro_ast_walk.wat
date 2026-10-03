@@ -25,5 +25,5 @@
      (:wat::core::rest (:wat::core::ast->children v))))
 
 (:wat::core::defn :user::probe-rebuild [] -> wat.type/i64
-  (:wat::vec::length (:user::drop-first [10 20 30])))
+  (:wat::core::length (:user::drop-first [10 20 30])))
 

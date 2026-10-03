@@ -83,7 +83,7 @@
      m0      (:wat::time::now)
      codes   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
                (:wat::core::map
-                 (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
+                 (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
                  pairs))
      m1      (:wat::time::now)
 
@@ -97,7 +97,7 @@
 
     (:wat::kernel::println
       (:probe::DeriveSplit
-        :derived-count (:wat::vector::length pv)   ; non-vacuity: a zero here means nothing was derived
+        :derived-count (:wat::core::length pv)   ; non-vacuity: a zero here means nothing was derived
         :fire-ns  (:dd::ns-between f0 f1)
         :query-ns (:dd::ns-between q0 q1)
         :map-ns   (:dd::ns-between m0 m1)

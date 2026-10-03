@@ -30,7 +30,7 @@
      derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
      s       (:wat::core::Option/expect
-               (:wat::map::get r "?s")
+               (:wat::core::get r "?s")
                "q-Wrap: ?s")]
     (:wat::core::match s
       [:cg::Status.Active {:level lvl} lvl])))
@@ -45,7 +45,7 @@
      derived (:wat::rete::query fired (:cg::q-Wrap))
      r       (:wat::core::first derived)
      s       (:wat::core::Option/expect
-               (:wat::map::get r "?s")
+               (:wat::core::get r "?s")
                "q-Wrap: ?s")]
     (:wat::core::match s
       [:cg::Status.Active {:level lvl} lvl])))

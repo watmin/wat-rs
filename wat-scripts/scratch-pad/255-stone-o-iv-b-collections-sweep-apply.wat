@@ -23,137 +23,137 @@
   (:wat::core::let
     [;; ── map (8) ──────────────────────────────────────────────────────────
      _01 (:probe::row ":wat::map::length      "
-           (:wat::core::quote (:wat::core::apply :wat::map::length
+           (:wat::core::quote (:wat::core::apply :wat::core::length
              (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
-               (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
      _02 (:probe::row ":wat::map::empty?      "
-           (:wat::core::quote (:wat::core::apply :wat::map::empty?
+           (:wat::core::quote (:wat::core::apply :wat::core::empty?
              (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
                (wat.type/PersistentMap :- [wat.type/String wat.type/i64])))))
      _03 (:probe::row ":wat::map::contains-key?"
-           (:wat::core::quote (:wat::core::apply :wat::map::contains-key?
-             (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::contains?
+             (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _04 (:probe::row ":wat::map::get         "
-           (:wat::core::quote (:wat::core::apply :wat::map::get
-             (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::get
+             (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _05 (:probe::row ":wat::map::assoc       "
-           (:wat::core::quote (:wat::core::apply :wat::map::assoc
+           (:wat::core::quote (:wat::core::apply :wat::core::assoc
              (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a"
              (wat.type/Vector :- [wat.type/i64] 1))))
      _06 (:probe::row ":wat::map::dissoc      "
-           (:wat::core::quote (:wat::core::apply :wat::map::dissoc
-             (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::dissoc
+             (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _07 (:probe::row ":wat::map::keys        "
-           (:wat::core::quote (:wat::core::apply :wat::map::keys
+           (:wat::core::quote (:wat::core::apply :wat::core::keys
              (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
-               (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
      _08 (:probe::row ":wat::map::values      "
-           (:wat::core::quote (:wat::core::apply :wat::map::values
+           (:wat::core::quote (:wat::core::apply :wat::core::values
              (wat.type/Vector :- [(wat.type/PersistentMap :- [wat.type/String wat.type/i64])]
-               (:wat::map::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/PersistentMap :- [wat.type/String wat.type/i64]) "a" 1)))))
 
      ;; ── hashmap (8) ──────────────────────────────────────────────────────
      _09 (:probe::row ":wat::hashmap::length      "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::length
+           (:wat::core::quote (:wat::core::apply :wat::core::length
              (wat.type/Vector :- [(wat.type/HashMap :- [wat.type/String wat.type/i64])]
-               (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
      _10 (:probe::row ":wat::hashmap::empty?      "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::empty?
+           (:wat::core::quote (:wat::core::apply :wat::core::empty?
              (wat.type/Vector :- [(wat.type/HashMap :- [wat.type/String wat.type/i64])]
                (wat.type/HashMap :- [wat.type/String wat.type/i64])))))
      _11 (:probe::row ":wat::hashmap::contains-key?"
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::contains-key?
-             (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::contains?
+             (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _12 (:probe::row ":wat::hashmap::get         "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::get
-             (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::get
+             (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _13 (:probe::row ":wat::hashmap::assoc       "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::assoc
+           (:wat::core::quote (:wat::core::apply :wat::core::assoc
              (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a"
              (wat.type/Vector :- [wat.type/i64] 1))))
      _14 (:probe::row ":wat::hashmap::dissoc      "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::dissoc
-             (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
+           (:wat::core::quote (:wat::core::apply :wat::core::dissoc
+             (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)
              (wat.type/Vector :- [wat.type/String] "a"))))
      _15 (:probe::row ":wat::hashmap::keys        "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::keys
+           (:wat::core::quote (:wat::core::apply :wat::core::keys
              (wat.type/Vector :- [(wat.type/HashMap :- [wat.type/String wat.type/i64])]
-               (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
      _16 (:probe::row ":wat::hashmap::values      "
-           (:wat::core::quote (:wat::core::apply :wat::hashmap::values
+           (:wat::core::quote (:wat::core::apply :wat::core::values
              (wat.type/Vector :- [(wat.type/HashMap :- [wat.type/String wat.type/i64])]
-               (:wat::hashmap::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
+               (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1)))))
 
      ;; ── vec (7) ──────────────────────────────────────────────────────────
      _17 (:probe::row ":wat::vec::length  "
-           (:wat::core::quote (:wat::core::apply :wat::vec::length
+           (:wat::core::quote (:wat::core::apply :wat::core::length
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])]
                (wat.type/Vector :- [wat.type/i64] 1 2 3)))))
      _18 (:probe::row ":wat::vec::empty?  "
-           (:wat::core::quote (:wat::core::apply :wat::vec::empty?
+           (:wat::core::quote (:wat::core::apply :wat::core::empty?
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])]
                (wat.type/Vector :- [wat.type/i64])))))
      _19 (:probe::row ":wat::vec::contains?"
-           (:wat::core::quote (:wat::core::apply :wat::vec::contains?
+           (:wat::core::quote (:wat::core::apply :wat::core::contains?
              (wat.type/Vector :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 2))))
      _20 (:probe::row ":wat::vec::get      "
-           (:wat::core::quote (:wat::core::apply :wat::vec::get
+           (:wat::core::quote (:wat::core::apply :wat::core::get
              (wat.type/Vector :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 0))))
      _21 (:probe::row ":wat::vec::conj     "
-           (:wat::core::quote (:wat::core::apply :wat::vec::conj
+           (:wat::core::quote (:wat::core::apply :wat::core::conj
              (wat.type/Vector :- [wat.type/i64])
              (wat.type/Vector :- [wat.type/i64] 1))))
      _22 (:probe::row ":wat::vec::concat   "
-           (:wat::core::quote (:wat::core::apply :wat::vec::concat
+           (:wat::core::quote (:wat::core::apply :wat::core::concat
              (wat.type/Vector :- [wat.type/i64] 1)
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])]
                (wat.type/Vector :- [wat.type/i64] 2)))))
      _23 (:probe::row ":wat::vec::extend   "
-           (:wat::core::quote (:wat::core::apply :wat::vec::extend
+           (:wat::core::quote (:wat::core::apply :wat::core::into
              (wat.type/Vector :- [wat.type/i64] 1)
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])]
                (wat.type/Vector :- [wat.type/i64] 2 3)))))
 
      ;; ── linkedlist (5) ───────────────────────────────────────────────────
      _24 (:probe::row ":wat::linkedlist::length  "
-           (:wat::core::quote (:wat::core::apply :wat::linkedlist::length
+           (:wat::core::quote (:wat::core::apply :wat::core::length
              (wat.type/Vector :- [(wat.type/List :- [wat.type/i64])]
                (wat.type/List :- [wat.type/i64] 1 2 3)))))
      _25 (:probe::row ":wat::linkedlist::empty?  "
-           (:wat::core::quote (:wat::core::apply :wat::linkedlist::empty?
+           (:wat::core::quote (:wat::core::apply :wat::core::empty?
              (wat.type/Vector :- [(wat.type/List :- [wat.type/i64])]
                (wat.type/List :- [wat.type/i64])))))
      _26 (:probe::row ":wat::linkedlist::contains?"
-           (:wat::core::quote (:wat::core::apply :wat::linkedlist::contains?
+           (:wat::core::quote (:wat::core::apply :wat::core::contains?
              (wat.type/List :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 2))))
      _27 (:probe::row ":wat::linkedlist::get      "
-           (:wat::core::quote (:wat::core::apply :wat::linkedlist::get
+           (:wat::core::quote (:wat::core::apply :wat::core::get
              (wat.type/List :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 0))))
      _28 (:probe::row ":wat::linkedlist::conj     "
-           (:wat::core::quote (:wat::core::apply :wat::linkedlist::conj
+           (:wat::core::quote (:wat::core::apply :wat::core::conj
              (wat.type/List :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 0))))
 
      ;; ── hashset (4) ──────────────────────────────────────────────────────
      _29 (:probe::row ":wat::hashset::length  "
-           (:wat::core::quote (:wat::core::apply :wat::hashset::length
+           (:wat::core::quote (:wat::core::apply :wat::core::length
              (wat.type/Vector :- [(wat.type/HashSet :- [wat.type/i64])]
                (wat.type/HashSet :- [wat.type/i64] 1 2 3)))))
      _30 (:probe::row ":wat::hashset::empty?  "
-           (:wat::core::quote (:wat::core::apply :wat::hashset::empty?
+           (:wat::core::quote (:wat::core::apply :wat::core::empty?
              (wat.type/Vector :- [(wat.type/HashSet :- [wat.type/i64])]
                (wat.type/HashSet :- [wat.type/i64])))))
      _31 (:probe::row ":wat::hashset::contains?"
-           (:wat::core::quote (:wat::core::apply :wat::hashset::contains?
+           (:wat::core::quote (:wat::core::apply :wat::core::contains?
              (wat.type/HashSet :- [wat.type/i64] 1 2 3)
              (wat.type/Vector :- [wat.type/i64] 2))))
      ;; ⚠ ORDER-INDEPENDENT ON PURPOSE (fixed 2026-08-28, Stone Q). This row used to print the
@@ -163,8 +163,8 @@
      ;; `contains?` proves the conj reached the verb through apply AND renders the same every run.
      ;; `[[feedback_a_probe_that_recalibrates_under_load_measures_nothing]]`
      _32 (:probe::row ":wat::hashset::conj     "
-           (:wat::core::quote (:wat::hashset::contains?
-             (:wat::core::apply :wat::hashset::conj
+           (:wat::core::quote (:wat::core::contains?
+             (:wat::core::apply :wat::core::conj
                (wat.type/HashSet :- [wat.type/i64] 1 2 3)
                (wat.type/Vector :- [wat.type/i64] 9))
              9)))]

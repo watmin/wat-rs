@@ -8,7 +8,7 @@
 ;; probe 1b: [1 2 3] first element 1
 (:wat::core::defn :t::p1b-vec-first [] -> wat.type/i64
   (:wat::core::match
-    (:wat::vec::get [1 2 3] 0)
+    (:wat::core::get [1 2 3] 0)
     
     [:wat::core::Option.Some {:value v} v]
     [:wat::core::Option.None {} -1]))
@@ -54,7 +54,7 @@
 
 ;; probe 11b: int-keyed map contains key 1
 (:wat::core::defn :t::p11b-int-keyed-contains [] -> wat.type/bool
-  (:wat::hashmap::contains-key? {1 "v" 2 "w"} 1))
+  (:wat::core::contains? {1 "v" 2 "w"} 1))
 
 ;; probe 12a: string-keyed map {"a" 1 "b" 2} length 2
 (:wat::core::defn :t::p12a-str-keyed-len [] -> wat.type/i64
@@ -62,4 +62,4 @@
 
 ;; probe 12b: string-keyed map contains "a"
 (:wat::core::defn :t::p12b-str-keyed-contains [] -> wat.type/bool
-  (:wat::hashmap::contains-key? {"a" 1 "b" 2} "a"))
+  (:wat::core::contains? {"a" 1 "b" 2} "a"))

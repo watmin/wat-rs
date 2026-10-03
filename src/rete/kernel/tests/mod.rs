@@ -180,7 +180,7 @@ const DEPTH_SPLIT_WORLD: &str = "\
 (:wat::core::defn :dc::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
-      (:wat::vector::conj acc (:dc::build-rule k)))\n\
+      (:wat::core::conj acc (:dc::build-rule k)))\n\
     (wat.type/PersistentVector :- [:wat::rete::Rule] (:dc::build-rule 1))\n\
     (:wat::core::range 2 (:wat::i64::+ depth 1))))\n\
 \n\
@@ -395,7 +395,7 @@ const NODE_SHARE_WORLD: &str = "\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]\n\
       -> (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
-      (:wat::vector::conj acc (:nsh::build-rule i n)))\n\
+      (:wat::core::conj acc (:nsh::build-rule i n)))\n\
     (wat.type/PersistentVector :- [:wat::rete::Rule])\n\
     (:wat::core::range 0 n)))\n\
 \n\

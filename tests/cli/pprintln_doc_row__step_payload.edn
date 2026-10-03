@@ -90,7 +90,7 @@
            result (:probe/StepPayloadExampleResult :celsius 10)
            sv (#wat.ast/Keyword
                 {:path ":wat::core::Option/expect"}
-                (:wat.map/get support result)
+                (:wat.core/get support result)
                 "sv")
       
            tok (#wat.ast/Keyword

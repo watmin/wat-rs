@@ -32,16 +32,16 @@
 ;; ─── Short-name collection aliases ──────────────────────────────────────────
 ;;
 ;; The polymorphic-name collection ops — length / empty? / contains? / get /
-;; conj / assoc — are Rust ∀T intrinsics: check-side inference lives in
-;; src/collection/infer.rs, eval-side in src/runtime.rs. Their per-Type leaves
-;; (:Vector/length, :HashMap/get, …) remain as the backing impls.
+;; conj / assoc / dissoc / keys / values — are Rust ∀T intrinsics: check-side
+;; inference lives in src/collection/infer.rs, eval-side in src/runtime.rs.
+;; Their per-Type leaves (:wat::hashmap::dissoc, :wat::map::dissoc, …) remain
+;; the backing impls.
 ;;
-;; Single-impl ops below get a short-name alias (not a dispatch — dispatch is
-;; for genuine polymorphism); both the short and long names are honest.
-(:wat::core::defalias :wat::core::dissoc  :wat::hashmap::dissoc)
-(:wat::core::defalias :wat::core::keys    :wat::hashmap::keys)
-(:wat::core::defalias :wat::core::values  :wat::hashmap::values)
-(:wat::core::defalias :wat::core::concat  :wat::vec::concat)
+;; dissoc / keys / values were HashMap-only aliases until 255.86. PersistentMap
+;; is a second arm on the same core verbs (`infer_dissoc` / `infer_keys` /
+;; `infer_values`), so the aliases are gone. concat is a Rust intrinsic over
+;; `vector_concat_inner` (same-kind Vector, PersistentVector, or List). It is
+;; not an alias of `:wat::vec::concat`: retiring that name must not retire this one.
 
 ;; ─── Polymorphic arithmetic defclauses ───────────────────────────────────────
 ;;
@@ -1776,7 +1776,7 @@
                         val   (:wat::core::Option/expect  
                                  (:wat::core::get opts (:wat::i64::+ k 1))
                                  "format: kwargs pair value missing")]
-                       (:wat::hashmap::assoc m key val)))
+                       (:wat::core::assoc m key val)))
                    (wat.type/HashMap :- [wat.type/String wat.type/AST])
                    (:wat::core::range 0 n-pairs))
 
@@ -2003,7 +2003,7 @@
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
                           (:wat::core::let
                             [_vn     (:wat::core::if
-                                       (:wat::hashmap::contains-key? kwargs-map pay)
+                                       (:wat::core::contains? kwargs-map pay)
                                        
                                        nil
                                        (:wat::core::macro-error
@@ -2012,11 +2012,11 @@
                                            (:wat::string::concat pay
                                              "} has no matching kwarg"))))
                              val-ast (:wat::core::Option/expect  
-                                        (:wat::hashmap::get kwargs-map pay)
+                                        (:wat::core::get kwargs-map pay)
                                         "format: internal — kwargs-map get post-contains?")]
                             (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                               (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
-                              (:wat::hashmap::assoc used2 pay true))))))
+                              (:wat::core::assoc used2 pay true))))))
                     (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/AST]) (wat.type/HashMap :- [wat.type/String wat.type/bool])]
                       (wat.type/Vector :- [wat.type/AST])
                       (wat.type/HashMap :- [wat.type/String wat.type/bool]))
@@ -2026,12 +2026,12 @@
      used-set    (:wat::core::second pass2-result)
 
      ;; ── 5. Strict check: every kwarg must be consumed ───────────────
-     kwarg-keys  (:wat::hashmap::keys kwargs-map)
+     kwarg-keys  (:wat::core::keys kwargs-map)
      _unused-chk (:wat::core::foldl
                    (:wat::core::fn [_ <- wat.type/nil key <- wat.type/String]
                      -> wat.type/nil
                      (:wat::core::if
-                       (:wat::hashmap::contains-key? used-set key)
+                       (:wat::core::contains? used-set key)
                        
                        nil
                        (:wat::core::macro-error

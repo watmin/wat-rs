@@ -17,9 +17,9 @@
 (:wat::core::defn :user::base-predicate-false [] -> wat.type/bool (:my::is-Pt? (:my::HPt :x 1 :y 2)))
 (:wat::core::defn :user::base-eq-equal [] -> wat.type/bool (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
 (:wat::core::defn :user::base-eq-diff [] -> wat.type/bool (:wat::core::= (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 9)))
-(:wat::core::defn :user::base-same-data [] -> wat.type/bool (:wat::core::Record/same-data? (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
+(:wat::core::defn :user::base-same-data [] -> wat.type/bool (:wat::record::same-data? (:my::Pt :x 1 :y 2) (:my::Pt :x 1 :y 2)))
 (:wat::core::defn :user::base-assoc-then-read [] -> wat.type/i64
-  (:my::Pt/y (:wat::core::Record/assoc (:my::Pt :x 1 :y 2) :y 9)))
+  (:my::Pt/y (:wat::core::assoc (:my::Pt :x 1 :y 2) :y 9)))
 (:wat::core::defn :user::base-to-holon-errors [] -> :wat::holon::HolonAST
   (:wat::holon::to-holon (:my::Pt :x 1 :y 2)))
 
@@ -36,5 +36,5 @@
 
 ;; ─── Cross-flavor ─────────────────────────────────────────────────────────────
 (:wat::core::defn :user::cross-flavor-same-data-true [] -> wat.type/bool
-  (:wat::core::Record/same-data? (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))
+  (:wat::record::same-data? (:my::Pt :x 0 :y 0) (:my::HPt :x 0 :y 0)))
 

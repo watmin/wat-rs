@@ -24,10 +24,10 @@
 ;;     | ./target/release/wat ./wat-scripts/fixes/drop-unconsumed-negation-bind.wat
 
 (:wat::core::defn :user::span-line [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span n) :line) "span :line"))
+  (:wat::core::Option/expect (:wat::core::get (:wat::core::ast-span n) :line) "span :line"))
 
 (:wat::core::defn :user::span-col [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::Option/expect (:wat::hashmap::get (:wat::core::ast-span n) :col) "span :col"))
+  (:wat::core::Option/expect (:wat::core::get (:wat::core::ast-span n) :col) "span :col"))
 
 ;; A bind list `(?v <- :field)` — three children, reported var, `<-`, a keyword field.
 (:wat::core::defn :user::bind-of-var? [node <- wat.type/AST  var <- wat.type/String] -> wat.type/bool
@@ -238,7 +238,7 @@
   (:wat::core::if (:wat::core::empty? sites)
     acc
     (:wat::core::let [p (:wat::core::nth (:user::parse-site (:wat::core::first sites)) 0)]
-      (:wat::core::if (:wat::vec::contains? acc p)
+      (:wat::core::if (:wat::core::contains? acc p)
         (:user::paths-of (:wat::core::rest sites) acc)
         (:user::paths-of (:wat::core::rest sites)
           (:wat::core::conj acc p))))))

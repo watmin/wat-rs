@@ -1110,7 +1110,7 @@ pub fn register_aggregate_methods(
                 WatAST::List(
                     vec![
                         WatAST::Keyword(
-                            ":wat::core::Record/field-at".into(),
+                            ":wat::record::field-at".into(),
                             crate::rust_caller_span!(),
                         ),
                         WatAST::List(

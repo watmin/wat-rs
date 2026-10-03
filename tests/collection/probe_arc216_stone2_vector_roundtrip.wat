@@ -6,14 +6,14 @@
   (:wat::core::let
     [h (:wat::holon::to-holon [1 2 3])
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p2a: round-trip length 3
 (:wat::core::defn :t::p2a-rt-len [] -> wat.type/i64
   (:wat::core::let
     [h (:wat::holon::to-holon [1 2 3])
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p2b: round-trip first element = 1
 (:wat::core::defn :t::p2b-rt-first [] -> wat.type/i64
@@ -21,7 +21,7 @@
     [h (:wat::holon::to-holon [1 2 3])
      v (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 0)
+      (:wat::core::get v 0)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))
@@ -31,14 +31,14 @@
   (:wat::core::let
     [h (:wat::holon::to-holon [])
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p4a: single element round-trip length 1
 (:wat::core::defn :t::p4a-single-rt-len [] -> wat.type/i64
   (:wat::core::let
     [h (:wat::holon::to-holon [42])
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p4b: single element round-trip get index 0 = 42
 (:wat::core::defn :t::p4b-single-rt-elem [] -> wat.type/i64
@@ -46,7 +46,7 @@
     [h (:wat::holon::to-holon [42])
      v (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 0)
+      (:wat::core::get v 0)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))
@@ -57,7 +57,7 @@
     [h (:wat::holon::to-holon [10 20 30])
      v (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 1)
+      (:wat::core::get v 1)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))
@@ -67,14 +67,14 @@
   (:wat::core::let
     [h (:wat::holon::to-holon (wat.type/Vector :- [wat.type/String] "a" "b" "c"))
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p5c: (Vec :- [bool]) round-trip length 3
 (:wat::core::defn :t::p5c-bool-rt-len [] -> wat.type/i64
   (:wat::core::let
     [h (:wat::holon::to-holon (wat.type/Vector :- [wat.type/bool] true false true))
      v (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p6a: order preservation index 0 = 10
 (:wat::core::defn :t::p6a-order-idx0 [] -> wat.type/i64
@@ -82,7 +82,7 @@
     [h (:wat::holon::to-holon [10 20 30])
      v (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 0)
+      (:wat::core::get v 0)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))
@@ -93,7 +93,7 @@
     [h (:wat::holon::to-holon [10 20 30])
      v (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 2)
+      (:wat::core::get v 2)
       
       [:wat::core::Option.Some {:value x} x]
       [:wat::core::Option.None {} -1])))
@@ -106,7 +106,7 @@
      outer  (wat.type/Vector :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p7b: nested vector arc 228 re-verify outer length 2
 (:wat::core::defn :t::p7b-nested-arc228 [] -> wat.type/i64
@@ -116,7 +116,7 @@
      outer  (wat.type/Vector :- [:wat::type::Infer] inner1 inner2)
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
-    (:wat::vec::length v)))
+    (:wat::core::length v)))
 
 ;; p7c: nested vector inner element at [1][0] = 4
 (:wat::core::defn :t::p7c-nested-inner-elem [] -> wat.type/i64
@@ -127,11 +127,11 @@
      h      (:wat::holon::to-holon outer)
      v      (:wat::holon::from-holon h)]
     (:wat::core::match
-      (:wat::vec::get v 1)
+      (:wat::core::get v 1)
       
       [:wat::core::Option.Some {:value inner}
         (:wat::core::match
-          (:wat::vec::get inner 0)
+          (:wat::core::get inner 0)
           
           [:wat::core::Option.Some {:value x} x]
           [:wat::core::Option.None {} -1])]
@@ -145,7 +145,7 @@
      v  (wat.type/Vector :- [:wat::type::Infer] s1 s2)
      h  (:wat::holon::to-holon v)
      rv (:wat::holon::from-holon h)]
-    (:wat::vec::length rv)))
+    (:wat::core::length rv)))
 
 ;; p8b: (Vec :- [(HashSet :- [i64])]) arc 228 outer length 2
 (:wat::core::defn :t::p8b-mixed-arc228 [] -> wat.type/i64
@@ -155,7 +155,7 @@
      v  (wat.type/Vector :- [:wat::type::Infer] s1 s2)
      h  (:wat::holon::to-holon v)
      rv (:wat::holon::from-holon h)]
-    (:wat::vec::length rv)))
+    (:wat::core::length rv)))
 
 ;; p9a: atomizable passes — returns 1
 (:wat::core::defn :t::p9a-atomizable-passes [] -> wat.type/i64
