@@ -1239,7 +1239,7 @@ fn lower_construct(
     };
     if let Some(TypeDef::Aggregate(a)) = types.get(head) {
         let names = a.names_arc();
-        let class = head.strip_prefix(':').unwrap_or(head).to_string();
+        let class = crate::edn::render::fact_class_key(head);
         let args = &items[1..];
         // BY NAME, against this type's declaration order — see `rete_kwargs_value_asts`. `None`
         // (undeclared / duplicate / missing field) falls to the same `Ok(None)` this fn already

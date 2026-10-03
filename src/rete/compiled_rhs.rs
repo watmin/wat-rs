@@ -142,11 +142,14 @@ pub(crate) fn compile_rhs(
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => return Ok(None),
     };
-    let type_keyword = match &fact_items[0] {
+    // Keyword `:wat::grep::Match` and symbol `wat.grep/Match` are one class.
+    // A bare symbol is not a type head (the old `Ok(None)`).
+    let raw = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Symbol(id, _) if id.is_reference() => id.as_str(),
         _ => return Ok(None),
     };
-    let names = match sym.types().and_then(|t| t.get(type_keyword)) {
+    let names = match sym.types().and_then(|t| t.get(raw)) {
         Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
         _ => {
             // Widening (a) — fn-headed item. Lower the whole call. A LowerError
@@ -156,10 +159,7 @@ pub(crate) fn compile_rhs(
             return Ok(Some(CompiledRhs::Call(Arc::new(program))));
         }
     };
-    let class: Arc<str> = type_keyword
-        .strip_prefix(':')
-        .unwrap_or(type_keyword)
-        .into();
+    let class: Arc<str> = crate::edn::render::fact_class_key(raw).into();
 
     // Arc 294 item 9a — kwargs `(:Type :field1 v1 :field2 v2)` vs legacy positional
     // `(:Type v1 v2)`, exactly `build_insert_fact`'s detection.

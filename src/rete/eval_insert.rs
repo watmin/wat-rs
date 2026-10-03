@@ -137,13 +137,14 @@ pub(crate) fn build_insert_fact(
             }).into());
         }
     };
-    // Head of fact-form must be a keyword naming the record type.
+    // Keyword `:ns::Type` and symbol `ns/Type` name one record.
     let type_keyword = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
+        WatAST::Symbol(id, _) if id.is_reference() => id.as_str(),
         other => {
             return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "keyword (record type) as fact-form head",
+                expected: "keyword or symbol (record type) as fact-form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(other))))),
             }).into());
         }
@@ -166,7 +167,7 @@ pub(crate) fn build_insert_fact(
     // by `bindkey:alloc`. This file's own RHS resolution IS counted, through `resolve_operand`
     // (`resolve_rhs_value` below). The class-name String is a different allocation.
     crate::rete::kernel::census_count("prod:class-alloc");
-    let class = type_keyword.strip_prefix(':').unwrap_or(type_keyword).to_string();
+    let class = crate::edn::render::fact_class_key(type_keyword);
     crate::rete::kernel::phase_end("  ├ prod:validate", __pv);
     let __ps = crate::rete::kernel::phase_start();
 

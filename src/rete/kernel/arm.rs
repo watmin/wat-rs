@@ -342,7 +342,7 @@ pub(crate) fn build_alpha_index(
         };
         // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
         if let Some(pat) = crate::rete::matcher::alpha_pattern(&cond_ast) {
-            let ty = pat.type_head.to_string();
+            let ty = crate::edn::render::fact_class_key(pat.type_head);
             alpha_by_type.entry(ty).or_default().push(*node_id);
             alpha_cond.insert(*node_id, cond_ast);
         }

@@ -80,10 +80,14 @@ pub(crate) fn eval_collect_rules(
     let mut names: Vec<String> = sym
         .functions_iter()
         .filter(|(name, f)| {
-            let bare = name.strip_prefix(':').unwrap_or(name);
+            // `:cnt::node` and `cnt/node` are one name; `:wat::rete::Rule` and
+            // `wat.rete/Rule` are one return type (the converted `defrule` emits
+            // the symbol).
+            let bare = crate::edn::render::fact_class_key(name);
             bare.starts_with(&prefix)
                 && f.param_types.is_empty()
-                && matches!(&f.ret_type, crate::types::TypeExpr::Path(p) if p == ":wat::rete::Rule")
+                && matches!(&f.ret_type, crate::types::TypeExpr::Path(p)
+                    if crate::edn::render::canonical_identity(p) == ":wat::rete::Rule")
         })
         .map(|(name, _)| name.clone())
         .collect();
@@ -99,4 +103,23 @@ pub(crate) fn eval_collect_rules(
         out.push_back_mut(rule);
     }
     Ok(Value::wat__core__PersistentVector(out))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn probe_a87_symbol_fact_class_is_the_keyword_fact_class() {
+        assert_eq!(
+            crate::edn::render::fact_class_key("wat.grep/Match"),
+            "wat::grep::Match"
+        );
+        assert_eq!(
+            crate::edn::render::fact_class_key(":wat::grep::Match"),
+            crate::edn::render::fact_class_key("wat.grep/Match")
+        );
+        assert_eq!(
+            crate::edn::render::fact_class_key(":wat::grep::NodeKind.Keyword"),
+            crate::edn::render::fact_class_key("wat.grep/NodeKind.Keyword")
+        );
+    }
 }

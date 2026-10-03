@@ -1248,7 +1248,7 @@ pub(crate) fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashM
             aid,
             QueryClassScan {
                 var: var.clone(),
-                class: pat.type_head.to_string(),
+                class: crate::edn::render::fact_class_key(pat.type_head),
             },
         );
     }

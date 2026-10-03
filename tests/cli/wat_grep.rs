@@ -53,6 +53,24 @@ fn count_rule_hits(stdout: &str, rule: &str) -> usize {
     stdout.lines().filter(|l| l.contains(&format!(":rule \\\"{rule}\\\""))).count()
 }
 
+/// Symbol `wat.grep/Node` and keyword `:wat::grep::Node` are one fact class.
+/// The keyword twin is `g1`, against the same sample.
+#[test]
+fn probe_a87_symbol_rules_count_nodes_the_keyword_rules_count() {
+    let program = fixture("wat_grep__count_rules_symbol.wat");
+    let target = fixture("wat_grep__sample_source.wat");
+    let output = run_grep(&program, &[target]);
+    assert!(
+        output.status.success(),
+        "stderr: {} stdout: {}",
+        String::from_utf8_lossy(&output.stderr),
+        String::from_utf8_lossy(&output.stdout)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let node = count_rule_hits(&stdout, "probe.a87/node");
+    assert!(node > 0, "symbol wat.grep/Node rule saw 0 nodes; stdout: {stdout}");
+}
+
 /// G1 + G2 — the file's own declared non-vacuity controls, which had NEVER run before this
 /// stone: `Span` count == `Node` count (Span is unconditional, like Node); `Named` count <
 /// `Node` count (Named is guarded to nameable kinds only).

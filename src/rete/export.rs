@@ -1712,7 +1712,7 @@ fn pack_node(
         NodeKind::Alpha => {
             let class_idx = alpha_cond_from_node(node)
                 .and_then(|ast| alpha_pattern(&ast).map(|p| {
-                    let ty = p.type_head.to_string();
+                    let ty = crate::edn::render::fact_class_key(p.type_head);
                     let fs = class_field_names(sym, &ty);
                     classes.intern(&ty, fs)
                 }))

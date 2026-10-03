@@ -3776,6 +3776,12 @@ pub fn canonical_identity(s: &str) -> String {
     s.to_string()
 }
 
+/// Colon-free fact-class key. `:wat::grep::Node` and `wat.grep/Node` are both
+/// `wat::grep::Node`. A keyword that is already that key is unchanged.
+pub fn fact_class_key(s: &str) -> String {
+    canonical_identity(s).trim_start_matches(':').to_string()
+}
+
 /// TypeExpr storage key. **Stone 255.81 (cutover 4b) deletes the `:wat::type::` →
 /// `:wat::core::` rewrite this door used to perform.** Before this stone, a
 /// `wat.type/X` member denoted the OLD `wat::core::X` key (`wat.type/AST` →

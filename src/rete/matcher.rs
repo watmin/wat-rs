@@ -380,7 +380,13 @@ fn alpha_match_inner_opts(
 ) -> BindPairs {
     crate::rete::kernel::census_count("match:calls");
     let pat = alpha_pattern(cond)?;
-    if pat.type_head != fact_class {
+    // Stone 255.87 — the alpha index stores `fact_class_key`. The oracle
+    // compares the raw head, so a symbol pattern missed a keyword fact.
+    // Equal spellings stay a borrow compare; the key is computed only on a miss.
+    if pat.type_head != fact_class
+        && crate::edn::render::fact_class_key(pat.type_head)
+            != crate::edn::render::fact_class_key(fact_class)
+    {
         crate::rete::kernel::census_count("match:head-miss");
         return None;
     }

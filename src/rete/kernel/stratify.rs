@@ -37,12 +37,8 @@ use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Val
 /// (`wat/rete/oracle/stratify.wat`) and `rule-negates` (`wat/rete/oracle/stratify.wat`).
 pub(crate) fn fact_type_head(fact_form: &WatAST) -> Option<String> {
     if let WatAST::List(items, _) = fact_form {
-        let raw = match items.first() {
-            Some(WatAST::Keyword(k, _)) => k.clone(),
-            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
-            _ => return None,
-        };
-        return Some(raw.trim_start_matches(':').to_string());
+        let raw = crate::form_match::identity_text(items.first()?)?;
+        return Some(crate::edn::render::fact_class_key(raw));
     }
     None
 }
@@ -111,7 +107,7 @@ pub(crate) fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool
             }
         }
         ReteClauseShape::FactBind { type_head, .. } if under_not => {
-            out.push(type_head.to_string());
+            out.push(crate::edn::render::fact_class_key(type_head));
         }
         ReteClauseShape::Unrecognized if under_not => {
             if let Some(name) = fact_type_head(form) {
@@ -200,7 +196,7 @@ pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
             }
         }
         ReteClauseShape::FactBind { type_head, .. } => {
-            out.push(type_head.to_string());
+            out.push(crate::edn::render::fact_class_key(type_head));
         }
         ReteClauseShape::Not(_)
         | ReteClauseShape::Where(_)

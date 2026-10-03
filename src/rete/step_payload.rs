@@ -249,7 +249,7 @@ pub(crate) fn eval_step_payload(
             got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(cond_ast.clone())))),
         }).into()),
     };
-    let pattern = pat.type_head.to_string();
+    let pattern = crate::edn::render::fact_class_key(pat.type_head);
     let clauses = pat.clauses;
 
     // ── Walk clauses: classify + build constraints + collect binder var names ─
