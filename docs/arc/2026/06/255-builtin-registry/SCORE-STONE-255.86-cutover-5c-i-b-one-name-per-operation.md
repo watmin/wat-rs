@@ -73,3 +73,81 @@ The same check refusal, measured in the same pass, hits the next two map verbs. 
 `:wat::map::{length,empty?,contains-key?,get}` on that map compared equal to `:wat::core::{length,empty?,contains?,get}` (hit and miss, empty and non-empty) under `=`. `:wat::hashmap::*` (all eight), `:wat::vec::*` including `extend` against `into` on Vector×Vector and Vector×PersistentVector, `:wat::vector::*` including `concat` against `into`, `:wat::hashset::*`, and `:wat::linkedlist::*` compared equal on the values in `/tmp/g1-diff2/results.txt`. Those matches do not license a codemod past this stop.
 
 No mapping EDN was committed. No call site moved. No retirement row was added. R-a was not started. Clippy and the release floor were not run.
+
+## Amend 2: the coverage gap is an arm
+
+Continues at `7aafe62b3`. The STOP-1 on `:wat::map::dissoc`, `:wat::map::keys`, and `:wat::map::values` is overruled. Those verbs accept a PersistentMap and the core verbs did not. That is a coverage gap: the core verb gained the arm, backed by the same implementation. `:wat::vector::concat` stays mapped to `:wat::core::into`. No later pair both accepted the same input and returned different values, so the stone did not stop again.
+
+### Arms
+
+PersistentMap on `:wat::core::dissoc`, `:wat::core::keys`, and `:wat::core::values`. `/tmp/g1-arm/out.txt` (re-read, not re-run): PersistentMap dissoc of key `"a"` shows `#pm{}` on both the old verb and the core verb (RC=2); a missing key shows `#pm{"a": 1}` on both (RC=2). HashMap dissoc shows `{}` on both (RC=2). `hm-keys`, `hm-values`, `pm-keys`, `pm-keys-two`, and `pm-values` are RC=0 (the program returns nil when `=` holds). Record assoc shows `<probe::ArmRec{#0: 9}>` on both `:wat::core::Record/assoc` and `:wat::core::assoc` (RC=2).
+
+The checker typed a bare `wat.type/PersistentMap` or `wat.type/PersistentVector` as `TypeExpr::Path`, and the custom arms match only `TypeExpr::Parametric`. `instantiate_bare_family` (`src/collection/infer.rs`) turns a bare Path of Vector, PersistentVector, List, or HashSet into a one-argument parametric, and HashMap or PersistentMap into a two-argument parametric, then the existing arms run. It is called from `infer_contains`, `infer_get`, `infer_assoc`, `infer_dissoc`, and `infer_map_projection` (keys and values). A copy of the corpus codemod was RC=3 with 93 `TypeMismatch`s before that function and RC=0 after the rebuild (`/tmp/g1-fixsrc-run.log`, `/tmp/g1-fixsrc-run2.log`). That was a checker gap. The values did not disagree.
+
+`infer_assoc` parameter #3 uses `assignable` (a trial subst, committed only on success). Parameter #2 stays exact `unify`. Before that change, census `.census/2026-10-03T03-40-32Z.txt` flipped eight files from rc 0 to rc 1, all `:wat::core::assoc` parameter #3: `tests/rete/probe_arc278_1a_data_model.wat`, `probe_arc278_match_arm_body_ok.wat`, `probe_arc278_match_arm_then_core_bare.wat`, `probe_arc278_match_arm_then_rete_bare.wat`, `probe_arc278_match_arm_then_wrapped.wat`, `wat-scripts/perf/grid/where-query-compat.wat`, `where-query-params.wat`, and `wat-tests/rete/differential-fuzz-rules.wat`. After the rebuild each `--check` was RC=0. That stamp is the failing census. The gate is the later one.
+
+`:wat::core::keys` and `:wat::core::values` fingerprint returns are `(:wat::type::Vector :- [K])` and `(:wat::type::Vector :- [V])`. Call-site types stay `infer_keys` and `infer_values`. Both are `@Determinism Nondeterministic`, so the examples are `@example-norun`.
+
+Six `RETE_OPS` rows keep their `rete_name` and point `core_name` at the polymorphic verb (`:wat::rete::vector::length`, `:wat::rete::vector::contains?`, `:wat::rete::map::contains-key?`, `:wat::rete::vector::get`, `:wat::rete::vec::get`, `:wat::rete::linkedlist::get`). `OpExec::of_row` dispatches those six by `rete_name`. `NAMING_RULE_EXCEPTIONS` length is 25. Three `@alias` attributes in `src/intrinsic/special/rete_alias.rs` (lines 400, 412, 427) name `:wat::core::length` or `:wat::core::contains?`. The prose comments above those attributes still name the old targets. The attribute is the dispatch.
+
+`wat.list/reduce` is in the brief's namespace census and is not a G1 verb, so it has no mapping. A search of `*.wat`, `*.rs`, and `*.edn` finds the arc143 test that renames foldl's head to `:wat::list::reduce` (`tests/wat_lang/wat_arc143_manipulation.wat`, golden `wat_arc143_manipulation__reduce_head.edn`), a comment in `src/reflect/verbs.rs`, and a comment in `wat-scripts/fixes/rename-list-to-seq.wat`. No live call.
+
+### Mapping, codemod, retirement
+
+`wat-scripts/fixes/one-name-per-operation.edn` holds 64 pairs (counted on this tree). `:wat::vector::concat` → `:wat::core::into`. `:wat::vec::concat` → `:wat::core::concat`. `:wat::vec::extend` → `:wat::core::into`. Both `contains-key?` names → `:wat::core::contains?`. The recorded codemod is `wat-scripts/fixes/one-name-per-operation.wat` (`rename-keyword-exact` on keyword leaves). `cargo test --release --test cli every_recorded_migration_replays` after the fixture edit: `18 passed; 0 failed`, 9.55s, RC=0 (`/tmp/g1-cure.log`).
+
+`wat-fix-rust --dry-run` over 1301 tracked `.rs` files: `[wat-fix-rust] 1301 file(s) scanned, 0 changed, 0 edit(s) found, 0 refused, 0 codemod-failed`, RC=0 (`/tmp/g1-fix-rust-dry.log`). The same log prints two lexer panics before that summary, `end byte index 5 is not a char boundary` inside `∅` and `end byte index 14 is not a char boundary` inside `≠`. The driver still reported 0 failed. That dry-run is the codemod; the later cure does not add collection-verb keyword leaves.
+
+An idempotent re-run of 611 files (`/tmp/g1-idem-run.log`, RC=0, byte diff 0) was before the three Pascal pairs left the table. After they left, the replay fixture keeps `/` on those three names and the harness above passed. The corpus call sites of those three names were restored by hand in the cure commit.
+
+Retirement adds 43 rows at `src/remedy/retirement.rs` lines 436–478. Older colon rows still name the per-type verbs this stone retires. A second row with the same retired string would be shadowed by the first, so that chain stays. The slash forms retire to the core verb or to `:wat::bytes::` / `:wat::record::`.
+
+### R-a
+
+Lowercase parents in the mapping were respelt from `/` to `::`. `:myapp::Formattable/format`, `:wat-tests::holon::Reject/bundle-or-fail`, and `:wat-tests::holon::Reject/project-bundle-or-fail` stay on `/`. The member-join wall reads a Pascal segment followed by a lowercase member as Type/member. Whether those two parents are rows in the type registry was not queried. Restoring `/` is the spelling that wall requires, and the rest of the cutover stayed.
+
+### Census
+
+Baseline before any amend-2 edit: `.census/2026-10-03T02-28-00Z.txt`, 2284 files, `0:2074, 1:208, 101:2`. After `assignable`: `.census/2026-10-03T03-44-18Z.txt`, 2284 files, same distribution, 0 rc flips against the baseline (recomputed from the two stamps). After the cure, on the tree that became `54e2d948d`: `.census/2026-10-03T03-58-35Z.txt`, 2285 files, `0:2075, 1:208, 101:2`. The extra file is `wat-scripts/fixes/one-name-per-operation.wat` at rc 0. 0 rc flips against the baseline. `.census/` is not committed.
+
+### Floors
+
+Do not re-run either.
+
+The cutover commit `4f8f551ea` is red. `.floor/2026-10-03T03-46-12Z`, log `/tmp/g1-floor-25586.log`:
+
+```
+Summary [ 405.188s] 6394 tests run: 6388 passed (29 slow), 6 failed, 24 skipped
+RC=100
+```
+
+The six arms, each cured in `54e2d948d`:
+
+1. `no_stale_path_in_doc::every_location_named_in_a_doc_comment_exists` — `src/rete/purity.rs` cited `src/intrinsic/hashmap.rs:206`, and that file is 6 lines. The cure cites `eval_keys` / `eval_values` and drops the line number.
+2. `one_member_join::no_colon_joined_type_member_in_tracked_wat` — six call heads, quoted from the log:
+
+```
+colon-joined Type::member still in tracked .wat (6):
+tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat:25: :myapp::Formattable::format
+tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat:26: :myapp::Formattable::format
+tests/types/probe_diagnostic_defprotocol_dispatch_p2.wat:17: :myapp::Formattable::format
+tests/types/probe_diagnostic_defprotocol_dispatch_p3.wat:13: :myapp::Formattable::format
+wat-tests/holon/Reject.wat:45: :wat-tests::holon::Reject::bundle-or-fail
+wat-tests/holon/Reject.wat:65: :wat-tests::holon::Reject::project-bundle-or-fail
+```
+
+3. `intrinsic::tests::doc_arg_ret_types_match_checker_scheme` — doc ret for `:wat::core::values` is `(:wat::type::Vector :- [V])`, scheme was `:T`. Panic at `src/intrinsic/mod.rs:2611`.
+4. `intrinsic::tests::probe_can_doc_types_reconstruct_the_checker_scheme` — `round-trip EXACTLY 419`, `failed 2`. keys ret doc `(:wat::type::Vector :- [K])` parsed as `Parametric { head: "wat::type::Vector", args: [Path(":K")] }`, scheme `Path(":T")`; values the same with `:V`. Panic at `src/intrinsic/mod.rs:2545`.
+5. `intrinsic::tests::purity_mandated_examples` — `non-pure-det intrinsic :wat::core::values has no @example-norun`. Panic at `src/intrinsic/mod.rs:2857`.
+6. `test::deftest_wat_tests_reflect_render_doc_of_bytes_to_hex` — `assert-contains` expected `Bytes/to-hex`. The actual text starts `:wat::bytes::to-hex`. The two texts match apart from that home name.
+
+The cure commit `54e2d948d` is green. `.floor/2026-10-03T03-59-44Z`, log `/tmp/g1-floor-25586b.log`:
+
+```
+Summary [ 403.773s] 6394 tests run: 6394 passed (29 slow), 24 skipped
+RC=0
+```
+
+That is the same 6394 the brief names. Clippy of the cure tree, `cargo clippy --release --all-targets -- -D warnings`: `Finished release profile [optimized] target(s) in 12.51s`, RC=0 (`/tmp/g1-clippy-cure.log`). This score commit is the document. It does not change code, and it was not floored.
+
+`4f8f551ea` is the cutover. `54e2d948d` is the cure. Local `main`, not pushed. 5c-ii, 5c-iii, and 5c-iv are unstarted.
