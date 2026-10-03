@@ -60,7 +60,7 @@
   (:wat::core::let [cs (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::< (:wat::core::length cs) 3)
       (wat.type/Vector :- [wat.type/String])
-      (:wat::core::if (:wat::core::= (:wat::core::ast-name (:wat::core::first cs)) ":wat::core::defn")
+      (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first cs))) ":wat::core::defn")
         (wat.type/Vector :- [wat.type/String]
           (:wat::string::concat
             (:wat::core::ast-name (:wat::core::nth cs 1))
@@ -77,7 +77,7 @@
     (:wat::core::let [cs (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::empty? cs)
         false
-        (:wat::core::= (:wat::core::ast-name (:wat::core::first cs)) head)))
+        (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first cs))) (:wat::core::canonical-identity head))))
     false))
 
 (:wat::core::defn :probe::defn-rows [exp <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
