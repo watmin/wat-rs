@@ -18,11 +18,11 @@
     :location #wat.core/Span {
       :file "wat/core.wat"
       :line 1460
-      :col 33
+      :col 30
       :end #wat.core/Option.Some {
         :value #wat.core/Pos {
           :line 1460
-          :col 37
+          :col 34
         }
       }
     }
@@ -32,11 +32,11 @@
       :location #wat.core/Span {
         :file "wat/core.wat"
         :line 1460
-        :col 33
+        :col 30
         :end #wat.core/Option.Some {
           :value #wat.core/Pos {
             :line 1460
-            :col 37
+            :col 34
           }
         }
       }
