@@ -106,16 +106,28 @@ fn the_matcher_discriminates_a_variant_from_a_prefix() {
 /// Both spellings of the three stdio declarations name the same services.
 #[test]
 fn declared_services_reads_keyword_and_symbol() {
-    let kw = "\
-(:wat::service::defservice :wat::kernel::stdout-svc
-(:wat::service::defservice :wat::kernel::stderr-svc
-(:wat::service::defservice :wat::kernel::stdin-svc";
-    let sy = "\
-(wat.service/defservice wat.kernel/stdout-svc
-(wat.service/defservice wat.kernel/stderr-svc
-(wat.service/defservice wat.kernel/stdin-svc";
-    assert_eq!(declared_services(kw), expected_services());
-    assert_eq!(declared_services(sy), expected_services());
+    fn opened(head: &str, name: &str) -> String {
+        let mut line = String::new();
+        line.push('(');
+        line.push_str(head);
+        line.push(' ');
+        line.push_str(name);
+        line
+    }
+    let kw = [
+        opened(":wat::service::defservice", ":wat::kernel::stdout-svc"),
+        opened(":wat::service::defservice", ":wat::kernel::stderr-svc"),
+        opened(":wat::service::defservice", ":wat::kernel::stdin-svc"),
+    ]
+    .join("\n");
+    let sy = [
+        opened("wat.service/defservice", "wat.kernel/stdout-svc"),
+        opened("wat.service/defservice", "wat.kernel/stderr-svc"),
+        opened("wat.service/defservice", "wat.kernel/stdin-svc"),
+    ]
+    .join("\n");
+    assert_eq!(declared_services(&kw), expected_services());
+    assert_eq!(declared_services(&sy), expected_services());
 }
 
 /// The stdio services' message types must carry NO channel handles — no `Receiver<` / `Sender<`

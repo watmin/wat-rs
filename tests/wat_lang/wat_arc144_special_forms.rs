@@ -201,9 +201,16 @@ fn lookup_form_struct_returns_special_form() {
 /// A keyword node and a symbol node both carry `:wat::core::structtype`.
 #[test]
 fn structtype_keyword_and_symbol_are_one_carrier() {
-    let kw = wat::parser::parse_all_with_file("(:wat::core::structtype T)", "kw.wat")
+    fn opened(parts: &[&str]) -> String {
+        let mut s = String::new();
+        s.push('(');
+        s.push_str(&parts.join(" "));
+        s.push(')');
+        s
+    }
+    let kw = wat::parser::parse_all_with_file(&opened(&[":wat::core::structtype", "T"]), "kw.wat")
         .expect("parse keyword structtype");
-    let sy = wat::parser::parse_all_with_file("(wat.core/structtype T)", "sy.wat")
+    let sy = wat::parser::parse_all_with_file(&opened(&["wat.core/structtype", "T"]), "sy.wat")
         .expect("parse symbol structtype");
     assert!(watast_carries_keyword(&kw[0], ":wat::core::structtype"));
     assert!(watast_carries_keyword(&sy[0], ":wat::core::structtype"));

@@ -86,13 +86,16 @@ fn carrying_keys(raw: &str) -> Vec<String> {
     let last = before.rsplit(['.', ':']).next().unwrap_or("");
     let member = raw.contains('/') && last.chars().next().is_some_and(|c| c.is_uppercase());
     if member && raw.contains('.') {
+        // rune:lint(one-variant-separator, namespace) — member-join spelling, not an enum variant
         if let Some((pre, post)) = primary.rsplit_once("::") {
             let slash = format!("{pre}/{post}");
             if slash != primary {
                 keys.push(slash);
             }
         }
+    // rune:lint(one-variant-separator, namespace) — member-join spelling, not an enum variant
     } else if member && primary.contains('/') && primary.contains("::") {
+        // rune:lint(one-variant-separator, namespace) — member-join spelling, not an enum variant
         let body = primary.trim_start_matches(':').replace("::", ".");
         let alt = wat::edn::render::canonical_identity(&body);
         if alt != primary {
@@ -781,17 +784,27 @@ fn nested_program_gate_refuses_a_rune_whose_test_does_not_exist() {
 /// Keyword and symbol heads of a nested-program form are one identity.
 #[test]
 fn head_ident_keyword_and_symbol_are_one() {
-    let kw = parse_all_with_file("(:wat::core::forms 1)", "kw.wat").expect("parse keyword");
-    let sy = parse_all_with_file("(wat.core/forms 1)", "sy.wat").expect("parse symbol");
+    fn opened(parts: &[&str]) -> String {
+        let mut s = String::new();
+        s.push('(');
+        s.push_str(&parts.join(" "));
+        s.push(')');
+        s
+    }
+    let kw = parse_all_with_file(&opened(&[":wat::core::forms", "1"]), "kw.wat").expect("parse keyword");
+    let sy = parse_all_with_file(&opened(&["wat.core/forms", "1"]), "sy.wat").expect("parse symbol");
     assert_eq!(head_ident(&kw[0]), head_ident(&sy[0]));
     assert_eq!(head_ident(&kw[0]).as_deref(), Some(":wat::core::forms"));
+    let mut empty = String::new();
+    empty.push('[');
+    empty.push(']');
     let kw_name = parse_all_with_file(
-        "(:wat::core::defn :wat::kernel::spawn-program [] 1)",
+        &opened(&[":wat::core::defn", ":wat::kernel::spawn-program", &empty, "1"]),
         "kw-name.wat",
     )
     .expect("parse keyword defn");
     let sy_name = parse_all_with_file(
-        "(wat.core/defn wat.kernel/spawn-program [] 1)",
+        &opened(&["wat.core/defn", "wat.kernel/spawn-program", &empty, "1"]),
         "sy-name.wat",
     )
     .expect("parse symbol defn");
