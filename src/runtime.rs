@@ -12913,10 +12913,10 @@ pub(crate) fn eval_form_against_defs(
     let mut session_sym = world.symbols.clone();
     let head_of = |f: &WatAST| -> Option<String> {
         match f {
-            WatAST::List(items, _) => match items.first() {
-                Some(WatAST::Keyword(k, _)) => Some(k.clone()),
-                _ => None,
-            },
+            WatAST::List(items, _) => items
+                .first()
+                .and_then(crate::declare::parse::head_fqdn)
+                .map(|h| h.into_owned()),
             _ => None,
         }
     };
@@ -14989,10 +14989,15 @@ mod tests {
             // again would hit `DeclarationInExpressionPosition`.
             // Stone 241.14 — def-restricted removed from this guard (HARD CUT).
             if let WatAST::List(items, _) = form {
-                if let Some(WatAST::Keyword(head, _)) = items.first() {
-                    if matches!(head.as_str(), ":wat::core::def") {
-                        continue;
-                    }
+                // Symbol `wat.core/def` (what converted `defn` emits) is the
+                // same declaration as the keyword. `head_fqdn` is the door.
+                if items
+                    .first()
+                    .and_then(crate::declare::parse::head_fqdn)
+                    .as_deref()
+                    == Some(":wat::core::def")
+                {
+                    continue;
                 }
             }
             last = eval_inner(form, &env, &sym)?.value_owned();
@@ -15780,6 +15785,21 @@ mod tests {
             r#"
             (:wat::core::defn :my::app::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
             (:my::app::inc 41)
+            "#,
+        )
+        .unwrap();
+        assert!(matches!(result, Value::i64(42)));
+    }
+
+    /// Stone 255.87 #2 — a keyword `defn` expands to symbol `wat.core/def`.
+    /// The identity door skips that form the same way it skips the keyword.
+    /// The symbol-spelled defn registers under the same canonical name.
+    #[test]
+    fn symbol_defn_registers_under_the_canonical_name() {
+        let result = run(
+            r#"
+            (wat.core/defn probe.a2/inc [x :- wat.type/i64] :- wat.type/i64 (wat.i64/+ x 1))
+            (:probe::a2::inc 41)
             "#,
         )
         .unwrap();
@@ -20310,10 +20330,13 @@ mod tests {
             // mirrors the same guard in `run()`.
             // Stone 241.14 — def-restricted removed from this guard (HARD CUT).
             if let WatAST::List(items, _) = form {
-                if let Some(WatAST::Keyword(head, _)) = items.first() {
-                    if matches!(head.as_str(), ":wat::core::def") {
-                        continue;
-                    }
+                if items
+                    .first()
+                    .and_then(crate::declare::parse::head_fqdn)
+                    .as_deref()
+                    == Some(":wat::core::def")
+                {
+                    continue;
                 }
             }
             last = eval_inner(form, &env, &sym)?.value_owned();
