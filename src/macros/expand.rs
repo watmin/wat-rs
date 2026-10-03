@@ -759,8 +759,8 @@ pub(super) fn expand_form(
                     // (`wat.core/+`). A spelling that is not that alias shape
                     // (`::` inside the symbol) still reconstructs.
                     let spelling = ident.as_str();
-                    // rune:lint(one-variant-separator, namespace) — a clojure alias has no `::`; this is not an enum variant
                     let alias_shaped = spelling.contains('/')
+                        // rune:lint(one-variant-separator, namespace) — a clojure alias has no `::`; this is not an enum variant
                         && !spelling.contains("::")
                         && !spelling.starts_with(':');
                     if !alias_shaped || registry.symbol_join_ambiguous(spelling) {
