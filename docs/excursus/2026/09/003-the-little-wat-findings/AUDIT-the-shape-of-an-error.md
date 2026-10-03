@@ -328,3 +328,14 @@ fallback replies `Reply::Failed`, not a panic. Floor 6372/6372.
 | from | finding | the cure owed |
 |---|---|---|
 | B3 | ~24 `assertion-failed!` sites in `wat/service.wat` (and `wat/spawn.wat`'s shared `launch`) are owner↔child self-peer protocol invariants — measured NOT client-reachable (the admin channel is the owner's private fd 0/1 or in-process channel; only generated `start`/`resume` ever send on it, always `Init`/`Resume`). `dispatch-admin` runs once, before `serve`, with no error channel (`-> State`) | builder's call: accept owner-only protocol violations as panics (the repo-wide `launch` precedent), or a follow-on that gives `dispatch-admin`/`Locus::launch` a failure value |
+
+## Strike C landed (`38ccf65f7`)
+
+`ValueSnapshot` is `{type rendered}`; `:wat::runtime::Provenance` retired (lost its only holder);
+`of_tracked` collapsed into `of`. 44 goldens recaptured; GC1 lint (anchor: 44 files, 46 occurrences
+= F5's 22+19+5) mutation-proven. Floor 6373/6373.
+
+| from | finding | the cure owed |
+|---|---|---|
+| C | **a real cost of the removal, measured:** in the 5 goldens where provenance was KNOWN, the error's `:message` lost its suffix — e.g. `got wat::core::keyword \`:ns::nonexistent-verb\` (built by :wat::keyword::from-string at …p2.wat:…)` is now just `got … \`:ns::nonexistent-verb\``. That suffix answered "where did this bad value come from?", which `location` (where it was USED) does not | builder's call, under the removal bias: leave it gone, or re-add provenance only where it is known (a field present iff known — not an `Option` that is `None` 503 times) |
+| C | **the `Provenance`/`TrackedValue` machinery is now dead end to end**: every producer (literal eval, `keyword`/`ast`/`edn`/`holon` intrinsics, the `wat_intrinsic` shim) writes it; the one reader (`Environment::lookup`, `src/value/environment.rs:~203`) re-wraps it into a value nobody reads; `provenance_to_edn` has no production caller. Kept untouched, per scope | builder's call: retire the machinery, or re-fund it (see the row above) |
