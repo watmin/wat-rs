@@ -816,7 +816,12 @@ fn resolve_namespaced_symbol(
 ///   `:wat::type::Infer`, a marker, not a registered type).
 /// - `items[3..]` (value args): ordinary code — `(:wat::core::HashSet :- [T]
 ///   v1 v2)` carries live values after the type vector, and they normalize
-///   exactly as today (STOP-2's guard: this must NOT be treated as opaque data).
+///   exactly as a value position (STOP-2's guard: this must NOT be treated as
+///   opaque data). A bare symbol here is a value, not a call head: the
+///   protocol slot of `(extend-type :- [P …] Child Surface …)` is a surface
+///   name (`wat.capability/Capability`), which is registered and is not a
+///   function. `normalize_form` asks every reference symbol to be a call head
+///   and refuses that surface.
 fn normalize_type_binder_form(
     items: Vec<WatAST>,
     sym: &SymbolTable,
@@ -835,7 +840,7 @@ fn normalize_type_binder_form(
     out.push(new_head);
     out.push(marker);
     out.push(new_type_vec);
-    out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+    out.extend(iter.map(|c| normalize_value_position(c, sym, macros, errors)));
     out
 }
 
