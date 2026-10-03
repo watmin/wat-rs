@@ -1003,17 +1003,13 @@ mod rete_wall_probe {
 /// file is asked the same question. ⛔ The frozen list is the ANSWER, re-frozen by hand,
 /// so the class can never grow silently.
 ///
-/// ⛔⛔ **THIS GATE GOES RED ON A 8d-CONVERTED STDLIB, BY DESIGN AND BY MEASUREMENT.** Once
-/// the corpus is faithful-spelled there is no keyword surface left to round-TRIP from:
-/// every declaration name arrives as a `Symbol`, `ns_to_wat_path` writes `::`, and the
-/// `/`-joined population this gate discriminates on collapses to ONE. Measured — the
-/// eighth draw's converted floor fires the `slash_joined` floor with
-/// `only 1 stdlib declaration names carry a `/` member join`, which is a SECOND,
-/// whole-corpus confirmation that the conversion destroys the join. The floor is not a
-/// bug to tune away: a conditional skip here could not tell "clean" from "never ran"
-/// (`[[feedback_a_conditional_probe_cannot_tell_clean_from_never_ran]]`). **When 8d-iii
-/// lands, this gate is RETIRED or RE-AIMED at the converted surface — it is not
-/// loosened.**
+/// ⛔⛔ **Stone 255.87 re-aims this gate. It is not loosened.** Once every declaration
+/// arrives as a `Symbol`, `ns_to_wat_path` writes `::` and the rust key no longer
+/// contains `/`. The eighth draw measured that collapse (`only 1`). The population
+/// the floor still guards is the member join itself: a clojure name whose receiver's
+/// last segment is a type (`wat.cache.Lru/get`, `wat.core.Fault/of`). The floor stays
+/// `>= 9`. A conditional skip is still not a reading
+/// (`[[feedback_a_conditional_probe_cannot_tell_clean_from_never_ran]]`).
 ///
 /// ⭐⭐ **THE FROZEN SEVEN ARE GONE — arc 255 Stone 255.14, the builder's ruling: *a non-type
 /// parent uses the NAMESPACE join; respell `/` → `::` in the declaration; the faithful form
@@ -1025,18 +1021,16 @@ mod rete_wall_probe {
 /// what the declaration now says. The respelling was a recorded, replayed codemod
 /// (`wat-scripts/fixes/spawn-builder-namespace-join.wat`) over 24 tracked files.
 ///
-/// ⛔ **This gate SHRANK; it was not loosened.** `:wat::core::Fault/of` is the one name left,
-/// and it is here for the OTHER reason (a macro is never rekeyed — see above), not for the
-/// join. **A name JOINING this list is a new hole in 8d's surface.**
+/// ⛔ **This gate SHRANK; it was not loosened.** Stone 255.14 left `:wat::core::Fault/of`.
+/// Stone 255.87 measured that name leaving: the declaration is the symbol
+/// `wat.core.Fault/of`, and the round trip stores `:wat::core::Fault::of`. The list is
+/// empty. **A name JOINING it is a new hole in 8d's surface.**
 ///
-/// ⛔ **The `slash_joined` non-vacuity floor moved 16 → 9 in the same commit, and it still
-/// discriminates.** The population it guards is the stdlib's `/`-joined DECLARATION names:
-/// 17 before, 10 after (the seven that moved are the whole difference). Those 10 are
-/// `wat/cache.wat`'s nine `Lru/*` + `HolographicLru/*` members — TYPE parents, restored by the
-/// rekey pass, the very rows that make a green here mean something — plus `Fault/of`. The floor
-/// is set one below the measured 10 for the same reason it was set one below 17: it catches the
-/// population VANISHING (an 8d-converted stdlib collapses it to 1 — measured), not a single row
-/// moving. It is NOT re-derived from the answer each time; when it moves, the SCORE says why.
+/// ⛔ **The non-vacuity floor stays `>= 9`.** It moved 16 → 9 when the seven spawn
+/// builders left (population 10: nine `Lru`/`HolographicLru` members plus `Fault/of`).
+/// Stone 255.87 re-aims the count at member-join clojure names and measured that
+/// population still 10. The floor is not re-derived. It catches the population
+/// vanishing, not a single row moving. When it moves, the SCORE says why.
 #[cfg(test)]
 mod faithful_surface_round_trip {
     use super::*;
@@ -1045,20 +1039,11 @@ mod faithful_surface_round_trip {
     /// faithful-Clojure surface. A name JOINING this list is a new hole in 8d's surface;
     /// a name LEAVING it is a cure, and the SCORE must say which side of the join moved.
     const UNSPELLABLE_IN_THE_FAITHFUL_SURFACE: &[&str] = &[
-        // ⛔ A `defmacro`, and that is the WHOLE reason it is here. `Fault` IS a type, so the
-        // `/` member join is legitimate (255.4) and `rekey_type_member_functions` would put it
-        // back — except that pass walks `sym.functions_iter()` and a macro registers at step 4,
-        // before the `TypeEnv` exists at step 6.97. Its rescue is behavioural, at the CONSULT
-        // (`macros::expand`'s keyword arm asking `other_join_spelling`), and this gate
-        // deliberately does not model it.
-        //
-        // ⭐ The seven `wat/spawn.wat` builder constructors that stood beside it LEFT this list
-        // at Stone 255.14: they were `/`-joined at a NON-TYPE parent (`process`, `thread`), and
-        // the codemod `wat-scripts/fixes/spawn-builder-namespace-join.wat` respelled the
-        // declaration `/` → `::` across the corpus. The faithful spelling of every one of them
-        // is unchanged; only the rust-scheme declaration moved, and now the round trip is the
-        // identity. That is a CURE, not a loosening — the SIDE that moved is the DECLARATION's.
-        ":wat::core::Fault/of",
+        // Stone 255.87 — `:wat::core::Fault/of` LEFT this list. The declaration is the
+        // symbol `wat.core.Fault/of` (`wat/core.wat`). `ns_to_wat_path` registers it as
+        // `:wat::core::Fault::of`, and that is the key the round trip stores. The side
+        // that moved is the declaration's: the rust key is no longer `:wat::core::Fault/of`.
+        // A name JOINING this list is still a new hole.
     ];
 
     /// The declaration heads whose item 1 is a NAME. `defservice`/`defrule` mint their
@@ -1087,7 +1072,7 @@ mod faithful_surface_round_trip {
         let (_symbols, _macros, types) = stdlib_snapshot();
 
         let mut measured = 0usize;
-        let mut slash_joined = 0usize;
+        let mut member_joined = 0usize;
         let mut offenders: Vec<String> = Vec::new();
 
         for src in crate::load::stdlib::stdlib_files() {
@@ -1121,9 +1106,13 @@ mod faithful_surface_round_trip {
                     continue;
                 }
                 measured += 1;
-                // rune:lint(one-variant-separator, namespace) — the leaf's member join
-                if name.contains('/') {
-                    slash_joined += 1;
+                // Member join: the clojure receiver's last segment is a type name
+                // (`wat.cache.Lru/get`). The rust key is `::` after `ns_to_wat_path`,
+                // so `name.contains('/')` no longer sees this population.
+                let recv = wat_reader::identifier::receiver(&clj);
+                let last = recv.rsplit('.').next().unwrap_or("");
+                if last.chars().next().is_some_and(|c| c.is_uppercase()) {
+                    member_joined += 1;
                 }
 
                 // What `declare::parse` / `macros::parse` would register for the CONVERTED
@@ -1164,9 +1153,10 @@ mod faithful_surface_round_trip {
              forward map changed shape; this green is worthless"
         );
         assert!(
-            slash_joined >= 9,
-            "only {slash_joined} stdlib declaration names carry a `/` member join — the \
-             population this gate discriminates ON has vanished, so a pass proves nothing"
+            member_joined >= 9,
+            "only {member_joined} stdlib declaration names are member joins (a clojure \
+             receiver whose last segment is a type) — the population this gate discriminates \
+             ON has vanished, so a pass proves nothing"
         );
 
         let want: Vec<String> = UNSPELLABLE_IN_THE_FAITHFUL_SURFACE
@@ -1176,7 +1166,7 @@ mod faithful_surface_round_trip {
         assert_eq!(
             offenders, want,
             "\n🔥 THE FAITHFUL-SURFACE DECLARATION ROUND TRIP CHANGED \
-             ({measured} names measured, {slash_joined} of them `/`-joined).\n\
+             ({measured} names measured, {member_joined} of them member joins).\n\
              A name here converts to a faithful-Clojure symbol that registers under a \
              DIFFERENT key, so every keyword-spelled caller loses it the moment its \
              declaring file is converted.\n\
