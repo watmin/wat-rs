@@ -174,10 +174,11 @@
 
 ;; into — clojure's `(into to from)`: append every element of `from` onto `to`. `to` determines
 ;; the output container kind (Vector or PersistentVector, both in scope); `from` may be a
-;; same-kind eager container (delegates to `concat`), a Vector (PersistentVector receiver only —
-;; delegates to the native `PersistentVector/concat`, DESIGN-STONE-into-pv-from-vector.md), or a
-;; Stream (delegates to `stream->vec`/`stream->pvec`, seeded by `to` — the general "append a
-;; realized pipeline onto an accumulator" shape).
+;; same-kind eager container (Vector×Vector delegates to `concat`; PersistentVector×PersistentVector
+;; delegates to the native `PersistentVector/concat`, which is the verb that accepts that pair),
+;; a Vector (PersistentVector receiver only — delegates to that same native call,
+;; DESIGN-STONE-into-pv-from-vector.md), a PersistentVector into a Vector (delegates to
+;; `Vector/extend`), or a Stream (delegates to `stream->vec`/`stream->pvec`, seeded by `to`).
 (:wat::core::defclause :wat::core::into
   ([to <- (wat.type/Vector :- [T]) from <- (wat.type/Vector :- [T])] -> (wat.type/Vector :- [T])
     (:wat::core::concat to from))
@@ -195,7 +196,11 @@
   ;; later: `query-by-type-string` returns a PersistentVector, so materialising one into a Vector
   ;; had no clause at all. Native one-shot, no per-element conj.
   ([to <- (wat.type/Vector :- [T]) from <- (wat.type/PersistentVector :- [T])] -> (wat.type/Vector :- [T])
-    (:wat::vec::extend to from)))
+    (:wat::vec::extend to from))
+  ;; 255.86 — `:wat::vector::concat` also accepts PersistentVector×PersistentVector. `into` had
+  ;; no clause for that pair (NoMatchingClauseAtCallSite). Body is that same native call.
+  ([to <- (wat.type/PersistentVector :- [T]) from <- (wat.type/PersistentVector :- [T])] -> (wat.type/PersistentVector :- [T])
+    (:wat::vector::concat to from)))
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
 ;; returns the SAME (now-forced) lazy seq, replayable — wat's Stream is single-pass / NEVER
