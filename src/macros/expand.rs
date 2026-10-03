@@ -250,11 +250,32 @@ fn hoist_surface_messages(
 /// [`is_do_or_let_containing_defmacro`] and [`hoist_defmacros_from_container`]
 /// so the two can never drift on which items are "head/bindings" vs "body".
 pub(crate) fn container_body_start(head: &str) -> Option<usize> {
-    // Identity, so a converted `wat.core/do` / `wat.core/let` is the same container.
-    let id = crate::edn::render::canonical_identity(head);
-    match id.as_str() {
+    // The two spellings of the container, compared as written. A dotted keyword
+    // still goes through canonical identity; the stdlib's own heads do not.
+    match head {
+        ":wat::core::do" | "wat.core/do" => return Some(1),
+        ":wat::core::let" | "wat.core/let" => return Some(2),
+        _ => {}
+    }
+    if !head.contains('/') && !head.contains('.') {
+        return None;
+    }
+    match crate::edn::render::canonical_identity(head).as_str() {
         ":wat::core::do" => Some(1),
         ":wat::core::let" => Some(2),
+        _ => None,
+    }
+}
+
+fn list_container_body_start(head: &crate::ast::WatAST) -> Option<usize> {
+    use crate::ast::WatAST;
+    match head {
+        WatAST::Keyword(k, _) => container_body_start(k),
+        WatAST::Symbol(id, _) if id.is_reference() => match (id.receiver(), id.method()) {
+            ("wat.core", "do") => Some(1),
+            ("wat.core", "let") => Some(2),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -505,17 +526,16 @@ pub(super) fn expand_form(
             // arguments — data for another world — were macro-expanded in the parent's).
             // Both variants are named on purpose: `quasiquote` classifies as
             // `Boundary::Quasiquote`, not `AllData`, and its behaviour must not change.
-            if let Some(head) = items
+            let boundary = items
                 .first()
-                .and_then(crate::form_match::canonical_identity_of)
-            {
-                if matches!(
-                    crate::resolve::boundary::quote_boundary(&head),
-                    crate::resolve::boundary::Boundary::AllData
-                        | crate::resolve::boundary::Boundary::Quasiquote
-                ) {
-                    return Ok(WatAST::List(items, list_span));
-                }
+                .map(crate::resolve::boundary::boundary_of_node)
+                .unwrap_or(crate::resolve::boundary::Boundary::Ordinary);
+            if matches!(
+                boundary,
+                crate::resolve::boundary::Boundary::AllData
+                    | crate::resolve::boundary::Boundary::Quasiquote
+            ) {
+                return Ok(WatAST::List(items, list_span));
             }
 
             // `:wat::form::matches?` — substrate special form, never a registered macro
@@ -529,14 +549,10 @@ pub(super) fn expand_form(
             // aggregate-shaped pattern head (e.g. `:test::PaperResolved`) that is now a
             // registered kwargs companion macro, firing `kwargs-lower` on raw DSL clauses
             // as if they were kv-pairs.
-            if let Some(head) = items
-                .first()
-                .and_then(crate::form_match::canonical_identity_of)
-            {
-                if matches!(
-                    crate::resolve::boundary::quote_boundary(&head),
-                    crate::resolve::boundary::Boundary::MatchesSubject
-                ) {
+            if matches!(
+                boundary,
+                crate::resolve::boundary::Boundary::MatchesSubject
+            ) {
                     let mut iter = items.into_iter();
                     let mut new_items = Vec::with_capacity(2);
                     new_items.push(iter.next().expect("head keyword just matched"));
@@ -552,7 +568,6 @@ pub(super) fn expand_form(
                     }
                     new_items.extend(iter); // pattern (items[2..]) — DSL data, untouched
                     return Ok(WatAST::List(new_items, list_span));
-                }
             }
 
             // `:wat::rete::make-rule` (arc 278 task #78 —
@@ -570,14 +585,7 @@ pub(super) fn expand_form(
             // immediately above for the identical hazard: expand a condition PATTERN as code
             // (STOP-2) and its aggregate-shaped head — a registered kwargs companion macro
             // post arc-294 item 9a — fires `kwargs-lower` on raw DSL clauses.
-            if let Some(head) = items
-                .first()
-                .and_then(crate::form_match::canonical_identity_of)
-            {
-                if matches!(
-                    crate::resolve::boundary::quote_boundary(&head),
-                    crate::resolve::boundary::Boundary::MakeRule
-                ) {
+            if matches!(boundary, crate::resolve::boundary::Boundary::MakeRule) {
                     return expand_make_rule(
                         items,
                         list_span,
@@ -587,7 +595,6 @@ pub(super) fn expand_form(
                         sym,
                         privilege,
                     );
-                }
             }
 
             // ── Full-Lisp macro dispatch (arc 294 item 9a): a macro receives its args RAW.
@@ -712,48 +719,106 @@ pub(super) fn expand_form(
             if let Some(WatAST::Symbol(ident, ident_span)) = items.first() {
                 if ident.is_reference() {
                     let head_span = ident_span.clone();
-                    let primary = match sym.types() {
-                        Some(env) => crate::types::reconstruct_call_path(
-                            ident.receiver(),
-                            ident.method(),
-                            env,
-                        ),
-                        None => {
-                            crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
+                    // The symbol text is indexed beside the keyword key at registration.
+                    // A hit is that macro. Both joins registered means no alias, and the
+                    // reconstruct below still asks the type registry which join it holds.
+                    if registry.contains(ident.as_str()) {
+                        let (type_args, rest_after_marker) =
+                            crate::types::peel_param_spec(&items[1..]);
+                        let is_type_reference =
+                            type_args.is_some() && rest_after_marker.is_empty();
+                        if !is_type_reference {
+                            let args = rest_after_marker.to_vec();
+                            let expanded = {
+                                let def = registry
+                                    .get(ident.as_str())
+                                    .expect("contains checked immediately above");
+                                expand_macro_call(
+                                    def,
+                                    args,
+                                    list_span.clone(),
+                                    head_span,
+                                    env,
+                                    sym,
+                                )?
+                            };
+                            return expand_form(
+                                expanded,
+                                registry,
+                                expansion_depth + 1,
+                                env,
+                                sym,
+                                privilege,
+                            );
                         }
-                    };
-                    // A defmacro name is stored with `ns_to_wat_path` (`::`).
-                    // A call whose parent is a type reconstructs to `/`. Ask
-                    // the registry which spelling it holds.
-                    let macro_name = if registry.contains(&primary) {
-                        primary
-                    } else {
-                        crate::types::other_join_spelling(&primary)
-                            .filter(|alt| registry.contains(alt))
-                            .unwrap_or(primary)
-                    };
-                    // Same type-reference guard as the keyword arm above.
-                    // `(wat.spawn/Launched :- [S R])` is a type, not a call of
-                    // Launched's kwargs companion.
-                    let (type_args, rest_after_marker) =
-                        crate::types::peel_param_spec(&items[1..]);
-                    let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
-                    if registry.contains(&macro_name) && !is_type_reference {
-                        let args = rest_after_marker.to_vec();
-                        let expanded = {
-                            let def = registry
-                                .get(&macro_name)
-                                .expect("contains checked immediately above");
-                            expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?
+                    }
+                    // The alias above is the clojure spelling, installed once at
+                    // registration. A `ns/name` miss that is not a both-join
+                    // collision is not a macro. Reconstructing `:ns::name`
+                    // just to miss `contains` was a string per call head
+                    // (`wat.core/+`). A spelling that is not that alias shape
+                    // (`::` inside the symbol) still reconstructs.
+                    let spelling = ident.as_str();
+                    // rune:lint(one-variant-separator, namespace) — a clojure alias has no `::`; this is not an enum variant
+                    let alias_shaped = spelling.contains('/')
+                        && !spelling.contains("::")
+                        && !spelling.starts_with(':');
+                    if !alias_shaped || registry.symbol_join_ambiguous(spelling) {
+                        let primary = match sym.types() {
+                            Some(env) => crate::types::reconstruct_call_path(
+                                ident.receiver(),
+                                ident.method(),
+                                env,
+                            ),
+                            None => crate::edn::render::ns_to_wat_path(
+                                ident.receiver(),
+                                ident.method(),
+                            ),
                         };
-                        return expand_form(
-                            expanded,
-                            registry,
-                            expansion_depth + 1,
-                            env,
-                            sym,
-                            privilege,
-                        );
+                        // A defmacro name is stored with `ns_to_wat_path` (`::`).
+                        // A call whose parent is a type reconstructs to `/`. Ask
+                        // the registry which spelling it holds. A `::` miss is
+                        // not a macro under the other join.
+                        let macro_name = if registry.contains(&primary) {
+                            primary
+                        } else if primary.contains('/') {
+                            crate::types::other_join_spelling(&primary)
+                                .filter(|alt| registry.contains(alt))
+                                .unwrap_or(primary)
+                        } else {
+                            primary
+                        };
+                        // Same type-reference guard as the keyword arm above.
+                        // `(wat.spawn/Launched :- [S R])` is a type, not a call of
+                        // Launched's kwargs companion.
+                        let (type_args, rest_after_marker) =
+                            crate::types::peel_param_spec(&items[1..]);
+                        let is_type_reference =
+                            type_args.is_some() && rest_after_marker.is_empty();
+                        if registry.contains(&macro_name) && !is_type_reference {
+                            let args = rest_after_marker.to_vec();
+                            let expanded = {
+                                let def = registry
+                                    .get(&macro_name)
+                                    .expect("contains checked immediately above");
+                                expand_macro_call(
+                                    def,
+                                    args,
+                                    list_span.clone(),
+                                    head_span,
+                                    env,
+                                    sym,
+                                )?
+                            };
+                            return expand_form(
+                                expanded,
+                                registry,
+                                expansion_depth + 1,
+                                env,
+                                sym,
+                                privilege,
+                            );
+                        }
                     }
                 }
             }
@@ -768,10 +833,7 @@ pub(super) fn expand_form(
             // child-walk below would — only the BODY tail is order-sensitive.
             // Identity, not the Keyword variant: a converted `(wat.core/do …)` is the
             // same container. `head_fqdn`'s borrow ends with this statement.
-            let body_start = items
-                .first()
-                .and_then(crate::declare::parse::head_fqdn)
-                .and_then(|head| container_body_start(head.as_ref()));
+            let body_start = items.first().and_then(list_container_body_start);
             if let Some(body_start) = body_start {
                 let mut out = Vec::with_capacity(items.len());
                 let mut iter = items.into_iter();

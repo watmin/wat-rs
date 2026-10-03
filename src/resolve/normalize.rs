@@ -750,20 +750,31 @@ fn resolve_namespaced_symbol(
         None => ns_to_wat_path(namespace, local_name),
     };
 
-    if let Some(alt) = crate::types::other_join_spelling(&primary) {
-        // The symbol landed on a spelling with no function (`Lru::new`,
-        // `Lru::put`). The registry holds the other join. A keyword author
-        // of a retired form never reaches this function.
-        if name_has_binding(&alt, sym, macros) && !name_has_binding(&primary, sym, macros) {
-            return Ok(WatAST::Keyword(alt, span.clone()));
+    // The other join allocates. A held, resolvable primary is the call, so
+    // the alt string is not built. A retired primary is resolvable and has
+    // no binding; an alt that DOES have a binding still wins, which is why
+    // that comparison stays in front of `is_resolvable_call_head`.
+    let primary_bound = name_has_binding(&primary, sym, macros);
+    if !primary_bound {
+        if let Some(alt) = crate::types::other_join_spelling(&primary) {
+            if name_has_binding(&alt, sym, macros) {
+                return Ok(WatAST::Keyword(alt, span.clone()));
+            }
+            if !is_resolvable_call_head(&primary, sym, macros)
+                && name_is_registered(&alt, sym, macros)
+            {
+                return Ok(WatAST::Keyword(alt, span.clone()));
+            }
         }
     }
     if is_resolvable_call_head(&primary, sym, macros) {
         return Ok(WatAST::Keyword(primary, span.clone()));
     }
-    if let Some(alt) = crate::types::other_join_spelling(&primary) {
-        if name_is_registered(&alt, sym, macros) {
-            return Ok(WatAST::Keyword(alt, span.clone()));
+    if primary_bound {
+        if let Some(alt) = crate::types::other_join_spelling(&primary) {
+            if name_is_registered(&alt, sym, macros) {
+                return Ok(WatAST::Keyword(alt, span.clone()));
+            }
         }
     }
 

@@ -78,6 +78,39 @@ pub(crate) enum Boundary {
 ///
 /// This is the ONE place the boundary-head set is encoded. Both the call-head
 /// resolution walk and the symbol-ref normalization pass route through it.
+/// Boundary of a list head, keyword or symbol, without allocating the common
+/// spellings. `:wat::core::quote` and `wat.core/quote` are the same head.
+pub(crate) fn boundary_of_node(node: &crate::ast::WatAST) -> Boundary {
+    use crate::ast::WatAST;
+    match node {
+        WatAST::Keyword(k, _) => boundary_of_spelling(k),
+        WatAST::Symbol(id, _) if id.is_reference() => match (id.receiver(), id.method()) {
+            ("wat.core", "quote") | ("wat.core", "forms") | ("wat.holon", "literal") => {
+                Boundary::AllData
+            }
+            ("wat.core", "quasiquote") => Boundary::Quasiquote,
+            ("wat.form", "matches?") => Boundary::MatchesSubject,
+            ("wat.core", "match") => Boundary::Match,
+            ("wat.rete", "make-rule") => Boundary::MakeRule,
+            _ => Boundary::Ordinary,
+        },
+        _ => Boundary::Ordinary,
+    }
+}
+
+fn boundary_of_spelling(head: &str) -> Boundary {
+    let direct = quote_boundary(head);
+    if !matches!(direct, Boundary::Ordinary) {
+        return direct;
+    }
+    // A dotted keyword (`:wat.core/quote`) is not the stored key.
+    if head.starts_with(':') && head.contains('/') {
+        let id = crate::edn::render::canonical_identity(head);
+        return quote_boundary(&id);
+    }
+    Boundary::Ordinary
+}
+
 pub(crate) fn quote_boundary(head: &str) -> Boundary {
     match head {
         // Arc 294.b — body is data (same as quote); no symbol resolution inside.

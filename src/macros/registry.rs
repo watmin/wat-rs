@@ -1,6 +1,6 @@
 use crate::ast::WatAST;
 use crate::span::Span;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::error::MacroError;
 
@@ -53,6 +53,14 @@ pub struct MacroDef {
 #[derive(Debug, Default, Clone)]
 pub struct MacroRegistry {
     pub(super) macros: HashMap<String, MacroDef>,
+    /// Clojure symbol spelling → the keyword key in `macros`. Not a second
+    /// `MacroDef`: the body stays in one entry. Absent when both joins are
+    /// registered, so the symbol is not forced onto one of them.
+    symbol_alias: HashMap<String, String>,
+    /// Spellings where both joins are registered. A call of one of these
+    /// still asks `reconstruct_call_path`. Every other clojure spelling is
+    /// either the alias above or not a macro.
+    ambiguous_symbols: HashSet<String>,
 }
 
 impl MacroRegistry {
@@ -61,11 +69,14 @@ impl MacroRegistry {
     }
 
     pub fn contains(&self, name: &str) -> bool {
-        self.macros.contains_key(name)
+        self.macros.contains_key(name) || self.symbol_alias.contains_key(name)
     }
 
     pub fn get(&self, name: &str) -> Option<&MacroDef> {
-        self.macros.get(name)
+        if let Some(def) = self.macros.get(name) {
+            return Some(def);
+        }
+        self.symbol_alias.get(name).and_then(|key| self.macros.get(key))
     }
 
     /// Register a macro through the ONE gate (resolve::registration). `privilege` is
@@ -96,7 +107,41 @@ impl MacroRegistry {
                 Ok(())
             },
         )?;
+        self.install_symbol_alias(&name);
         Ok(())
+    }
+
+    /// Index the clojure symbol beside the keyword key so a converted call head
+    /// is one hash lookup. Both joins already registered (`:Type/method` and
+    /// `:Type::method`) drop the alias: the symbol would name two macros, and
+    /// the call still resolves through `reconstruct_call_path`.
+    fn install_symbol_alias(&mut self, primary: &str) {
+        let Some(alias) = crate::edn::render::wat_keyword_to_clojure_symbol(primary) else {
+            return;
+        };
+        if alias == primary {
+            return;
+        }
+        if let Some(other) = crate::types::other_join_spelling(primary) {
+            if other != primary && self.macros.contains_key(&other) {
+                self.symbol_alias.remove(&alias);
+                self.ambiguous_symbols.insert(alias);
+                return;
+            }
+        }
+        if self.macros.contains_key(&alias) || self.symbol_alias.contains_key(&alias) {
+            return;
+        }
+        if self.macros.contains_key(primary) {
+            self.ambiguous_symbols.remove(&alias);
+            self.symbol_alias.insert(alias, primary.to_string());
+        }
+    }
+
+    /// Both joins are macros under this clojure spelling, so expand still
+    /// reconstructs. A miss here, on a `ns/name` symbol, is not a macro.
+    pub(crate) fn symbol_join_ambiguous(&self, spelling: &str) -> bool {
+        self.ambiguous_symbols.contains(spelling)
     }
 
     /// 2a4c — the stdlib-mode door's private copy only. A divergent
@@ -106,7 +151,21 @@ impl MacroRegistry {
     pub(crate) fn retract_if_divergent(&mut self, def: &MacroDef) {
         match self.macros.get(&def.name) {
             Some(e) if !macro_structurally_equivalent(e, def) => {
+                let alias = crate::edn::render::wat_keyword_to_clojure_symbol(&def.name);
+                if let Some(alias) = &alias {
+                    self.symbol_alias.remove(alias);
+                }
+                let other = crate::types::other_join_spelling(&def.name);
                 self.macros.remove(&def.name);
+                if let Some(other) = other {
+                    if self.macros.contains_key(&other) {
+                        self.install_symbol_alias(&other);
+                    } else if let Some(alias) = alias {
+                        self.ambiguous_symbols.remove(&alias);
+                    }
+                } else if let Some(alias) = alias {
+                    self.ambiguous_symbols.remove(&alias);
+                }
             }
             _ => {}
         }

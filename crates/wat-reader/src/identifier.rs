@@ -111,13 +111,14 @@ pub fn fresh_scope() -> ScopeId {
 pub struct Identifier {
     /// The namespace half of the tuple. [`BOUND_NAMESPACE`] (`$bound`) for a
     /// binder; the spelling before the last `/` for a reference.
-    ns: String,
+    /// `Arc` so a macro template clone shares the bytes instead of copying them.
+    ns: std::sync::Arc<str>,
     /// The name half of the tuple. The whole spelling for a binder; the
     /// spelling after the last `/` for a reference.
-    name: String,
+    name: std::sync::Arc<str>,
     /// The original spelling, so [`as_str`](Self::as_str) / [`leaf`](Self::leaf)
     /// / [`path`](Self::path) keep returning `&str`. Derived once in [`bare`](Self::bare).
-    flat: String,
+    flat: std::sync::Arc<str>,
     /// Macro hygiene — orthogonal to the `(ns, name)` tuple.
     scopes: BTreeSet<ScopeId>,
 }
@@ -157,7 +158,7 @@ impl Identifier {
     /// guards the debug path for names constructed via other routes.
     /// See `resolution`'s module doc for why.
     pub fn bare(name: impl Into<String>) -> Self {
-        let flat = name.into();
+        let flat: std::sync::Arc<str> = name.into().into();
         // rune:struere(performance-hotspot) — release-mode validation here would
         // put a contains() scan on every Identifier construction (the parse hot
         // path); the debug-checked single chokepoint + the lexer's token rules are
@@ -183,8 +184,11 @@ impl Identifier {
         // per the EDN spec; that stays, and is a different question from how a
         // name that reaches us anyway is split.)
         let (ns, name) = match flat.find('/') {
-            Some(slash) => (flat[..slash].to_string(), flat[slash + 1..].to_string()),
-            None => (BOUND_NAMESPACE.to_string(), flat.clone()),
+            Some(slash) => (
+                std::sync::Arc::<str>::from(&flat[..slash]),
+                std::sync::Arc::<str>::from(&flat[slash + 1..]),
+            ),
+            None => (std::sync::Arc::from(BOUND_NAMESPACE), std::sync::Arc::clone(&flat)),
         };
         Identifier {
             ns,
@@ -195,15 +199,15 @@ impl Identifier {
     }
 
     /// A new `Identifier` equal to `self` but with `scope` added to its
-    /// scope set. Original unmodified — cheap via `BTreeSet::clone` +
-    /// one insert.
+    /// scope set. Original unmodified — the name bytes are shared (`Arc`);
+    /// the scope set is a new `BTreeSet`.
     pub fn add_scope(&self, scope: ScopeId) -> Self {
         let mut scopes = self.scopes.clone();
         scopes.insert(scope);
         Identifier {
-            ns: self.ns.clone(),
-            name: self.name.clone(),
-            flat: self.flat.clone(),
+            ns: std::sync::Arc::clone(&self.ns),
+            name: std::sync::Arc::clone(&self.name),
+            flat: std::sync::Arc::clone(&self.flat),
             scopes,
         }
     }
@@ -466,7 +470,7 @@ mod tests {
     #[test]
     fn bare_has_empty_scopes() {
         let id = Identifier::bare("x");
-        assert_eq!(id.name, "x");
+        assert_eq!(&*id.name, "x");
         assert!(id.scopes.is_empty());
     }
 
@@ -525,7 +529,7 @@ mod tests {
         let id = Identifier::bare("wat.core/+");
         assert_eq!(id.namespace(), "wat.core");
         assert!(id.is_reference());
-        assert_eq!(id.name, "+");
+        assert_eq!(&*id.name, "+");
         assert_eq!(id.method(), "+");
     }
 
@@ -533,7 +537,7 @@ mod tests {
     fn foo_is_bound_foo() {
         let id = Identifier::bare("foo");
         assert_eq!(id.namespace(), BOUND_NAMESPACE);
-        assert_eq!(id.name, "foo");
+        assert_eq!(&*id.name, "foo");
         assert_eq!(id.as_str(), "foo");
         assert!(!id.is_reference());
     }
@@ -545,12 +549,12 @@ mod tests {
     fn namespace_borrows_the_stored_field() {
         let id = Identifier::bare("wat.core/+");
         assert!(
-            std::ptr::eq(id.namespace(), id.ns.as_str()),
+            std::ptr::eq(id.namespace(), &*id.ns),
             "namespace() must return the stored ns field"
         );
         let binder = Identifier::bare("foo");
         assert!(
-            std::ptr::eq(binder.namespace(), binder.ns.as_str()),
+            std::ptr::eq(binder.namespace(), &*binder.ns),
             "binder namespace() must return the stored ns field, not the static BOUND_NAMESPACE"
         );
     }
@@ -572,7 +576,7 @@ mod tests {
         // `clojure.core//`), NOT the empty string.
         let id = Identifier::bare("wat.core//");
         assert_eq!(id.namespace(), "wat.core");
-        assert_eq!(id.name, "/");
+        assert_eq!(&*id.name, "/");
         assert_eq!(id.receiver(), "wat.core");
         assert_eq!(id.method(), "/");
         assert_eq!(id.as_str(), "wat.core//");
@@ -582,7 +586,7 @@ mod tests {
         // NAME instead of corrupting the NAMESPACE.
         let id = Identifier::bare("user/whatever/name/here/");
         assert_eq!(id.namespace(), "user");
-        assert_eq!(id.name, "whatever/name/here/");
+        assert_eq!(&*id.name, "whatever/name/here/");
         assert_eq!(id.receiver(), "user");
         assert_eq!(id.method(), "whatever/name/here/");
         assert_eq!(id.as_str(), "user/whatever/name/here/");
@@ -606,14 +610,14 @@ mod tests {
         ] {
             let id = Identifier::bare(spelling);
             assert_eq!(id.namespace(), ns, "namespace {spelling}");
-            assert_eq!(id.name, name, "name {spelling}");
+            assert_eq!(&*id.name, name, "name {spelling}");
             assert_eq!(id.receiver(), ns, "receiver {spelling}");
             assert_eq!(id.method(), name, "method {spelling}");
         }
         // And a name with NO slash is still bound, under either rule.
         let id = Identifier::bare("foo");
         assert_eq!(id.namespace(), BOUND_NAMESPACE);
-        assert_eq!(id.name, "foo");
+        assert_eq!(&*id.name, "foo");
         assert!(!id.is_reference());
     }
 

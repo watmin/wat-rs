@@ -1801,7 +1801,11 @@ pub(crate) fn eval_inner(
                     }
                     None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
                 };
-                let kw = join_the_registry_holds(primary, sym);
+                let kw = if receiver_is_member_shaped(ident.receiver()) {
+                    join_the_registry_holds(primary, sym)
+                } else {
+                    primary
+                };
                 return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
             }
             Err(RuntimeError::new(
@@ -1863,20 +1867,30 @@ pub fn eval(
 /// method. Keyword heads never reach here. Same first question as
 /// `resolve_namespaced_symbol`: the other join, only when it is held and the
 /// primary is not.
+/// A namespace dot (`wat.core/map`) is not a member join. The type segment
+/// is the last component before the slash, and it is capitalised
+/// (`wat.core.Fault/of`, `rust.sqlite.Connection/select`).
+fn receiver_is_member_shaped(receiver: &str) -> bool {
+    let last = receiver.rsplit(['.', ':']).next().unwrap_or("");
+    last.chars().next().is_some_and(|c| c.is_uppercase())
+}
+
 fn join_the_registry_holds(primary: String, sym: &SymbolTable) -> String {
-    let Some(alt) = crate::types::other_join_spelling(&primary) else {
-        return primary;
-    };
     let held = |head: &str| {
         crate::rust_deps::registry().get_symbol(head).is_some()
             || sym.get(head).is_some()
             || sym.has_def_value(head)
             || crate::intrinsic::registry().lookup(head).is_some()
     };
-    if held(&alt) && !held(&primary) {
-        alt
-    } else {
-        primary
+    // Same answer as asking the other join first: the alt wins only when it
+    // is held and the primary is not. The primary is the common hit, and the
+    // alt spelling allocates.
+    if held(&primary) {
+        return primary;
+    }
+    match crate::types::other_join_spelling(&primary) {
+        Some(alt) if held(&alt) => alt,
+        _ => primary,
     }
 }
 
@@ -1930,14 +1944,20 @@ fn eval_list(
             // before normalize, so a converted `(wat.core/let …)` arrives here
             // as a symbol. Same join as `resolve_namespaced_symbol`: registry
             // when we have one, else identity (`ns_to_wat_path`).
-            let primary = match sym.types() {
-                Some(types) => {
-                    crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
-                }
-                None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
+            let primary: std::sync::Arc<str> = match sym.types() {
+                Some(types) => crate::types::reconstruct_call_path_shared(
+                    ident.receiver(),
+                    ident.method(),
+                    types,
+                ),
+                None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()).into(),
             };
-            let head = join_the_registry_holds(primary, sym);
-            dispatch_keyword_head(&head, rest, list_span, env, sym)
+            if receiver_is_member_shaped(ident.receiver()) {
+                let head = join_the_registry_holds(primary.to_string(), sym);
+                dispatch_keyword_head(&head, rest, list_span, env, sym)
+            } else {
+                dispatch_keyword_head(&primary, rest, list_span, env, sym)
+            }
         }
         WatAST::Symbol(ident, span) => {
             // Bare symbol as head — look up a callable in the env.

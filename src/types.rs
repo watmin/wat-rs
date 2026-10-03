@@ -554,6 +554,56 @@ pub(crate) fn is_colon_joined_type_member(name: &str) -> bool {
 ///
 /// `edn/render.rs` cannot call `TypeEnv` (cycle: types uses canonical_identity).
 pub(crate) fn reconstruct_call_path(ns: &str, name: &str, types: &TypeEnv) -> String {
+    // The join depends only on whether `ns` is a type in this env. Startup asks
+    // the same pairs millions of times; the fingerprint drops the map when the
+    // env's membership changes.
+    std::sync::Arc::clone(&reconstruct_call_path_shared(ns, name, types)).to_string()
+}
+
+/// Cached join. A hit clones an `Arc`, not the characters. Callers that only
+/// borrow the path for a lookup use this; [`reconstruct_call_path`] still
+/// returns an owned `String`.
+pub(crate) fn reconstruct_call_path_shared(
+    ns: &str,
+    name: &str,
+    types: &TypeEnv,
+) -> std::sync::Arc<str> {
+    struct ReconCache {
+        fp: (usize, usize, usize, usize),
+        map: std::collections::HashMap<String, std::collections::HashMap<String, std::sync::Arc<str>>>,
+    }
+    thread_local! {
+        static CACHE: std::cell::RefCell<ReconCache> = std::cell::RefCell::new(ReconCache {
+            fp: (0, 0, 0, 0),
+            map: std::collections::HashMap::new(),
+        });
+    }
+    let fp = (
+        types as *const TypeEnv as usize,
+        types.types.len(),
+        types.builtin_names.len(),
+        types.subtype_parents.len(),
+    );
+    CACHE.with(|cell| {
+        let mut cache = cell.borrow_mut();
+        if cache.fp != fp {
+            cache.map.clear();
+            cache.fp = fp;
+        }
+        if let Some(hit) = cache.map.get(ns).and_then(|by_name| by_name.get(name)) {
+            return std::sync::Arc::clone(hit);
+        }
+        let built: std::sync::Arc<str> = reconstruct_call_path_uncached(ns, name, types).into();
+        cache
+            .map
+            .entry(ns.to_string())
+            .or_default()
+            .insert(name.to_string(), std::sync::Arc::clone(&built));
+        built
+    })
+}
+
+fn reconstruct_call_path_uncached(ns: &str, name: &str, types: &TypeEnv) -> String {
     // rune:lint(one-variant-separator, namespace) — ns dots → `::`; member join is `/`
     let ns_kw = format!(":{}", ns.replace('.', "::"));
     if types.is_known_type(&ns_kw) {
@@ -1045,6 +1095,11 @@ pub struct TypeEnv {
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
     subtype_edges: HashMap<String, Vec<String>>,
+    /// Parents named by `subtype_edges`, so `is_subtype_parent` is a lookup.
+    /// The edge lists stay the source of the child walk; this set is the
+    /// same parents, indexed at registration. A linear scan of every edge
+    /// on each symbol head was the converted-stdlib startup cost.
+    subtype_parents: std::collections::HashSet<String>,
     /// Arc 170 — the ORIGINAL source decl form for each user (non-reserved)
     /// type, retained verbatim at registration time. Freeze ships these
     /// across a process fork instead of reconstructing via `type_def_to_ast`
@@ -1208,8 +1263,36 @@ impl TypeEnv {
     /// of [`Self::classify`]: the same stores, one answer. `type-of` and
     /// `subtype?` ask the classifier; `is-type?` and `normalize`'s `:-` position
     /// keep calling this.
+    ///
+    /// An already-canonical `:ns::name` (no `/`) is the key `reconstruct_call_path`
+    /// builds. Denotation is identity for that spelling, so the miss does not
+    /// allocate a second copy or scan `subtype_edges`.
     pub(crate) fn is_known_type(&self, kw: &str) -> bool {
-        !matches!(self.classify(kw), TypeMembership::Unknown)
+        if self.membership_hit(kw) {
+            return true;
+        }
+        // rune:lint(one-variant-separator, namespace) — already-canonical keyword path, not an enum variant
+        let already = kw.starts_with(':') && kw.contains("::") && !kw.contains('/');
+        if already {
+            let stripped = kw.strip_prefix(':').unwrap_or(kw);
+            return crate::runtime::is_builtin_primitive(stripped);
+        }
+        let canonical = crate::edn::render::canonical_identity(kw);
+        if canonical != kw && self.membership_hit(&canonical) {
+            return true;
+        }
+        let denoted = crate::edn::render::type_denotation(&canonical);
+        if denoted != canonical && denoted != kw && self.membership_hit(&denoted) {
+            return true;
+        }
+        let stripped = denoted.strip_prefix(':').unwrap_or(denoted.as_str());
+        crate::runtime::is_builtin_primitive(stripped)
+    }
+
+    fn membership_hit(&self, name: &str) -> bool {
+        self.types.contains_key(name)
+            || self.builtin_names.contains(name)
+            || self.subtype_parents.contains(name)
     }
 
     #[cfg(test)]
@@ -1271,12 +1354,12 @@ impl TypeEnv {
         };
         for fqdn in &variant_fqdns {
             self.types.remove(fqdn);
-            self.subtype_edges.remove(fqdn);
+            self.unindex_subtype_child(fqdn);
             self.parametric_extensions.remove(fqdn);
             self.source_forms.remove(fqdn);
         }
         self.types.remove(name);
-        self.subtype_edges.remove(name);
+        self.unindex_subtype_child(name);
         self.parametric_extensions.remove(name);
         self.generic_edges.remove(name);
         self.source_forms.remove(name);
@@ -1631,7 +1714,24 @@ impl TypeEnv {
             .entry(child.to_string())
             .or_default()
             .push(parent.to_string());
+        self.subtype_parents.insert(parent.to_string());
         Ok(())
+    }
+
+    /// Drop `child`'s edges and any parent no remaining edge still names.
+    fn unindex_subtype_child(&mut self, child: &str) {
+        let Some(parents) = self.subtype_edges.remove(child) else {
+            return;
+        };
+        for parent in parents {
+            let still = self
+                .subtype_edges
+                .values()
+                .any(|ps| ps.iter().any(|p| p == &parent));
+            if !still {
+                self.subtype_parents.remove(&parent);
+            }
+        }
     }
 
     /// Return the direct parent FQDNs of `name` in the `typesub` hierarchy.
@@ -1742,9 +1842,7 @@ impl TypeEnv {
     /// Markers are stored as VALUES of `subtype_edges` (`(derive :Child :Parent)`
     /// pushes Parent onto Child's parent list) and are not `types` keys.
     pub(crate) fn is_subtype_parent(&self, name: &str) -> bool {
-        self.subtype_edges
-            .values()
-            .any(|parents| parents.iter().any(|p| p == name))
+        self.subtype_parents.contains(name)
     }
 
     // ─── Arc 296 A-2 RELAND-1 — a variant is a type, no scope cut ──────────
