@@ -1,1 +1,1 @@
-(:wat::program::EmptyEnv)
+(wat.program/EmptyEnv)

@@ -63,195 +63,195 @@
 ;; because the tree cannot build between a dot-spelled corpus and a `::`-reading decomposer):
 ;;   printf '["pathA" "pathB" …]\n' | ./target/release/wat ./wat-scripts/fixes/variant-separator-to-dot.wat
 
-(:wat::core::defn :user::parent-path [vpath <- wat.type/String] -> wat.type/String
-  (:wat::fix::parent-path vpath))
+(wat.core/defn user/parent-path [vpath :- wat.type/String] :- wat.type/String
+  (wat.fix/parent-path vpath))
 
-(:wat::core::defn :user::leaf-of [vpath <- wat.type/String] -> wat.type/String
-  (:wat::fix::leaf-of vpath))
+(wat.core/defn user/leaf-of [vpath :- wat.type/String] :- wat.type/String
+  (wat.fix/leaf-of vpath))
 
-(:wat::core::defn :user::to-dot [nm <- wat.type/String] -> wat.type/String
-  (:wat::string::concat (:user::parent-path nm) (:wat::string::concat "." (:user::leaf-of nm))))
+(wat.core/defn user/to-dot [nm :- wat.type/String] :- wat.type/String
+  (wat.string/concat (user/parent-path nm) (wat.string/concat "." (user/leaf-of nm))))
 
-(:wat::core::defn :user::conj-unique
-  [acc <- (wat.type/Vector :- [wat.type/String])
-   s   <- wat.type/String]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::core::contains? acc s) acc (:wat::core::conj acc s)))
+(wat.core/defn user/conj-unique
+  [acc :- (wat.type/Vector :- [wat.type/String])
+   s   :- wat.type/String]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.core/contains? acc s) acc (wat.core/conj acc s)))
 
-(:wat::core::defn :user::collect-keywords
-  [acc  <- (wat.type/Vector :- [wat.type/String])
-   node <- wat.type/AST]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
+(wat.core/defn user/collect-keywords
+  [acc  :- (wat.type/Vector :- [wat.type/String])
+   node :- wat.type/AST]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::forms")
     acc
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:wat::core::let [nm (:wat::core::ast-name node)]
-        (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "::")) 1)
-          (:wat::core::if (:wat::core::> (:wat::core::length (:wat::string::split nm "/")) 1)
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+      (wat.core/let [nm (wat.core/ast-name node)]
+        (wat.core/if (wat.core/> (wat.core/length (wat.string/split nm "::")) 1)
+          (wat.core/if (wat.core/> (wat.core/length (wat.string/split nm "/")) 1)
             acc
-            (:user::conj-unique acc nm))
+            (user/conj-unique acc nm))
           acc))
-      (:wat::core::if (:wat::fix::structural? node)
-        (:wat::core::foldl :user::collect-keywords acc (:wat::core::ast->children node))
+      (wat.core/if (wat.fix/structural? node)
+        (wat.core/foldl user/collect-keywords acc (wat.core/ast->children node))
         acc))))
 
-(:wat::core::defn :user::parents-of
-  [kws <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) kw <- wat.type/String]
-      -> (wat.type/Vector :- [wat.type/String])
-      (:user::conj-unique acc (:user::parent-path kw)))
+(wat.core/defn user/parents-of
+  [kws :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) kw :- wat.type/String]
+      :- (wat.type/Vector :- [wat.type/String])
+      (user/conj-unique acc (user/parent-path kw)))
     (wat.type/Vector :- [wat.type/String])
     kws))
 
-(:wat::core::defn :user::pairs-from-kws
-  [kws  <- (wat.type/Vector :- [wat.type/String])
-   fmap <- :wat::fix::EnumFields
-   path <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn
-      [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-       kw  <- wat.type/String]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-      (:wat::core::match (:wat::fix::enum-fields-get fmap kw)
-        [:wat::core::Option.Some {:value _}
-          (:wat::core::conj acc (wat.type/Tuple :- [wat.type/String wat.type/String] kw (:user::to-dot kw)))]
-        [:wat::core::Option.None {}
-          (:wat::core::do
-            (:wat::core::if (:wat::fix::known-enum? fmap (:user::parent-path kw))
-              (:wat::kernel::println
-                (:wat::string::concat
+(wat.core/defn user/pairs-from-kws
+  [kws  :- (wat.type/Vector :- [wat.type/String])
+   fmap :- wat.fix/EnumFields
+   path :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn
+      [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+       kw  :- wat.type/String]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+      (wat.core/match (wat.fix/enum-fields-get fmap kw)
+        [wat.core/Option.Some {:value _}
+          (wat.core/conj acc (wat.type/Tuple :- [wat.type/String wat.type/String] kw (user/to-dot kw)))]
+        [wat.core/Option.None {}
+          (wat.core/do
+            (wat.core/if (wat.fix/known-enum? fmap (user/parent-path kw))
+              (wat.kernel/println
+                (wat.string/concat
                   "[variant-separator] UNRESOLVED "
-                  (:wat::string::concat kw (:wat::string::concat " " path))))
+                  (wat.string/concat kw (wat.string/concat " " path))))
               nil)
             acc)]))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
     kws))
 
 ;; hits-for — the prefilter: every pair whose OLD token is a substring of `text`.
-(:wat::core::defn :user::hits-for
-  [pairs <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   text  <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? pairs)
+(wat.core/defn user/hits-for
+  [pairs :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   text  :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? pairs)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-    (:wat::core::let [p  (:wat::core::first pairs)
-                      tl (:wat::core::rest pairs)]
-      (:wat::core::if (:wat::string::contains? text (:wat::core::first p))
-        (:wat::core::concat
+    (wat.core/let [p  (wat.core/first pairs)
+                      tl (wat.core/rest pairs)]
+      (wat.core/if (wat.string/contains? text (wat.core/first p))
+        (wat.core/concat
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])] p)
-          (:user::hits-for tl text))
-        (:user::hits-for tl text)))))
+          (user/hits-for tl text))
+        (user/hits-for tl text)))))
 
 ;; apply-renames — a fold over the (old,new) hits, never a nested staircase (24t's lesson,
 ;; namespace-bare-top-level-names.wat's own phrase for the same shape).
-(:wat::core::defn :user::apply-renames
-  [text <- wat.type/String
-   hits <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
-  -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String p <- (wat.type/Tuple :- [wat.type/String wat.type/String])] -> wat.type/String
-      (:wat::fix::rename-keyword-exact (:wat::core::first p) (:wat::core::second p) acc))
+(wat.core/defn user/apply-renames
+  [text :- wat.type/String
+   hits :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String p :- (wat.type/Tuple :- [wat.type/String wat.type/String])] :- wat.type/String
+      (wat.fix/rename-keyword-exact (wat.core/first p) (wat.core/second p) acc))
     text
     hits))
 
-(:wat::core::defn :user::pairs-for-forms
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   path  <- wat.type/String
-   world <- :wat::fix::StdlibWorld]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-  (:wat::core::let
-    [kws (:wat::core::foldl :user::collect-keywords
+(wat.core/defn user/pairs-for-forms
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   path  :- wat.type/String
+   world :- wat.fix/StdlibWorld]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.core/let
+    [kws (wat.core/foldl user/collect-keywords
            (wat.type/Vector :- [wat.type/String]) forms)
-     fmap (:wat::fix::enum-fields-in "variant-separator" path world forms (:user::parents-of kws))]
-    (:user::pairs-from-kws kws fmap path)))
+     fmap (wat.fix/enum-fields-in "variant-separator" path world forms (user/parents-of kws))]
+    (user/pairs-from-kws kws fmap path)))
 
-(:wat::core::defn :user::nested-pairs
-  [acc  <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   node <- wat.type/AST
-   path <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::forms")
-    (:wat::core::foldl
-      (:wat::core::fn
-        [a <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-         n <- wat.type/AST]
-        -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-        (:user::nested-pairs a n path))
+(wat.core/defn user/nested-pairs
+  [acc  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   node :- wat.type/AST
+   path :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::forms")
+    (wat.core/foldl
+      (wat.core/fn
+        [a :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+         n :- wat.type/AST]
+        :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+        (user/nested-pairs a n path))
       ;; 2a4d — a `(:wat::core::forms …)` child is its OWN program: it is answered from
       ;; its own decls (the empty world), never merged with the set's stdlib world.
-      (:wat::core::concat acc
-        (:user::pairs-for-forms (:wat::fix::forms-children node) path (:wat::fix::empty-world)))
-      (:wat::core::ast->children node))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::foldl
-        (:wat::core::fn
-          [a <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-           n <- wat.type/AST]
-          -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-          (:user::nested-pairs a n path))
+      (wat.core/concat acc
+        (user/pairs-for-forms (wat.fix/forms-children node) path (wat.fix/empty-world)))
+      (wat.core/ast->children node))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/foldl
+        (wat.core/fn
+          [a :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+           n :- wat.type/AST]
+          :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+          (user/nested-pairs a n path))
         acc
-        (:wat::core::ast->children node))
+        (wat.core/ast->children node))
       acc)))
 
-(:wat::core::defn :user::convert-one
-  [path  <- wat.type/String
-   world <- :wat::fix::StdlibWorld]
-  -> wat.type/nil
-  (:wat::core::let
-    [src  (:wat::io::read-file path)
-     tree (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms f} f]
-             [:wat::core::ReadOutcome.Malformed {:cause c}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
-     top (:user::pairs-for-forms (:wat::core::ast->children tree) path world)
-     pairs (:user::nested-pairs top tree path)
-     hits  (:user::hits-for pairs src)]
-    (:wat::core::if (:wat::core::empty? hits)
+(wat.core/defn user/convert-one
+  [path  :- wat.type/String
+   world :- wat.fix/StdlibWorld]
+  :- wat.type/nil
+  (wat.core/let
+    [src  (wat.io/read-file path)
+     tree (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms f} f]
+             [wat.core/ReadOutcome.Malformed {:cause c}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message c))])
+     top (user/pairs-for-forms (wat.core/ast->children tree) path world)
+     pairs (user/nested-pairs top tree path)
+     hits  (user/hits-for pairs src)]
+    (wat.core/if (wat.core/empty? hits)
       nil
-      (:wat::core::do
-        (:wat::io::write-file path (:user::apply-renames src hits))
-        (:wat::kernel::println (:wat::string::concat "[variant-separator-to-dot] " path))))))
+      (wat.core/do
+        (wat.io/write-file path (user/apply-renames src hits))
+        (wat.kernel/println (wat.string/concat "[variant-separator-to-dot] " path))))))
 
-(:wat::core::defn :user::convert-each
-  [paths <- (wat.type/Vector :- [wat.type/String])
-   world <- :wat::fix::StdlibWorld]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/convert-each
+  [paths :- (wat.type/Vector :- [wat.type/String])
+   world :- wat.fix/StdlibWorld]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::do
-      (:user::convert-one (:wat::core::first paths) world)
-      (:user::convert-each (:wat::core::rest paths) world))))
+    (wat.core/do
+      (user/convert-one (wat.core/first paths) world)
+      (user/convert-each (wat.core/rest paths) world))))
 
 ;; 2a4d — the SET's stdlib files are ONE world. The door is asked ONCE, over the forms
 ;; of every `wat/…` member of this set together, and every member is answered from that
 ;; one world. Membership is the substrate's own `:wat::fix::stdlib-source-path?` rule —
 ;; derived from the set, never a hand list. No `wat/` member → the empty world → exactly
 ;; the per-file door.
-(:wat::core::defn :user::stdlib-world-of
-  [paths <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::StdlibWorld
-  (:wat::core::let
-    [members (:wat::core::into []
-               (:wat::core::filter
-                 (:wat::core::fn [p <- wat.type/String] -> wat.type/bool
-                   (:wat::fix::stdlib-source-path? p))
+(wat.core/defn user/stdlib-world-of
+  [paths :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/StdlibWorld
+  (wat.core/let
+    [members (wat.core/into []
+               (wat.core/filter
+                 (wat.core/fn [p :- wat.type/String] :- wat.type/bool
+                   (wat.fix/stdlib-source-path? p))
                  paths))
-     srcs    (:wat::core::into []
-               (:wat::core::map
-                 (:wat::core::fn [p <- wat.type/String] -> wat.type/String
-                   (:wat::io::read-file p))
+     srcs    (wat.core/into []
+               (wat.core/map
+                 (wat.core/fn [p :- wat.type/String] :- wat.type/String
+                   (wat.io/read-file p))
                  members))]
-    (:wat::fix::stdlib-world "variant-separator" members srcs)))
+    (wat.fix/stdlib-world "variant-separator" members srcs)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-             [:wat::kernel::ReadlnOutcome.Eof {}
-               (:wat::kernel::assertion-failed! :message "readln: end of input")]
-             [:wat::kernel::ReadlnOutcome.Stopped {}
-               (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::convert-each paths (:user::stdlib-world-of paths))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [paths (wat.core/match (wat.kernel/readln)
+             [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+             [wat.kernel/ReadlnOutcome.Eof {}
+               (wat.kernel/assertion-failed! :message "readln: end of input")]
+             [wat.kernel/ReadlnOutcome.Stopped {}
+               (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+    (user/convert-each paths (user/stdlib-world-of paths))))

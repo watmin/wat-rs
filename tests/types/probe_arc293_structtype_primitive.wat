@@ -3,8 +3,8 @@
 ;; Arc 293.2-parity — the :wat::core::structtype primitive.
 ;; RED at HEAD: :wat::core::structtype is an unknown declaration head.
 
-(:wat::core::structtype :my::Point
-  [x <- wat.type/i64  y <- wat.type/i64])
+(wat.core/structtype my/Point
+  [x :- wat.type/i64  y :- wat.type/i64])
 
 ;; The driver, restored 2026-08-16 (it was deleted by 3cd00fbb, arc 170's :user::main
 ;; wall, leaving this fixture hollow and its test passing on nothing for 37 days).
@@ -17,7 +17,7 @@
 ;; here would be testing `defstruct`'s surface while claiming to test the primitive —
 ;; and would fail with UnresolvedReference on a call head that structtype never
 ;; promised. The primitive's own construction surface is the prime.
-(:wat::core::defn :probe::drive [] -> wat.type/i64
-  (:wat::i64::+
-    (:my::Point/x (:my::Point' 3 4))
-    (:my::Point/y (:my::Point' 3 4))))
+(wat.core/defn probe/drive [] :- wat.type/i64
+  (wat.i64/+
+    (my.Point/x (my/Point' 3 4))
+    (my.Point/y (my/Point' 3 4))))

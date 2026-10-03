@@ -1,19 +1,19 @@
 ;; scout-cap-organic: the ORGANIC capture path a macro would expand to.
 ;; User writes (fn ...) organically; macro wraps it as (write-forms (quote (fn ...))).
 ;; Result is a String field (fork-safe). Server does read-string to rebuild the form.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; what the macro emits at the call site — NO hand-typed string, NO user quote visible:
-     captured (:wat::core::write-forms
-                 (:wat::core::quote
-                    (:wat::core::fn [n <- wat.type/i64] -> wat.type/bool
-                      (:wat::core::> n 3))))
+     captured (wat.core/write-forms
+                 (wat.core/quote
+                    (wat.core/fn [n :- wat.type/i64] :- wat.type/bool
+                      (wat.core/> n 3))))
      ;; server side rebuild:
-     form     (:wat::core::match (:wat::core::read-string captured) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     kids     (:wat::core::ast->children form)
-     inner    (:wat::core::Option/expect (:wat::core::get kids 0) "no child 0")
-     pure     (:wat::rete::pure? inner)
-     det      (:wat::rete::deterministic? inner)]
-    (:wat::kernel::println (:wat::string::concat "CAPTURED-STRING=" captured))
-    (:wat::kernel::println (:wat::core::str pure))
-    (:wat::kernel::println (:wat::core::str det))))
+     form     (wat.core/match (wat.core/read-string captured) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     kids     (wat.core/ast->children form)
+     inner    (wat.core.Option/expect (wat.core/get kids 0) "no child 0")
+     pure     (wat.rete/pure? inner)
+     det      (wat.rete/deterministic? inner)]
+    (wat.kernel/println (wat.string/concat "CAPTURED-STRING=" captured))
+    (wat.kernel/println (wat.core/str pure))
+    (wat.kernel/println (wat.core/str det))))

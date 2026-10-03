@@ -21,28 +21,28 @@
 ;; Run (NOT the installed binary — wat/ is include_str!'d):
 ;;   cargo run --release --bin wat -- wat-scripts/scratch-pad/arc278-produced-type-userfn-head.wat
 
-(:wat::core::defrecord :pt::Anchor [x <- wat.type/i64])
-(:wat::core::defrecord :pt::Rate   [count <- wat.type/i64])
+(wat.core/defrecord pt/Anchor [x :- wat.type/i64])
+(wat.core/defrecord pt/Rate   [count :- wat.type/i64])
 
-(:wat::rete::core::defn :pt::first-rate
-  [rs <- (wat.type/PersistentVector :- [:pt::Rate])]
-  -> :pt::Rate
-  (:wat::rete::core::PersistentVector/first rs :undefined (:pt::Rate :count 0)))
+(wat.rete.core/defn pt/first-rate
+  [rs :- (wat.type/PersistentVector :- [pt/Rate])]
+  :- pt/Rate
+  (wat.rete.core.PersistentVector/first rs :undefined (pt/Rate :count 0)))
 
 ;; THE MEASUREMENT — the `:then` head is a user fn returning :pt::Rate.
-(:wat::rete::defrule :pt::via-userfn
-  :when [(:pt::Anchor (?x :- :x))
-         (?rates :- (:wat::rete::acc::all) :from (:pt::Rate (?c :- :count)))]
-  :then [(:pt::first-rate ?rates)])
+(wat.rete/defrule pt/via-userfn
+  :when [(pt/Anchor (?x :- :x))
+         (?rates :- (wat.rete.acc/all) :from (pt/Rate (?c :- :count)))]
+  :then [(pt/first-rate ?rates)])
 
 ;; THE ANCHOR — an ordinary fact-type head. Both sides must say "pt::Rate".
-(:wat::rete::defrule :pt::plain
-  :when [(:pt::Anchor (?x :- :x))]
-  :then [(:pt::Rate :count ?x)])
+(wat.rete/defrule pt/plain
+  :when [(pt/Anchor (?x :- :x))]
+  :then [(pt/Rate :count ?x)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "ANCHOR  plain fact-type head — oracle rule-produces:")
-    (:wat::kernel::println (:wat::rete::rule-produces (:pt::plain)))
-    (:wat::kernel::println "MEASURE user-fn head (native resolves to pt::Rate) — oracle rule-produces:")
-    (:wat::kernel::println (:wat::rete::rule-produces (:pt::via-userfn)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "ANCHOR  plain fact-type head — oracle rule-produces:")
+    (wat.kernel/println (wat.rete/rule-produces (pt/plain)))
+    (wat.kernel/println "MEASURE user-fn head (native resolves to pt::Rate) — oracle rule-produces:")
+    (wat.kernel/println (wat.rete/rule-produces (pt/via-userfn)))))

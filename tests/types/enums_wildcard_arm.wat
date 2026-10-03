@@ -1,6 +1,6 @@
 ;; enums_wildcard_arm.wat — wildcard arm satisfies exhaustiveness.
-(:wat::core::defenum :my::Color :wat::enum::Pure :Red :Green :Blue)
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match :my::Color.Blue 
-    [:my::Color.Red {} (:wat::kernel::println "red")]
-    [_               (:wat::kernel::println "other")]))
+(wat.core/defenum my/Color wat.enum/Pure :Red :Green :Blue)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match my/Color.Blue 
+    [my/Color.Red {} (wat.kernel/println "red")]
+    [_               (wat.kernel/println "other")]))

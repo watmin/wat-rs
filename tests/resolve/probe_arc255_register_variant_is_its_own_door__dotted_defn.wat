@@ -2,4 +2,4 @@
 ;; carries a dot in its name segment is refused at --check, exactly as before this
 ;; stone — the origin split exempts only the composed-variant door, never a caller-
 ;; typed name.
-(:wat::core::defn :my::Shape.Circle [] -> wat.type/i64 1)
+(wat.core/defn my/Shape.Circle [] :- wat.type/i64 1)

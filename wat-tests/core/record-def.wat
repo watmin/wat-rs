@@ -25,53 +25,53 @@
 ;; ─── Top-level type declarations ────────────────────────────────────────────
 
 ;; BASE record: two i64 fields.
-(:wat::core::defrecord :test::rd::Pt [x <- wat.type/i64  y <- wat.type/i64])
+(wat.core/defrecord test.rd/Pt [x :- wat.type/i64  y :- wat.type/i64])
 
 ;; Second BASE record (different class_fqdn, one field) — used in predicate-false
 ;; and class-guard tests.
-(:wat::core::defrecord :test::rd::Box [w <- wat.type/i64])
+(wat.core/defrecord test.rd/Box [w :- wat.type/i64])
 
 ;; HOLONIC record: two i64 fields.
-(:wat::holon::defrecord :test::rd::HPt [x <- wat.type/i64  y <- wat.type/i64])
+(wat.holon/defrecord test.rd/HPt [x :- wat.type/i64  y :- wat.type/i64])
 
 ;; Liskov helper: accepts ANY :wat::core::Record (base OR holonic) and returns true.
-(:wat::core::defn :test::rd::accepts-base? [v <- wat.type/Record] -> wat.type/bool true)
+(wat.core/defn test.rd/accepts-base? [v :- wat.type/Record] :- wat.type/bool true)
 
 
 ;; ─── BASE: construct + slash-accessor (x) ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::base-construct-x
+(wat.test/deftest wat-tests.core.record-def/base-construct-x
   
-  (:wat::core::let
-    [p (:test::rd::Pt :x 3 :y 4)]
-    (:wat::test::assert-eq (:test::rd::Pt/x p) 3)))
+  (wat.core/let
+    [p (test.rd/Pt :x 3 :y 4)]
+    (wat.test/assert-eq (test.rd.Pt/x p) 3)))
 
 ;; ─── BASE: slash-accessor (y) ────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::base-construct-y
+(wat.test/deftest wat-tests.core.record-def/base-construct-y
   
-  (:wat::core::let
-    [p (:test::rd::Pt :x 3 :y 4)]
-    (:wat::test::assert-eq (:test::rd::Pt/y p) 4)))
+  (wat.core/let
+    [p (test.rd/Pt :x 3 :y 4)]
+    (wat.test/assert-eq (test.rd.Pt/y p) 4)))
 
 ;; ─── Predicate: true on matching class ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::predicate-true
+(wat.test/deftest wat-tests.core.record-def/predicate-true
   
-  (:wat::core::let
-    [p (:test::rd::Pt :x 3 :y 4)]
-    (:wat::test::assert-eq (:test::rd::is-Pt? p) true)))
+  (wat.core/let
+    [p (test.rd/Pt :x 3 :y 4)]
+    (wat.test/assert-eq (test.rd/is-Pt? p) true)))
 
 ;; ─── Predicate: false on non-matching class ──────────────────────────────────
 ;;
 ;; Constructs a :test::rd::Box; calls :test::rd::is-Pt? on it; asserts false.
 ;; Validates that predicate discriminates via class_fqdn, not struct shape.
 
-(:wat::test::deftest :wat-tests::core::record-def::predicate-false-cross-class
+(wat.test/deftest wat-tests.core.record-def/predicate-false-cross-class
   
-  (:wat::core::let
-    [b (:test::rd::Box :w 99)]
-    (:wat::test::assert-eq (:test::rd::is-Pt? b) false)))
+  (wat.core/let
+    [b (test.rd/Box :w 99)]
+    (wat.test/assert-eq (test.rd/is-Pt? b) false)))
 
 ;; ─── Class-safety guard — wrong-class receiver panics with "got class" ───────
 ;;
@@ -87,43 +87,43 @@
 ;; runtime class guard fires because Box is not Pt.
 
 
-(:wat::test::deftest :wat-tests::core::record-def::class-guard-panics-got-class
+(wat.test/deftest wat-tests.core.record-def/class-guard-panics-got-class
   
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
            ;; Accessor returns i64; do discards it and returns nil.
            ;; The class guard fires before the nil is reached — that's the point;
            ;; the crash reaches the parent's recv' as Lost before the completion send'.
-           (:wat::core::do
-             (:wat::core::do (:test::rd::Pt/x (:test::rd::Box :w 5)) nil)
-             (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.HandleClosed {} nil]
+           (wat.core/do
+             (wat.core/do (test.rd.Pt/x (test.rd/Box :w 5)) nil)
+             (wat.core/match (wat.kernel/send self 0)
+               [wat.kernel/SendOutcome.Sent {}   nil]
+               [wat.kernel/SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the class-guard panic above already
                ;; fired before this line could even run.
-               [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::test::assert-contains
-          (:wat::kernel::LociDiedError/message cause)
+               [wat.kernel/SendOutcome.Stopped {} nil]
+               [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil]))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.test/assert-contains
+          (wat.kernel.LociDiedError/message cause)
           "got class")]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected class-guard panic on wrong-class receiver; got Success")])))
 
 ;; ─── HOLONIC: construct + slash-accessor ─────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::record-def::holonic-construct-accessor
+(wat.test/deftest wat-tests.core.record-def/holonic-construct-accessor
   
-  (:wat::core::let
-    [h (:test::rd::HPt :x 7 :y 8)]
-    (:wat::test::assert-eq (:test::rd::HPt/x h) 7)))
+  (wat.core/let
+    [h (test.rd/HPt :x 7 :y 8)]
+    (wat.test/assert-eq (test.rd.HPt/x h) 7)))
 
 ;; ─── HOLONIC: to-holon succeeds ──────────────────────────────────────────────
 ;;
@@ -131,16 +131,16 @@
 ;; We discard the result (_h) and do a sentinel assert-eq true true.
 ;; If to-holon panics the deftest's outer run-thread surfaces the failure.
 
-(:wat::test::deftest :wat-tests::core::record-def::holonic-to-holon-ok
+(wat.test/deftest wat-tests.core.record-def/holonic-to-holon-ok
   
   ;; to-holon returns HolonAST. Bind the result and assert-coincident
   ;; it is coincident with itself — proves the call succeeded AND that
   ;; the returned HolonAST is a valid point in HD space (self-coincident
   ;; is the minimal geometric sanity check on any HolonAST).
-  (:wat::core::let
-    [h (:test::rd::HPt :x 1 :y 2)
-     v (:wat::holon::to-holon h)]
-    (:wat::test::assert-coincident v v)))
+  (wat.core/let
+    [h (test.rd/HPt :x 1 :y 2)
+     v (wat.holon/to-holon h)]
+    (wat.test/assert-coincident v v)))
 
 ;; ─── BASE: to-holon errors at runtime ────────────────────────────────────────
 ;;
@@ -148,34 +148,34 @@
 ;; run-thread catches the panic; match on failure; assert Some.
 
 
-(:wat::test::deftest :wat-tests::core::record-def::base-to-holon-errors
+(wat.test/deftest wat-tests.core.record-def/base-to-holon-errors
   
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
            ;; to-holon panics at runtime on base record; do discards result and
            ;; returns nil. The runtime error fires before the nil is reached — the
            ;; crash reaches the parent's recv' as Lost before the completion send'.
-           (:wat::core::do
-             (:wat::core::let
-               [p (:test::rd::Pt :x 3 :y 4)]
-               (:wat::core::do (:wat::holon::to-holon p) nil))
-             (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.HandleClosed {} nil]
+           (wat.core/do
+             (wat.core/let
+               [p (test.rd/Pt :x 3 :y 4)]
+               (wat.core/do (wat.holon/to-holon p) nil))
+             (wat.core/match (wat.kernel/send self 0)
+               [wat.kernel/SendOutcome.Sent {}   nil]
+               [wat.kernel/SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the to-holon runtime error above already
                ;; fired before this line could even run.
-               [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")])))
+               [wat.kernel/SendOutcome.Stopped {} nil]
+               [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil]))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} nil]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected to-holon runtime error on BASE record; got Success")])))
 
 ;; ─── Liskov: [v <- :wat::core::Record] accepts a HOLONIC instance ──────────────────
 ;;
@@ -183,8 +183,8 @@
 ;; Passes a :test::rd::HPt (holonic) instance.
 ;; If the call passes type-check (holonic <: base) and evaluates, returns true.
 
-(:wat::test::deftest :wat-tests::core::record-def::liskov-holonic-into-base
+(wat.test/deftest wat-tests.core.record-def/liskov-holonic-into-base
   
-  (:wat::core::let
-    [h (:test::rd::HPt :x 5 :y 6)]
-    (:wat::test::assert-eq (:test::rd::accepts-base? h) true)))
+  (wat.core/let
+    [h (test.rd/HPt :x 5 :y 6)]
+    (wat.test/assert-eq (test.rd/accepts-base? h) true)))

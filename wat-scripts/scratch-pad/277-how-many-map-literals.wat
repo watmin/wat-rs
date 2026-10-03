@@ -4,16 +4,16 @@
 ;; Records are already covered by the pair-run rule; a MAP literal is not. This asks the
 ;; fact base rather than grepping, because `{` also appears inside interpolation strings.
 
-(:wat::rete::defrule :ml::map-node
-  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
-         (:wat::rete::where  (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Map {})))
-         (:wat::grep::Node   (?c :- :id) (?id :- :parent))
-         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?co :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))]
-  :then [(:wat::grep::Match :file ?f :line ?l :col ?co :end-line ?el :end-col ?ec
+(wat.rete/defrule ml/map-node
+  :when [(wat.grep/Node   (?id :- :id) (?k :- :kind))
+         (wat.rete/where  (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Map {})))
+         (wat.grep/Node   (?c :- :id) (?id :- :parent))
+         (wat.grep/Span   (?id :- :id) (?l :- :line) (?co :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))]
+  :then [(wat.grep/Match :file ?f :line ?l :col ?co :end-line ?el :end-col ?ec
            :rule "map-literal"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "id" :value (:wat::rete::i64::to-string ?id))))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "id" :value (wat.rete.i64/to-string ?id))))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :ml))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :ml))

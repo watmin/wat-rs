@@ -12,63 +12,63 @@
 ;; SURFACE: order-preserving map, side-effect each, and the per-runner map-worker.
 
 ;; ── map: doubles, in input order ─────────────────────────────────────────────
-(:wat::test::deftest :wat-tests::bracket::map-doubles-in-order
+(wat.test/deftest wat-tests.bracket/map-doubles-in-order
   
-  (:wat::test::assert-eq
-    (:wat::bracket::map (:wat::spawn::thread)
+  (wat.test/assert-eq
+    (wat.bracket/map (wat.spawn/thread)
       (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
-      (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
+      (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))
     (wat.type/Vector :- [wat.type/i64] 2 4 6 8 10)))
 
 ;; ── map: 50 items, input order preserved despite dynamic balance ─────────────
-(:wat::test::deftest :wat-tests::bracket::map-preserves-order-50
+(wat.test/deftest wat-tests.bracket/map-preserves-order-50
   
-  (:wat::test::assert-eq
-    (:wat::bracket::map (:wat::spawn::thread)
-      (:wat::core::range 0 50)
-      (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
+  (wat.test/assert-eq
+    (wat.bracket/map (wat.spawn/thread)
+      (wat.core/range 0 50)
+      (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))
     ;; Arc 118.2a — `map` is now lazy (Stream); assert-eq's param #2 needs a concrete
     ;; Vector here (this is ordinary test-body code, not a program-body macro, so the
     ;; wat-level `mapv` materializer from wat/seq.wat is reachable at runtime).
-    (:wat::core::mapv
-      (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2))
-      (:wat::core::range 0 50))))
+    (wat.core/mapv
+      (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2))
+      (wat.core/range 0 50))))
 
 ;; ── each: side-effect pool, returns nil (and drains all items) ────────────────
-(:wat::test::deftest :wat-tests::bracket::each-returns-nil
+(wat.test/deftest wat-tests.bracket/each-returns-nil
   
-  (:wat::test::assert-eq
-    (:wat::bracket::each (:wat::spawn::thread)
-      (:wat::core::range 0 10)
-      (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
+  (wat.test/assert-eq
+    (wat.bracket/each (wat.spawn/thread)
+      (wat.core/range 0 10)
+      (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))
     nil))
 
 ;; ── map-worker: with a constant worker-init (ignoring the id), equals map ─────
 ;; Arc 170 gap J — map-worker absorbed `uses'`'s provisioning params; a plain caller passes
 ;; `nil` grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY `(Vector :- [D])` (no Setup).
-(:wat::test::deftest :wat-tests::bracket::map-worker-ignoring-wid-equals-map
+(wat.test/deftest wat-tests.bracket/map-worker-ignoring-wid-equals-map
   
-  (:wat::test::assert-eq
-    (:wat::bracket::map-worker (:wat::spawn::thread)
+  (wat.test/assert-eq
+    (wat.bracket/map-worker (wat.spawn/thread)
       (wat.type/Vector :- [wat.type/i64] 1 2 3)
-      (:wat::core::fn [_wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
-        (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
+      (wat.core/fn [_wid :- wat.type/i64] :- [wat.type/i64 :-> wat.type/i64]
+        (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))
       nil
-      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)
-      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)
+      (wat.core/fn [_g :- wat.type/nil _pid :- wat.type/i64] :- wat.type/nil nil)
+      (wat.core/fn [_g :- wat.type/nil _pid :- wat.type/i64] :- wat.type/nil nil)
       (wat.type/Vector :- [wat.type/nil]))
     (wat.type/Vector :- [wat.type/i64] 2 4 6)))
 
 ;; ── each-worker: per-runner side-effect pool, returns nil ─────────────────────
-(:wat::test::deftest :wat-tests::bracket::each-worker-returns-nil
+(wat.test/deftest wat-tests.bracket/each-worker-returns-nil
   
-  (:wat::test::assert-eq
-    (:wat::bracket::each-worker (:wat::spawn::thread)
-      (:wat::core::range 0 5)
-      (:wat::core::fn [_wid <- wat.type/i64] -> [wat.type/i64 :-> wat.type/i64]
-        (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))
+  (wat.test/assert-eq
+    (wat.bracket/each-worker (wat.spawn/thread)
+      (wat.core/range 0 5)
+      (wat.core/fn [_wid :- wat.type/i64] :- [wat.type/i64 :-> wat.type/i64]
+        (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))
       nil
-      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)
-      (:wat::core::fn [_g <- wat.type/nil _pid <- wat.type/i64] -> wat.type/nil nil)
+      (wat.core/fn [_g :- wat.type/nil _pid :- wat.type/i64] :- wat.type/nil nil)
+      (wat.core/fn [_g :- wat.type/nil _pid :- wat.type/i64] :- wat.type/nil nil)
       (wat.type/Vector :- [wat.type/nil]))
     nil))

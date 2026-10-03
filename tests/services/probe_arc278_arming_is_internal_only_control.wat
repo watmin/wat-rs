@@ -13,38 +13,38 @@
 ;; legitimate self-scheduling case this rule must NOT refuse (mirrors
 ;; `tests/services/probe_arc278_self_scheduling.wat`, the non-vacuity control for the whole
 ;; strike per BRIEF-arming-is-internal-only.md).
-(:wat::core::defsurface :probe::Tick2 :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Tick2 :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Tick2::StartRequest [])
-   (:wat::core::defenum :probe::Tick2::StartResponse :wat::enum::Pure
+  [(wat.core/defrecord probe.Tick2/StartRequest [])
+   (wat.core/defenum probe.Tick2/StartResponse wat.enum/Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
-   (:wat::core::defrecord :probe::Tick2::BumpRequest [])
-   (:wat::core::defenum :probe::Tick2::BumpResponse :wat::enum::Pure
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
+   (wat.core/defrecord probe.Tick2/BumpRequest [])
+   (wat.core/defenum probe.Tick2/BumpResponse wat.enum/Pure
      :Ok               []
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(start [self <- :probe::Tick2  req <- :probe::Tick2::StartRequest] -> :probe::Tick2::StartResponse
+  [(start [self :- probe/Tick2  req :- probe.Tick2/StartRequest] :- probe.Tick2/StartResponse
      :max-request-bytes 524288)
-   (bump  [self <- :probe::Tick2  req <- :probe::Tick2::BumpRequest]  -> :probe::Tick2::BumpResponse
+   (bump  [self :- probe/Tick2  req :- probe.Tick2/BumpRequest]  :- probe.Tick2/BumpResponse
      :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::tick2
-  :satisfies :probe::Tick2
-  :durable   [count <- wat.type/i64]
+(wat.service/defservice probe/tick2
+  :satisfies probe/Tick2
+  :durable   [count :- wat.type/i64]
   :ephemeral []
   :impls
   [;; The one difference from the sibling `.wat.bad`: arms `-tick` (INTERNAL), not `bump`.
    (start [s ctx req]
-     (:wat::service::Outcome.ReplyAndArm {:state s :reply (:probe::Tick2::StartResponse.Ok {})
-       :arms [(:wat::service::Alarm :after (:wat::time::Millisecond 5)
-          :op (:probe::tick2::Op.-Tick {}))]}))
+     (wat.service/Outcome.ReplyAndArm {:state s :reply (probe.Tick2/StartResponse.Ok {})
+       :arms [(wat.service/Alarm :after (wat.time/Millisecond 5)
+          :op (probe.tick2/Op.-Tick {}))]}))
 
    (bump [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::Tick2::BumpResponse.Ok {})}))
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.Tick2/BumpResponse.Ok {})}))
 
    (-tick [s ctx]
-     (:wat::service::Outcome.NoReply {:state s}))])
+     (wat.service/Outcome.NoReply {:state s}))])

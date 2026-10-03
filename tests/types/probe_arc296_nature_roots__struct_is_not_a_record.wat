@@ -6,6 +6,6 @@
 ;;
 ;; Green here would mean the fix widened the wall instead of correcting the lattice.
 
-(:wat::core::defstruct :t::S [x <- wat.type/i64])
-(:wat::core::defn :t::takes-record [r <- wat.type/Record] -> wat.type/i64 1)
-(:wat::core::defn :t::main [] -> wat.type/i64 (:t::takes-record (:t::S :x 1)))
+(wat.core/defstruct t/S [x :- wat.type/i64])
+(wat.core/defn t/takes-record [r :- wat.type/Record] :- wat.type/i64 1)
+(wat.core/defn t/main [] :- wat.type/i64 (t/takes-record (t/S :x 1)))

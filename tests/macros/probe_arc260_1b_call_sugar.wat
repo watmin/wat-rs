@@ -4,40 +4,40 @@
 ;; Merged from KWARGS_SUGAR (connect fn + call-sugar wrappers) and PASCAL_KWARGS
 ;; (pascal-fn + pascal-kebab wrappers), sharing one :user::main.
 
-(:wat::core::defn :user::connect
-  [host <- wat.type/String
-   & [port <- wat.type/i64  tls <- wat.type/bool]]
-  -> wat.type/i64
-  (:wat::i64::+ port (:wat::core::if tls  1 0)))
+(wat.core/defn user/connect
+  [host :- wat.type/String
+   & [port :- wat.type/i64  tls :- wat.type/bool]]
+  :- wat.type/i64
+  (wat.i64/+ port (wat.core/if tls  1 0)))
 
 ;; inline :k v, in order
-(:wat::core::defn :user::via-kv [] -> wat.type/i64
-  (:user::connect "h" :port 443 :tls true))
+(wat.core/defn user/via-kv [] :- wat.type/i64
+  (user/connect "h" :port 443 :tls true))
 
 ;; inline :k v, OUT OF ORDER — only a true reorder-by-field yields 444
-(:wat::core::defn :user::via-kv-reorder [] -> wat.type/i64
-  (:user::connect "h" :tls true :port 443))
+(wat.core/defn user/via-kv-reorder [] :- wat.type/i64
+  (user/connect "h" :tls true :port 443))
 
 ;; literal {map}
-(:wat::core::defn :user::via-map [] -> wat.type/i64
-  (:user::connect "h" {:port 443 :tls true}))
+(wat.core/defn user/via-map [] :- wat.type/i64
+  (user/connect "h" {:port 443 :tls true}))
 
 ;; explicit record (the escape hatch — 260.1a; must still work).
 ;; Arc 294 item 9a: the bundle is built with KWARGS (the bare name is the kwargs macro;
 ;; the positional prime is generated-code-only). The escape hatch is passing a PRE-BUILT
 ;; ::Kwargs record instead of using the call sugar — how the record is built is orthogonal.
-(:wat::core::defn :user::via-record [] -> wat.type/i64
-  (:user::connect "h" (:user::connect::Kwargs :port 443 :tls true)))
+(wat.core/defn user/via-record [] :- wat.type/i64
+  (user/connect "h" (user.connect/Kwargs :port 443 :tls true)))
 
-(:wat::core::defn :user::pascal-fn
-  [& [FooBar <- wat.type/i64]]
-  -> wat.type/i64
+(wat.core/defn user/pascal-fn
+  [& [FooBar :- wat.type/i64]]
+  :- wat.type/i64
   FooBar)
 
 ;; Wrapper functions that invoke the companion macro at startup (macro expansion time).
-(:wat::core::defn :user::via-kv-pascal [] -> wat.type/i64
-  (:user::pascal-fn :foo-bar 42))
+(wat.core/defn user/via-kv-pascal [] :- wat.type/i64
+  (user/pascal-fn :foo-bar 42))
 
-(:wat::core::defn :user::via-map-pascal [] -> wat.type/i64
-  (:user::pascal-fn {:foo-bar 99}))
+(wat.core/defn user/via-map-pascal [] :- wat.type/i64
+  (user/pascal-fn {:foo-bar 99}))
 

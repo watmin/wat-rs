@@ -41,14 +41,14 @@
 ;; on an enum is illegal here (109's NOTE-full-enum-match-mandatory-no-wildcard-arm),
 ;; which means adding a command later breaks the BUILD rather than falling through
 ;; at runtime to a peer who sent something you forgot to handle.
-(:wat::core::defenum :repl::Cmd :wat::enum::Pure
-  :Bump [by <- wat.type/i64]
+(wat.core/defenum repl/Cmd wat.enum/Pure
+  :Bump [by :- wat.type/i64]
   :Show []
   :Quit [])
 
-(:wat::core::defenum :repl::Reply :wat::enum::Pure
-  :Value [n <- wat.type/i64]
-  :Bye   [final <- wat.type/i64])
+(wat.core/defenum repl/Reply wat.enum/Pure
+  :Value [n :- wat.type/i64]
+  :Bye   [final :- wat.type/i64])
 
 ;; ── The serve loop ────────────────────────────────────────────────────────────
 ;;
@@ -58,45 +58,45 @@
 ;;
 ;; Every non-terminal arm ends in a tail call carrying the next state. The terminal
 ;; arm returns `nil`, which ends the conversation and the process with it.
-(:wat::core::defn :repl::serve
-  [count <- wat.type/i64]
-  -> wat.type/nil
-  (:wat::core::match (:wat::kernel::readln)
+(wat.core/defn repl/serve
+  [count :- wat.type/i64]
+  :- wat.type/nil
+  (wat.core/match (wat.kernel/readln)
 
     ;; A frame arrived — decode it to `:repl::Cmd` and dispatch. This inner match
     ;; is the whole non-terminal body: every arm ends in a tail call carrying the
     ;; next state.
-    [:wat::kernel::ReadlnOutcome.Datum {:v __datum}
-      (:wat::core::match __datum
+    [wat.kernel/ReadlnOutcome.Datum {:v __datum}
+      (wat.core/match __datum
 
         ;; Mutate: fold the delta into the state and carry it forward.
-        [:repl::Cmd.Bump {:by by}
-          (:wat::core::let [next (:wat::i64::+ count by)]
-            (:wat::kernel::println (:repl::Reply.Value {:n next}))
-            (:repl::serve next))]
+        [repl/Cmd.Bump {:by by}
+          (wat.core/let [next (wat.i64/+ count by)]
+            (wat.kernel/println (repl/Reply.Value {:n next}))
+            (repl/serve next))]
 
         ;; Read: reply with the current state, carry it unchanged.
-        [:repl::Cmd.Show {}
-          (:wat::core::do
-            (:wat::kernel::println (:repl::Reply.Value {:n count}))
-            (:repl::serve count))]
+        [repl/Cmd.Show {}
+          (wat.core/do
+            (wat.kernel/println (repl/Reply.Value {:n count}))
+            (repl/serve count))]
 
         ;; Terminate: say goodbye and RETURN. No tail call — the loop ends here, and
         ;; the caller (`:user::main`) returns nil, so the process exits 0.
-        [:repl::Cmd.Quit {}
-          (:wat::kernel::println (:repl::Reply.Bye {:final count}))])]
+        [repl/Cmd.Quit {}
+          (wat.kernel/println (repl/Reply.Bye {:final count}))])]
 
     ;; The client closed the conversation — the same terminal shape as `Quit`,
     ;; just without a goodbye to send. Returning nil ends the process cleanly.
-    [:wat::kernel::ReadlnOutcome.Eof {}     nil]
+    [wat.kernel/ReadlnOutcome.Eof {}     nil]
 
     ;; A process-wide stop was requested — the same clean end, named distinctly
     ;; so a reader can tell "the client hung up" from "we were told to stop".
-    [:wat::kernel::ReadlnOutcome.Stopped {} nil]))
+    [wat.kernel/ReadlnOutcome.Stopped {} nil]))
 
 ;; ── main is one tail call ─────────────────────────────────────────────────────
 ;;
 ;; Everything `main` does is hand control to the loop with the initial state. The
 ;; program's entire behaviour is the frame processor.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:repl::serve 0))
+(wat.core/defn user/main [] :- wat.type/nil
+  (repl/serve 0))

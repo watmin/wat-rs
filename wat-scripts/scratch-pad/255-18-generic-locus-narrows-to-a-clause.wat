@@ -22,19 +22,19 @@
 ;; enclosing binder, which it cannot. The bare surface has no argument to unify, so it passes.
 ;; So a consumer that forwards its locus to a concrete-keyed defclause cannot take
 ;; `(Locus :- [T])` today: that is a checker/API decision, not a declaration.
-(:wat::core::defstruct :probe::Sh [])
-(:wat::core::defstruct :probe::Wi [])
-(:wat::core::defsurface :probe::Loc :- [T] :nature wat.type/Struct
-  :features [(tag [self <- (:probe::Loc :- [T])] -> wat.type/i64)])
-(:wat::core::defrecord :probe::Th [x <- wat.type/i64])
-(:wat::core::extend-type :probe::Th (:probe::Loc :- [:probe::Sh]) (tag [self] 1))
-(:wat::core::defrecord :probe::Pr [y <- wat.type/i64])
-(:wat::core::extend-type :probe::Pr (:probe::Loc :- [:probe::Wi]) (tag [self] 2))
-(:wat::core::defclause :probe::count
-  ([l <- :probe::Th] -> wat.type/i64 (:probe::Th/x l))
-  ([l <- :probe::Pr] -> wat.type/i64 (:probe::Pr/y l)))
+(wat.core/defstruct probe/Sh [])
+(wat.core/defstruct probe/Wi [])
+(wat.core/defsurface probe/Loc :- [T] :nature wat.type/Struct
+  :features [(tag [self :- (probe/Loc :- [T])] :- wat.type/i64)])
+(wat.core/defrecord probe/Th [x :- wat.type/i64])
+(wat.core/extend-type probe/Th (probe/Loc :- [probe/Sh]) (tag [self] 1))
+(wat.core/defrecord probe/Pr [y :- wat.type/i64])
+(wat.core/extend-type probe/Pr (probe/Loc :- [probe/Wi]) (tag [self] 2))
+(wat.core/defclause probe/count
+  ([l :- probe/Th] :- wat.type/i64 (probe.Th/x l))
+  ([l :- probe/Pr] :- wat.type/i64 (probe.Pr/y l)))
 ;; bare surface (the family top), narrows through the defclause
-(:wat::core::defn :probe::bare [l <- :probe::Loc] -> wat.type/i64
-  (:probe::count l))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:wat::core::str (:probe::bare (:probe::Pr :y 9)))))
+(wat.core/defn probe/bare [l :- probe/Loc] :- wat.type/i64
+  (probe/count l))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (wat.core/str (probe/bare (probe/Pr :y 9)))))

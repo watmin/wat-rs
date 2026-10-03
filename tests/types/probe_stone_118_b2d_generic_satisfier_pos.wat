@@ -16,18 +16,18 @@
 ;; Together with `_neg`: the loss is specific to a surface METHOD'S RETURN meeting a CONCRETE
 ;; consumer. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
 
-(:wat::core::defn :my::eats-concrete
-  [c <- (:wat::core::Seqable :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c))))
+(wat.core/defn my/eats-concrete
+  [c :- (wat.core/Seqable :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/length (wat.core/into [] (wat.core.Seqable/seq c))))
 
 ;; ROW 1 — the container fed DIRECTLY. B1a's guarantee.
-(:wat::core::defn :my::direct [] -> wat.type/i64
-  (:my::eats-concrete (wat.type/Vector :- [wat.type/i64] 1 2 3)))
+(wat.core/defn my/direct [] :- wat.type/i64
+  (my/eats-concrete (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
 ;; ROW 2 — a POLYMORPHIC consumer swallows the `(Stream :- [T])` result without complaint.
-(:wat::core::defn :my::eats-polymorphic :- [T]
-  [s <- (:wat::stream::Stream :- [T])] -> wat.type/i64
-  (:wat::core::length (:wat::core::into [] s)))
+(wat.core/defn my/eats-polymorphic :- [T]
+  [s :- (wat.stream/Stream :- [T])] :- wat.type/i64
+  (wat.core/length (wat.core/into [] s)))
 
-(:wat::core::defn :my::via-surface-method-into-polymorphic [] -> wat.type/i64
-  (:my::eats-polymorphic (:wat::core::Seqable/seq (wat.type/Vector :- [wat.type/i64] 1 2 3))))
+(wat.core/defn my/via-surface-method-into-polymorphic [] :- wat.type/i64
+  (my/eats-polymorphic (wat.core.Seqable/seq (wat.type/Vector :- [wat.type/i64] 1 2 3))))

@@ -3,5 +3,5 @@
 ;; Only probe 4 uses WAT; probes 1-3 and 5 are pure Rust substrate tests.
 
 ;; Probe 4: :wat::core::Record type annotation is accepted by the type checker.
-(:wat::core::defn :user::accept-record [_v <- wat.type/Record] -> wat.type/nil nil)
-(:wat::core::defn :user::probe-4 [] -> wat.type/nil nil)
+(wat.core/defn user/accept-record [_v :- wat.type/Record] :- wat.type/nil nil)
+(wat.core/defn user/probe-4 [] :- wat.type/nil nil)

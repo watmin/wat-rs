@@ -14,15 +14,15 @@
 ;; There is no computed value past "did loading this file raise" (the claim is a load-time/startup
 ;; property, same class as a --check claim), so exit 0 is the whole proof; the println is a sentinel.
 
-(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])   ;; standalone
+(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])   ;; standalone
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])   ;; SAME record, re-declared
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])   ;; SAME record, re-declared
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure :Ok [reply :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                                      :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "ok"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "ok"))

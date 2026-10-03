@@ -24,10 +24,10 @@
 
 ;; ─── Domain enum — what the trader emits as structured events ──
 
-(:wat::core::defenum :demo::Event :wat::enum::Pure
-  :Buy          [price <- wat.type/f64  qty <- wat.type/i64]
-  :Sell         [price <- wat.type/f64  qty <- wat.type/i64  reason <- wat.type/String]
-  :CircuitBreak [reason <- wat.type/String])
+(wat.core/defenum demo/Event wat.enum/Pure
+  :Buy          [price :- wat.type/f64  qty :- wat.type/i64]
+  :Sell         [price :- wat.type/f64  qty :- wat.type/i64  reason :- wat.type/String]
+  :CircuitBreak [reason :- wat.type/String])
 
 
 ;; ─── Wiring — five events, every one through ambient `println`.
@@ -51,11 +51,11 @@
 ;; call, so every emission round-trips through `:wat::edn::read`.
 ;; `:user::main` returns bare `nil` (arc 170 slice 1e entry shape).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-      [_a (:wat::kernel::println (:demo::Event.Buy {:price 100.5 :qty 7}))
-       _b (:wat::kernel::println (:demo::Event.Sell {:price 102.25 :qty 3 :reason "stop-loss"}))
-       _c (:wat::kernel::println (:demo::Event.Buy {:price 99.0 :qty 12}))
-       _d (:wat::kernel::println (:demo::Event.CircuitBreak {:reason "spike-volume"}))
-       _e (:wat::kernel::println (:demo::Event.CircuitBreak {:reason "exchange-disconnected"}))]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+      [_a (wat.kernel/println (demo/Event.Buy {:price 100.5 :qty 7}))
+       _b (wat.kernel/println (demo/Event.Sell {:price 102.25 :qty 3 :reason "stop-loss"}))
+       _c (wat.kernel/println (demo/Event.Buy {:price 99.0 :qty 12}))
+       _d (wat.kernel/println (demo/Event.CircuitBreak {:reason "spike-volume"}))
+       _e (wat.kernel/println (demo/Event.CircuitBreak {:reason "exchange-disconnected"}))]
       nil))

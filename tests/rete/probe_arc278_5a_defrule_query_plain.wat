@@ -1,38 +1,38 @@
 ;; tests/rete/probe_arc278_5a_defrule_query_plain.wat — records-only fixture (no defrule) for the
 ;; probe_arc278_5a_defrule_query probe; loaded via startup_from_file for the query-only tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
+(wat.core/defrecord weather/Temperature [celsius  :- wat.type/i64  location :- wat.type/String])
+(wat.core/defrecord weather/WindSpeed    [kph      :- wat.type/i64  location :- wat.type/String])
+(wat.core/defrecord weather/ColdAndWindy [location :- wat.type/String])
 
-(:wat::rete::defquery :weather::q-ColdAndWindy
+(wat.rete/defquery weather/q-ColdAndWindy
   :params []
-  :when [(?fact :- :weather::ColdAndWindy)])
+  :when [(?fact :- weather/ColdAndWindy)])
 
 
-(:wat::rete::defquery :weather::q-WindSpeed
+(wat.rete/defquery weather/q-WindSpeed
   :params []
-  :when [(?fact :- :weather::WindSpeed)])
+  :when [(?fact :- weather/WindSpeed)])
 
 
-(:wat::core::defn :test::compile-plain [] -> :wat::rete::Session
-  (:wat::core::let
-    [c1    (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
-     c2    (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))
-     rhs1  (:wat::core::quote (:weather::ColdAndWindy ?loc))
-     rule  (:wat::rete::Rule :name "weather::cold-and-windy" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))]
-    (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:weather::q-ColdAndWindy) (:weather::q-WindSpeed))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+(wat.core/defn test/compile-plain [] :- wat.rete/Session
+  (wat.core/let
+    [c1    (wat.core/quote (weather/Temperature (?loc :- :location) (?t :- :celsius)))
+     c2    (wat.core/quote (weather/WindSpeed (?loc :- :location) (?w :- :kph)))
+     rhs1  (wat.core/quote (weather/ColdAndWindy ?loc))
+     rule  (wat.rete/Rule :name "weather::cold-and-windy" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))]
+    (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] rule) (wat.type/PersistentVector :- [wat.rete/Query] (weather/q-ColdAndWindy) (weather/q-WindSpeed))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])))
 
-(:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::insert s (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn test/seed-oslo [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/insert s (weather/Temperature :celsius 15 :location "Oslo")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (weather/WindSpeed :kph 45 :location "Oslo")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::fired-oslo [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules (:test::seed-oslo (:test::compile-plain))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn test/fired-oslo [] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules (test/seed-oslo (test/compile-plain))) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :user::query-coldandwindy-count [] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query (:test::fired-oslo) (:weather::q-ColdAndWindy))))
+(wat.core/defn user/query-coldandwindy-count [] :- wat.type/i64
+  (wat.core/length (wat.rete/query (test/fired-oslo) (weather/q-ColdAndWindy))))
 
-(:wat::core::defn :user::query-windspeed-count [] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query (:test::fired-oslo) (:weather::q-WindSpeed))))
+(wat.core/defn user/query-windspeed-count [] :- wat.type/i64
+  (wat.core/length (wat.rete/query (test/fired-oslo) (weather/q-WindSpeed))))

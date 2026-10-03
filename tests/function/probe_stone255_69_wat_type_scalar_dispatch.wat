@@ -8,15 +8,15 @@
 ;; names (a hand-listed match arm), never for a scalar hard primitive. Fixed by
 ;; generalizing the SAME door (`canonical_type_key`) to every hard primitive a
 ;; registered intrinsic backs — no list of scalar names.
-(:wat::core::defn :user::u8-dispatches [] -> wat.type/u8
+(wat.core/defn user/u8-dispatches [] :- wat.type/u8
   (wat.type/u8 65))
 
-(:wat::core::defn :user::char-dispatches [] -> wat.type/char
+(wat.core/defn user/char-dispatches [] :- wat.type/char
   (wat.type/char "a"))
 
 ;; The five collection heads already resolved `wat.type/X` end-to-end before
 ;; this stone (SCORE-STONE-255.68); a regression guard that the generalized
 ;; door still reaches them through the SAME path (registry-membership guard,
 ;; not the old hand-listed match arm).
-(:wat::core::defn :user::vector-still-dispatches [] -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn user/vector-still-dispatches [] :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))

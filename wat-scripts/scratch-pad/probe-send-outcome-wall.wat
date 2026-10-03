@@ -21,31 +21,31 @@
 ;;
 ;; Runs to stdout: prints "PROBE-PASS: SendOutcome::Closed ..." when the far end is
 ;; gone. ::Sent or any raise is a FAIL (assertion-failed!, non-zero exit).
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
-           (:wat::kernel::assertion-failed! :message "SEND-WALL-PROBE-CRASH")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
+           (wat.kernel/assertion-failed! :message "SEND-WALL-PROBE-CRASH")))
      ;; synchronize on the worker's death: recv' blocks until EOF + the crash reason
      ;; lands on the crash channel — by the time this returns, the worker has fully
      ;; unwound and dropped its ends (deterministic, no race).
-     r1 (:wat::kernel::recv p)
-     _  (:wat::core::match r1
-          [:wat::kernel::RecvOutcome.Message {:msg _m}
-            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message")]
-          [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
-          [:wat::kernel::RecvOutcome.Stopped {}
-            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped")]
-          [:wat::kernel::RecvOutcome.Closed {}
-            (:wat::kernel::assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed")])
+     r1 (wat.kernel/recv p)
+     _  (wat.core/match r1
+          [wat.kernel/RecvOutcome.Message {:msg _m}
+            (wat.kernel/assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Message")]
+          [wat.kernel/RecvOutcome.Lost {:cause _cause} nil]
+          [wat.kernel/RecvOutcome.Stopped {}
+            (wat.kernel/assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Stopped")]
+          [wat.kernel/RecvOutcome.Closed {}
+            (wat.kernel/assertion-failed! :message "PROBE-FAIL: expected worker crash (RecvOutcome::Lost), got Closed")])
      ;; the worker is now guaranteed dead. Pre-strike this send' RAISED "send failed:
      ;; channel disconnected"; post-strike it returns a matchable SendOutcome value.
-     outcome (:wat::kernel::send p 42)]
-    (:wat::core::match outcome
-      [:wat::kernel::SendOutcome.Sent {}
-        (:wat::kernel::assertion-failed! :message "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed or Failed")]
-      [:wat::kernel::SendOutcome.HandleClosed {}
-        (:wat::kernel::println
+     outcome (wat.kernel/send p 42)]
+    (wat.core/match outcome
+      [wat.kernel/SendOutcome.Sent {}
+        (wat.kernel/assertion-failed! :message "PROBE-FAIL: got SendOutcome::Sent to a dead peer — expected Closed or Failed")]
+      [wat.kernel/SendOutcome.HandleClosed {}
+        (wat.kernel/println
           "PROBE-PASS: SendOutcome::HandleClosed (a VALUE, not a raise) after send' to a dead peer")]
       ;; arc 278 #73 judgment call (flagged, not silently decided): the design's own
       ;; framing generalizes past "Closed or Lost" — EVERY terminal send' outcome is a
@@ -53,15 +53,15 @@
       ;; requested in this probe (it only forces a worker crash), so this arm is
       ;; unreached in practice; it is accepted here on the same "a value, not a raise"
       ;; principle the other two arms assert, not re-litigated as a new PASS criterion.
-      [:wat::kernel::SendOutcome.Stopped {}
-        (:wat::kernel::println
+      [wat.kernel/SendOutcome.Stopped {}
+        (wat.kernel/println
           "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer")]
-      [:wat::kernel::SendOutcome.Closed {:cause cause}
-        (:wat::kernel::println
-          (:wat::string::concat
+      [wat.kernel/SendOutcome.Closed {:cause cause}
+        (wat.kernel/println
+          (wat.string/concat
             "PROBE-PASS: SendOutcome::Closed (a VALUE, not a raise): "
-            (:wat::kernel::Failure/message cause)))] [:wat::kernel::SendOutcome.Failed {:cause cause}
-        (:wat::kernel::println
-          (:wat::string::concat
+            (wat.kernel.Failure/message cause)))] [wat.kernel/SendOutcome.Failed {:cause cause}
+        (wat.kernel/println
+          (wat.string/concat
             "PROBE-PASS: SendOutcome::Failed (a VALUE, not a raise): "
-            (:wat::kernel::Failure/message cause)))])))
+            (wat.kernel.Failure/message cause)))])))

@@ -22,69 +22,69 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-accum-where-chain.clj
 
-(:wat::core::defn :wawc::row-count [] -> wat.type/i64 2)
+(wat.core/defn wawc/row-count [] :- wat.type/i64 2)
 
-(:wat::core::defrecord :wawc::Station [loc <- wat.type/String])
-(:wat::core::defrecord :wawc::Reading [loc <- wat.type/String v <- wat.type/i64])
-(:wat::core::defrecord :wawc::Busy    [loc <- wat.type/String n <- wat.type/i64])
+(wat.core/defrecord wawc/Station [loc :- wat.type/String])
+(wat.core/defrecord wawc/Reading [loc :- wat.type/String v :- wat.type/i64])
+(wat.core/defrecord wawc/Busy    [loc :- wat.type/String n :- wat.type/i64])
 
 ;; ROW 1 — the AGREEING CONTROL: station, accumulate, ONE where.
-(:wat::rete::defrule :wawc::one-where
-  :when [(:wawc::Station (?loc :- :loc))
-         (?n :- (:wat::rete::acc::count) :from (:wawc::Reading (?loc :- :loc)))
-         (:wat::rete::where (:wat::rete::i64::>= ?n 2))]
-  :then [(:wawc::Busy :loc ?loc :n ?n)])
+(wat.rete/defrule wawc/one-where
+  :when [(wawc/Station (?loc :- :loc))
+         (?n :- (wat.rete.acc/count) :from (wawc/Reading (?loc :- :loc)))
+         (wat.rete/where (wat.rete.i64/>= ?n 2))]
+  :then [(wawc/Busy :loc ?loc :n ?n)])
 
 ;; ROW 2 — the same rule plus ONE trailing tautology. A `:where` that is true for every token
 ;; cannot remove a match, so this must derive exactly what row 1 derives.
-(:wat::rete::defrule :wawc::two-wheres
-  :when [(:wawc::Station (?loc :- :loc))
-         (?n :- (:wat::rete::acc::count) :from (:wawc::Reading (?loc :- :loc)))
-         (:wat::rete::where (:wat::rete::i64::>= ?n 2))
-         (:wat::rete::where (:wat::rete::i64::> 1 0))]
-  :then [(:wawc::Busy :loc ?loc :n ?n)])
+(wat.rete/defrule wawc/two-wheres
+  :when [(wawc/Station (?loc :- :loc))
+         (?n :- (wat.rete.acc/count) :from (wawc/Reading (?loc :- :loc)))
+         (wat.rete/where (wat.rete.i64/>= ?n 2))
+         (wat.rete/where (wat.rete.i64/> 1 0))]
+  :then [(wawc/Busy :loc ?loc :n ?n)])
 
-(:wat::rete::defquery :wawc::q-Busy
+(wat.rete/defquery wawc/q-Busy
   :params []
-  :when [(?fact :- :wawc::Busy)])
+  :when [(?fact :- wawc/Busy)])
 
-(:wat::core::defn :wawc::sum-n [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/i64
-                     p   <- wat.type/PersistentMap]
-      -> wat.type/i64
-      (:wat::core::let [f (:wat::core::Option/expect
-                             (:wat::core::get p "?fact")
+(wat.core/defn wawc/sum-n [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/i64
+                     p   :- wat.type/PersistentMap]
+      :- wat.type/i64
+      (wat.core/let [f (wat.core.Option/expect
+                             (wat.core/get p "?fact")
                              "query: ?fact")]
-        (:wat::i64::+ acc (:wawc::Busy/n f))))
+        (wat.i64/+ acc (wawc.Busy/n f))))
     0
-    (:wat::rete::query s (:wawc::q-Busy))))
+    (wat.rete/query s (wawc/q-Busy))))
 
-(:wat::core::defn :wawc::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn wawc/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
 ;; Three Readings at MCI, so the accumulate counts 3 and the `>= 2` predicate holds. Both rows
 ;; must report n=3. Native reports 3 and 0 — the trailing tautology erases the match.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [one  (:wat::core::match (:wat::rete::compile-all
-            (wat.type/PersistentVector :- [:wat::rete::Rule] (:wawc::one-where))
-            (wat.type/PersistentVector :- [:wat::rete::Query] (:wawc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     two  (:wat::core::match (:wat::rete::compile-all
-            (wat.type/PersistentVector :- [:wat::rete::Rule] (:wawc::two-wheres))
-            (wat.type/PersistentVector :- [:wat::rete::Query] (:wawc::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     facts (:wat::core::fn [s <- :wat::rete::Session] -> :wat::rete::Session
-             (:wat::core::match (:wat::rete::insert s
-               (:wawc::Station :loc "MCI")
-               (:wawc::Reading :loc "MCI" :v 1)
-               (:wawc::Reading :loc "MCI" :v 2)
-               (:wawc::Reading :loc "MCI" :v 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))]
-    (:wawc::line 1 "one-where"
-      (:wawc::sum-n (:wat::core::match (:wat::rete::fire-rules (facts one)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:wawc::line 2 "two-wheres"
-      (:wawc::sum-n (:wat::core::match (:wat::rete::fire-rules (facts two)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [one  (wat.core/match (wat.rete/compile-all
+            (wat.type/PersistentVector :- [wat.rete/Rule] (wawc/one-where))
+            (wat.type/PersistentVector :- [wat.rete/Query] (wawc/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     two  (wat.core/match (wat.rete/compile-all
+            (wat.type/PersistentVector :- [wat.rete/Rule] (wawc/two-wheres))
+            (wat.type/PersistentVector :- [wat.rete/Query] (wawc/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     facts (wat.core/fn [s :- wat.rete/Session] :- wat.rete/Session
+             (wat.core/match (wat.rete/insert s
+               (wawc/Station :loc "MCI")
+               (wawc/Reading :loc "MCI" :v 1)
+               (wawc/Reading :loc "MCI" :v 2)
+               (wawc/Reading :loc "MCI" :v 3)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))]
+    (wawc/line 1 "one-where"
+      (wawc/sum-n (wat.core/match (wat.rete/fire-rules (facts one)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wawc/line 2 "two-wheres"
+      (wawc/sum-n (wat.core/match (wat.rete/fire-rules (facts two)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

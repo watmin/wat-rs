@@ -10,74 +10,74 @@
 ;; caller' dials echo', calls Echo/echo "hi", returns the reply string. Expect "echo:hi".
 
 ;; ── ECHO: the dialed surface + its service ──────────────────────────────────────
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- wat.type/String]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure
+     :Ok              [reply :- wat.type/String]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo
-  :satisfies :probe::Echo
+(wat.service/defservice probe/echo
+  :satisfies probe/Echo
   :durable   []
   :ephemeral []
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::Echo::EchoResponse.Ok
-         {:reply (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.Echo/EchoResponse.Ok
+         {:reply (wat.string/concat "echo:" (probe.Echo.EchoRequest/msg req))})}))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
-(:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Caller :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Caller::RunRequest  [])
-   (:wat::core::defenum :probe::Caller::RunResponse :wat::enum::Pure
-     :Ok              [out <- wat.type/String]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Caller/RunRequest  [])
+   (wat.core/defenum probe.Caller/RunResponse wat.enum/Pure
+     :Ok              [out :- wat.type/String]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(run [self <- :probe::Caller  req <- :probe::Caller::RunRequest] -> :probe::Caller::RunResponse :max-request-bytes 524288)])
+  [(run [self :- probe/Caller  req :- probe.Caller/RunRequest] :- probe.Caller/RunResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::caller
-  :satisfies :probe::Caller
+(wat.service/defservice probe/caller
+  :satisfies probe/Caller
   :durable   []
   ;; the dialed peer — a client (Peer' :- [Echo::Op Echo::Reply]), held as a ROOT ephemeral field
-  :ephemeral [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]
+  :ephemeral [echo :- (wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply])]
   ;; :init connects to echo' (its Address' crosses the fork as an operating-input cap record)
-  :init (:wat::core::fn
-          [record    <- :probe::caller::Record
-           echo-addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
-          -> :probe::caller::State
-          (:probe::caller::State :durable record :echo (:wat::core::match (:wat::kernel::connect echo-addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])))
+  :init (wat.core/fn
+          [record    :- probe.caller/Record
+           echo-addr :- (wat.kernel/Address :- [probe.Echo/Op probe.Echo/Reply])]
+          :- probe.caller/State
+          (probe.caller/State :durable record :echo (wat.core/match (wat.kernel/connect echo-addr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])))
   :impls
   [(run [s ctx req]
-     (:wat::core::let
-       [echo (:probe::caller::State/echo s)
-        er   (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg "hi"))
-        rresp (:wat::core::match er [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-                [:probe::Echo::EchoResponse.Ok {:reply reply}
-                  (:probe::Caller::RunResponse.Ok {:out reply})]
+     (wat.core/let
+       [echo (probe.caller.State/echo s)
+        er   (probe.Echo/echo echo (probe.Echo/EchoRequest :msg "hi"))
+        rresp (wat.core/match er [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+                [probe.Echo/EchoResponse.Ok {:reply reply}
+                  (probe.Caller/RunResponse.Ok {:out reply})]
                 ;; wire-breach at the echo peer propagates outward as our own op's breach.
-                [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
-                  (:probe::Caller::RunResponse.RequestTooLarge {:bytes bytes :cap cap})]
-                [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                  (:probe::Caller::RunResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
-       (:wat::service::Outcome.Reply {:state s :reply rresp})))])
+                [probe.Echo/EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
+                  (probe.Caller/RunResponse.RequestTooLarge {:bytes bytes :cap cap})]
+                [probe.Echo/EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                  (probe.Caller/RunResponse.RequestMalformed {:path mpath :expected mexpected :got mgot})])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])]
+       (wat.service/Outcome.Reply {:state s :reply rresp})))])
 
 ;; ── the crossing: start both on THREADS, dial caller', which dials echo'. Return the reply. ──
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [eh  (:probe::echo/start   :locus (:wat::spawn::thread) :record (:probe::echo::Record))
-     ea  (:probe::echo::Handle/addr eh)
-     ch  (:probe::caller/start  :locus (:wat::spawn::thread) :record (:probe::caller::Record) :echo-addr ea)
-     cc  (:wat::core::match (:wat::kernel::connect (:probe::caller::Handle/addr ch)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     rr  (:probe::Caller/run cc (:probe::Caller::RunRequest))]
-    (:wat::core::match rr [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:probe::Caller::RunResponse.Ok {:out out} out]
-      [:probe::Caller::RunResponse.RequestTooLarge {:bytes bytes :cap cap}
-        (:wat::kernel::assertion-failed! :message "compute: unexpected RequestTooLarge")]
-      [:probe::Caller::RunResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [eh  (probe.echo/start   :locus (wat.spawn/thread) :record (probe.echo/Record))
+     ea  (probe.echo.Handle/addr eh)
+     ch  (probe.caller/start  :locus (wat.spawn/thread) :record (probe.caller/Record) :echo-addr ea)
+     cc  (wat.core/match (wat.kernel/connect (probe.caller.Handle/addr ch)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     rr  (probe.Caller/run cc (probe.Caller/RunRequest))]
+    (wat.core/match rr [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [probe.Caller/RunResponse.Ok {:out out} out]
+      [probe.Caller/RunResponse.RequestTooLarge {:bytes bytes :cap cap}
+        (wat.kernel/assertion-failed! :message "compute: unexpected RequestTooLarge")]
+      [probe.Caller/RunResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

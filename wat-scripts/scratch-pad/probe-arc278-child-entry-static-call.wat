@@ -23,25 +23,25 @@
 ;; also prints the full declared-name set and its size: a reader can see the walk produced a
 ;; real closure, not an empty vector that trivially "contains" nothing.
 
-(:wat::core::defsurface :probe::CE :nature :wat::kernel::Peer
+(wat.core/defsurface probe/CE :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::CE::PingRequest [])
-   (:wat::core::defenum :probe::CE::PingResponse :wat::enum::Pure
-     :Ok               [ok <- wat.type/bool]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.CE/PingRequest [])
+   (wat.core/defenum probe.CE/PingResponse wat.enum/Pure
+     :Ok               [ok :- wat.type/bool]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(ping [self <- :probe::CE  req <- :probe::CE::PingRequest] -> :probe::CE::PingResponse :max-request-bytes 524288)])
+  [(ping [self :- probe/CE  req :- probe.CE/PingRequest] :- probe.CE/PingResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::ce
-  :satisfies :probe::CE
-  :durable   [n <- wat.type/i64]
+(wat.service/defservice probe/ce
+  :satisfies probe/CE
+  :durable   [n :- wat.type/i64]
   :ephemeral []
-  :init (:wat::core::fn [record <- :probe::ce::Record] -> :probe::ce::State
-          (:probe::ce::State :durable record))
+  :init (wat.core/fn [record :- probe.ce/Record] :- probe.ce/State
+          (probe.ce/State :durable record))
   :impls
   [(ping [s ctx req]
-     (:wat::service::Outcome.Reply {:state s :reply (:probe::CE::PingResponse.Ok {:ok true})}))])
+     (wat.service/Outcome.Reply {:state s :reply (probe.CE/PingResponse.Ok {:ok true})}))])
 
 ;; ── CLAIM A — the STATIC call, with a wire-safe `Peer'` in the `self` slot ────────────────────
 ;; This is the shape `<fqdn>::child-entry` will have. Every argument is spelled exactly as the
@@ -53,52 +53,52 @@
 ;; edge. Flip either head and this file goes red, which is the disconfirmation.
 ;; Mirrors the generated child main's real flow — dispatch-admin THEN serve — so the closure
 ;; walk below is rooted at something with the same callee set the strike will have.
-(:wat::core::defn :probe::ce::child-entry-shape
-  [self <- (:wat::kernel::Peer :- [:probe::ce::Status :probe::ce::Admin])
-   l    <- (:wat::kernel::Listener :- [:probe::CE::Op :probe::CE::Reply])
-   ship <- :probe::ce::Admin]
-  -> wat.type/nil
-  (:wat::core::let
-    [state (:probe::ce::dispatch-admin ship)]
-  (:probe::ce::serve self l
+(wat.core/defn probe.ce/child-entry-shape
+  [self :- (wat.kernel/Peer :- [probe.ce/Status probe.ce/Admin])
+   l    :- (wat.kernel/Listener :- [probe.CE/Op probe.CE/Reply])
+   ship :- probe.ce/Admin]
+  :- wat.type/nil
+  (wat.core/let
+    [state (probe.ce/dispatch-admin ship)]
+  (probe.ce/serve self l
     ;; the selectables slot: `(Vector :- [(Tuple :- [i64 (Peer :- [Reply Op])])])` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
-    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])])])
+    (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 (wat.kernel/Peer :- [probe.CE/Reply probe.ce/Op])])])
     0
     state)))
 
 ;; ── CLAIM B — does a closure walk rooted HERE reach the service internals? ────────────────────
-(:wat::core::defn :user::declared-names
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   i     <- wat.type/i64
-   acc   <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
+(wat.core/defn user/declared-names
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   i     :- wat.type/i64
+   acc   :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.i64/>= i (wat.core/length forms))
     acc
-    (:wat::core::let
-      [form (:wat::core::nth forms i)
-       ch   (:wat::core::ast->children form)
-       head (:wat::core::ast-name (:wat::core::first ch))
-       nm   (:wat::core::if (:wat::core::= head ":wat::core::do")
-              (:wat::core::ast-name
-                (:wat::core::first (:wat::core::rest (:wat::core::ast->children
-                  (:wat::core::first (:wat::core::rest ch))))))
-              (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch))))]
-      (:user::declared-names forms (:wat::i64::+ i 1) (:wat::core::conj acc nm)))))
+    (wat.core/let
+      [form (wat.core/nth forms i)
+       ch   (wat.core/ast->children form)
+       head (wat.core/ast-name (wat.core/first ch))
+       nm   (wat.core/if (wat.core/= head ":wat::core::do")
+              (wat.core/ast-name
+                (wat.core/first (wat.core/rest (wat.core/ast->children
+                  (wat.core/first (wat.core/rest ch))))))
+              (wat.core/ast-name (wat.core/first (wat.core/rest ch))))]
+      (user/declared-names forms (wat.i64/+ i 1) (wat.core/conj acc nm)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [forms (:wat::kernel::fn-forms :probe::ce::child-entry-shape :user::root-entry)
-     names (:user::declared-names forms 0 (wat.type/Vector :- [wat.type/String]))
-     _n    (:wat::kernel::println
-             (:wat::string::concat "closure forms="
-               (:wat::i64::to-string (:wat::core::length forms))))
-     _d    (:wat::kernel::println names)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [forms (wat.kernel/fn-forms probe.ce/child-entry-shape user/root-entry)
+     names (user/declared-names forms 0 (wat.type/Vector :- [wat.type/String]))
+     _n    (wat.kernel/println
+             (wat.string/concat "closure forms="
+               (wat.i64/to-string (wat.core/length forms))))
+     _d    (wat.kernel/println names)
      ;; CLAIM B, asserted by membership — with the full set printed above so an empty walk
      ;; cannot masquerade as a pass.
-     hit-s (:wat::fix::str-in? ":probe::ce::serve" names)
-     hit-d (:wat::fix::str-in? ":probe::ce::dispatch-admin" names)]
-    (:wat::core::if (:wat::core::and hit-s hit-d)
-      (:wat::kernel::println "CLAIM-B PASS — the walk reaches serve AND dispatch-admin")
-      (:wat::kernel::println "CLAIM-B FAIL — the walk does NOT reach both; read the name set above"))))
+     hit-s (wat.fix/str-in? ":probe::ce::serve" names)
+     hit-d (wat.fix/str-in? ":probe::ce::dispatch-admin" names)]
+    (wat.core/if (wat.core/and hit-s hit-d)
+      (wat.kernel/println "CLAIM-B PASS — the walk reaches serve AND dispatch-admin")
+      (wat.kernel/println "CLAIM-B FAIL — the walk does NOT reach both; read the name set above"))))

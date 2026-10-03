@@ -78,37 +78,37 @@
 ;; :wat-tests::holon::Reject/project-bundle-or-fail -> :wat-tests::holon::Reject::project-bundle-or-fail
 ;; Neither parent is a registered type, so `/` respells to `::`.
 
-(:wat::core::defn :user::rename-all
-  [src <- wat.type/String
-   pairs <- (wat.type/Vector :- [(wat.type/Vector :- [wat.type/String])])]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::empty? pairs)
+(wat.core/defn user/rename-all
+  [src :- wat.type/String
+   pairs :- (wat.type/Vector :- [(wat.type/Vector :- [wat.type/String])])]
+  :- wat.type/String
+  (wat.core/if (wat.core/empty? pairs)
     src
-    (:wat::core::let
-      [pair (:wat::core::first pairs)
-       old  (:wat::core::Option/expect (:wat::core::get pair 0) "pair 0")
-       new  (:wat::core::Option/expect (:wat::core::get pair 1) "pair 1")
-       next (:wat::fix::rename-keyword-exact old new src)]
-      (:user::rename-all next (:wat::core::rest pairs)))))
+    (wat.core/let
+      [pair (wat.core/first pairs)
+       old  (wat.core.Option/expect (wat.core/get pair 0) "pair 0")
+       new  (wat.core.Option/expect (wat.core/get pair 1) "pair 1")
+       next (wat.fix/rename-keyword-exact old new src)]
+      (user/rename-all next (wat.core/rest pairs)))))
 
-(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/rewrite-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::rename-all
-            (:wat::io::read-file path)
-            (:wat::edn::read (:wat::io::read-file "wat-scripts/fixes/one-name-per-operation.edn"))))
-        (:wat::kernel::println (:wat::string::concat "[one-name] " path))
-        (:user::rewrite-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/rename-all
+            (wat.io/read-file path)
+            (wat.edn/read (wat.io/read-file "wat-scripts/fixes/one-name-per-operation.edn"))))
+        (wat.kernel/println (wat.string/concat "[one-name] " path))
+        (user/rewrite-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-             [:wat::kernel::ReadlnOutcome.Eof {}
-               (:wat::kernel::assertion-failed! :message "readln: end of input")]
-             [:wat::kernel::ReadlnOutcome.Stopped {}
-               (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::rewrite-each paths)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [paths (wat.core/match (wat.kernel/readln)
+             [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+             [wat.kernel/ReadlnOutcome.Eof {}
+               (wat.kernel/assertion-failed! :message "readln: end of input")]
+             [wat.kernel/ReadlnOutcome.Stopped {}
+               (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+    (user/rewrite-each paths)))

@@ -32,70 +32,70 @@
 ;; Usage (ONE EDN vector of EVERY path on stdin):
 ;;   printf '[…EVERY path…]\n' | ./target/release/wat ./wat-scripts/fixes/locus-methods-on-the-waist.wat
 
-(:wat::core::typealias :user::Edits (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
+(wat.core/typealias user/Edits (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::no-edits [] -> :user::Edits
+(wat.core/defn user/no-edits [] :- user/Edits
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
 ;; string-edits — for a STRING leaf whose value EQUALS old, one whole-token replace edit on the
 ;; quoted literal (the span starts at the opening quote). Structural nodes recurse.
-(:wat::core::defn :user::string-edits
-  [node  <- wat.type/AST
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> :user::Edits
-  (:wat::core::if (:wat::fix::structural? node)
-    (:user::string-edits-walk (:wat::core::ast->children node) old new lines)
-    (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "string")
-                      (:wat::core::= (:wat::core::ast-name node) old)
+(wat.core/defn user/string-edits
+  [node  :- wat.type/AST
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- user/Edits
+  (wat.core/if (wat.fix/structural? node)
+    (user/string-edits-walk (wat.core/ast->children node) old new lines)
+    (wat.core/if (wat.core/if (wat.core/= (wat.core/ast-kind node) "string")
+                      (wat.core/= (wat.core/ast-name node) old)
                       false)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-          (:wat::string::concat "\"" (:wat::string::concat old "\""))
-          (:wat::string::concat "\"" (:wat::string::concat new "\""))))
-      (:user::no-edits))))
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)
+          (wat.string/concat "\"" (wat.string/concat old "\""))
+          (wat.string/concat "\"" (wat.string/concat new "\""))))
+      (user/no-edits))))
 
-(:wat::core::defn :user::string-edits-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> :user::Edits
-  (:wat::core::if (:wat::core::empty? items)
-    (:user::no-edits)
-    (:wat::core::concat
-      (:user::string-edits (:wat::core::first items) old new lines)
-      (:user::string-edits-walk (:wat::core::rest items) old new lines))))
+(wat.core/defn user/string-edits-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- user/Edits
+  (wat.core/if (wat.core/empty? items)
+    (user/no-edits)
+    (wat.core/concat
+      (user/string-edits (wat.core/first items) old new lines)
+      (user/string-edits-walk (wat.core/rest items) old new lines))))
 
-(:wat::core::defn :user::rename-string-exact
-  [old <- wat.type/String
-   new <- wat.type/String
-   src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines (:wat::string::split src "\n")
-                    tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    edits (:user::string-edits-walk (:wat::core::ast->children tree) old new lines)]
-    (:wat::fix::fix-text-apply src (:wat::core::reverse edits))))
+(wat.core/defn user/rename-string-exact
+  [old :- wat.type/String
+   new :- wat.type/String
+   src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines (wat.string/split src "\n")
+                    tree  (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    edits (user/string-edits-walk (wat.core/ast->children tree) old new lines)]
+    (wat.fix/fix-text-apply src (wat.core/reverse edits))))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:user::rename-string-exact ":wat::spawn::with-label" ":wat::spawn::Locus/with-label"
-    (:wat::fix::rename-keyword-exact ":wat::spawn::runner-count" ":wat::spawn::Locus/runner-count"
-      (:wat::fix::rename-keyword-exact ":wat::spawn::with-label" ":wat::spawn::Locus/with-label"
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (user/rename-string-exact ":wat::spawn::with-label" ":wat::spawn::Locus/with-label"
+    (wat.fix/rename-keyword-exact ":wat::spawn::runner-count" ":wat::spawn::Locus/runner-count"
+      (wat.fix/rename-keyword-exact ":wat::spawn::with-label" ":wat::spawn::Locus/with-label"
         src))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[locus-methods-on-the-waist] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[locus-methods-on-the-waist] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

@@ -16,63 +16,63 @@
 ;; ── the surface (the counter protocol, lifted) ───────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::RespCounter :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/RespCounter :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::RespCounter::IncrementRequest  [n <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::RespCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.RespCounter/IncrementRequest  [n :- wat.type/i64])
+   (wat.core/defenum wat-tests.RespCounter/IncrementResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse :max-request-bytes 524288)])
+  [(increment [self :- wat-tests/RespCounter  req :- wat-tests.RespCounter/IncrementRequest] :- wat-tests.RespCounter/IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; :stop projects State → i64 (the count) ──
-(:wat::service::defservice :wat-tests::resp-counter
-  :satisfies :wat-tests::RespCounter
-  :durable [count <- wat.type/i64]
+(wat.service/defservice wat-tests/resp-counter
+  :satisfies wat-tests/RespCounter
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]
-     (:wat::core::let [c (:wat::i64::+
-                           (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))
-                           (:wat-tests::RespCounter::IncrementRequest/n req))]
-       (:wat::service::Outcome.Reply
-         {:state (:wat-tests::resp-counter::State :durable (:wat-tests::resp-counter::Record :count c))
-         :reply (:wat-tests::RespCounter::IncrementResponse.Ok {:value c})})))  ]
+     (wat.core/let [c (wat.i64/+
+                           (wat-tests.resp-counter.Record/count (wat-tests.resp-counter.State/durable s))
+                           (wat-tests.RespCounter.IncrementRequest/n req))]
+       (wat.service/Outcome.Reply
+         {:state (wat-tests.resp-counter/State :durable (wat-tests.resp-counter/Record :count c))
+         :reply (wat-tests.RespCounter/IncrementResponse.Ok {:value c})})))  ]
   ;; :stop — the projection: final State → its count (an i64). The stop RETURN is this i64,
   ;; decoupled from the ::Record. Read count through State/durable.
-  :stop (:wat::core::fn [s <- :wat-tests::resp-counter::State] -> wat.type/i64
-          (:wat-tests::resp-counter::Record/count (:wat-tests::resp-counter::State/durable s))))
+  :stop (wat.core/fn [s :- wat-tests.resp-counter/State] :- wat.type/i64
+          (wat-tests.resp-counter.Record/count (wat-tests.resp-counter.State/durable s))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; Increment to 7; the Handle-holder stops; stop returns the PROJECTED i64 (7), not a Record.
-(:wat::test::deftest :wat-tests::service::stop-resp-on-thread
+(wat.test/deftest wat-tests.service/stop-resp-on-thread
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::resp-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _ (:wat::core::match (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       final (:wat-tests::resp-counter/stop h)]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.resp-counter/start :locus (wat.spawn/thread) :record (wat-tests.resp-counter/Record :count 0))
+       c (wat.core/match (wat.kernel/connect (wat-tests.resp-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _ (wat.core/match (wat-tests.RespCounter/increment c (wat-tests.RespCounter/IncrementRequest :n 7))
+           [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+           [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+           [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       final (wat-tests.resp-counter/stop h)]
       final)
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::deftest :wat-tests::service::stop-resp-on-process
+(wat.test/deftest wat-tests.service/stop-resp-on-process
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::resp-counter/start :locus (:wat::spawn::process) :record (:wat-tests::resp-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::resp-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _ (:wat::core::match (:wat-tests::RespCounter/increment c (:wat-tests::RespCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       final (:wat-tests::resp-counter/stop h)]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.resp-counter/start :locus (wat.spawn/process) :record (wat-tests.resp-counter/Record :count 0))
+       c (wat.core/match (wat.kernel/connect (wat-tests.resp-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _ (wat.core/match (wat-tests.RespCounter/increment c (wat-tests.RespCounter/IncrementRequest :n 7))
+           [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+           [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+           [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       final (wat-tests.resp-counter/stop h)]
       final)
     7))

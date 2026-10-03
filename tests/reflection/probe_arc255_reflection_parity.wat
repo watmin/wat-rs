@@ -9,11 +9,11 @@
 
 ;; metadata-of on a rust builtin (:wat::i64::+) — RED at HEAD returns None
 ;; (builtins registered nowhere); GREEN after arc 255.1 returns Some(baseline).
-(:wat::core::defn :user::builtin-metadata []
-  -> (:wat::core::Option :- [(wat.type/HashMap :- [wat.type/keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::i64::+))
+(wat.core/defn user/builtin-metadata []
+  :- (wat.core/Option :- [(wat.type/HashMap :- [wat.type/keyword wat.holon/HolonAST])])
+  (wat.runtime/metadata-of wat.i64/+))
 
 ;; metadata-of on the Bytes::to-hex intrinsic — the full map, for the diagnostic dump.
-(:wat::core::defn :user::to-hex-metadata []
-  -> (:wat::core::Option :- [(wat.type/HashMap :- [wat.type/keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::bytes::to-hex))
+(wat.core/defn user/to-hex-metadata []
+  :- (wat.core/Option :- [(wat.type/HashMap :- [wat.type/keyword wat.holon/HolonAST])])
+  (wat.runtime/metadata-of wat.bytes/to-hex))

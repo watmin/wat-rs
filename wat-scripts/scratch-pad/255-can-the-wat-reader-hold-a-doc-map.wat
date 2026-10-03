@@ -11,25 +11,25 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defn :p::kind [src <- wat.type/String] -> wat.type/String
-  (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome.Forms {:forms fs}
-      (:wat::core::ast-kind (:wat::core::first fs))]
-    [:wat::core::ReadOutcome.Malformed {:cause c}
-      (:wat::string::concat "MALFORMED: " (:wat::core::Error/message c))]))
+(wat.core/defn p/kind [src :- wat.type/String] :- wat.type/String
+  (wat.core/match (wat.core/read-string src)
+    [wat.core/ReadOutcome.Forms {:forms fs}
+      (wat.core/ast-kind (wat.core/first fs))]
+    [wat.core/ReadOutcome.Malformed {:cause c}
+      (wat.string/concat "MALFORMED: " (wat.core.Error/message c))]))
 
-(:wat::core::defn :p::try [label <- wat.type/String src <- wat.type/String] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat (:wat::string::concat label "  -> ") (:p::kind src))))
+(wat.core/defn p/try [label :- wat.type/String src :- wat.type/String] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat (wat.string/concat label "  -> ") (p/kind src))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:p::try "map with :: keywords "
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (p/try "map with :: keywords "
       "{:purity :wat::runtime::Purity::Pure :added \"1.0.0\"}")
-    (:p::try "map with :ret vector  "
+    (p/try "map with :ret vector  "
       "{:ret [:wat::core::Vector \"a new vector\"]}")
-    (:p::try "map with :examples    "
+    (p/try "map with :examples    "
       "{:examples [[\"(:wat::core::sort [3 1 2])\" \"[1 2 3]\"]]}")
-    (:p::try "TAGGED #wat.doc/Row   "
+    (p/try "TAGGED #wat.doc/Row   "
       "#wat.doc/Row {:added \"1.0.0\"}")
-    (:wat::kernel::println ""))) 
+    (wat.kernel/println ""))) 

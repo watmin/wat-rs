@@ -9,28 +9,28 @@
 ;; compares structure, skipping span) against a node built by `:wat::core::keyword-node`, never
 ;; by extracting the node's name via `ast-name` and comparing that STRING (coordinator
 ;; correction, 255.76 weigh: "measuring strings is anti-wat").
-(:wat::core::defstruct :probe::Bag [n <- wat.type/String])
-(:wat::core::defn :probe::hand
-  [item <- wat.type/String  bag <- :probe::Bag] -> wat.type/String
-  (:wat::core::let [x (:probe::Bag/n bag)] (:wat::string::concat x item)))
-(:wat::core::defn :probe::work
-  [item <- wat.type/String  & [n <- wat.type/String]] -> wat.type/String
-  (:wat::string::concat n item))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [_  (:wat::kernel::println "--- fn-forms HAND-WRITTEN ---")
-     hf (:wat::kernel::fn-forms :probe::hand :test::hand)
-     _  (:wat::kernel::println "hand: ok")
-     _  (:wat::kernel::println "--- fn-forms KWARGS impl ---")
-     kf (:wat::kernel::fn-forms :probe::work$impl :test::work)
-     _  (:wat::kernel::println "work impl: ok")
-     hf-last    (:wat::core::Option/expect (:wat::core::last hf) "no last")
-     kf-last    (:wat::core::Option/expect (:wat::core::last kf) "no last")
-     hf-name-node (:wat::core::nth (:wat::core::ast->children hf-last) 1)
-     kf-name-node (:wat::core::nth (:wat::core::ast->children kf-last) 1)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::length hf) 5)
-      (:wat::test::assert-eq (:wat::core::length kf) 5)
-      (:wat::test::assert-eq hf-name-node (:wat::core::keyword-node ":test::hand"))
-      (:wat::test::assert-eq kf-name-node (:wat::core::keyword-node ":test::work"))
-      (:wat::kernel::println "both ok"))))
+(wat.core/defstruct probe/Bag [n :- wat.type/String])
+(wat.core/defn probe/hand
+  [item :- wat.type/String  bag :- probe/Bag] :- wat.type/String
+  (wat.core/let [x (probe.Bag/n bag)] (wat.string/concat x item)))
+(wat.core/defn probe/work
+  [item :- wat.type/String  & [n :- wat.type/String]] :- wat.type/String
+  (wat.string/concat n item))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [_  (wat.kernel/println "--- fn-forms HAND-WRITTEN ---")
+     hf (wat.kernel/fn-forms probe/hand test/hand)
+     _  (wat.kernel/println "hand: ok")
+     _  (wat.kernel/println "--- fn-forms KWARGS impl ---")
+     kf (wat.kernel/fn-forms probe/work$impl test/work)
+     _  (wat.kernel/println "work impl: ok")
+     hf-last    (wat.core.Option/expect (wat.core/last hf) "no last")
+     kf-last    (wat.core.Option/expect (wat.core/last kf) "no last")
+     hf-name-node (wat.core/nth (wat.core/ast->children hf-last) 1)
+     kf-name-node (wat.core/nth (wat.core/ast->children kf-last) 1)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/length hf) 5)
+      (wat.test/assert-eq (wat.core/length kf) 5)
+      (wat.test/assert-eq hf-name-node (wat.core/keyword-node ":test::hand"))
+      (wat.test/assert-eq kf-name-node (wat.core/keyword-node ":test::work"))
+      (wat.kernel/println "both ok"))))

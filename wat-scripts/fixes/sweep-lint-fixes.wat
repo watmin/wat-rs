@@ -16,26 +16,26 @@
 ;;
 ;; Comment-faithful + idempotent (re-running after a clean sweep yields zero `[fixed]`).
 
-(:wat::core::defn :user::sweep-file
-  [path <- wat.type/String] -> wat.type/nil
-  (:wat::core::let [src   (:wat::io::read-file path)
-                    fixed (:wat::lint::lint-fix-file (:wat::source::File :path path :source src))]
-    (:wat::core::if (:wat::core::= src fixed)
+(wat.core/defn user/sweep-file
+  [path :- wat.type/String] :- wat.type/nil
+  (wat.core/let [src   (wat.io/read-file path)
+                    fixed (wat.lint/lint-fix-file (wat.source/File :path path :source src))]
+    (wat.core/if (wat.core/= src fixed)
       nil
-      (:wat::core::do
-        (:wat::io::write-file path fixed)
-        (:wat::kernel::println (:wat::string::concat "[fixed] " path))
+      (wat.core/do
+        (wat.io/write-file path fixed)
+        (wat.kernel/println (wat.string/concat "[fixed] " path))
         nil))))
 
-(:wat::core::defn :user::sweep-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/sweep-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:user::sweep-file path)
-        (:user::sweep-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (user/sweep-file path)
+        (user/sweep-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::sweep-each
-    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/sweep-each
+    (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

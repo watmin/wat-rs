@@ -31,31 +31,31 @@
 ;;   STEP 3a (eval-ast!, the ambient world)  → Err `unknown function: :usr::f`
 ;;   STEP 3b (eval-with-defs!, the supplied world) → Evaluated [7]
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; STEP 1 — a REPL turn's worth of input: one definition line, held as pure data.
      ;; `read-string` returns the ONE wrapping form; `ast->children` is the def vector.
-     defs (:wat::core::ast->children
-            (:wat::core::match (:wat::core::read-string "(:wat::core::defn :usr::f [] -> :wat::core::i64 7)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
+     defs (wat.core/ast->children
+            (wat.core/match (wat.core/read-string "(:wat::core::defn :usr::f [] -> :wat::core::i64 7)") [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))
 
      ;; STEP 2 — and a second line that CALLS it. Also just data.
-     expr (:wat::core::first (:wat::core::match (:wat::core::read-string "(:usr::f)") [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))]
+     expr (wat.core/first (wat.core/match (wat.core/read-string "(:usr::f)") [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))]
 
-    (:wat::core::do
+    (wat.core/do
       ;; GREEN — the definition set is real, held, and countable.
-      (:wat::kernel::println "STEP-1-defs-held")
-      (:wat::kernel::println (:wat::core::length defs))
+      (wat.kernel/println "STEP-1-defs-held")
+      (wat.kernel/println (wat.core/length defs))
 
       ;; GREEN — the expression is a form.
-      (:wat::kernel::println "STEP-2-expr-held")
-      (:wat::kernel::println (:wat::core::ast-kind expr))
+      (wat.kernel/println "STEP-2-expr-held")
+      (wat.kernel/println (wat.core/ast-kind expr))
 
       ;; STEP 3a — the AMBIENT eval still cannot see the definition, and never could:
       ;; `eval-ast!` reaches `run_constrained(ast, env, sym)` with the call site's own
       ;; `sym`, and `defs` is a vector of forms, not a world.
-      (:wat::kernel::println "STEP-3a-ambient-eval")
-      (:wat::kernel::println (:wat::eval-ast! expr))
+      (wat.kernel/println "STEP-3a-ambient-eval")
+      (wat.kernel/println (wat/eval-ast! expr))
 
       ;; STEP 3b — the same expression, with the world supplied. This is the stone.
-      (:wat::kernel::println "STEP-3b-eval-with-defs")
-      (:wat::kernel::println (:wat::eval-with-defs! expr defs)))))
+      (wat.kernel/println "STEP-3b-eval-with-defs")
+      (wat.kernel/println (wat/eval-with-defs! expr defs)))))

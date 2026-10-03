@@ -15,24 +15,24 @@
 ;;   only path, and this probe refuses to take it.
 ;;   Post-stone: GREEN — the raised Fault survives as a structured record, read straight off the Failure.
 
-(:wat::core::defn :my::failure-error-is-structured [] -> (:wat::core::Option :- [wat.type/String])
-  (:wat::core::let
+(wat.core/defn my/failure-error-is-structured [] :- (wat.core/Option :- [wat.type/String])
+  (wat.core/let
     [p
-      (:wat::test::spawn-peer (:wat::spawn::process)
-        (:wat::core::forms
-          (:wat::core::defn :user::main [] -> wat.type/nil
-            (:wat::kernel::raise! (:wat::core::Fault/of "structured-error-data")))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} :wat::core::Option.None]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Panic {:message _message :failure failure}
-            (:wat::core::match failure
+      (wat.test/spawn-peer (wat.spawn/process)
+        (wat.core/forms
+          (wat.core/defn user/main [] :- wat.type/nil
+            (wat.kernel/raise! (wat.core.Fault/of "structured-error-data")))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} wat.core/Option.None]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/match cause
+          [wat.kernel/LociDiedError.Panic {:message _message :failure failure}
+            (wat.core/match failure
               ;; THE GATE: read the raised Error STRUCTURALLY off the Failure — no string re-parse.
-              [:wat::core::Option.Some {:value f}
-               (:wat::core::Option.Some
-                 {:value (:wat::core::Fault/message (:wat::kernel::Failure/error f))})]
-              [:wat::core::Option.None {} :wat::core::Option.None])]
-          [_ :wat::core::Option.None])]
-      [:wat::kernel::RecvOutcome.Stopped {} :wat::core::Option.None]
-      [:wat::kernel::RecvOutcome.Closed {} :wat::core::Option.None])))
+              [wat.core/Option.Some {:value f}
+               (wat.core/Option.Some
+                 {:value (wat.core.Fault/message (wat.kernel.Failure/error f))})]
+              [wat.core/Option.None {} wat.core/Option.None])]
+          [_ wat.core/Option.None])]
+      [wat.kernel/RecvOutcome.Stopped {} wat.core/Option.None]
+      [wat.kernel/RecvOutcome.Closed {} wat.core/Option.None])))

@@ -4,26 +4,26 @@
 ;; (`MAX_IMPORT_NODES`), which is checked on the DECLARED length before any node is unpacked. The
 ;; program itself is deliberately the smallest one that produces a real Export.
 
-(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
+(wat.core/defrecord ia/Temp [c :- wat.type/i64])
+(wat.core/defrecord ia/Hit [c :- wat.type/i64])
 
-(:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
+(wat.rete/defquery ia/q-Hit :params [] :when [(?fact :- ia/Hit)])
 
-(:wat::rete::defrule :ia::cool
-  :when [(:ia::Temp (?c :- :c))
-         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
-  :then [(:ia::Hit ?c)])
+(wat.rete/defrule ia/cool
+  :when [(ia/Temp (?c :- :c))
+         (wat.rete/where (wat.rete.i64/< ?c 20))]
+  :then [(ia/Hit ?c)])
 
-(:wat::core::defn :ia::compiled [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all
-      (wat.type/PersistentVector :- [:wat::rete::Rule] (:ia::cool))
-      (wat.type/PersistentVector :- [:wat::rete::Query] (:ia::q-Hit)))
-    [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-      (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn ia/compiled [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all
+      (wat.type/PersistentVector :- [wat.rete/Rule] (ia/cool))
+      (wat.type/PersistentVector :- [wat.rete/Query] (ia/q-Hit)))
+    [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+      (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::an-export [] -> :wat::rete::Export
-  (:wat::rete::export (:ia::compiled)))
+(wat.core/defn user/an-export [] :- wat.rete/Export
+  (wat.rete/export (ia/compiled)))
 
-(:wat::core::defn :user::import-one [e <- :wat::rete::Export] -> :wat::rete::Session
-  (:wat::rete::import e))
+(wat.core/defn user/import-one [e :- wat.rete/Export] :- wat.rete/Session
+  (wat.rete/import e))

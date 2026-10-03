@@ -50,16 +50,16 @@
 ;; reader checks against its own — the acks already make a LOST frame impossible,
 ;; so this catches the other direction: a sender that thinks it sent more than it
 ;; did.
-(:wat::core::defenum :proto::Frame :wat::enum::Pure
-  :Chunk       [text  <- wat.type/String]
-  :SectionDone [count <- wat.type/i64])
+(wat.core/defenum proto/Frame wat.enum/Pure
+  :Chunk       [text  :- wat.type/String]
+  :SectionDone [count :- wat.type/i64])
 
 ;; The ack is a value, not a convention. `Got` says "this frame decoded and I
 ;; accepted it"; `SectionAck` closes the section with the count the reader saw, so
 ;; a mismatch is visible to the SENDER rather than only to us.
-(:wat::core::defenum :proto::Ack :wat::enum::Pure
-  :Got        [n     <- wat.type/i64]
-  :SectionAck [count <- wat.type/i64])
+(wat.core/defenum proto/Ack wat.enum/Pure
+  :Got        [n     :- wat.type/i64]
+  :SectionAck [count :- wat.type/i64])
 
 ;; ── The reader — one section ──────────────────────────────────────────────────
 ;;
@@ -79,30 +79,30 @@
 ;; truncated read as a complete one. That is a real protocol violation, so
 ;; dying here — loudly, and naming which of the two ways the stream went
 ;; missing — is the correct behaviour.
-(:wat::core::defn :proto::read-section
-  [acc <- wat.type/String
-   n   <- wat.type/i64]
-  -> wat.type/String
-  (:wat::core::match
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "stream-protocol: section truncated — stream ended before a SectionDone marker")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "stream-protocol: section truncated — stop requested before a SectionDone marker")])
+(wat.core/defn proto/read-section
+  [acc :- wat.type/String
+   n   :- wat.type/i64]
+  :- wat.type/String
+  (wat.core/match
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "stream-protocol: section truncated — stream ended before a SectionDone marker")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "stream-protocol: section truncated — stop requested before a SectionDone marker")])
 
     ;; A payload frame: accept it, ack it, keep going.
-    [:proto::Frame.Chunk {:text text}
-      (:wat::core::do
-        (:wat::kernel::println (:proto::Ack.Got {:n n}))
-        (:proto::read-section (:wat::string::concat acc text)
-                              (:wat::i64::+ n 1)))]
+    [proto/Frame.Chunk {:text text}
+      (wat.core/do
+        (wat.kernel/println (proto/Ack.Got {:n n}))
+        (proto/read-section (wat.string/concat acc text)
+                              (wat.i64/+ n 1)))]
 
     ;; The marker: the section is closed. Ack with OUR count — if it disagrees
     ;; with the sender's, the sender is the one who can act on it.
-    [:proto::Frame.SectionDone {:count _count}
-      (:wat::core::do
-        (:wat::kernel::println (:proto::Ack.SectionAck {:count n}))
+    [proto/Frame.SectionDone {:count _count}
+      (wat.core/do
+        (wat.kernel/println (proto/Ack.SectionAck {:count n}))
         acc)]))
 
 ;; ── The program ───────────────────────────────────────────────────────────────
@@ -114,9 +114,9 @@
 ;;
 ;; Everything after the last marker is ordinary program work. That is the handover,
 ;; and it is the same boundary the substrate crossed to reach `:user::main`.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [header  (:proto::read-section "" 0)
-     body    (:proto::read-section "" 0)]
-    (:wat::kernel::println (:wat::string::length header))
-    (:wat::kernel::println (:wat::string::length body))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [header  (proto/read-section "" 0)
+     body    (proto/read-section "" 0)]
+    (wat.kernel/println (wat.string/length header))
+    (wat.kernel/println (wat.string/length body))))

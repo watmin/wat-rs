@@ -14,16 +14,16 @@
 ;;
 ;; DRIVE IT: edit `n` per size, run each under `/usr/bin/time -f 'maxRSS=%M KB'`.
 
-(:wat::core::defn :probe::counter
-  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::stream::cons i (:probe::counter (:wat::core::+ i 1)))))
+(wat.core/defn probe/counter
+  [i :- wat.type/i64] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.stream/cons i (probe/counter (wat.core/+ i 1)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n 100000
-     f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-         (:wat::core::if (:wat::core::= x (:wat::core::- n 1))
-           (:wat::core::do (:wat::kernel::println x) x)
+     f (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+         (wat.core/if (wat.core/= x (wat.core/- n 1))
+           (wat.core/do (wat.kernel/println x) x)
            x))]
-    (:wat::core::dorun (:wat::core::map f (:wat::core::take (:probe::counter 0) n)))))
+    (wat.core/dorun (wat.core/map f (wat.core/take (probe/counter 0) n)))))

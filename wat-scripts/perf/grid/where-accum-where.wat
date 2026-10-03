@@ -4,79 +4,79 @@
 ;;   max > 40   → Busy.  max ≤ 40 → not.
 ;; max-not-below (token-var in :not) is where-not-bound, not this family.
 
-(:wat::core::defrecord :waw::Station [loc <- wat.type/String])
-(:wat::core::defrecord :waw::Reading [loc <- wat.type/String v <- wat.type/i64])
-(:wat::core::defrecord :waw::Busy    [loc <- wat.type/String n <- wat.type/i64])
+(wat.core/defrecord waw/Station [loc :- wat.type/String])
+(wat.core/defrecord waw/Reading [loc :- wat.type/String v :- wat.type/i64])
+(wat.core/defrecord waw/Busy    [loc :- wat.type/String n :- wat.type/i64])
 
-(:wat::rete::defrule :waw::count-eq-3
-  :when [(:waw::Station (?loc :- :loc))
-         (?n :- (:wat::rete::acc::count) :from (:waw::Reading (?loc :- :loc)))
-         (:wat::rete::where (:wat::rete::i64::= ?n 3))]
-  :then [(:waw::Busy :loc ?loc :n ?n)])
+(wat.rete/defrule waw/count-eq-3
+  :when [(waw/Station (?loc :- :loc))
+         (?n :- (wat.rete.acc/count) :from (waw/Reading (?loc :- :loc)))
+         (wat.rete/where (wat.rete.i64/= ?n 3))]
+  :then [(waw/Busy :loc ?loc :n ?n)])
 
-(:wat::rete::defrule :waw::max-gt-40
-  :when [(:waw::Station (?loc :- :loc))
-         (?m :- (:wat::rete::acc::max ?v) :from (:waw::Reading (?loc :- :loc) (?v :- :v)))
-         (:wat::rete::where (:wat::rete::i64::> ?m 40))]
-  :then [(:waw::Busy :loc ?loc :n ?m)])
+(wat.rete/defrule waw/max-gt-40
+  :when [(waw/Station (?loc :- :loc))
+         (?m :- (wat.rete.acc/max ?v) :from (waw/Reading (?loc :- :loc) (?v :- :v)))
+         (wat.rete/where (wat.rete.i64/> ?m 40))]
+  :then [(waw/Busy :loc ?loc :n ?m)])
 
-(:wat::rete::defquery :waw::q-Busy
+(wat.rete/defquery waw/q-Busy
   :params []
-  :when [(?fact :- :waw::Busy)])
+  :when [(?fact :- waw/Busy)])
 
 
-(:wat::core::defn :waw::n-busy [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query s (:waw::q-Busy))))
+(wat.core/defn waw/n-busy [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (wat.rete/query s (waw/q-Busy))))
 
-(:wat::core::defn :waw::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn waw/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [cnt (wat.type/PersistentVector :- [:wat::rete::Rule] (:waw::count-eq-3))
-                    mx  (wat.type/PersistentVector :- [:wat::rete::Rule] (:waw::max-gt-40))]
-    (:waw::line 1 "count-eq-3"
-      (:waw::n-busy
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all cnt (wat.type/PersistentVector :- [:wat::rete::Query] (:waw::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:waw::Station :loc "OSL")
-            (:waw::Reading :loc "OSL" :v 1)
-            (:waw::Reading :loc "OSL" :v 2)
-            (:waw::Reading :loc "OSL" :v 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:waw::line 2 "count-eq-3-miss"
-      (:waw::n-busy
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all cnt (wat.type/PersistentVector :- [:wat::rete::Query] (:waw::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:waw::Station :loc "OSL")
-            (:waw::Reading :loc "OSL" :v 1)
-            (:waw::Reading :loc "OSL" :v 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:waw::line 3 "max-gt-40"
-      (:waw::n-busy
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all mx (wat.type/PersistentVector :- [:wat::rete::Query] (:waw::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:waw::Station :loc "OSL")
-            (:waw::Reading :loc "OSL" :v 50)
-            (:waw::Reading :loc "OSL" :v 40)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:waw::line 4 "max-le-40"
-      (:waw::n-busy
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all mx (wat.type/PersistentVector :- [:wat::rete::Query] (:waw::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:waw::Station :loc "OSL")
-            (:waw::Reading :loc "OSL" :v 40)
-            (:waw::Reading :loc "OSL" :v 30)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:waw::line 5 "count-two-stations"
-      (:waw::n-busy
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all cnt (wat.type/PersistentVector :- [:wat::rete::Query] (:waw::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:waw::Station :loc "OSL")
-            (:waw::Station :loc "BGO")
-            (:waw::Reading :loc "OSL" :v 1)
-            (:waw::Reading :loc "OSL" :v 2)
-            (:waw::Reading :loc "OSL" :v 3)
-            (:waw::Reading :loc "BGO" :v 1)
-            (:waw::Reading :loc "BGO" :v 2)
-            (:waw::Reading :loc "BGO" :v 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [cnt (wat.type/PersistentVector :- [wat.rete/Rule] (waw/count-eq-3))
+                    mx  (wat.type/PersistentVector :- [wat.rete/Rule] (waw/max-gt-40))]
+    (waw/line 1 "count-eq-3"
+      (waw/n-busy
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all cnt (wat.type/PersistentVector :- [wat.rete/Query] (waw/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (waw/Station :loc "OSL")
+            (waw/Reading :loc "OSL" :v 1)
+            (waw/Reading :loc "OSL" :v 2)
+            (waw/Reading :loc "OSL" :v 3)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (waw/line 2 "count-eq-3-miss"
+      (waw/n-busy
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all cnt (wat.type/PersistentVector :- [wat.rete/Query] (waw/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (waw/Station :loc "OSL")
+            (waw/Reading :loc "OSL" :v 1)
+            (waw/Reading :loc "OSL" :v 2)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (waw/line 3 "max-gt-40"
+      (waw/n-busy
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all mx (wat.type/PersistentVector :- [wat.rete/Query] (waw/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (waw/Station :loc "OSL")
+            (waw/Reading :loc "OSL" :v 50)
+            (waw/Reading :loc "OSL" :v 40)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (waw/line 4 "max-le-40"
+      (waw/n-busy
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all mx (wat.type/PersistentVector :- [wat.rete/Query] (waw/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (waw/Station :loc "OSL")
+            (waw/Reading :loc "OSL" :v 40)
+            (waw/Reading :loc "OSL" :v 30)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (waw/line 5 "count-two-stations"
+      (waw/n-busy
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all cnt (wat.type/PersistentVector :- [wat.rete/Query] (waw/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (waw/Station :loc "OSL")
+            (waw/Station :loc "BGO")
+            (waw/Reading :loc "OSL" :v 1)
+            (waw/Reading :loc "OSL" :v 2)
+            (waw/Reading :loc "OSL" :v 3)
+            (waw/Reading :loc "BGO" :v 1)
+            (waw/Reading :loc "BGO" :v 2)
+            (waw/Reading :loc "BGO" :v 3)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

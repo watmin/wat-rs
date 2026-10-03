@@ -19,38 +19,38 @@
 ;; (service.wat:894 — `<Op>Request`/`<Op>Response`, op `echo` → `Echo…`), so the
 ;; ONLY thing red at HEAD is the hoist gap, nothing incidental.
 
-(:wat::core::defmacro :probe::echo-defsvc
-  [def-form <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::do
-     (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defmacro probe/echo-defsvc
+  [def-form :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/do
+     (wat.core/defsurface probe/Echo :nature wat.kernel/Peer
        :messages
        [~def-form
-        (:wat::core::defrecord :probe::Echo::EchoRequest [c <- wat.type/i64])
-        (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-          :Ok              [n <- wat.type/i64]
-          :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-          :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+        (wat.core/defrecord probe.Echo/EchoRequest [c :- wat.type/i64])
+        (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure
+          :Ok              [n :- wat.type/i64]
+          :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+          :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
        :features
-       [(echo [self <- :probe::Echo req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-     (:wat::service::defservice :probe::echosvc
-       :satisfies :probe::Echo
+       [(echo [self :- probe/Echo req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
+     (wat.service/defservice probe/echosvc
+       :satisfies probe/Echo
        :durable []
        :impls
        [(echo [s ctx req]
-          (:wat::core::let
-            [c (:probe::Echo::EchoRequest/c req)]
-            (:wat::service::Outcome.Reply {:state s :reply (:probe::Echo::EchoResponse.Ok {:n c})})))])))
+          (wat.core/let
+            [c (probe.Echo.EchoRequest/c req)]
+            (wat.service/Outcome.Reply {:state s :reply (probe.Echo/EchoResponse.Ok {:n c})})))])))
 
 ;; Invoke the macro: it emits the do-wrapped surface+service, splicing in a user
 ;; def (a Marker record) as the surface's first :messages member.
-(:probe::echo-defsvc (:wat::core::defrecord :probe::Marker [x <- wat.type/i64]))
+(probe/echo-defsvc (wat.core/defrecord probe/Marker [x :- wat.type/i64]))
 
 ;; The RED assertion: the surface's generated FIELD ACCESSOR must mint. At HEAD
 ;; `:probe::Echo::EchoRequest/c` is UnresolvedReference at freeze (StartupError);
 ;; GREEN it resolves + returns 42. (Startup succeeding at all also proves the
 ;; defservice's generated client stub type-checks against the hoisted types.)
-(:wat::core::defn :user::check [] -> wat.type/i64
-  (:wat::core::let
-    [req (:probe::Echo::EchoRequest :c 42)]
-    (:probe::Echo::EchoRequest/c req)))
+(wat.core/defn user/check [] :- wat.type/i64
+  (wat.core/let
+    [req (probe.Echo/EchoRequest :c 42)]
+    (probe.Echo.EchoRequest/c req)))

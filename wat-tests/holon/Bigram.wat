@@ -11,59 +11,59 @@
 
 ;; ─── 1. sugar equivalence ──────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-is-ngram-2
+(wat.test/deftest wat-tests.holon.Bigram/test-bigram-is-ngram-2
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
-     xs (wat.type/Vector :- [:wat::holon::HolonAST] a b c)
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
+     xs (wat.type/Vector :- [wat.holon/HolonAST] a b c)
      bigram
-       (:wat::core::match
-         (:wat::holon::Bigram xs)
+       (wat.core/match
+         (wat.holon/Bigram xs)
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])
      ngram2
-       (:wat::core::match
-         (:wat::holon::Ngram 2 xs)
+       (wat.core/match
+         (wat.holon/Ngram 2 xs)
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? bigram ngram2)
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq
+      (wat.holon/coincident? bigram ngram2)
       true)))
 
 ;; ─── 2. window participant ──────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-window-participant-above-floor
+(wat.test/deftest wat-tests.holon.Bigram/test-bigram-window-participant-above-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
      ;; The first 2-window in [a b c] is Sequential([a b]).
      window-1
-       (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b))
+       (wat.holon/Sequential (wat.type/Vector :- [wat.holon/HolonAST] a b))
      full
-       (:wat::core::match
-         (:wat::holon::Bigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
+       (wat.core/match
+         (wat.holon/Bigram (wat.type/Vector :- [wat.holon/HolonAST] a b c))
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq (wat.holon/presence? window-1 full) true)))
 
-(:wat::test::deftest :wat-tests::holon::Bigram::test-bigram-outsider-below-floor
+(wat.test/deftest wat-tests.holon.Bigram/test-bigram-outsider-below-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
-     z (:wat::holon::to-holon "unrelated-z")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
+     z (wat.holon/to-holon "unrelated-z")
      full
-       (:wat::core::match
-         (:wat::holon::Bigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
+       (wat.core/match
+         (wat.holon/Bigram (wat.type/Vector :- [wat.holon/HolonAST] a b c))
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq (:wat::holon::presence? z full) false)))
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq (wat.holon/presence? z full) false)))

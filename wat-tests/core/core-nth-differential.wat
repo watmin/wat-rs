@@ -24,26 +24,26 @@
 ;; Direct value comparison: `nth` and `nth-spec` both succeed on these inputs, so `assert-eq`
 ;; between the two calls IS the differential.
 
-(:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-vector
-  (:wat::core::let [v (wat.type/Vector :- [wat.type/i64] 10 20 30 40 50)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) (:wat::core::nth-spec v 0))
-      (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))
-      (:wat::test::assert-eq (:wat::core::nth v 4) (:wat::core::nth-spec v 4)))))
+(wat.test/deftest wat-tests.core.core-nth-differential/agree-on-vector
+  (wat.core/let [v (wat.type/Vector :- [wat.type/i64] 10 20 30 40 50)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) (wat.core/nth-spec v 0))
+      (wat.test/assert-eq (wat.core/nth v 2) (wat.core/nth-spec v 2))
+      (wat.test/assert-eq (wat.core/nth v 4) (wat.core/nth-spec v 4)))))
 
-(:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-persistentvector
-  (:wat::core::let [v (wat.type/PersistentVector :- [wat.type/i64] 10 20 30 40 50)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) (:wat::core::nth-spec v 0))
-      (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))
-      (:wat::test::assert-eq (:wat::core::nth v 4) (:wat::core::nth-spec v 4)))))
+(wat.test/deftest wat-tests.core.core-nth-differential/agree-on-persistentvector
+  (wat.core/let [v (wat.type/PersistentVector :- [wat.type/i64] 10 20 30 40 50)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) (wat.core/nth-spec v 0))
+      (wat.test/assert-eq (wat.core/nth v 2) (wat.core/nth-spec v 2))
+      (wat.test/assert-eq (wat.core/nth v 4) (wat.core/nth-spec v 4)))))
 
-(:wat::test::deftest :wat-tests::core::core-nth-differential::agree-on-list
-  (:wat::core::let [v (wat.type/List :- [wat.type/i64] 10 20 30 40 50)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) (:wat::core::nth-spec v 0))
-      (:wat::test::assert-eq (:wat::core::nth v 2) (:wat::core::nth-spec v 2))
-      (:wat::test::assert-eq (:wat::core::nth v 4) (:wat::core::nth-spec v 4)))))
+(wat.test/deftest wat-tests.core.core-nth-differential/agree-on-list
+  (wat.core/let [v (wat.type/List :- [wat.type/i64] 10 20 30 40 50)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) (wat.core/nth-spec v 0))
+      (wat.test/assert-eq (wat.core/nth v 2) (wat.core/nth-spec v 2))
+      (wat.test/assert-eq (wat.core/nth v 4) (wat.core/nth-spec v 4)))))
 
 ;; ═══ out-of-range agreement — both raise the SAME message ═════════════════════════════════════
 ;;
@@ -53,65 +53,65 @@
 ;; receivers — together the two files prove native and oracle agree on the raise, not just
 ;; on the happy path. Death-expectation idiom per `wat-tests/core/core-seq-walkers.wat`.
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-vector-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth-spec (wat.type/Vector :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth-differential/nth-spec-past-end-vector-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth-spec (wat.type/Vector :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-persistentvector-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth-spec (wat.type/PersistentVector :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth-differential/nth-spec-past-end-persistentvector-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth-spec (wat.type/PersistentVector :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth-differential::nth-spec-past-end-list-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth-spec (wat.type/List :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth-differential/nth-spec-past-end-list-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth-spec (wat.type/List :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
 ;; ═══ RETIRED by stone 118.B4-iii (THE WALL) ════════════════════════════════════════════════
 ;;

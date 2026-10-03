@@ -33,48 +33,48 @@
 ;; The forked child writes "hello" over the peer wire; on the primed wire the
 ;; value crosses DECODED (native String "hello", not the scraped EDN line
 ;; "\"hello\"" the byte-stream model produced). recv' → Message[m]; m == "hello".
-(:wat::test::time-limit "15000ms")
+(wat.test/time-limit "15000ms")
 
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-string
+(wat.test/deftest-hermetic wat-rs.test/test-ambient-stdio-println-string
 
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println "hello"))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m}
-        (:wat::test::assert-eq m "hello")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println "hello"))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m}
+        (wat.test/assert-eq m "hello")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "println-string: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "println-string: child closed before sending its value")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "println-string: stop requested before the child sent its value — child was ALIVE")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "println-string: child closed before sending its value")])))
 
 ;; ─── Layer 1 — println an i64 ───────────────────────────────────────────
 ;; Non-string Ts cross the wire through the same peer pipeline — the i64 42
 ;; arrives DECODED as the native i64 42 (not the decimal EDN line "42").
-(:wat::test::time-limit "15000ms")
+(wat.test/time-limit "15000ms")
 
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-i64
+(wat.test/deftest-hermetic wat-rs.test/test-ambient-stdio-println-i64
 
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println 42))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m}
-        (:wat::test::assert-eq m 42)]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println 42))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m}
+        (wat.test/assert-eq m 42)]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "println-i64: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "println-i64: child closed before sending its value")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "println-i64: stop requested before the child sent its value — child was ALIVE")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "println-i64: child closed before sending its value")])))
 
 ;; ─── Layer 2 — eprintln a String ────────────────────────────────────────
 ;; eprintln is a TERMINATING form — it emits the value's EDN then CRASHES the
@@ -86,49 +86,49 @@
 ;; regex match for the emitted line) off the crash reason instead of OS-stderr
 ;; capture, which the wire model drops. A Message (no crash) is the failure —
 ;; a terminal eprintln must never let a following form (or a value) through.
-(:wat::test::time-limit "15000ms")
+(wat.test/time-limit "15000ms")
 
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-eprintln-string
+(wat.test/deftest-hermetic wat-rs.test/test-ambient-stdio-eprintln-string
 
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::eprintln "err"))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::if (:wat::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/eprintln "err"))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/if (wat.regex/matches? "err" (wat.kernel.LociDiedError/message cause))
           nil
-          (:wat::kernel::assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (:wat::core::Option.Some {:value (:wat::kernel::LociDiedError/message cause)}) :expected (:wat::core::Option.Some {:value "err"})))]
+          (wat.kernel/assertion-failed! :message "eprintln-string: crash reason did not carry the emitted value" :actual (wat.core/Option.Some {:value (wat.kernel.LociDiedError/message cause)}) :expected (wat.core/Option.Some {:value "err"})))]
       ;; arc 278 #73 — a stop, not a close: the child was ALIVE.
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "eprintln-string: stop requested before the child sent its value — child was ALIVE")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "eprintln-string: child closed before crashing")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "eprintln-string: stop requested before the child sent its value — child was ALIVE")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "eprintln-string: child closed before crashing")])))
 
 ;; ─── Layer 3 — two println calls, order-preserving ──────────────────────
 ;; Two round trips through the same peer pipeline land in send order. recv-all'
 ;; drains the peer honestly until it closes → Ok[["first" "second"]] (decoded
 ;; native Strings), or Err[cause] if the peer died (surfaced, never swallowed).
-(:wat::test::time-limit "15000ms")
+(wat.test/time-limit "15000ms")
 
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-println-twice
+(wat.test/deftest-hermetic wat-rs.test/test-ambient-stdio-println-twice
 
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::do
-               (:wat::kernel::println "first")
-               (:wat::kernel::println "second")
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/do
+               (wat.kernel/println "first")
+               (wat.kernel/println "second")
                nil))))]
-    (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Result.Ok {:value outputs}
-        (:wat::test::assert-eq outputs (wat.type/Vector :- [wat.type/String] "first" "second"))]
-      [:wat::core::Result.Err {:error cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))
+    (wat.core/match (wat.kernel/recv-all p)
+      [wat.core/Result.Ok {:value outputs}
+        (wat.test/assert-eq outputs (wat.type/Vector :- [wat.type/String] "first" "second"))]
+      [wat.core/Result.Err {:error cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))])))
 
 ;; ─── Layer 4 — readln round trip via the bidirectional peer wire ─────────
 ;; The parent sends a native String "echo me" INTO the child's readln over the
@@ -137,24 +137,24 @@
 ;; (`recv-all'`) → Ok[["echo me"]]. Exercises both halves of the trio + the
 ;; symmetric wire EDN encode/decode. Bounded I/O: one send' → one output →
 ;; child exits (Closed → recv-all' returns Ok).
-(:wat::test::time-limit "15000ms")
+(wat.test/time-limit "15000ms")
 
-(:wat::test::deftest-hermetic :wat-rs::test::test-ambient-stdio-readln-echo
+(wat.test/deftest-hermetic wat-rs.test/test-ambient-stdio-readln-echo
 
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [echoed (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-               (:wat::kernel::println echoed)))))
-     _ (:wat::core::match (:wat::kernel::send p "echo me")
-         [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.HandleClosed {} nil]
-         [:wat::kernel::SendOutcome.Stopped {} nil]
-         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-    (:wat::core::match (:wat::kernel::recv-all p)
-      [:wat::core::Result.Ok {:value outputs}
-        (:wat::test::assert-eq outputs (wat.type/Vector :- [wat.type/String] "echo me"))]
-      [:wat::core::Result.Err {:error cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))])))
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [echoed (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+               (wat.kernel/println echoed)))))
+     _ (wat.core/match (wat.kernel/send p "echo me")
+         [wat.kernel/SendOutcome.Sent {} nil]
+         [wat.kernel/SendOutcome.HandleClosed {} nil]
+         [wat.kernel/SendOutcome.Stopped {} nil]
+         [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+    (wat.core/match (wat.kernel/recv-all p)
+      [wat.core/Result.Ok {:value outputs}
+        (wat.test/assert-eq outputs (wat.type/Vector :- [wat.type/String] "echo me"))]
+      [wat.core/Result.Err {:error cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))])))

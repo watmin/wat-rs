@@ -70,35 +70,35 @@
 ;;
 ;; Run: target/release/wat wat-scripts/scratch-pad/255-the-registry-answers-first.wat
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [concat-pure  (:wat::rete::pure?
-                    (:wat::core::quote
-                      (:wat::core::fn [a <- wat.type/String b <- wat.type/String] -> wat.type/String
-                        (:wat::string::concat a b))))
-     concat-det   (:wat::rete::deterministic?
-                    (:wat::core::quote
-                      (:wat::core::fn [a <- wat.type/String b <- wat.type/String] -> wat.type/String
-                        (:wat::string::concat a b))))
-     concat-total (:wat::rete::total?
-                    (:wat::core::quote
-                      (:wat::core::fn [a <- wat.type/String b <- wat.type/String] -> wat.type/String
-                        (:wat::string::concat a b))))
-     contains-total (:wat::rete::total?
-                    (:wat::core::quote
-                      (:wat::core::fn [a <- wat.type/String b <- wat.type/String] -> wat.type/bool
-                        (:wat::string::contains? a b))))
-     read-foreign-total (:wat::rete::total?
-                    (:wat::core::quote
-                      (:wat::core::fn [s <- wat.type/String] -> (:wat::edn::ReadForeignOutcome :- [wat.type/i64])
-                        (:wat::edn::read-foreign s))))
-     split-total (:wat::rete::total?
-                    (:wat::core::quote
-                      (:wat::core::fn [a <- wat.type/String b <- wat.type/String] -> (wat.type/Vector :- [wat.type/String])
-                        (:wat::string::split a b))))]
-    (:wat::kernel::println (:wat::string::concat "concat pure?             " (:wat::core::bool::to-string concat-pure)))
-    (:wat::kernel::println (:wat::string::concat "concat deterministic?    " (:wat::core::bool::to-string concat-det)))
-    (:wat::kernel::println (:wat::string::concat "concat total?            " (:wat::core::bool::to-string concat-total)))
-    (:wat::kernel::println (:wat::string::concat "contains? total?         " (:wat::core::bool::to-string contains-total)))
-    (:wat::kernel::println (:wat::string::concat "edn/read-foreign total?  " (:wat::core::bool::to-string read-foreign-total)))
-    (:wat::kernel::println (:wat::string::concat "split total?             " (:wat::core::bool::to-string split-total)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [concat-pure  (wat.rete/pure?
+                    (wat.core/quote
+                      (wat.core/fn [a :- wat.type/String b :- wat.type/String] :- wat.type/String
+                        (wat.string/concat a b))))
+     concat-det   (wat.rete/deterministic?
+                    (wat.core/quote
+                      (wat.core/fn [a :- wat.type/String b :- wat.type/String] :- wat.type/String
+                        (wat.string/concat a b))))
+     concat-total (wat.rete/total?
+                    (wat.core/quote
+                      (wat.core/fn [a :- wat.type/String b :- wat.type/String] :- wat.type/String
+                        (wat.string/concat a b))))
+     contains-total (wat.rete/total?
+                    (wat.core/quote
+                      (wat.core/fn [a :- wat.type/String b :- wat.type/String] :- wat.type/bool
+                        (wat.string/contains? a b))))
+     read-foreign-total (wat.rete/total?
+                    (wat.core/quote
+                      (wat.core/fn [s :- wat.type/String] :- (wat.edn/ReadForeignOutcome :- [wat.type/i64])
+                        (wat.edn/read-foreign s))))
+     split-total (wat.rete/total?
+                    (wat.core/quote
+                      (wat.core/fn [a :- wat.type/String b :- wat.type/String] :- (wat.type/Vector :- [wat.type/String])
+                        (wat.string/split a b))))]
+    (wat.kernel/println (wat.string/concat "concat pure?             " (wat.core.bool/to-string concat-pure)))
+    (wat.kernel/println (wat.string/concat "concat deterministic?    " (wat.core.bool/to-string concat-det)))
+    (wat.kernel/println (wat.string/concat "concat total?            " (wat.core.bool/to-string concat-total)))
+    (wat.kernel/println (wat.string/concat "contains? total?         " (wat.core.bool/to-string contains-total)))
+    (wat.kernel/println (wat.string/concat "edn/read-foreign total?  " (wat.core.bool/to-string read-foreign-total)))
+    (wat.kernel/println (wat.string/concat "split total?             " (wat.core.bool/to-string split-total)))))

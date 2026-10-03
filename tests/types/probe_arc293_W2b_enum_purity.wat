@@ -13,8 +13,8 @@
 ;; GREEN after 293.W.2b: the load is REJECTED with a containment-rule error
 ;; naming the offending Pure enum and its impure variant field.
 
-(:wat::core::defstruct :w2b::Conn [fd <- wat.type/i64])              ; a struct (impure — never crosses)
+(wat.core/defstruct w2b/Conn [fd :- wat.type/i64])              ; a struct (impure — never crosses)
 
-(:wat::core::defenum :w2b::BadEvt :wat::enum::Pure                      ; Pure enum — containment applies
+(wat.core/defenum w2b/BadEvt wat.enum/Pure                      ; Pure enum — containment applies
   :Idle
-  :Live [c <- :w2b::Conn])                                              ; ILLEGAL: struct in a Pure enum
+  :Live [c :- w2b/Conn])                                              ; ILLEGAL: struct in a Pure enum

@@ -11,17 +11,17 @@
 ;; EDN-quoted stdout scrape. Lost[LociDiedError] / Closed are never swallowed.
 ;; (shape: tests/kernel/wat_run_sandboxed_ast.wat compute-prints-hello.)
 
-(:wat::core::defn :probe::ast::capture-stdout [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println "hello-from-probe"))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m} m]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "capture-stdout: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "capture-stdout: child closed before sending its value")])))
+(wat.core/defn probe.ast/capture-stdout [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println "hello-from-probe"))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m} m]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "capture-stdout: stop requested before child sent its value — child was ALIVE, channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "capture-stdout: child closed before sending its value")])))

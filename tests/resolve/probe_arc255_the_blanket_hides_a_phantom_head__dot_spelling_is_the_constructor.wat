@@ -17,14 +17,14 @@
 ;; resolves, so its `{}` is a ctor PAYLOAD, not a map literal, and a payload key must be a bare
 ;; field keyword — it is now `MalformedForm`, not a clever lookup. The property it tested is proven
 ;; by the last line here instead, which needs no phantom to make its point.
-(:wat::core::defn :user::main [] -> wat.type/nil
+(wat.core/defn user/main [] :- wat.type/nil
   ;; ⛔ ONE println, not three. stdout must be a SINGLE EDN value so the assertion can be a
   ;; structural golden (`tests/lint/no_inlined_edn.rs` bans an inline EDN string literal, and
   ;; three values on three lines cannot be one golden). The vector carries all three reads:
   ;;   [0] the DOT spelling IS the constructor — it RESOLVES, and the map is its payload
   ;;   [1] the bare keyword accessor, untouched by the flip and still TOTAL: a miss is None
   ;;   [2] ...and it still finds the key when the key is actually there
-  (:wat::kernel::println
-    [(:wat::core::Option.Some {:value 7})
+  (wat.kernel/println
+    [(wat.core/Option.Some {:value 7})
      (:anything-at-all {:value 7})
      (:value {:value 7})]))

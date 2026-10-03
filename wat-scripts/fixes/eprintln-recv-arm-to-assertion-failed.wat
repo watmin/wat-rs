@@ -35,101 +35,101 @@
 ;;   printf '["pathA" "pathB" …]\n' | cargo wat ./wat-scripts/fixes/eprintln-recv-arm-to-assertion-failed.wat
 
 ;; ── small helpers (mirrors response-record-to-enum.wat) ──────────────────────────
-(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn user/start-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+(wat.core/defn user/end-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n) ""))
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n) ""))
 
 ;; recv-cause-arg? — ARG is a call `(:wat::kernel::Failure/message …)` (the ::Lost arm).
-(:wat::core::defn :user::recv-cause-arg? [arg <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "list")
-    (:wat::core::let [ch (:wat::core::ast->children arg)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/recv-cause-arg? [arg :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind arg) "list")
+    (wat.core/let [ch (wat.core/ast->children arg)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::kernel::Failure/message")))
+        (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::kernel::Failure/message")))
     false))
 
 ;; recv-closed-arg? — ARG is a string literal whose first `:`-segment is `recv'` (the ::Closed arm,
 ;; "recv': … closed …"). ast-name on a StringLit returns the unquoted content.
-(:wat::core::defn :user::recv-closed-arg? [arg <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
-    (:wat::core::= (:wat::core::first (:wat::string::split (:wat::core::ast-name arg) ":")) "recv'")
+(wat.core/defn user/recv-closed-arg? [arg :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind arg) "string")
+    (wat.core/= (wat.core/first (wat.string/split (wat.core/ast-name arg) ":")) "recv'")
     false))
 
 ;; recv-arm-eprintln? — a list `(:wat::kernel::eprintln ARG)` (exactly 2 children) whose ARG is a
 ;; recv-cause call OR a recv-closed string. Nothing else is touched.
-(:wat::core::defn :user::recv-arm-eprintln? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
-        (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::kernel::eprintln")
-          (:wat::core::let [arg (:wat::core::Option/expect (:wat::core::get ch 1) "arg")]
-            (:wat::core::if (:user::recv-cause-arg? arg) true (:user::recv-closed-arg? arg)))
+(wat.core/defn user/recv-arm-eprintln? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 2)
+        (wat.core/if (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::kernel::eprintln")
+          (wat.core/let [arg (wat.core.Option/expect (wat.core/get ch 1) "arg")]
+            (wat.core/if (user/recv-cause-arg? arg) true (user/recv-closed-arg? arg)))
           false)
         false))
     false))
 
 ;; ── EDITS: head rename + append ` :None :None` after ARG ─────────────────────────
-(:wat::core::defn :user::eprintln-edits
-  [ch <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [head (:wat::core::Option/expect (:wat::core::get ch 0) "ep head")
-     arg  (:wat::core::Option/expect (:wat::core::get ch 1) "ep arg")
-     h0   (:user::start-off head lines)]
+(wat.core/defn user/eprintln-edits
+  [ch :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [head (wat.core.Option/expect (wat.core/get ch 0) "ep head")
+     arg  (wat.core.Option/expect (wat.core/get ch 1) "ep arg")
+     h0   (user/start-off head lines)]
     ;; old-text = (ast-name head) — already verified by recv-arm-eprintln? to equal
     ;; ":wat::kernel::eprintln"; NEVER span text (a rename of a keyword leaf, STOP-1).
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (:wat::core::ast-name head) ":wat::kernel::assertion-failed!")
-      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off arg lines) "" " :wat::core::None :wat::core::None"))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] h0 (wat.core/ast-name head) ":wat::kernel::assertion-failed!")
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (user/end-off arg lines) "" " :wat::core::None :wat::core::None"))))
 
 ;; walk one node → its edits + descendants'.
-(:wat::core::defn :user::node-edits
-  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [this (:wat::core::if (:user::recv-arm-eprintln? node)
-            (:user::eprintln-edits (:wat::core::ast->children node) lines)
+(wat.core/defn user/node-edits
+  [node :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [this (wat.core/if (user/recv-arm-eprintln? node)
+            (user/eprintln-edits (wat.core/ast->children node) lines)
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/concat this (user/seq-edits (wat.core/ast->children node) lines))
       this)))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
-     eds   (:user::seq-edits forms lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     forms (wat.core/ast->children (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))
+     eds   (user/seq-edits forms lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[eprintln->assertion-failed!] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[eprintln->assertion-failed!] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

@@ -39,45 +39,45 @@
 ;; The child runs in a SEPARATE process with its own runtime, so `set-dim-count!` /
 ;; `set-capacity-mode!` are private to the child — the hermetic property the retired
 ;; run-hermetic provided is preserved by spawn-program' :process.
-(:wat::core::defn :probe::plain-panic [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
+(wat.core/defn probe/plain-panic [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
            ;; Config setters are load-time DIRECTIVES collected by the child's
            ;; entry-file pass — they MUST sit at the top level of the forms,
            ;; preceding all other forms (they are not runtime functions callable
            ;; from inside :user::main's body — that surfaces UnknownFunction).
-           (:wat::config::set-dim-count! 100)
-           (:wat::config::set-capacity-mode! :panic)
-           (:wat::core::defn :user::main [] -> wat.type/nil
+           (wat.config/set-dim-count! 100)
+           (wat.config/set-capacity-mode! :panic)
+           (wat.core/defn user/main [] :- wat.type/nil
              ;; A RUNTIME-BUILT (not literal) 12-atom vector exceeds floor(sqrt(100))=10 budget
              ;; → panic!("capacity exceeded under :panic") fires inside eval_algebra_bundle.
              ;; See this file's header for why the length must be runtime-derived, not a literal.
-             (:wat::core::let
+             (wat.core/let
                [n     12
-                atoms (:wat::core::foldl
-                        (:wat::core::fn [acc <- (wat.type/Vector :- [:wat::holon::HolonAST]) i <- wat.type/i64] -> (wat.type/Vector :- [:wat::holon::HolonAST])
-                          (:wat::core::conj acc (:wat::holon::to-holon i)))
-                        (wat.type/Vector :- [:wat::holon::HolonAST])
-                        (:wat::core::range 0 n))
-                _bundle (:wat::holon::Bundle atoms)]
+                atoms (wat.core/foldl
+                        (wat.core/fn [acc :- (wat.type/Vector :- [wat.holon/HolonAST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.holon/HolonAST])
+                          (wat.core/conj acc (wat.holon/to-holon i)))
+                        (wat.type/Vector :- [wat.holon/HolonAST])
+                        (wat.core/range 0 n))
+                _bundle (wat.holon/Bundle atoms)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::match cause
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/match cause
           ;; TRUE variant: a bare Rust panic (capacity exceeded, NOT an AssertionPayload)
           ;; → LociDiedError::Panic; the panic String rides Panic.message. Return it.
-          [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
+          [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
           ;; LociDiedError is the no-hidden-failures enum — every OTHER death is named
           ;; EXPLICITLY (no `_` lump; verbosity is the shield). A distinct WRONG:<variant>
           ;; sentinel makes a RED name exactly which non-Panic death surfaced instead.
-          [:wat::kernel::LociDiedError.RuntimeError {:message _m} "WRONG:RuntimeError"]
-          [:wat::kernel::LociDiedError.Disconnected {} "WRONG:Disconnected"]
-          [:wat::kernel::LociDiedError.Stopped {} "WRONG:Stopped"]
-          [:wat::kernel::LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
-          [:wat::kernel::LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
-          [:wat::kernel::LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
-          [:wat::kernel::LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+          [wat.kernel/LociDiedError.RuntimeError {:message _m} "WRONG:RuntimeError"]
+          [wat.kernel/LociDiedError.Disconnected {} "WRONG:Disconnected"]
+          [wat.kernel/LociDiedError.Stopped {} "WRONG:Stopped"]
+          [wat.kernel/LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
+          [wat.kernel/LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
+          [wat.kernel/LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
+          [wat.kernel/LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

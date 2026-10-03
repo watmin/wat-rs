@@ -4,10 +4,10 @@
 ;; that position) — it binds the restricted FQDN in VALUE position via `let`,
 ;; then calls the local alias. A restriction governs mention, not head
 ;; position: this must be refused exactly as a direct call would be.
-(:wat::core::defn :my::kernel::restricted-fn
-  {:restricted-to [:my::kernel::]}
-  [x <- wat.type/i64] -> wat.type/i64 x)
+(wat.core/defn my.kernel/restricted-fn
+  {:restricted-to [my.kernel]}
+  [x :- wat.type/i64] :- wat.type/i64 x)
 
-(:wat::core::defn :user::sneaky [] -> wat.type/i64
-  (:wat::core::let [f :my::kernel::restricted-fn]
+(wat.core/defn user/sneaky [] :- wat.type/i64
+  (wat.core/let [f my.kernel/restricted-fn]
     (f 7)))

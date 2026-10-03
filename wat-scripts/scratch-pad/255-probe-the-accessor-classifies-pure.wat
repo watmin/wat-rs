@@ -21,21 +21,21 @@
 ;;           stone: all three verbs default-denied every axis while `KNOWN_UNREVIEWED`)
 ;;   row 2 — an EFFECTFUL fn reached the same way              -> false (proves no widening)
 
-(:wat::core::defrecord :arc255accessor::R [x <- wat.type/i64])
+(wat.core/defrecord arc255accessor/R [x :- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; row 1 — the generated field accessor's keyword bound to a local, invoked through it -> true
-    (:wat::kernel::println
-      (:wat::core::let [k :arc255accessor::R/x]
-        (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- :arc255accessor::R] -> wat.type/i64
+    (wat.kernel/println
+      (wat.core/let [k arc255accessor.R/x]
+        (wat.rete/pure? (wat.core/quote
+          (wat.core/fn [a :- arc255accessor/R] :- wat.type/i64
             (k a))))))
     ;; row 2 — an effectful fn bound the same way -> still false, no widening
-    (:wat::kernel::println
-      (:wat::core::let [k (:wat::core::fn [a <- :arc255accessor::R] -> wat.type/i64
-                             (:wat::core::do (:wat::kernel::println "!") 0))]
-        (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- :arc255accessor::R] -> wat.type/i64
+    (wat.kernel/println
+      (wat.core/let [k (wat.core/fn [a :- arc255accessor/R] :- wat.type/i64
+                             (wat.core/do (wat.kernel/println "!") 0))]
+        (wat.rete/pure? (wat.core/quote
+          (wat.core/fn [a :- arc255accessor/R] :- wat.type/i64
             (k a))))))
     nil))

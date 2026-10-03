@@ -15,20 +15,20 @@
 ;; bindings is the hoistable join-blowup form the corpus was migrated away from at `feb5fae91`;
 ;; a fixture in a teaching directory must not re-teach it.
 
-(:wat::core::defrecord :tgc::N [k <- wat.type/i64  s <- wat.type/String])
+(wat.core/defrecord tgc/N [k :- wat.type/i64  s :- wat.type/String])
 
 ;; row 1 — knowable and RIGHT: i64 comparator over two i64-bound join vars.
-(:wat::rete::defrule :tgc::typed-i64
-  :when [(:tgc::N (?k :- :k))
-         (:tgc::N (?j :- :k))
-         (:wat::rete::where (:wat::rete::i64::= ?k ?j))]
+(wat.rete/defrule tgc/typed-i64
+  :when [(tgc/N (?k :- :k))
+         (tgc/N (?j :- :k))
+         (wat.rete/where (wat.rete.i64/= ?k ?j))]
   :then [])
 
 ;; row 2 — knowable and RIGHT at a DIFFERENT type. A cure that hardcodes one type passes row 1.
-(:wat::rete::defrule :tgc::typed-string
-  :when [(:tgc::N (?s :- :s))
-         (:tgc::N (?t :- :s))
-         (:wat::rete::where (:wat::rete::string::= ?s ?t))]
+(wat.rete/defrule tgc/typed-string
+  :when [(tgc/N (?s :- :s))
+         (tgc/N (?t :- :s))
+         (wat.rete/where (wat.rete.string/= ?s ?t))]
   :then [])
 
 ;; row 3 — ⭐ NOT KNOWABLE. The right operand is a `cond` — a `Form`-class rete op whose vocabulary
@@ -47,11 +47,11 @@
 ;;
 ;; A cure that refuses every operand it cannot type passes rows 1-2 and both `.wat.bad` siblings,
 ;; and still stops legal rules from compiling. This row is the only thing that catches it.
-(:wat::rete::defrule :tgc::computed-operand
-  :when [(:tgc::N (?k :- :k))
-         (:tgc::N (?j :- :k))
-         (:wat::rete::where (:wat::rete::i64::= ?k
-                              (:wat::rete::core::cond
-                                ((:wat::rete::i64::> ?j 0) 1)
+(wat.rete/defrule tgc/computed-operand
+  :when [(tgc/N (?k :- :k))
+         (tgc/N (?j :- :k))
+         (wat.rete/where (wat.rete.i64/= ?k
+                              (wat.rete.core/cond
+                                ((wat.rete.i64/> ?j 0) 1)
                                 (:else 2))))]
   :then [])

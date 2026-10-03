@@ -5,8 +5,8 @@
 ;; argument must NOT raise — proving the UNEVALUATED-ARGS disqualifier applies, same shape
 ;; as O-iv-c-2's `:wat::holon::literal` finding.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat "count with an erroring arg (unevaluated if this prints, not crashes): "
-      (:wat::i64::to-string
-        (:wat::intrinsic::variadic-args-measurement (:wat::i64::/ 1 0) 2 3)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat "count with an erroring arg (unevaluated if this prints, not crashes): "
+      (wat.i64/to-string
+        (wat.intrinsic/variadic-args-measurement (wat.i64// 1 0) 2 3)))))

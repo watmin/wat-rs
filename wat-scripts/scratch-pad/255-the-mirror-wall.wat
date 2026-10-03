@@ -104,14 +104,14 @@
 ;;   a `defmacro` program body, evaluated during expansion; it has no runtime call site to be
 ;;   invoked from here"
 
-(:wat::core::defmacro :probe::always-boom
-  [& clauses <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
+(wat.core/defmacro probe/always-boom
+  [& clauses :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
   ;; CASE A, live: an unconditional `macro-error` call as the ENTIRE program body of a
   ;; `defmacro` — the same shape `:wat::core::cond` ships in `wat/core.wat:1455-1464` for its
   ;; non-exhaustive-clause abort. Never invoked below, so it never actually aborts anything;
   ;; the point is only that `--check` accepts the DECLARATION.
-  (:wat::core::macro-error "boom — control: legal call site, never invoked"))
+  (wat.core/macro-error "boom — control: legal call site, never invoked"))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "255-the-mirror-wall: case A (control) loaded — never invokes the macro"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "255-the-mirror-wall: case A (control) loaded — never invokes the macro"))

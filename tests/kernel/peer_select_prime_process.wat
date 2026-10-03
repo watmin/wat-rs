@@ -6,23 +6,23 @@
 ;; a 3-param type against a 2-param declaration and the fixture stopped freezing. There is no
 ;; service/self-peer here (a bare `select` over two process peers), so A is unconstrained;
 ;; naming it i64 alongside I and O is what the fixture means.
-(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [wat.type/i64 wat.type/i64 wat.type/i64])
-  (:wat::core::let
-    [a (:wat::test::spawn-peer (:wat::spawn::process)
-          (:wat::core::forms
-            (:wat::core::defn :user::main [] -> wat.type/nil
-              (:wat::core::let
-                [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                 _ (:wat::kernel::println (:wat::i64::+ n 1))]
+(wat.core/defn user/compute [] :- (wat.spawn/ServiceEvent :- [wat.type/i64 wat.type/i64 wat.type/i64])
+  (wat.core/let
+    [a (wat.test/spawn-peer (wat.spawn/process)
+          (wat.core/forms
+            (wat.core/defn user/main [] :- wat.type/nil
+              (wat.core/let
+                [n (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                 _ (wat.kernel/println (wat.i64/+ n 1))]
                 nil))))
-     b (:wat::test::spawn-peer (:wat::spawn::process)
-          (:wat::core::forms
-            (:wat::core::defn :user::main [] -> wat.type/nil
-              (:wat::core::let
-                [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                 _ (:wat::kernel::println (:wat::i64::+ n 1))]
+     b (wat.test/spawn-peer (wat.spawn/process)
+          (wat.core/forms
+            (wat.core/defn user/main [] :- wat.type/nil
+              (wat.core/let
+                [n (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                 _ (wat.kernel/println (wat.i64/+ n 1))]
                 nil))))
-     _ (:wat::core::match (:wat::kernel::send b 98) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
-     picked (:wat::kernel::select [a b])]
+     _ (wat.core/match (wat.kernel/send b 98) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil] [wat.kernel/SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
+     picked (wat.kernel/select [a b])]
     picked))
 

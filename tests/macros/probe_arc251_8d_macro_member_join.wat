@@ -11,10 +11,10 @@
 ;; The CONTROL row lives in `probe_arc251_8d_macro_member_join_control.wat`: this file
 ;; does not FREEZE pre-cure, so a control sharing it would be unreadable on the binary
 ;; it exists to measure.
-(:wat::core::defrecord :user::Box [n <- wat.type/i64])
+(wat.core/defrecord user/Box [n :- wat.type/i64])
 
 (wat.core/defmacro user.Box/of [n :- wat.type/AST] :- wat.type/AST
-  `(:user::Box :n ~n))
+  `(user/Box :n ~n))
 
-(:wat::core::defn :user::cure [] -> wat.type/i64
-  (:user::Box/n (:user::Box/of 7)))
+(wat.core/defn user/cure [] :- wat.type/i64
+  (user.Box/n (user.Box/of 7)))

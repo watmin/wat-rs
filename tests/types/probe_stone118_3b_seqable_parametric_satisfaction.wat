@@ -15,49 +15,49 @@
 ;; instantiated under what it bound.
 
 ;; ─── a generic fn over ANY (Seqable :- [T]) — the parametric-satisfaction row ───────────────
-(:wat::core::defn :t118b::count-of :- [T] [s <- (:wat::core::Seqable :- [T])] -> wat.type/i64
-  (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
+(wat.core/defn t118b/count-of :- [T] [s :- (wat.core/Seqable :- [T])] :- wat.type/i64
+  (wat.core/length (wat.core/into [] (wat.core.Seqable/seq s))))
 
 ;; ─── a CONCRETE (Seqable :- [i64]) bound — the instantiation row ────────────────────────────
 ;; The edge's target, instantiated for the actual, must UNIFY with the concrete bound: a
 ;; `(Vector :- [i64])` offers `(Seqable :- [i64])`. The element type reaches the body: `+` on each
 ;; element type-checks only if `seq`'s result is `(Stream :- [i64])`.
-(:wat::core::defn :t118b::sum-of [s <- (:wat::core::Seqable :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
-                       (:wat::core::+ acc x))
+(wat.core/defn t118b/sum-of [s :- (wat.core/Seqable :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/foldl (wat.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64
+                       (wat.core/+ acc x))
                      0
-                     (:wat::core::into [] (:wat::core::Seqable/seq s))))
+                     (wat.core/into [] (wat.core.Seqable/seq s))))
 
 ;; ─── entry points, driven via call_beside_value ─────────────────────────────────────────────
 
 ;; row 1 — all four containers satisfy the parametric surface.
-(:wat::core::defn :t::param-vector [] -> wat.type/i64
-  (:t118b::count-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
+(wat.core/defn t/param-vector [] :- wat.type/i64
+  (t118b/count-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
-(:wat::core::defn :t::param-persistent-vector [] -> wat.type/i64
-  (:t118b::count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
+(wat.core/defn t/param-persistent-vector [] :- wat.type/i64
+  (t118b/count-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
-(:wat::core::defn :t::param-list [] -> wat.type/i64
-  (:t118b::count-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
+(wat.core/defn t/param-list [] :- wat.type/i64
+  (t118b/count-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
 
-(:wat::core::defn :t::param-stream [] -> wat.type/i64
-  (:t118b::count-of (:wat::stream::cons 1
-                       (:wat::stream::lazy
-                         (:wat::stream::cons 2
-                           (:wat::stream::lazy (:wat::stream::empty)))))))
+(wat.core/defn t/param-stream [] :- wat.type/i64
+  (t118b/count-of (wat.stream/cons 1
+                       (wat.stream/lazy
+                         (wat.stream/cons 2
+                           (wat.stream/lazy (wat.stream/empty)))))))
 
 ;; row 2 — all four containers satisfy a CONCRETE instantiation of the surface.
-(:wat::core::defn :t::sum-vector [] -> wat.type/i64
-  (:t118b::sum-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
+(wat.core/defn t/sum-vector [] :- wat.type/i64
+  (t118b/sum-of (wat.type/Vector :- [wat.type/i64] 1 2 3)))
 
-(:wat::core::defn :t::sum-persistent-vector [] -> wat.type/i64
-  (:t118b::sum-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
+(wat.core/defn t/sum-persistent-vector [] :- wat.type/i64
+  (t118b/sum-of (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)))
 
-(:wat::core::defn :t::sum-list [] -> wat.type/i64
-  (:t118b::sum-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
+(wat.core/defn t/sum-list [] :- wat.type/i64
+  (t118b/sum-of (wat.type/List :- [wat.type/i64] 1 2 3 4 5)))
 
-(:wat::core::defn :t::sum-stream [] -> wat.type/i64
-  (:t118b::sum-of (:wat::stream::cons 10
-                     (:wat::stream::lazy
-                       (:wat::stream::cons 20
-                         (:wat::stream::lazy (:wat::stream::empty)))))))
+(wat.core/defn t/sum-stream [] :- wat.type/i64
+  (t118b/sum-of (wat.stream/cons 10
+                     (wat.stream/lazy
+                       (wat.stream/cons 20
+                         (wat.stream/lazy (wat.stream/empty)))))))

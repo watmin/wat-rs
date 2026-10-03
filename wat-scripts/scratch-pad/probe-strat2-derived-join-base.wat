@@ -29,72 +29,72 @@
 ;; Both arms MUST read 1. This file is loader-gated, so it stays alive; the run keeps it honest.
 ;; A 0 in SUBJECT is the regression returning.
 
-(:wat::core::defrecord :z::A   [c <- wat.type/String])
-(:wat::core::defrecord :z::Bad [c <- wat.type/String])
-(:wat::core::defrecord :z::R   [c <- wat.type/String  t <- wat.type/String])
-(:wat::core::defrecord :z::S   [c <- wat.type/String])
-(:wat::core::defrecord :z::Out [c <- wat.type/String  t <- wat.type/String])
+(wat.core/defrecord z/A   [c :- wat.type/String])
+(wat.core/defrecord z/Bad [c :- wat.type/String])
+(wat.core/defrecord z/R   [c :- wat.type/String  t :- wat.type/String])
+(wat.core/defrecord z/S   [c :- wat.type/String])
+(wat.core/defrecord z/Out [c :- wat.type/String  t :- wat.type/String])
 
 ;; SUBJECT — stratum 2: derived THROUGH a negation. `:z::Bad` is never seeded, so the
 ;; negation is satisfied and `S` must (and does) derive.
-(:wat::rete::defrule :z::settled-neg
-  :when [(:z::A (?c :- :c))
-         (:wat::rete::not (:z::Bad (?c :- :c)))]
-  :then [(:z::S :c ?c)])
+(wat.rete/defrule z/settled-neg
+  :when [(z/A (?c :- :c))
+         (wat.rete/not (z/Bad (?c :- :c)))]
+  :then [(z/S :c ?c)])
 
 ;; CONTROL — stratum 1: the same conclusion with no negation in its path.
-(:wat::core::defrecord :z::S2  [c <- wat.type/String])
-(:wat::core::defrecord :z::Out2 [c <- wat.type/String  t <- wat.type/String])
-(:wat::rete::defrule :z::settled-plain
-  :when [(:z::A (?c :- :c))]
-  :then [(:z::S2 :c ?c)])
+(wat.core/defrecord z/S2  [c :- wat.type/String])
+(wat.core/defrecord z/Out2 [c :- wat.type/String  t :- wat.type/String])
+(wat.rete/defrule z/settled-plain
+  :when [(z/A (?c :- :c))]
+  :then [(z/S2 :c ?c)])
 
 ;; The IDENTICAL downstream join, once per arm.
-(:wat::rete::defrule :z::out-neg
-  :when [(:z::S (?c :- :c)) (:z::R (?c :- :c) (?t :- :t))]
-  :then [(:z::Out :c ?c :t ?t)])
+(wat.rete/defrule z/out-neg
+  :when [(z/S (?c :- :c)) (z/R (?c :- :c) (?t :- :t))]
+  :then [(z/Out :c ?c :t ?t)])
 
-(:wat::rete::defrule :z::out-plain
-  :when [(:z::S2 (?c :- :c)) (:z::R (?c :- :c) (?t :- :t))]
-  :then [(:z::Out2 :c ?c :t ?t)])
+(wat.rete/defrule z/out-plain
+  :when [(z/S2 (?c :- :c)) (z/R (?c :- :c) (?t :- :t))]
+  :then [(z/Out2 :c ?c :t ?t)])
 
-(:wat::rete::defquery :z::q-S
+(wat.rete/defquery z/q-S
   :params []
-  :when [(?fact :- :z::S)])
+  :when [(?fact :- z/S)])
 
 
-(:wat::rete::defquery :z::q-S2
+(wat.rete/defquery z/q-S2
   :params []
-  :when [(?fact :- :z::S2)])
+  :when [(?fact :- z/S2)])
 
 
-(:wat::rete::defquery :z::q-Out2
+(wat.rete/defquery z/q-Out2
   :params []
-  :when [(?fact :- :z::Out2)])
+  :when [(?fact :- z/Out2)])
 
 
-(:wat::rete::defquery :z::q-Out
+(wat.rete/defquery z/q-Out
   :params []
-  :when [(?fact :- :z::Out)])
+  :when [(?fact :- z/Out)])
 
 
-(:wat::core::defn :z::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
+(wat.core/defn z/show [label :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println (wat.string/concat label (wat.core/str n))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [f (:wat::core::match (:wat::rete::fire-rules
-         (:wat::core::match (:wat::rete::insert
-           (:wat::core::match (:wat::rete::insert
-             (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]
-               (:z::settled-neg) (:z::settled-plain) (:z::out-neg) (:z::out-plain)) (wat.type/PersistentVector :- [:wat::rete::Query] (:z::q-S) (:z::q-S2) (:z::q-Out2) (:z::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-             (:z::A :c "i64")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-           (:z::R :c "i64" :t "wat.core.i64")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [f (wat.core/match (wat.rete/fire-rules
+         (wat.core/match (wat.rete/insert
+           (wat.core/match (wat.rete/insert
+             (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule]
+               (z/settled-neg) (z/settled-plain) (z/out-neg) (z/out-plain)) (wat.type/PersistentVector :- [wat.rete/Query] (z/q-S) (z/q-S2) (z/q-Out2) (z/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+             (z/A :c "i64")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+           (z/R :c "i64" :t "wat.core.i64")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.core/do
       ;; non-vacuity: both gates must derive, or the Out rows below mean nothing
-      (:z::show "S  via negation (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S))))
-      (:z::show "S2 plain         (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-S2))))
+      (z/show "S  via negation (want 1): " (wat.core/length (wat.rete/query f (z/q-S))))
+      (z/show "S2 plain         (want 1): " (wat.core/length (wat.rete/query f (z/q-S2))))
       ;; the differential — these two must agree
-      (:z::show "Out2 CONTROL     (want 1): " (:wat::core::length (:wat::rete::query f (:z::q-Out2))))
-      (:z::show "Out  SUBJECT     (want 1; GREEN since ff581b6f closed #94): "
-        (:wat::core::length (:wat::rete::query f (:z::q-Out)))))))
+      (z/show "Out2 CONTROL     (want 1): " (wat.core/length (wat.rete/query f (z/q-Out2))))
+      (z/show "Out  SUBJECT     (want 1; GREEN since ff581b6f closed #94): "
+        (wat.core/length (wat.rete/query f (z/q-Out)))))))

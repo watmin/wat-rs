@@ -37,30 +37,30 @@
 ;;   #wat.type/ImpureFieldInPureAggregate, "containment rule (arc 293.W)" — so the only
 ;; way a struct reaches a fence is as a direct fact, which it can be (COMPILED-OK).
 
-(:wat::core::defn :probe::same-tag? [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
-  (:wat::core::= a b))
+(wat.core/defn probe/same-tag? [a :- wat.type/i64 b :- wat.type/i64] :- wat.type/bool
+  (wat.core/= a b))
 
-(:wat::core::defstruct :u::Box
-  [cache <- (:wat::cache::Lru :- [wat.type/i64 wat.type/i64])
-   tag   <- wat.type/i64])
+(wat.core/defstruct u/Box
+  [cache :- (wat.cache/Lru :- [wat.type/i64 wat.type/i64])
+   tag   :- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [b     (:u::Box :cache (:wat::cache::Lru/new 8) :tag 42)
-     t1    (:wat::core::struct-field b 1)
-     t2    (:wat::core::struct-field b 1)
-     hA    (:wat::core::struct-field b 0)          ;; read BEFORE any mutation
-     lenA  (:wat::cache::Lru/len hA)
-     _     (:wat::cache::Lru/put hA 1 100)
-     _2    (:wat::cache::Lru/put hA 2 200)
-     hB    (:wat::core::struct-field b 0)          ;; read AFTER two mutations
-     lenB  (:wat::cache::Lru/len hB)
-     lenA2 (:wat::cache::Lru/len hA)]
-    (:wat::kernel::println (:wat::string::concat "plain field: read twice, equal? "
-      (:wat::core::bool::to-string (:probe::same-tag? t1 t2))))
-    (:wat::kernel::println (:wat::string::concat "handle len when FIRST read: "
-      (:wat::i64::to-string lenA)))
-    (:wat::kernel::println (:wat::string::concat "handle len via the SECOND read: "
-      (:wat::i64::to-string lenB)))
-    (:wat::kernel::println (:wat::string::concat "handle len via the FIRST read, now: "
-      (:wat::i64::to-string lenA2)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [b     (u/Box :cache (wat.cache.Lru/new 8) :tag 42)
+     t1    (wat.core/struct-field b 1)
+     t2    (wat.core/struct-field b 1)
+     hA    (wat.core/struct-field b 0)          ;; read BEFORE any mutation
+     lenA  (wat.cache.Lru/len hA)
+     _     (wat.cache.Lru/put hA 1 100)
+     _2    (wat.cache.Lru/put hA 2 200)
+     hB    (wat.core/struct-field b 0)          ;; read AFTER two mutations
+     lenB  (wat.cache.Lru/len hB)
+     lenA2 (wat.cache.Lru/len hA)]
+    (wat.kernel/println (wat.string/concat "plain field: read twice, equal? "
+      (wat.core.bool/to-string (probe/same-tag? t1 t2))))
+    (wat.kernel/println (wat.string/concat "handle len when FIRST read: "
+      (wat.i64/to-string lenA)))
+    (wat.kernel/println (wat.string/concat "handle len via the SECOND read: "
+      (wat.i64/to-string lenB)))
+    (wat.kernel/println (wat.string/concat "handle len via the FIRST read, now: "
+      (wat.i64/to-string lenA2)))))

@@ -5,14 +5,14 @@
 ;;
 ;; Three assertions; #3 is load-bearing (a bad line must not end the caller).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; 1 — decodes: a well-formed JSON object → ::Value.
-    (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
-      [:wat::edn::ReadJsonOutcome.Value {:value v}
-        (:wat::kernel::println "1 decodes: OK -> ::Value")]
-      [:wat::edn::ReadJsonOutcome.Malformed {:cause cause}
-        (:wat::test::assert-true false)])
+    (wat.core/match (wat.edn/read-json "{\"edn\":\"42\"}")
+      [wat.edn/ReadJsonOutcome.Value {:value v}
+        (wat.kernel/println "1 decodes: OK -> ::Value")]
+      [wat.edn/ReadJsonOutcome.Malformed {:cause cause}
+        (wat.test/assert-true false)])
 
     ;; 2 — CRUX-1: is a nested field readable from wat? `ReadJsonOutcome` is PARAMETRIC
     ;; (`(ReadJsonOutcome :- [T])`, corrected from an initial pass that fixed the payload at the
@@ -20,22 +20,22 @@
     ;; checked, so nothing could ever read a field back out of it). With `T` flowing from
     ;; the caller's use, `m` binds at a real `(HashMap :- [K V])` and the ordinary
     ;; `:wat::core::HashMap/get` accessor applies directly — no destructure sugar needed.
-    (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
-      [:wat::edn::ReadJsonOutcome.Value {:value m}
-        (:wat::core::match (:wat::core::get m "edn")
-          [:wat::core::Option.Some {:value s}
-            (:wat::core::do
-              (:wat::test::assert-eq s "42")
-              (:wat::kernel::println (:wat::string::concat "2 CRUX-1 HashMap/get -> " s)))]
-          [:wat::core::Option.None {} (:wat::test::assert-true false)])]
-      [:wat::edn::ReadJsonOutcome.Malformed {:cause cause} (:wat::test::assert-true false)])
+    (wat.core/match (wat.edn/read-json "{\"edn\":\"42\"}")
+      [wat.edn/ReadJsonOutcome.Value {:value m}
+        (wat.core/match (wat.core/get m "edn")
+          [wat.core/Option.Some {:value s}
+            (wat.core/do
+              (wat.test/assert-eq s "42")
+              (wat.kernel/println (wat.string/concat "2 CRUX-1 HashMap/get -> " s)))]
+          [wat.core/Option.None {} (wat.test/assert-true false)])]
+      [wat.edn/ReadJsonOutcome.Malformed {:cause cause} (wat.test/assert-true false)])
 
     ;; 3 — a malformed line leaves the caller ALIVE: ::Malformed, THEN a form
     ;; evaluated afterward still runs — its result is asserted, not just observed.
-    (:wat::core::match (:wat::edn::read-json "{not json")
-      [:wat::edn::ReadJsonOutcome.Value {:value v}
-        (:wat::test::assert-true false)]
-      [:wat::edn::ReadJsonOutcome.Malformed {:cause cause}
-        (:wat::kernel::println "3 malformed: OK -> ::Malformed")])
-    (:wat::test::assert-eq (:wat::i64::+ 2 2) 4)
-    (:wat::kernel::println "3 survived: OK -> (+ 2 2) = 4")))
+    (wat.core/match (wat.edn/read-json "{not json")
+      [wat.edn/ReadJsonOutcome.Value {:value v}
+        (wat.test/assert-true false)]
+      [wat.edn/ReadJsonOutcome.Malformed {:cause cause}
+        (wat.kernel/println "3 malformed: OK -> ::Malformed")])
+    (wat.test/assert-eq (wat.i64/+ 2 2) 4)
+    (wat.kernel/println "3 survived: OK -> (+ 2 2) = 4")))

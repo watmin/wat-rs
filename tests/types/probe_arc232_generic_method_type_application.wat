@@ -5,5 +5,5 @@
 ;; VALUES is ordinary EDN whitespace and must keep working. A wall that refused commas everywhere
 ;; would pass the negative test and break the language.
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::length (wat.type/Vector :- [wat.type/i64] 1, 2, 3)))
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/length (wat.type/Vector :- [wat.type/i64] 1, 2, 3)))

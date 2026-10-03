@@ -36,79 +36,79 @@
 ;; The rule shape is copied VERBATIM from wat-scripts/perf/grid/node-share.wat's build-rule — if it
 ;; drifts from the axis, this probe stops describing the thing that was measured.
 
-(:wat::core::defrecord :nsp::A [k <- wat.type/i64])
-(:wat::core::defrecord :nsp::B [k <- wat.type/i64])
-(:wat::core::defrecord :nsp::Out [k <- wat.type/i64])
+(wat.core/defrecord nsp/A [k :- wat.type/i64])
+(wat.core/defrecord nsp/B [k :- wat.type/i64])
+(wat.core/defrecord nsp/Out [k :- wat.type/i64])
 
-(:wat::core::defrecord :probe::NodeCounts
-  [n       <- wat.type/i64
-   total   <- wat.type/i64
-   next-id <- wat.type/i64
-   kinds   <- (wat.type/HashMap :- [wat.type/String wat.type/i64])])
+(wat.core/defrecord probe/NodeCounts
+  [n       :- wat.type/i64
+   total   :- wat.type/i64
+   next-id :- wat.type/i64
+   kinds   :- (wat.type/HashMap :- [wat.type/String wat.type/i64])])
 
 ;; build-rule i n — VERBATIM the axis's rule: Out(k) :- A(k) AND B(k) AND (i == k mod n).
 ;; The leading two conditions are byte-identical across every i (no i splices into them), so they
 ;; are exactly the shareable prefix under test. Only the trailing `where` carries the per-rule
 ;; literal. `mod` is written as the truncating-division idiom (no native i64 mod).
-(:wat::core::defn :nsp::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsp::A (?k :- :k)))
-                    b-c     (:wat::core::quasiquote (:nsp::B (?k :- :k)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
-                                (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::i64::- ?k
-                                    (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
-                    ins     (:wat::core::quasiquote (:nsp::Out ?k))]
-    (:wat::rete::Rule :name (:wat::i64::to-string i)
+(wat.core/defn nsp/build-rule [i :- wat.type/i64  n :- wat.type/i64] :- wat.rete/Rule
+  (wat.core/let [a-c     (wat.core/quasiquote (nsp/A (?k :- :k)))
+                    b-c     (wat.core/quasiquote (nsp/B (?k :- :k)))
+                    where-c (wat.core/quasiquote
+                              (wat.rete/where
+                                (wat.core/= (wat.core/unquote i)
+                                  (wat.i64/- ?k
+                                    (wat.i64/* (wat.i64// ?k (wat.core/unquote n)) (wat.core/unquote n))))))
+                    ins     (wat.core/quasiquote (nsp/Out ?k))]
+    (wat.rete/Rule :name (wat.i64/to-string i)
       :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
       :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
-(:wat::core::defn :nsp::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
-      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::conj acc (:nsp::build-rule i n)))
-    (wat.type/PersistentVector :- [:wat::rete::Rule])
-    (:wat::core::range 0 n)))
+(wat.core/defn nsp/build-rules [n :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.rete/Rule])  i :- wat.type/i64]
+      :- (wat.type/PersistentVector :- [wat.rete/Rule])
+      (wat.core/conj acc (nsp/build-rule i n)))
+    (wat.type/PersistentVector :- [wat.rete/Rule])
+    (wat.core/range 0 n)))
 
 ;; count-kinds — fold the network map into kind-label -> count. `node-kind-label` (wat/rete.wat:290)
 ;; takes the last `::` segment of the node record's own type FQDN, so this needs no per-kind
 ;; enumeration and will surface a node kind this probe's author never thought of.
-(:wat::core::defn :nsp::count-kinds
-  [session <- :wat::rete::Session] -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
-  (:wat::core::let [network (:wat::rete::Session/network session)
-                    keys    (:wat::core::keys network)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/HashMap :- [wat.type/String wat.type/i64])
-                       k   <- wat.type/i64]
-        -> (wat.type/HashMap :- [wat.type/String wat.type/i64])
-        (:wat::core::let [node (:wat::core::Option/expect
-                                 (:wat::core::get network k)
+(wat.core/defn nsp/count-kinds
+  [session :- wat.rete/Session] :- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+  (wat.core/let [network (wat.rete.Session/network session)
+                    keys    (wat.core/keys network)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+                       k   :- wat.type/i64]
+        :- (wat.type/HashMap :- [wat.type/String wat.type/i64])
+        (wat.core/let [node (wat.core.Option/expect
+                                 (wat.core/get network k)
                                  "count-kinds: node not found")
-                          kind (:wat::rete::node-kind-label node)
-                          cur  (:wat::core::match (:wat::core::get acc kind)
-                                 [:wat::core::Option.Some {:value v} v]
-                                 [:wat::core::Option.None {} 0])]
-          (:wat::core::assoc acc kind (:wat::i64::+ cur 1))))
+                          kind (wat.rete/node-kind-label node)
+                          cur  (wat.core/match (wat.core/get acc kind)
+                                 [wat.core/Option.Some {:value v} v]
+                                 [wat.core/Option.None {} 0])]
+          (wat.core/assoc acc kind (wat.i64/+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (wat.type/HashMap :- [wat.type/String wat.type/i64])
       keys)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
-                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-                              [:wat::kernel::ReadlnOutcome.Eof {}
-                                (:wat::kernel::assertion-failed! :message "readln: end of input")]
-                              [:wat::kernel::ReadlnOutcome.Stopped {}
-                                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
-                    rules   (:nsp::build-rules n)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln )
+                              [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+                              [wat.kernel/ReadlnOutcome.Eof {}
+                                (wat.kernel/assertion-failed! :message "readln: end of input")]
+                              [wat.kernel/ReadlnOutcome.Stopped {}
+                                (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    n       (wat.core.Option/expect (wat.core/get params 0) "stdin: [n]")
+                    rules   (nsp/build-rules n)
                     ;; COMPILE ONLY — never seed, never fire. That is what makes this safe at any N.
-                    session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    kinds   (:nsp::count-kinds session)
-                    network (:wat::rete::Session/network session)
-                    total   (:wat::core::length (:wat::core::keys network))]
-    (:wat::kernel::println
-      (:probe::NodeCounts :n n :total total
-        :next-id (:wat::rete::Session/next-id session)
+                    session (wat.core/match (wat.rete/compile rules) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    kinds   (nsp/count-kinds session)
+                    network (wat.rete.Session/network session)
+                    total   (wat.core/length (wat.core/keys network))]
+    (wat.kernel/println
+      (probe/NodeCounts :n n :total total
+        :next-id (wat.rete.Session/next-id session)
         :kinds kinds))))

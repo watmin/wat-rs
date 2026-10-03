@@ -28,9 +28,9 @@
 ;; fixture whose whole job is to BE REFUSED reads there as rot. Same move, same reason, as arc 255
 ;; Stone 4, which relocated the blanket's two dependents into `tests/` when their containment
 ;; premise died. The refusal is asserted by the probe beside this file.
-(:wat::core::defrecord :probe::Box :- [T] [v <- :T])
-(:wat::core::defenum :probe::Holder :- [T] :wat::enum::Pure
-  :Many [items <- (wat.type/Vector :- [(:probe::Box :- [:T])])]
-  :One  [item <- :T])
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe::Holder.Many {:items [(:probe::Box :NOPE 1)]})))
+(wat.core/defrecord probe/Box :- [T] [v :- T])
+(wat.core/defenum probe/Holder :- [T] wat.enum/Pure
+  :Many [items :- (wat.type/Vector :- [(probe/Box :- [:T])])]
+  :One  [item :- T])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe/Holder.Many {:items [(probe/Box :NOPE 1)]})))

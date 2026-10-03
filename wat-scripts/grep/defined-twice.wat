@@ -39,43 +39,43 @@
 ;; and until that exists, any rule about definitions carries this caveat.
 
 ;; a definition's NAME node: child index 1 of a list whose child index 0 is a declaring keyword
-(:wat::core::defrecord :dt::Declarator [parent <- wat.type/i64])
-(:wat::core::defrecord :dt::Defines    [id <- wat.type/i64  name <- wat.type/String])
+(wat.core/defrecord dt/Declarator [parent :- wat.type/i64])
+(wat.core/defrecord dt/Defines    [id :- wat.type/i64  name :- wat.type/String])
 
-(:wat::rete::defrule :dt::declarator
-  :when [(:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
-         (:wat::grep::Named (?id :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::rete::where
-           (:wat::rete::core::or
-             (:wat::rete::string::= ?n "wat.core/defn")
-             (:wat::rete::core::or
-               (:wat::rete::string::= ?n "wat.core/defrecord")
-               (:wat::rete::string::= ?n "wat.core/defmacro"))))]
-  :then [(:dt::Declarator :parent ?p)])
+(wat.rete/defrule dt/declarator
+  :when [(wat.grep/Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
+         (wat.grep/Named (?id :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Keyword {})))
+         (wat.rete/where (wat.rete.i64/= ?i 0))
+         (wat.rete/where
+           (wat.rete.core/or
+             (wat.rete.string/= ?n "wat.core/defn")
+             (wat.rete.core/or
+               (wat.rete.string/= ?n "wat.core/defrecord")
+               (wat.rete.string/= ?n "wat.core/defmacro"))))]
+  :then [(dt/Declarator :parent ?p)])
 
-(:wat::rete::defrule :dt::defines
-  :when [(:dt::Declarator (?p :- :parent))
-         (:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index))
-         (:wat::grep::Named (?id :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::i64::= ?i 1))]
-  :then [(:dt::Defines :id ?id :name ?n)])
+(wat.rete/defrule dt/defines
+  :when [(dt/Declarator (?p :- :parent))
+         (wat.grep/Node  (?id :- :id) (?p :- :parent) (?i :- :index))
+         (wat.grep/Named (?id :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.i64/= ?i 1))]
+  :then [(dt/Defines :id ?id :name ?n)])
 
 ;; ★ THE SELF-JOIN — the same condition twice, `?n` shared, `?a < ?b` keeping one of each mirror
-(:wat::rete::defrule :dt::twice
-  :when [(:dt::Defines (?a :- :id) (?n :- :name))
-         (:dt::Defines (?b :- :id) (?n :- :name))
+(wat.rete/defrule dt/twice
+  :when [(dt/Defines (?a :- :id) (?n :- :name))
+         (dt/Defines (?b :- :id) (?n :- :name))
          ;; the ordering guard, back where it belongs: immediately after the two conditions
          ;; whose variables it relates, before the span lookup that only the survivor needs.
-         (:wat::rete::where (:wat::rete::i64::< ?a ?b))
-         (:wat::grep::Span (?b :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))]
-  :then [(:wat::grep::Match
+         (wat.rete/where (wat.rete.i64/< ?a ?b))
+         (wat.grep/Span (?b :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))]
+  :then [(wat.grep/Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "defined-more-than-once-in-one-file"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "name" :value ?n)))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "name" :value ?n)))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :dt))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :dt))

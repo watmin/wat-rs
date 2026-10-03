@@ -29,80 +29,80 @@
 ;;     | cargo wat ./wat-scripts/fixes/mandate-invocation-ctx-param.wat
 
 ;; ── small helpers ────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::ast->source n))
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/ast->source n))
 
-(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+(wat.core/defn user/end-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-end-span n) lines))
 
 ;; ── is this top-level form a defservice? (mirrors the census exactly) ─────────────────────
-(:wat::core::defn :user::defservice-form?
-  [form <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [ch (:wat::core::ast->children form)]
-    (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/defservice-form?
+  [form :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [ch (wat.core/ast->children form)]
+    (wat.core/if (wat.core/empty? ch)
       false
-      (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::service::defservice"))))
+      (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::service::defservice"))))
 
 ;; ── the children FOLLOWING the child whose source is `kw` (the census's own helper) ───────
-(:wat::core::defn :user::index-after-keyword
-  [ch <- (wat.type/Vector :- [wat.type/AST])  kw <- wat.type/String  i <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length ch))
+(wat.core/defn user/index-after-keyword
+  [ch :- (wat.type/Vector :- [wat.type/AST])  kw :- wat.type/String  i :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/if (wat.i64/>= i (wat.core/length ch))
     -1
-    (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::nth ch i)) kw)
-      (:wat::i64::+ i 1)
-      (:user::index-after-keyword ch kw (:wat::i64::+ i 1)))))
+    (wat.core/if (wat.core/= (user/kw-name (wat.core/nth ch i)) kw)
+      (wat.i64/+ i 1)
+      (user/index-after-keyword ch kw (wat.i64/+ i 1)))))
 
 ;; ── one defservice form → its :impls arms (empty Vector if no :impls) ─────────────────────
-(:wat::core::defn :user::arms-of
-  [form <- wat.type/AST] -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::let [ch  (:wat::core::ast->children form)
-                    idx (:user::index-after-keyword ch ":impls" 0)]
-    (:wat::core::if (:wat::i64::< idx 0)
+(wat.core/defn user/arms-of
+  [form :- wat.type/AST] :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/let [ch  (wat.core/ast->children form)
+                    idx (user/index-after-keyword ch ":impls" 0)]
+    (wat.core/if (wat.i64/< idx 0)
       (wat.type/Vector :- [wat.type/AST])
-      (:wat::core::if (:wat::i64::>= idx (:wat::core::length ch))
+      (wat.core/if (wat.i64/>= idx (wat.core/length ch))
         (wat.type/Vector :- [wat.type/AST])
-        (:wat::core::ast->children (:wat::core::nth ch idx))))))
+        (wat.core/ast->children (wat.core/nth ch idx))))))
 
 ;; ── one arm → zero-or-one insertion edit ───────────────────────────────────────────────────
 ;; arm children: [op-node, param-vec, body]. Insert " ctx" right after the s-binder (param-ch[0])
 ;; iff the arm is at the OLD arity for its kind (internal: 1; public: 2). Anything else (already
 ;; migrated, or unrecognized) is left untouched — idempotent, and safe against surprises the
 ;; census didn't predict.
-(:wat::core::defn :user::arm-edit
-  [arm <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [ch (:wat::core::ast->children arm)]
-    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+(wat.core/defn user/arm-edit
+  [arm :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [ch (wat.core/ast->children arm)]
+    (wat.core/if (wat.core/< (wat.core/length ch) 2)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::let
-        [op-node     (:wat::core::first ch)
-         op-str      (:user::kw-name op-node)
-         is-internal (:wat::string::starts-with? op-str "-")
-         param-vec   (:wat::core::nth ch 1)
-         param-ch    (:wat::core::ast->children param-vec)
-         arity       (:wat::core::length param-ch)
-         needs-edit  (:wat::core::if is-internal
-                       (:wat::core::= arity 1)
-                       (:wat::core::= arity 2))]
-        (:wat::core::if (:wat::core::not needs-edit)
+      (wat.core/let
+        [op-node     (wat.core/first ch)
+         op-str      (user/kw-name op-node)
+         is-internal (wat.string/starts-with? op-str "-")
+         param-vec   (wat.core/nth ch 1)
+         param-ch    (wat.core/ast->children param-vec)
+         arity       (wat.core/length param-ch)
+         needs-edit  (wat.core/if is-internal
+                       (wat.core/= arity 1)
+                       (wat.core/= arity 2))]
+        (wat.core/if (wat.core/not needs-edit)
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-          (:wat::core::let
-            [s-binder (:wat::core::first param-ch)
-             end      (:user::end-off s-binder lines)]
+          (wat.core/let
+            [s-binder (wat.core/first param-ch)
+             end      (user/end-off s-binder lines)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] end "" " ctx"))))))))
 
 ;; ── all edits for one defservice form's arms ───────────────────────────────────────────────
-(:wat::core::defn :user::arms-edits
-  [arms <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     arm <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::arm-edit arm lines)))
+(wat.core/defn user/arms-edits
+  [arms :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     arm :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/arm-edit arm lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     arms))
 
@@ -113,63 +113,63 @@
 ;; documents the same case for `defsurface`). Discovered the hard way: the top-level-only walk
 ;; missed tests/macros/probe_arc278_macro_generates_service.wat's `defservice` (it lives inside
 ;; `:probe::echo-defsvc`'s backtick body), silently leaving one arm unmigrated.
-(:wat::core::defn :user::node-edits
-  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/node-edits
+  [node :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-        (:wat::core::let
-          [this (:wat::core::if (:user::defservice-form? node)
-                  (:user::arms-edits (:user::arms-of node) lines)
+        (wat.core/let
+          [this (wat.core/if (user/defservice-form? node)
+                  (user/arms-edits (user/arms-of node) lines)
                   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
-          (:wat::core::concat this (:user::seq-edits ch lines)))))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::seq-edits (:wat::core::ast->children node) lines)
+          (wat.core/concat this (user/seq-edits ch lines)))))
+    (wat.core/if (wat.fix/structural? node)
+      (user/seq-edits (wat.core/ast->children node) lines)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     it <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     it :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     forms (:wat::core::ast->children tree)
-     eds   (:user::seq-edits forms lines)
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     forms (wat.core/ast->children tree)
+     eds   (user/seq-edits forms lines)
      ;; sort by offset ascending, then reverse for right-to-left application (the recursive walk
      ;; is no longer guaranteed left-to-right-by-offset once nested forms are involved — top level
      ;; is visited before descending into it, so a nested edit could sort earlier or later than a
      ;; sibling top-level edit; SORT before reversing to make the ordering safe regardless).
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── driver ──────────────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[ctx-param] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[ctx-param] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

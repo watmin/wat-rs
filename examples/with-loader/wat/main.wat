@@ -10,6 +10,6 @@
 ;; retired in favour of (:wat::kernel::println ...). argv is ambient
 ;; (not a parameter). println emits the EDN-encoded form of the String.
 
-(:wat::load-file! "helper.wat")
+(wat/load-file! "helper.wat")
 
-(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println (:user::with_loader::helper::greeting)))
+(wat.core/defn user/main [] :- wat.type/nil (wat.kernel/println (user.with_loader.helper/greeting)))

@@ -1,3 +1,3 @@
-(:wat::core::do
-  (:wat::core::typealias :diag::Score wat.type/i64)
-  (:wat::core::defn :diag::make-score [] -> :diag::Score 42))
+(wat.core/do
+  (wat.core/typealias diag/Score wat.type/i64)
+  (wat.core/defn diag/make-score [] :- diag/Score 42))

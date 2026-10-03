@@ -21,23 +21,23 @@
 ;; cases against the CONTROL cases — if their error shapes are the same, the classifier
 ;; is not available and `:repl::turn`'s match arm as drafted is dishonest.
 
-(:wat::core::defn :probe::try [label <- wat.type/String  src <- wat.type/String] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println label)
-    (:wat::kernel::println
-      (:wat::eval-ast! (:wat::core::first (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))))
+(wat.core/defn probe/try [label :- wat.type/String  src :- wat.type/String] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println label)
+    (wat.kernel/println
+      (wat/eval-ast! (wat.core/first (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; ── DECLARATIONS — each should refuse in a way the REPL can recognize ──
-    (:probe::try "A-def"       "(:wat::core::def :usr::x 1)")
-    (:probe::try "B-defn"      "(:wat::core::defn :usr::f [] -> :wat::core::i64 1)")
-    (:probe::try "C-defrecord" "(:wat::core::defrecord :usr::R [a <- :wat::core::i64])")
-    (:probe::try "D-defenum"   "(:wat::core::defenum :usr::E :wat::enum::Pure :A [])")
+    (probe/try "A-def"       "(:wat::core::def :usr::x 1)")
+    (probe/try "B-defn"      "(:wat::core::defn :usr::f [] -> :wat::core::i64 1)")
+    (probe/try "C-defrecord" "(:wat::core::defrecord :usr::R [a <- :wat::core::i64])")
+    (probe/try "D-defenum"   "(:wat::core::defenum :usr::E :wat::enum::Pure :A [])")
 
     ;; ── CONTROLS — genuine errors; the REPL must NOT mistake these for declarations ──
-    (:probe::try "E-unknown-fn" "(:usr::no-such-fn 1)")
-    (:probe::try "F-typo-head"  "(:wat::core::deffn :usr::g [] 1)")
+    (probe/try "E-unknown-fn" "(:usr::no-such-fn 1)")
+    (probe/try "F-typo-head"  "(:wat::core::deffn :usr::g [] 1)")
 
     ;; ── CONTROL — a plain expression; must simply evaluate ──
-    (:probe::try "G-expr"       "(:wat::core::+ 1 2)")))
+    (probe/try "G-expr"       "(:wat::core::+ 1 2)")))

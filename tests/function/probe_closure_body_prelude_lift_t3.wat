@@ -5,26 +5,26 @@
 ;; The child now MATCHES the variant it constructed and `println`s the mapped i64, so the
 ;; assertion proves the enum was registered AND its variants construct AND match — stronger
 ;; than exit-0. Both variants are named (full-enum matching is mandatory; no wildcard arm).
-(:wat::core::defn :my::launch [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defenum :h::LocalDir :wat::enum::Pure
+(wat.core/defn my/launch [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defenum h/LocalDir wat.enum/Pure
              :North
              :South)
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [d    :h::LocalDir.North
-                n    (:wat::core::match d
-                       [:h::LocalDir.North {} 1]
-                       [:h::LocalDir.South {} 2])
-                _out (:wat::kernel::println n)]
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [d    h/LocalDir.North
+                n    (wat.core/match d
+                       [h/LocalDir.North {} 1]
+                       [h/LocalDir.South {} 2])
+                _out (wat.kernel/println n)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m} m]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m} m]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "launch: child closed before sending its value")])))

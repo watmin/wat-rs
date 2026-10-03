@@ -12,83 +12,83 @@
 ;; of this hand-written body into the serve-loop codegen (16.2), FORCED by the checker (16.1) —
 ;; turning hand-discipline (option a) into structure (option c).
 
-(:wat::core::defsurface :probe::Op1 :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Op1 :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Op1::DoOpRequest [payload <- wat.type/String])
-   (:wat::core::defenum :probe::Op1::DoOpResponse :wat::enum::Pure
-     :Ok              [n <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Op1/DoOpRequest [payload :- wat.type/String])
+   (wat.core/defenum probe.Op1/DoOpResponse wat.enum/Pure
+     :Ok              [n :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse :max-request-bytes 524288)])
+  [(do-op [self :- probe/Op1  req :- probe.Op1/DoOpRequest] :- probe.Op1/DoOpResponse :max-request-bytes 524288)])
 
 ;; The satisfier: the body itself measures + returns the variant (hand-rolled = option a; the
 ;; mechanism the checker-forced serve-loop will codegen = option c).
-(:wat::service::defservice :probe::op1svc
-  :satisfies :probe::Op1
+(wat.service/defservice probe/op1svc
+  :satisfies probe/Op1
   :durable   []
   :ephemeral []
   :impls
   [(do-op [s ctx req]
-     (:wat::core::let
-       [enc (:wat::edn::write req)
-        n   (:wat::string::length enc)
+     (wat.core/let
+       [enc (wat.edn/write req)
+        n   (wat.string/length enc)
         cap 200]
-       (:wat::core::if (:wat::core::> n cap)
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::Op1::DoOpResponse.RequestTooLarge {:bytes n :cap cap})})
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::Op1::DoOpResponse.Ok {:n n})}))))])
+       (wat.core/if (wat.core/> n cap)
+         (wat.service/Outcome.Reply {:state s :reply (probe.Op1/DoOpResponse.RequestTooLarge {:bytes n :cap cap})})
+         (wat.service/Outcome.Reply {:state s :reply (probe.Op1/DoOpResponse.Ok {:n n})}))))])
 
 ;; Build an ASCII string of n*32 bytes (byte-length == char-length for ASCII).
-(:wat::core::defn :probe::pl [n <- wat.type/i64] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+(wat.core/defn probe/pl [n :- wat.type/i64] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  _i :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
-    (:wat::core::range 0 n)))
+    (wat.core/range 0 n)))
 
 ;; (1) an over-cap request returns the MATCHABLE `RequestTooLarge{bytes, cap}` variant — a value
 ;;     the client `match`es, not a raise. Returns `bytes` (a positive i64 > cap) on RequestTooLarge,
 ;;     else -1 (the Ok arm) so the harness can distinguish.
-(:wat::core::defn :user::over-op-returns-matchable [] -> wat.type/i64
-  (:wat::core::let
-    [big (:probe::pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
-     h   (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
+(wat.core/defn user/over-op-returns-matchable [] :- wat.type/i64
+  (wat.core/let
+    [big (probe/pl 20)   ;; 20*32 = 640-byte payload → encoded request > the 200 cap
+     h   (probe.op1svc/start :locus (wat.spawn/process) :record (probe.op1svc/Record))
+     c   (wat.core/match (wat.kernel/connect (probe.op1svc.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r   (probe.Op1/do-op c (probe.Op1/DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
     ;; `(RecvOutcome :- [DoOpResponse])`; the happy-path Response comes through ::Message.
-    (:wat::core::match r
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::Op1::DoOpResponse.RequestTooLarge {:bytes bytes :cap cap} bytes]
-          [:probe::Op1::DoOpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")]
-          [:probe::Op1::DoOpResponse.Ok {:n n} -1])]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} -2]
+    (wat.core/match r
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.Op1/DoOpResponse.RequestTooLarge {:bytes bytes :cap cap} bytes]
+          [probe.Op1/DoOpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")]
+          [probe.Op1/DoOpResponse.Ok {:n n} -1])]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} -2]
       ;; arc 278 #73 — a stop is neither the death (-2) nor the close (-3) this probe already
       ;; distinguishes; -4 names it as its own terminal outcome rather than folding it into either.
-      [:wat::kernel::RecvOutcome.Stopped {} -4]
-      [:wat::kernel::RecvOutcome.Closed {} -3])))
+      [wat.kernel/RecvOutcome.Stopped {} -4]
+      [wat.kernel/RecvOutcome.Closed {} -3])))
 
 ;; (2) the SAME connection recovers IN PLACE: an over-cap request (→ RequestTooLarge, connection
 ;;     KEPT — the request arrived, so it is a normal reply, no eviction) then an in-budget request
 ;;     on the SAME peer `c` (→ Ok). Returns the Ok `n` (> 0) if the connection survived, else -1.
-(:wat::core::defn :user::same-conn-recovers [] -> wat.type/i64
-  (:wat::core::let
-    [big   (:probe::pl 20)     ;; > cap
-     h     (:probe::op1svc/start :locus (:wat::spawn::process) :record (:probe::op1svc::Record))
-     c     (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r1    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))    ;; RequestTooLarge; keep
-     r2    (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload "hi"))]  ;; SAME c → Ok
+(wat.core/defn user/same-conn-recovers [] :- wat.type/i64
+  (wat.core/let
+    [big   (probe/pl 20)     ;; > cap
+     h     (probe.op1svc/start :locus (wat.spawn/process) :record (probe.op1svc/Record))
+     c     (wat.core/match (wat.kernel/connect (probe.op1svc.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r1    (probe.Op1/do-op c (probe.Op1/DoOpRequest :payload big))    ;; RequestTooLarge; keep
+     r2    (probe.Op1/do-op c (probe.Op1/DoOpRequest :payload "hi"))]  ;; SAME c → Ok
     ;; arc 278 the recv'-outcome wall — the in-budget Ok Response comes through ::Message.
-    (:wat::core::match r2
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::Op1::DoOpResponse.Ok {:n n} n]
-          [:probe::Op1::DoOpResponse.RequestTooLarge {:bytes bytes :cap cap} -1]
-          [:probe::Op1::DoOpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} -2]
+    (wat.core/match r2
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.Op1/DoOpResponse.Ok {:n n} n]
+          [probe.Op1/DoOpResponse.RequestTooLarge {:bytes bytes :cap cap} -1]
+          [probe.Op1/DoOpResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} -2]
       ;; arc 278 #73 — same sentinel scheme as above: -4 is the stop, distinct from -2/-3.
-      [:wat::kernel::RecvOutcome.Stopped {} -4]
-      [:wat::kernel::RecvOutcome.Closed {} -3])))
+      [wat.kernel/RecvOutcome.Stopped {} -4]
+      [wat.kernel/RecvOutcome.Closed {} -3])))

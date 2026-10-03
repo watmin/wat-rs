@@ -7,13 +7,13 @@
 ;; program uses (:wat::kernel::println "wat-atoms") — the println call is
 ;; the load-bearing expression captured as data and re-executed via
 ;; eval-ast!. No stdin required.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [program
-       (:wat::core::quote
-         (:wat::kernel::println "wat-atoms"))
+       (wat.core/quote
+         (wat.kernel/println "wat-atoms"))
      program-atom
-       (:wat::holon::Atom (:wat::holon::to-holon program))]
+       (wat.holon/Atom (wat.holon/to-holon program))]
     ;; arc 057 Story-2 recovery: program-atom is now a structural
     ;; HolonAST (the form lowered onto the algebra grid). to-watast
     ;; was the original reverse path (HolonAST → WatAST) but is no
@@ -22,6 +22,6 @@
     ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
-    (:wat::core::match (:wat::eval-ast! program)
-      [:wat::core::Result.Ok {:value _} nil]
-      [:wat::core::Result.Err {:error _} nil])))
+    (wat.core/match (wat/eval-ast! program)
+      [wat.core/Result.Ok {:value _} nil]
+      [wat.core/Result.Err {:error _} nil])))

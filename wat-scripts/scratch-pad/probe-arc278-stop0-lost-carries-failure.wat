@@ -9,18 +9,18 @@
 ;; (message_only_failure over the crash-channel reason) — no crash_tx reshape needed.
 ;; Runs to stdout: prints "STOP0-LOST-MESSAGE: …BOOM-SENTINEL-9173…" on success; any
 ;; other arm eprintln's (terminal, exits non-zero).
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
-           (:wat::kernel::assertion-failed! :message "BOOM-SENTINEL-9173")))]
-    (:wat::core::match (:wat::kernel::recv p) 
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Message, expected ::Lost")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::println
-          (:wat::string::concat "STOP0-LOST-MESSAGE: " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
+           (wat.kernel/assertion-failed! :message "BOOM-SENTINEL-9173")))]
+    (wat.core/match (wat.kernel/recv p) 
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/eprintln "STOP0-FAIL: got RecvOutcome::Message, expected ::Lost")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/println
+          (wat.string/concat "STOP0-LOST-MESSAGE: " (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/eprintln "STOP0-FAIL: got RecvOutcome::Stopped, expected ::Lost")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/eprintln "STOP0-FAIL: got RecvOutcome::Closed, expected ::Lost")])))

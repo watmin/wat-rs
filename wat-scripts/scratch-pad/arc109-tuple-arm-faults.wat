@@ -22,18 +22,18 @@
 ;; Read through `ast->source` (byte-verbatim), NEVER `write-forms` (Carriage::Display re-spells
 ;; every `::`-keyword to EDN-dotted form and would hide the very thing under test).
 
-(:wat::core::defn :user::show
-  [label <- wat.type/String kw <- wat.type/String] -> wat.type/nil
-  (:wat::core::let [node (:wat::keyword::to-type-form-colon (:wat::core::keyword-node kw))]
-    (:wat::kernel::println
-      (:wat::string::interpolate "{l} : {v}" :l label :v (:wat::core::ast->source node)))))
+(wat.core/defn user/show
+  [label :- wat.type/String kw :- wat.type/String] :- wat.type/nil
+  (wat.core/let [node (wat.keyword/to-type-form-colon (wat.core/keyword-node kw))]
+    (wat.kernel/println
+      (wat.string/interpolate "{l} : {v}" :l label :v (wat.core/ast->source node)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:user::show "1 nil bare      " ":wat::core::nil")
-    (:user::show "2 nil nested    " ":wat::core::Result<wat::core::nil,wat::core::String>")
-    (:user::show "3 tuple 3-ary   " ":(wat::core::i64,wat::core::i64,wat::core::String)")
-    (:user::show "4 tuple 1-ary   " ":(wat::core::i64,)")
-    (:user::show "5 tuple empty   " ":()")
-    (:user::show "6 control parm  " ":wat::core::Vector<wat::core::i64>")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (user/show "1 nil bare      " ":wat::core::nil")
+    (user/show "2 nil nested    " ":wat::core::Result<wat::core::nil,wat::core::String>")
+    (user/show "3 tuple 3-ary   " ":(wat::core::i64,wat::core::i64,wat::core::String)")
+    (user/show "4 tuple 1-ary   " ":(wat::core::i64,)")
+    (user/show "5 tuple empty   " ":()")
+    (user/show "6 control parm  " ":wat::core::Vector<wat::core::i64>")
     nil))

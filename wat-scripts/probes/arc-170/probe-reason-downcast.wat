@@ -7,26 +7,26 @@
 ;; dispatches to the concrete defclause arm and recovers the field.
 
 ;; the error-context surface — no members, so a record joins it only by extend-type (B1).
-(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
+(wat.core/defsurface probe/Reason :nature wat.type/Record :features [])
 
-(:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
-(:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
-(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
-(:wat::core::extend-type :probe::RedisReason :probe::Reason)
+(wat.core/defrecord probe/SqliteReason [code  :- wat.type/i64  sql :- wat.type/String])
+(wat.core/defrecord probe/RedisReason  [errno :- wat.type/i64  cmd :- wat.type/String])
+(wat.core/extend-type probe/SqliteReason probe/Reason)
+(wat.core/extend-type probe/RedisReason probe/Reason)
 
 ;; UP: a concrete record flows into a Reason-typed slot because of the extend-type above.
-(:wat::core::defn :probe::as-reason [r <- :probe::SqliteReason] -> :probe::Reason r)
+(wat.core/defn probe/as-reason [r :- probe/SqliteReason] :- probe/Reason r)
 
 ;; DOWN (checked) + dispatch-on-concrete-class: a defclause keyed per concrete backend record — the "unpack"
-(:wat::core::defclause :probe::code-of
-  ([r <- :probe::SqliteReason] -> wat.type/i64 (:probe::SqliteReason/code r))
-  ([r <- :probe::RedisReason]  -> wat.type/i64 (:probe::RedisReason/errno r)))
+(wat.core/defclause probe/code-of
+  ([r :- probe/SqliteReason] :- wat.type/i64 (probe.SqliteReason/code r))
+  ([r :- probe/RedisReason]  :- wat.type/i64 (probe.RedisReason/errno r)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [reason (:probe::as-reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; reason : :probe::Reason
-     code   (:probe::code-of reason)]                                                 ; open Reason -> concrete clause
-    (:wat::core::do
-      (:wat::test::assert-eq code 2067)
-      (:wat::kernel::println
-        (:wat::string::concat "downcast ok, sqlite code = " (:wat::i64::to-string code))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [reason (probe/as-reason (probe/SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; reason : :probe::Reason
+     code   (probe/code-of reason)]                                                 ; open Reason -> concrete clause
+    (wat.core/do
+      (wat.test/assert-eq code 2067)
+      (wat.kernel/println
+        (wat.string/concat "downcast ok, sqlite code = " (wat.i64/to-string code))))))

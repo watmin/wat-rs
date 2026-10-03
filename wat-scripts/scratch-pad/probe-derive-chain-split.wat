@@ -39,124 +39,124 @@
 ;; stdout: one #derive/Links EDN line
 ;;   echo '[50 2000]' | ./target/release/wat wat-scripts/scratch-pad/probe-derive-chain-split.wat
 
-(:wat::core::defrecord :dc::A   [k <- wat.type/i64])
-(:wat::core::defrecord :dc::B   [k <- wat.type/i64])
-(:wat::core::defrecord :dc::Out [k <- wat.type/i64])
+(wat.core/defrecord dc/A   [k :- wat.type/i64])
+(wat.core/defrecord dc/B   [k :- wat.type/i64])
+(wat.core/defrecord dc/Out [k :- wat.type/i64])
 
 ;; Links — per-link nanoseconds plus the cardinality witnesses.
 ;; The three counts are the NON-VACUITY guard: every one must equal `items`. A link that
 ;; short-circuited would look cheap AND drop its count, so a fast number with a right count is
 ;; the only reading that means anything.
-(:wat::core::defrecord :dc::Links
-  [rules        <- wat.type/i64
-   items        <- wat.type/i64
-   query-ns     <- wat.type/i64
-   map-ns       <- wat.type/i64
-   into-ns      <- wat.type/i64
-   sort-ns      <- wat.type/i64
-   topv-ns      <- wat.type/i64
-   direct-ns    <- wat.type/i64   ;; the CONTROL: query -> foldl conj -> PersistentVector
-   query-count  <- wat.type/i64
-   into-count   <- wat.type/i64
-   direct-count <- wat.type/i64])
+(wat.core/defrecord dc/Links
+  [rules        :- wat.type/i64
+   items        :- wat.type/i64
+   query-ns     :- wat.type/i64
+   map-ns       :- wat.type/i64
+   into-ns      :- wat.type/i64
+   sort-ns      :- wat.type/i64
+   topv-ns      :- wat.type/i64
+   direct-ns    :- wat.type/i64   ;; the CONTROL: query -> foldl conj -> PersistentVector
+   query-count  :- wat.type/i64
+   into-count   :- wat.type/i64
+   direct-count :- wat.type/i64])
 
-(:wat::rete::defquery :dc::q-Out
+(wat.rete/defquery dc/q-Out
   :params []
-  :when [(?fact :- :dc::Out)])
+  :when [(?fact :- dc/Out)])
 
 
 ;; ── the workload, copied from grid/node-share.wat (namespace changed only) ───
 
-(:wat::core::defn :dc::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:dc::A (?k :- :k)))
-                    b-c     (:wat::core::quasiquote (:dc::B (?k :- :k)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
-                                (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::i64::- ?k
-                                    (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
-                    ins     (:wat::core::quasiquote (:dc::Out ?k))]
-    (:wat::rete::Rule :name (:wat::i64::to-string i)
+(wat.core/defn dc/build-rule [i :- wat.type/i64  n :- wat.type/i64] :- wat.rete/Rule
+  (wat.core/let [a-c     (wat.core/quasiquote (dc/A (?k :- :k)))
+                    b-c     (wat.core/quasiquote (dc/B (?k :- :k)))
+                    where-c (wat.core/quasiquote
+                              (wat.rete/where
+                                (wat.core/= (wat.core/unquote i)
+                                  (wat.i64/- ?k
+                                    (wat.i64/* (wat.i64// ?k (wat.core/unquote n)) (wat.core/unquote n))))))
+                    ins     (wat.core/quasiquote (dc/Out ?k))]
+    (wat.rete/Rule :name (wat.i64/to-string i)
       :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
       :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
-(:wat::core::defn :dc::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
-      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::conj acc (:dc::build-rule i n)))
-    (wat.type/PersistentVector :- [:wat::rete::Rule])
-    (:wat::core::range 0 n)))
+(wat.core/defn dc/build-rules [n :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.rete/Rule])  i :- wat.type/i64]
+      :- (wat.type/PersistentVector :- [wat.rete/Rule])
+      (wat.core/conj acc (dc/build-rule i n)))
+    (wat.type/PersistentVector :- [wat.rete/Rule])
+    (wat.core/range 0 n)))
 
-(:wat::core::defn :dc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:dc::A i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:dc::B i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn dc/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/insert s (dc/A i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (dc/B i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
-    (:wat::core::range 0 items)))
+    (wat.core/range 0 items)))
 
-(:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn dc/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
 ;; ── main — one fire, then the derive chain link by link, then the control ────
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
-                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-                              [:wat::kernel::ReadlnOutcome.Eof {}
-                                (:wat::kernel::assertion-failed! :message "readln: end of input")]
-                              [:wat::kernel::ReadlnOutcome.Stopped {}
-                                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
-                    items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
-                    staged  (:dc::seed (:wat::core::match (:wat::rete::compile-all (:dc::build-rules rules-n) (wat.type/PersistentVector :- [:wat::rete::Query] (:dc::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln )
+                              [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+                              [wat.kernel/ReadlnOutcome.Eof {}
+                                (wat.kernel/assertion-failed! :message "readln: end of input")]
+                              [wat.kernel/ReadlnOutcome.Stopped {}
+                                (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    rules-n (wat.core.Option/expect (wat.core/get params 0) "stdin: [rules items]")
+                    items   (wat.core.Option/expect (wat.core/get params 1) "stdin: [rules items]")
+                    staged  (dc/seed (wat.core/match (wat.rete/compile-all (dc/build-rules rules-n) (wat.type/PersistentVector :- [wat.rete/Query] (dc/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
 
                     ;; ── the chain as the axis writes it, link by link ────────
-                    q0      (:wat::time::now)
-                    q       (:wat::rete::query fired (:dc::q-Out))
-                    q1      (:wat::time::now)
-                    mapped  (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
+                    q0      (wat.time/now)
+                    q       (wat.rete/query fired (dc/q-Out))
+                    q1      (wat.time/now)
+                    mapped  (wat.core/map
+                              (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (dc.Out/k f)))
                               q)
-                    q2      (:wat::time::now)
-                    vec     (:wat::core::into (wat.type/Vector :- [wat.type/i64]) mapped)
-                    q3      (:wat::time::now)
-                    sorted  (:wat::core::sort vec)
-                    q4      (:wat::time::now)
-                    pv      (:wat::core::foldl
-                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
-                                               x   <- wat.type/i64]
-                                -> (wat.type/PersistentVector :- [wat.type/i64])
-                                (:wat::core::conj acc x))
+                    q2      (wat.time/now)
+                    vec     (wat.core/into (wat.type/Vector :- [wat.type/i64]) mapped)
+                    q3      (wat.time/now)
+                    sorted  (wat.core/sort vec)
+                    q4      (wat.time/now)
+                    pv      (wat.core/foldl
+                              (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])
+                                               x   :- wat.type/i64]
+                                :- (wat.type/PersistentVector :- [wat.type/i64])
+                                (wat.core/conj acc x))
                               (wat.type/PersistentVector :- [wat.type/i64])
                               sorted)
-                    q5      (:wat::time::now)
+                    q5      (wat.time/now)
 
                     ;; ── the CONTROL: same query result, PersistentVector only ─
                     ;; No Vector, no map — one foldl that reads the accessor and conj's. If this
                     ;; is linear while the chain above is quadratic, the container is the defect.
-                    d0      (:wat::time::now)
-                    direct  (:wat::core::foldl
-                              (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])
-                                               p   <- wat.type/PersistentMap]
-                                -> (wat.type/PersistentVector :- [wat.type/i64])
-                                (:wat::core::let [f (:wat::core::Option/expect
-                                                      (:wat::core::get p "?fact")
+                    d0      (wat.time/now)
+                    direct  (wat.core/foldl
+                              (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])
+                                               p   :- wat.type/PersistentMap]
+                                :- (wat.type/PersistentVector :- [wat.type/i64])
+                                (wat.core/let [f (wat.core.Option/expect
+                                                      (wat.core/get p "?fact")
                                                       "q-Out: ?fact")]
-                                  (:wat::core::conj acc (:dc::Out/k f))))
+                                  (wat.core/conj acc (dc.Out/k f))))
                               (wat.type/PersistentVector :- [wat.type/i64])
                               q)
-                    d1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:dc::Links
+                    d1      (wat.time/now)]
+    (wat.kernel/println
+      (dc/Links
         :rules        rules-n
         :items        items
-        :query-ns     (:dc::ns-between q0 q1)
-        :map-ns       (:dc::ns-between q1 q2)
-        :into-ns      (:dc::ns-between q2 q3)
-        :sort-ns      (:dc::ns-between q3 q4)
-        :topv-ns      (:dc::ns-between q4 q5)
-        :direct-ns    (:dc::ns-between d0 d1)
-        :query-count  (:wat::core::length q)
-        :into-count   (:wat::core::length pv)
-        :direct-count (:wat::core::length direct)))))
+        :query-ns     (dc/ns-between q0 q1)
+        :map-ns       (dc/ns-between q1 q2)
+        :into-ns      (dc/ns-between q2 q3)
+        :sort-ns      (dc/ns-between q3 q4)
+        :topv-ns      (dc/ns-between q4 q5)
+        :direct-ns    (dc/ns-between d0 d1)
+        :query-count  (wat.core/length q)
+        :into-count   (wat.core/length pv)
+        :direct-count (wat.core/length direct)))))

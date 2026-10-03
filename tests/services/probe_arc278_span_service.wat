@@ -6,38 +6,38 @@
 ;; value — which must be 2. (Asserts the deterministic value, not the whole record: close stamps a
 ;; nondeterministic time-ns.)
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     span-rec (:wat::telemetry::span::Record
-                :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
+     span-rec (wat.telemetry.span/Record
+                :namespace "probe-ns" :uuid (wat.uuid/nil) :tags tags :start-time-ns 0
                 :counters (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-                :durations (wat.type/HashMap :- [wat.type/keyword :wat::telemetry::Samples]))
-     sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)
+                :durations (wat.type/HashMap :- [wat.type/keyword wat.telemetry/Samples]))
+     sph   (wat.telemetry.span/start :locus (wat.spawn/thread)
              :record span-rec :sink-addr jaddr)
-     span  (:wat::core::match (:wat::kernel::connect (:wat::telemetry::span::Handle/addr sph)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _i1   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
-     _i2   (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
-     _c    (:wat::telemetry::Span/close span (:wat::telemetry::Span::CloseRequest))
-     client (:wat::core::match (:wat::kernel::connect maddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     pk    (:wat::edn::write (:wat::telemetry::PartitionKey
-                               :namespace "probe-ns" :kind :wat::telemetry::Kind.Metric))
-     resp  (:wat::query::Store/scan client
-             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::query::Store::ScanResponse.Success {:rows rows :cursor _cursor}
-        (:wat::core::if (:wat::core::= (:wat::core::count rows) 1)
-          (:wat::core::let
-            [m (:wat::edn::read (:wat::query::Row/data (:wat::core::first rows)))
-             v (:wat::telemetry::Metric/value m)]
-            (:wat::core::match v 
-              [:wat::telemetry::Numeric.I64 {:val n} n]
+     span  (wat.core/match (wat.kernel/connect (wat.telemetry.span.Handle/addr sph)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _i1   (wat.telemetry.Span/incr span (wat.telemetry.Span/IncrRequest :name :requests))
+     _i2   (wat.telemetry.Span/incr span (wat.telemetry.Span/IncrRequest :name :requests))
+     _c    (wat.telemetry.Span/close span (wat.telemetry.Span/CloseRequest))
+     client (wat.core/match (wat.kernel/connect maddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     pk    (wat.edn/write (wat.telemetry/PartitionKey
+                               :namespace "probe-ns" :kind wat.telemetry/Kind.Metric))
+     resp  (wat.query.Store/scan client
+             (wat.query.Store/ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.query.Store/ScanResponse.Success {:rows rows :cursor _cursor}
+        (wat.core/if (wat.core/= (wat.core/count rows) 1)
+          (wat.core/let
+            [m (wat.edn/read (wat.query.Row/data (wat.core/first rows)))
+             v (wat.telemetry.Metric/value m)]
+            (wat.core/match v 
+              [wat.telemetry/Numeric.I64 {:val n} n]
               [_ -1]))
           -2)]
-      [_ -3])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [_ -3])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

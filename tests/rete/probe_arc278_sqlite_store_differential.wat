@@ -13,99 +13,99 @@
 ;; gate dials a mem-store' peer AND a sqlite-store' peer (":memory:"), runs `run-ops` on EACH, and
 ;; asserts the returned Pages are EQUAL — same ops -> same Pages, bit-for-bit.
 
-(:wat::core::defrecord :probe::RunResult
-  [page1 <- :wat::query::Page
-   page2 <- :wat::query::Page
-   page3 <- :wat::query::Page
-   ipage <- :wat::query::IndexPage])
+(wat.core/defrecord probe/RunResult
+  [page1 :- wat.query/Page
+   page2 :- wat.query/Page
+   page3 :- wat.query/Page
+   ipage :- wat.query/IndexPage])
 
-(:wat::core::defn :probe::expect-scan
-  [resp <- (:wat::kernel::RecvOutcome :- [:wat::query::Store::ScanResponse])] -> :wat::query::Page
-  (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-    [:wat::query::Store::ScanResponse.Success {:rows rows :cursor cursor} (:wat::query::Page :rows rows :next-cursor cursor)]
-    [_ (:wat::kernel::assertion-failed! :message "scan failed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+(wat.core/defn probe/expect-scan
+  [resp :- (wat.kernel/RecvOutcome :- [wat.query.Store/ScanResponse])] :- wat.query/Page
+  (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+    [wat.query.Store/ScanResponse.Success {:rows rows :cursor cursor} (wat.query/Page :rows rows :next-cursor cursor)]
+    [_ (wat.kernel/assertion-failed! :message "scan failed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :probe::expect-scan-index
-  [resp <- (:wat::kernel::RecvOutcome :- [:wat::query::Store::ScanIndexResponse])] -> :wat::query::IndexPage
-  (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-    [:wat::query::Store::ScanIndexResponse.Success {:rows rows :cursor cursor} (:wat::query::IndexPage :rows rows :next-cursor cursor)]
-    [_ (:wat::kernel::assertion-failed! :message "scan-index failed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+(wat.core/defn probe/expect-scan-index
+  [resp :- (wat.kernel/RecvOutcome :- [wat.query.Store/ScanIndexResponse])] :- wat.query/IndexPage
+  (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+    [wat.query.Store/ScanIndexResponse.Success {:rows rows :cursor cursor} (wat.query/IndexPage :rows rows :next-cursor cursor)]
+    [_ (wat.kernel/assertion-failed! :message "scan-index failed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :probe::run-ops [store <- :wat::query::Store] -> :probe::RunResult
-  (:wat::core::let
-    [empty-ik (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
-     ik-a     (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     ik-c     (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey] "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v2"))
-     rows     (wat.type/Vector :- [:wat::query::StoredRow]
-                (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
-                (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
-                (:wat::query::StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
-                (:wat::query::StoredRow :pk "u#1" :sk "d" :data "{:v 4}" :index-keys empty-ik)
-                (:wat::query::StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
-     _es      (:wat::core::match
-                (:wat::query::Store/ensure-schema store
-                  (:wat::query::Store::EnsureSchemaRequest
-                    :table   (:wat::query::TableSchema :pk "pk" :sk "sk")
-                    :indexes (wat.type/Vector :- [:wat::query::IndexSchema] (:wat::query::IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk")))) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv
+(wat.core/defn probe/run-ops [store :- wat.query/Store] :- probe/RunResult
+  (wat.core/let
+    [empty-ik (wat.type/HashMap :- [wat.type/String wat.query/IndexKey])
+     ik-a     (wat.type/HashMap :- [wat.type/String wat.query/IndexKey] "by-v" (wat.query/IndexKey :ipk "u#1" :isk "v1"))
+     ik-c     (wat.type/HashMap :- [wat.type/String wat.query/IndexKey] "by-v" (wat.query/IndexKey :ipk "u#1" :isk "v2"))
+     rows     (wat.type/Vector :- [wat.query/StoredRow]
+                (wat.query/StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
+                (wat.query/StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik)
+                (wat.query/StoredRow :pk "u#1" :sk "c" :data "{:v 3}" :index-keys ik-c)
+                (wat.query/StoredRow :pk "u#1" :sk "d" :data "{:v 4}" :index-keys empty-ik)
+                (wat.query/StoredRow :pk "u#1" :sk "e" :data "{:v 5}" :index-keys empty-ik))
+     _es      (wat.core/match
+                (wat.query.Store/ensure-schema store
+                  (wat.query.Store/EnsureSchemaRequest
+                    :table   (wat.query/TableSchema :pk "pk" :sk "sk")
+                    :indexes (wat.type/Vector :- [wat.query/IndexSchema] (wat.query/IndexSchema :name "by-v" :pk "pk" :sk "sk" :ipk "ipk" :isk "isk")))) [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv
                 
-                [:wat::query::Store::EnsureSchemaResponse.Success {} nil]
-                [_ (:wat::kernel::assertion-failed! :message "ensure-schema failed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-     _p       (:wat::core::match (:wat::query::Store/put store (:wat::query::Store::PutRequest rows)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv
+                [wat.query.Store/EnsureSchemaResponse.Success {} nil]
+                [_ (wat.kernel/assertion-failed! :message "ensure-schema failed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+     _p       (wat.core/match (wat.query.Store/put store (wat.query.Store/PutRequest rows)) [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv
                 
-                [:wat::query::Store::PutResponse.Success {} nil]
-                [_ (:wat::kernel::assertion-failed! :message "put failed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
+                [wat.query.Store/PutResponse.Success {} nil]
+                [_ (wat.kernel/assertion-failed! :message "put failed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
 
-     page1    (:probe::expect-scan
-                (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor :wat::core::Option.None)))
-     page2    (:probe::expect-scan
-                (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option.Some {:value "b"}))))
-     page3    (:probe::expect-scan
-                (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (:wat::core::Option.Some {:value "d"}))))
-     ipage    (:probe::expect-scan-index
-                (:wat::query::Store/scan-index store
-                  (:wat::query::Store::ScanIndexRequest
-                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::Option.None)))]
-    (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
+     page1    (probe/expect-scan
+                (wat.query.Store/scan store
+                  (wat.query.Store/ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor wat.core/Option.None)))
+     page2    (probe/expect-scan
+                (wat.query.Store/scan store
+                  (wat.query.Store/ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (wat.core/Option.Some {:value "b"}))))
+     page3    (probe/expect-scan
+                (wat.query.Store/scan store
+                  (wat.query.Store/ScanRequest :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 2 :cursor (wat.core/Option.Some {:value "d"}))))
+     ipage    (probe/expect-scan-index
+                (wat.query.Store/scan-index store
+                  (wat.query.Store/ScanIndexRequest
+                    :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor wat.core/Option.None)))]
+    (probe/RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
-(:wat::test::deftest :user::run-ops-on-mem-store
-  (:wat::core::let
-    [h         (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-                 :record (:wat::query::mem-store::Record (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     mem-store (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     result    (:probe::run-ops mem-store)]
-    (:wat::test::assert-eq (:wat::core::count (:wat::query::Page/rows (:probe::RunResult/page1 result))) 2)
-    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 result)) :wat::core::Option.None)
-    (:wat::test::assert-eq (:wat::core::count (:wat::query::IndexPage/rows (:probe::RunResult/ipage result))) 2)))
+(wat.test/deftest user/run-ops-on-mem-store
+  (wat.core/let
+    [h         (wat.query.mem-store/start :locus (wat.spawn/thread)
+                 :record (wat.query.mem-store/Record (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     mem-store (wat.core/match (wat.kernel/connect (wat.query.mem-store.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     result    (probe/run-ops mem-store)]
+    (wat.test/assert-eq (wat.core/count (wat.query.Page/rows (probe.RunResult/page1 result))) 2)
+    (wat.test/assert-eq (wat.query.Page/next-cursor (probe.RunResult/page3 result)) wat.core/Option.None)
+    (wat.test/assert-eq (wat.core/count (wat.query.IndexPage/rows (probe.RunResult/ipage result))) 2)))
 
-(:wat::test::deftest :user::sqlite_store_differential 
-  (:wat::core::let
-    [h            (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-                    :record (:wat::query::mem-store::Record (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     mem-store    (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.test/deftest user/sqlite_store_differential 
+  (wat.core/let
+    [h            (wat.query.mem-store/start :locus (wat.spawn/thread)
+                    :record (wat.query.mem-store/Record (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     mem-store    (wat.core/match (wat.kernel/connect (wat.query.mem-store.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
 
      ;; sqlite-store' is the sibling `:satisfies :wat::query::Store` service — start INLINE (scope
      ;; law), connect'; the dialed peer IS the Store. The durable Record carries the path
      ;; (":memory:") + the declared GSI-name set ("by-v").
-     sh           (:wat::query::sqlite-store/start :locus (:wat::spawn::thread)
-                    :record (:wat::query::sqlite-store::Record
+     sh           (wat.query.sqlite-store/start :locus (wat.spawn/thread)
+                    :record (wat.query.sqlite-store/Record
                               :path        ":memory:"
                               :index-names (wat.type/Vector :- [wat.type/String] "by-v")))
-     sqlite-store (:wat::core::match (:wat::kernel::connect (:wat::query::sqlite-store::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     sqlite-store (wat.core/match (wat.kernel/connect (wat.query.sqlite-store.Handle/addr sh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
 
-     mem-result    (:probe::run-ops mem-store)
-     sqlite-result (:probe::run-ops sqlite-store)]
+     mem-result    (probe/run-ops mem-store)
+     sqlite-result (probe/run-ops sqlite-store)]
 
     ;; the differential: same ops through both backends -> same Pages, bit-for-bit.
-    (:wat::test::assert-eq (:probe::RunResult/page1 mem-result) (:probe::RunResult/page1 sqlite-result))
-    (:wat::test::assert-eq (:probe::RunResult/page2 mem-result) (:probe::RunResult/page2 sqlite-result))
-    (:wat::test::assert-eq (:probe::RunResult/page3 mem-result) (:probe::RunResult/page3 sqlite-result))
-    (:wat::test::assert-eq (:probe::RunResult/ipage mem-result) (:probe::RunResult/ipage sqlite-result))
+    (wat.test/assert-eq (probe.RunResult/page1 mem-result) (probe.RunResult/page1 sqlite-result))
+    (wat.test/assert-eq (probe.RunResult/page2 mem-result) (probe.RunResult/page2 sqlite-result))
+    (wat.test/assert-eq (probe.RunResult/page3 mem-result) (probe.RunResult/page3 sqlite-result))
+    (wat.test/assert-eq (probe.RunResult/ipage mem-result) (probe.RunResult/ipage sqlite-result))
 
     ;; and independently, both must match the S-mem-gate's known-correct shape (a second witness —
     ;; not a substitute for the differential above).
-    (:wat::test::assert-eq (:wat::core::count (:wat::query::Page/rows (:probe::RunResult/page1 mem-result))) 2)
-    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 mem-result)) :wat::core::Option.None)
-    (:wat::test::assert-eq (:wat::core::count (:wat::query::IndexPage/rows (:probe::RunResult/ipage sqlite-result))) 2)))
+    (wat.test/assert-eq (wat.core/count (wat.query.Page/rows (probe.RunResult/page1 mem-result))) 2)
+    (wat.test/assert-eq (wat.query.Page/next-cursor (probe.RunResult/page3 mem-result)) wat.core/Option.None)
+    (wat.test/assert-eq (wat.core/count (wat.query.IndexPage/rows (probe.RunResult/ipage sqlite-result))) 2)))

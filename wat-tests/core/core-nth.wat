@@ -22,26 +22,26 @@
 
 ;; ═══ row 1 — nth answers on all three eager containers, at 0 / middle / last ═══════════════
 
-(:wat::test::deftest :wat-tests::core::core-nth::nth-vector-positions
-  (:wat::core::let [v (wat.type/Vector :- [wat.type/i64] 10 20 30)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) 10)
-      (:wat::test::assert-eq (:wat::core::nth v 1) 20)
-      (:wat::test::assert-eq (:wat::core::nth v 2) 30))))
+(wat.test/deftest wat-tests.core.core-nth/nth-vector-positions
+  (wat.core/let [v (wat.type/Vector :- [wat.type/i64] 10 20 30)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) 10)
+      (wat.test/assert-eq (wat.core/nth v 1) 20)
+      (wat.test/assert-eq (wat.core/nth v 2) 30))))
 
-(:wat::test::deftest :wat-tests::core::core-nth::nth-persistentvector-positions
-  (:wat::core::let [v (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) 10)
-      (:wat::test::assert-eq (:wat::core::nth v 1) 20)
-      (:wat::test::assert-eq (:wat::core::nth v 2) 30))))
+(wat.test/deftest wat-tests.core.core-nth/nth-persistentvector-positions
+  (wat.core/let [v (wat.type/PersistentVector :- [wat.type/i64] 10 20 30)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) 10)
+      (wat.test/assert-eq (wat.core/nth v 1) 20)
+      (wat.test/assert-eq (wat.core/nth v 2) 30))))
 
-(:wat::test::deftest :wat-tests::core::core-nth::nth-list-positions
-  (:wat::core::let [v (wat.type/List :- [wat.type/i64] 10 20 30)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::nth v 0) 10)
-      (:wat::test::assert-eq (:wat::core::nth v 1) 20)
-      (:wat::test::assert-eq (:wat::core::nth v 2) 30))))
+(wat.test/deftest wat-tests.core.core-nth/nth-list-positions
+  (wat.core/let [v (wat.type/List :- [wat.type/i64] 10 20 30)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/nth v 0) 10)
+      (wat.test/assert-eq (wat.core/nth v 1) 20)
+      (wat.test/assert-eq (wat.core/nth v 2) 30))))
 
 ;; ═══ row 2 — past-the-end raises BY NAME, on all three ═════════════════════════════════════
 ;;
@@ -50,65 +50,65 @@
 ;; MESSAGE. Matching the message — not merely "it died" — is what proves the NAMED error rather
 ;; than any failure at all.
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-vector-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth (wat.type/Vector :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth/nth-past-end-vector-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth (wat.type/Vector :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-persistentvector-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth (wat.type/PersistentVector :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth/nth-past-end-persistentvector-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth (wat.type/PersistentVector :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
-(:wat::test::deftest-hermetic :wat-tests::core::core-nth::nth-past-end-list-raises
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println
-               (:wat::core::nth (wat.type/List :- [wat.type/i64] 10 20 30) 99)))))
-     msg (:wat::core::match (:wat::kernel::recv p)
-           [:wat::kernel::RecvOutcome.Message {:msg _m}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Message")]
-           [:wat::kernel::RecvOutcome.Lost {:cause cause}
-             (:wat::core::match cause
-               [:wat::kernel::LociDiedError.Panic {:message message :failure _failure} message]
-               [_ (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got other Lost")])]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Stopped")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "expected Lost[Panic], got Closed")])]
-    (:wat::test::assert-true (:wat::regex::matches? "nth: index out of range" msg))))
+(wat.test/deftest-hermetic wat-tests.core.core-nth/nth-past-end-list-raises
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println
+               (wat.core/nth (wat.type/List :- [wat.type/i64] 10 20 30) 99)))))
+     msg (wat.core/match (wat.kernel/recv p)
+           [wat.kernel/RecvOutcome.Message {:msg _m}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Message")]
+           [wat.kernel/RecvOutcome.Lost {:cause cause}
+             (wat.core/match cause
+               [wat.kernel/LociDiedError.Panic {:message message :failure _failure} message]
+               [_ (wat.kernel/assertion-failed! :message "expected Lost[Panic], got other Lost")])]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Stopped")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "expected Lost[Panic], got Closed")])]
+    (wat.test/assert-true (wat.regex/matches? "nth: index out of range" msg))))
 
 ;; ═══ row 3 — RETIRED by stone 118.B4-iii (THE WALL) ════════════════════════════════════════
 ;;

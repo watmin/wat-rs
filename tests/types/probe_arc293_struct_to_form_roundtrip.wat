@@ -13,10 +13,10 @@
 ;; NON-CONCURRENT: no run-thread wrapper (that is what got wat-tests/core/struct-to-form.wat
 ;; #[ignore]'d for arc-170).
 
-(:wat::core::defstruct :probe::Pair [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defstruct probe/Pair [a :- wat.type/i64  b :- wat.type/i64])
 
-(:wat::core::defn :probe::roundtrip [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
-  (:wat::core::let
-    [p    (:probe::Pair :a 7 :b 9)
-     form (:wat::core::struct->form p)]
-    (:wat::eval-ast! form)))
+(wat.core/defn probe/roundtrip [] :- (wat.core/Result :- [wat.holon/HolonAST wat.core/EvalError])
+  (wat.core/let
+    [p    (probe/Pair :a 7 :b 9)
+     form (wat.core/struct->form p)]
+    (wat/eval-ast! form)))

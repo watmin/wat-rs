@@ -11,17 +11,17 @@
 ;; (which DOES register in sym.functions) forwards to the defclause impl so the .rs
 ;; harness's `startup_beside` + `symbols().get` + `apply_function` path can reach it,
 ;; while the defclause form itself still exercises the A4 parser under test.
-(:wat::core::defclause :impl::c01
-  ([] -> wat.type/i64 42))
-(:wat::core::defn :user::c01-f [] -> wat.type/i64 (:impl::c01))
+(wat.core/defclause impl/c01
+  ([] :- wat.type/i64 42))
+(wat.core/defn user/c01-f [] :- wat.type/i64 (impl/c01))
 
 ;; Contract 2 — single-arg defclause succeeds
-(:wat::core::defclause :impl::c02
-  ([x <- wat.type/i64] -> wat.type/i64 x))
-(:wat::core::defn :user::c02-f [x <- wat.type/i64] -> wat.type/i64 (:impl::c02 x))
+(wat.core/defclause impl/c02
+  ([x :- wat.type/i64] :- wat.type/i64 x))
+(wat.core/defn user/c02-f [x :- wat.type/i64] :- wat.type/i64 (impl/c02 x))
 
 ;; Contract 3 — multi-arg defclause succeeds
-(:wat::core::defclause :impl::c03
-  ([x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64
-    (:wat::core::+ x y)))
-(:wat::core::defn :user::c03-f [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64 (:impl::c03 x y))
+(wat.core/defclause impl/c03
+  ([x :- wat.type/i64 y :- wat.type/i64] :- wat.type/i64
+    (wat.core/+ x y)))
+(wat.core/defn user/c03-f [x :- wat.type/i64 y :- wat.type/i64] :- wat.type/i64 (impl/c03 x y))

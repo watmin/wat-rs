@@ -11,17 +11,17 @@
 ;; — its element type is inferred as :i64 from the fold — inside an fn VALUE that is never applied,
 ;; so the read never fires. If bare-readln inference regressed, this file would fail to load.
 
-(:wat::test::deftest :wat-tests::core::readln-no-ascription
+(wat.test/deftest wat-tests.core/readln-no-ascription
   
   ;; `sum-stdin` is a well-typed fn (bare readln infers (Vector :- [i64]) from the foldl consumer);
   ;; it is bound and NEVER called, so stdin is untouched. The deftest' asserts a trivial truth —
   ;; the load-bearing proof is that the fn body type-checks with NO `-> :T` on readln.
-  (:wat::core::let
+  (wat.core/let
     [sum-stdin
-       (:wat::core::fn [] -> wat.type/i64
-         (:wat::core::foldl
-           (:wat::core::fn [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
-             (:wat::i64::+ a b))
+       (wat.core/fn [] :- wat.type/i64
+         (wat.core/foldl
+           (wat.core/fn [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/i64
+             (wat.i64/+ a b))
            0
-           (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))]
-    (:wat::test::assert-true true)))
+           (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))]
+    (wat.test/assert-true true)))

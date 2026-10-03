@@ -19,22 +19,22 @@
 ;;
 ;; Run with `./target/release/wat <this file> <case>`, case in {span-a, span-b}.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [argv (:wat::runtime::argv)
-     case (:wat::core::Option/expect (:wat::core::get argv 2) "usage: <this file> <case>")]
-    (:wat::core::cond
-      ((:wat::core::= case "span-a")
-       (:wat::core::do
-         (:wat::holon::leaf
-                                              (:wat::holon::leaf "boom-a"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [argv (wat.runtime/argv)
+     case (wat.core.Option/expect (wat.core/get argv 2) "usage: <this file> <case>")]
+    (wat.core/cond
+      ((wat.core/= case "span-a")
+       (wat.core/do
+         (wat.holon/leaf
+                                              (wat.holon/leaf "boom-a"))
          nil))
 
-      ((:wat::core::= case "span-b")
-       (:wat::core::do
-         (:wat::holon::leaf
-           (:wat::holon::leaf "boom-b"))
+      ((wat.core/= case "span-b")
+       (wat.core/do
+         (wat.holon/leaf
+           (wat.holon/leaf "boom-b"))
          nil))
 
       (:else
-       (:wat::kernel::println (:wat::string::concat "unknown case: " case))))))
+       (wat.kernel/println (wat.string/concat "unknown case: " case))))))

@@ -7,73 +7,73 @@
 
 ;; ─── Primitives ──────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::edn::test-write-bool
+(wat.test/deftest wat-tests.edn/test-write-bool
   
-  (:wat::core::let
-    [s (:wat::edn::write true)]
-    (:wat::test::assert-eq s "true")))
+  (wat.core/let
+    [s (wat.edn/write true)]
+    (wat.test/assert-eq s "true")))
 
-(:wat::test::deftest :wat-tests::edn::test-write-i64
+(wat.test/deftest wat-tests.edn/test-write-i64
   
-  (:wat::core::let
-    [s (:wat::edn::write 42)]
-    (:wat::test::assert-eq s "42")))
+  (wat.core/let
+    [s (wat.edn/write 42)]
+    (wat.test/assert-eq s "42")))
 
-(:wat::test::deftest :wat-tests::edn::test-write-string
+(wat.test/deftest wat-tests.edn/test-write-string
   
-  (:wat::core::let
-    [s (:wat::edn::write "hello")]
-    (:wat::test::assert-eq s "\"hello\"")))
+  (wat.core/let
+    [s (wat.edn/write "hello")]
+    (wat.test/assert-eq s "\"hello\"")))
 
-(:wat::test::deftest :wat-tests::edn::test-write-unit
+(wat.test/deftest wat-tests.edn/test-write-unit
 
   ;; Arc 179: `()` retired as a value spelling — `nil` is the sole unit
   ;; value. Re-pointed from `(:wat::edn::write ())` to `(:wat::edn::write nil)`;
   ;; the coverage (the unit value renders as EDN `nil`) is unchanged, only
   ;; the retired spelling used to construct that value is.
-  (:wat::core::let
-    [s (:wat::edn::write nil)]
-    (:wat::test::assert-eq s "nil")))
+  (wat.core/let
+    [s (wat.edn/write nil)]
+    (wat.test/assert-eq s "nil")))
 
 ;; ─── Vec ─────────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::edn::test-write-vec-i64
+(wat.test/deftest wat-tests.edn/test-write-vec-i64
   
-  (:wat::core::let
+  (wat.core/let
     [v (wat.type/Vector :- [wat.type/i64] 1 2 3)
-     s (:wat::edn::write v)]
-    (:wat::test::assert-eq s "[1 2 3]")))
+     s (wat.edn/write v)]
+    (wat.test/assert-eq s "[1 2 3]")))
 
-(:wat::test::deftest :wat-tests::edn::test-write-vec-string
+(wat.test/deftest wat-tests.edn/test-write-vec-string
   
-  (:wat::core::let
+  (wat.core/let
     [v (wat.type/Vector :- [wat.type/String] "a" "b")
-     s (:wat::edn::write v)]
-    (:wat::test::assert-eq s "[\"a\" \"b\"]")))
+     s (wat.edn/write v)]
+    (wat.test/assert-eq s "[\"a\" \"b\"]")))
 
 ;; ─── Tuple ───────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::edn::test-write-tuple
+(wat.test/deftest wat-tests.edn/test-write-tuple
   
-  (:wat::core::let
+  (wat.core/let
     [t (wat.type/Tuple :- [wat.type/i64 wat.type/String] 7 "x")
-     s (:wat::edn::write t)]
-    (:wat::test::assert-eq s "[7 \"x\"]")))
+     s (wat.edn/write t)]
+    (wat.test/assert-eq s "[7 \"x\"]")))
 
 ;; ─── JSON path ───────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::edn::test-write-json-vec
+(wat.test/deftest wat-tests.edn/test-write-json-vec
   
-  (:wat::core::let
+  (wat.core/let
     [v (wat.type/Vector :- [wat.type/i64] 1 2 3)
-     s (:wat::edn::write-json v)]
-    (:wat::test::assert-eq s "[1,2,3]")))
+     s (wat.edn/write-json v)]
+    (wat.test/assert-eq s "[1,2,3]")))
 
-(:wat::test::deftest :wat-tests::edn::test-write-json-string
+(wat.test/deftest wat-tests.edn/test-write-json-string
   
-  (:wat::core::let
-    [s (:wat::edn::write-json "hi")]
-    (:wat::test::assert-eq s "\"hi\"")))
+  (wat.core/let
+    [s (wat.edn/write-json "hi")]
+    (wat.test/assert-eq s "\"hi\"")))
 
 ;; ─── Pretty path — multi-line for nested vec ─────────────────────
 ;;
@@ -81,9 +81,9 @@
 ;; "all-scalar and len <= 8" rule). A nested vec breaks across
 ;; lines. The pretty renderer is deterministic; assert exact text.
 
-(:wat::test::deftest :wat-tests::edn::test-write-pretty-flat
+(wat.test/deftest wat-tests.edn/test-write-pretty-flat
   
-  (:wat::core::let
+  (wat.core/let
     [v (wat.type/Vector :- [wat.type/i64] 1 2 3)
-     s (:wat::edn::write-pretty v)]
-    (:wat::test::assert-eq s "[1 2 3]")))
+     s (wat.edn/write-pretty v)]
+    (wat.test/assert-eq s "[1 2 3]")))

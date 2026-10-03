@@ -6,7 +6,7 @@
 ;; hit — does a registered special form silently get an empty string
 ;; instead of the "no source available" message its own fallback path
 ;; (reflect.rs ~264-268) would otherwise give a Binding::SpecialForm?
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat "show-source(:wat::core::if) = <<"
-      (:wat::core::show-source :wat::core::if) ">>")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat "show-source(:wat::core::if) = <<"
+      (wat.core/show-source wat.core/if) ">>")))

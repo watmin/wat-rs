@@ -37,19 +37,19 @@
 ;; complete wat form (multiple bare symbols / an unterminated `<`), where `(:wat::string::capitalize
 ;; "object")` does. See the rider's report for the transcript.
 
-(:wat::core::defn :probe::check [name <- wat.type/String got <- wat.type/String want <- wat.type/String]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::= got want)
-    (:wat::kernel::println (:wat::string::concat "PASS " name))
-    (:wat::kernel::println (:wat::string::concat "FAIL " name " got=" got " want=" want))))
+(wat.core/defn probe/check [name :- wat.type/String got :- wat.type/String want :- wat.type/String]
+  :- wat.type/nil
+  (wat.core/if (wat.core/= got want)
+    (wat.kernel/println (wat.string/concat "PASS " name))
+    (wat.kernel/println (wat.string/concat "FAIL " name " got=" got " want=" want))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── capitalize still works ──")
-    (:probe::check "capitalize object" (:wat::string::capitalize "object") "Object")
-    (:probe::check "capitalize empty"  (:wat::string::capitalize "") "")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── capitalize still works ──")
+    (probe/check "capitalize object" (wat.string/capitalize "object") "Object")
+    (probe/check "capitalize empty"  (wat.string/capitalize "") "")
 
-    (:wat::kernel::println "── metadata-of still decodes (from_metadata parsed the WHOLE map, :examples included) ──")
-    (:wat::core::match (:wat::runtime::metadata-of :wat::string::capitalize)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::pprintln hm)]
-      [:wat::core::Option.None {} (:wat::kernel::println "capitalize metadata-of => NONE (unexpected)")])))
+    (wat.kernel/println "── metadata-of still decodes (from_metadata parsed the WHOLE map, :examples included) ──")
+    (wat.core/match (wat.runtime/metadata-of wat.string/capitalize)
+      [wat.core/Option.Some {:value hm} (wat.kernel/pprintln hm)]
+      [wat.core/Option.None {} (wat.kernel/println "capitalize metadata-of => NONE (unexpected)")])))

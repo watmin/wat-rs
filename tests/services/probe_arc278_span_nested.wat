@@ -8,35 +8,35 @@
 ;; NOTE: this is UN-correlated nesting (child has its own uuid, no parent link). Parent->child
 ;; correlation (a parent-uuid on the scope, the trace tree) is the enhancement still to build.
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     _ws   (:wat::telemetry::with-span outer jaddr "outer-ns" tags
-             (:wat::core::do
-               (:wat::core::match (:wat::telemetry::Span/incr outer (:wat::telemetry::Span::IncrRequest :name :o))
-                 [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-                 [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-                 [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-               (:wat::telemetry::with-span inner jaddr "inner-ns" tags
-                 (:wat::telemetry::Span/incr inner (:wat::telemetry::Span::IncrRequest :name :i)))))
-     jclient (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     oq    (:wat::telemetry::Journal/query-metrics jclient
-             (:wat::telemetry::Journal::QueryMetricsRequest :namespace "outer-ns"
-               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::Option.None))
-     iq    (:wat::telemetry::Journal/query-metrics jclient
-             (:wat::telemetry::Journal::QueryMetricsRequest :namespace "inner-ns"
-               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor :wat::core::Option.None))
-     oc    (:wat::core::match oq [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-             [:wat::telemetry::Journal::QueryMetricsResponse.Success {:metrics ms :cursor _c} (:wat::core::count ms)]
-             [_ -1])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-     ic    (:wat::core::match iq [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-             [:wat::telemetry::Journal::QueryMetricsResponse.Success {:metrics ms :cursor _c} (:wat::core::count ms)]
-             [_ -1])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])]
-    (:wat::core::+ (:wat::core::* oc 10) ic)))
+     _ws   (wat.telemetry/with-span outer jaddr "outer-ns" tags
+             (wat.core/do
+               (wat.core/match (wat.telemetry.Span/incr outer (wat.telemetry.Span/IncrRequest :name :o))
+                 [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+                 [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+                 [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+                 [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+               (wat.telemetry/with-span inner jaddr "inner-ns" tags
+                 (wat.telemetry.Span/incr inner (wat.telemetry.Span/IncrRequest :name :i)))))
+     jclient (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     oq    (wat.telemetry.Journal/query-metrics jclient
+             (wat.telemetry.Journal/QueryMetricsRequest :namespace "outer-ns"
+               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor wat.core/Option.None))
+     iq    (wat.telemetry.Journal/query-metrics jclient
+             (wat.telemetry.Journal/QueryMetricsRequest :namespace "inner-ns"
+               :time-lo 0 :time-hi 9000000000000000000 :limit 100 :cursor wat.core/Option.None))
+     oc    (wat.core/match oq [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+             [wat.telemetry.Journal/QueryMetricsResponse.Success {:metrics ms :cursor _c} (wat.core/count ms)]
+             [_ -1])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+     ic    (wat.core/match iq [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+             [wat.telemetry.Journal/QueryMetricsResponse.Success {:metrics ms :cursor _c} (wat.core/count ms)]
+             [_ -1])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])]
+    (wat.core/+ (wat.core/* oc 10) ic)))

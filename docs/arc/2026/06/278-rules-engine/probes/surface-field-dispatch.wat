@@ -15,23 +15,23 @@
 ;; wearing a declaration. `docs_wat_loads_or_declares_why_not` now walks this directory.
 
 ;; a methods-bearing surface (the "Store")
-(:wat::core::defsurface :probe::Store :nature wat.type/Struct
-  :features [(put [self <- :probe::Store  x <- wat.type/i64] -> wat.type/i64)])
+(wat.core/defsurface probe/Store :nature wat.type/Struct
+  :features [(put [self :- probe/Store  x :- wat.type/i64] :- wat.type/i64)])
 
 ;; a concrete satisfier (a struct — impure, like a real connection holding a resource)
-(:wat::core::defstruct :probe::Mem [tag <- wat.type/i64])
+(wat.core/defstruct probe/Mem [tag :- wat.type/i64])
 
 ;; extend Mem to satisfy Store (body-only: bare-symbol args, types inherited from the surface)
-(:wat::core::extend-type :probe::Mem :probe::Store
+(wat.core/extend-type probe/Mem probe/Store
   (put [self x]
-    (:wat::i64::+ x (:probe::Mem/tag self))))
+    (wat.i64/+ x (probe.Mem/tag self))))
 
 ;; a HOLDER whose attribute `store` is typed as the SURFACE (not concrete Mem) — a struct (the :ephemeral facet)
-(:wat::core::defstruct :probe::Svc [store <- :probe::Store])
+(wat.core/defstruct probe/Svc [store :- probe/Store])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [m   (:probe::Mem 100)
-     svc (:probe::Svc m)                                      ;; hold the satisfier in the surface-typed attribute
-     r   (:probe::Store/put (:probe::Svc/store svc) 42)]      ;; dispatch put THROUGH the surface attribute
-    (:wat::kernel::println r)))                               ;; => 142
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [m   (probe/Mem 100)
+     svc (probe/Svc m)                                      ;; hold the satisfier in the surface-typed attribute
+     r   (probe.Store/put (probe.Svc/store svc) 42)]      ;; dispatch put THROUGH the surface attribute
+    (wat.kernel/println r)))                               ;; => 142

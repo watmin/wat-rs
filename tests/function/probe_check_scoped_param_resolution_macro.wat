@@ -3,10 +3,10 @@
 ;; A macro-generated defclause with the same ret-mismatch as the handwritten control.
 ;; At HEAD (before fix) this checks clean (bug); after fix it is rejected.
 
-(:wat::core::defmacro :test::make-bad-ret
-  [] -> (:AST :- [:wat::holon::HolonAST])
-  `(:wat::core::defclause :test::bad-ret
-     ([x <- wat.type/i64] -> wat.type/bool x)))
+(wat.core/defmacro test/make-bad-ret
+  [] :- (:AST :- [wat.holon/HolonAST])
+  `(wat.core/defclause test/bad-ret
+     ([x :- wat.type/i64] :- wat.type/bool x)))
 
-(:test::make-bad-ret)
+(test/make-bad-ret)
 

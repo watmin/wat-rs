@@ -1,4 +1,4 @@
-(:wat::core::defn :probe::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [m {:probe::inc 1}]
-    (:wat::kernel::println "fn key in map literal")))
+(wat.core/defn probe/inc [x :- wat.type/i64] :- wat.type/i64 (wat.i64/+ x 1))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [m {probe/inc 1}]
+    (wat.kernel/println "fn key in map literal")))

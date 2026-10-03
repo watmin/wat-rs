@@ -19,31 +19,31 @@
 ;; (correctly) raises IntegerOverflow rather than wrapping silently. Order-sensitivity is proven in
 ;; `wat-tests/core/core-foldl-spec.wat`; this file measures only the RATIO, and its non-vacuity is
 ;; that both arms return the same sum.
-(:wat::core::defn :bench::shift-add [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ acc x))
+(wat.core/defn bench/shift-add [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ acc x))
 
-(:wat::core::defn :bench::native [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::foldl :bench::shift-add 0 v))
+(wat.core/defn bench/native [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/foldl bench/shift-add 0 v))
 
-(:wat::core::defn :bench::spec [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::foldl-spec :bench::shift-add 0 v))
+(wat.core/defn bench/spec [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/foldl-spec bench/shift-add 0 v))
 
-(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn bench/ns [t0 :- wat.time/Instant t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n  200000
-     v  (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 n))
-     a0 (:wat::time::now) ra (:bench::spec v)   a1 (:wat::time::now)
-     b0 (:wat::time::now) rb (:bench::native v) b1 (:wat::time::now)
-     c0 (:wat::time::now) rc (:bench::native v) c1 (:wat::time::now)
-     d0 (:wat::time::now) rd (:bench::spec v)   d1 (:wat::time::now)]
-    (:wat::kernel::println
-      (:wat::string::interpolate
+     v  (wat.core/into (wat.type/Vector :- [wat.type/i64]) (wat.core/range 0 n))
+     a0 (wat.time/now) ra (bench/spec v)   a1 (wat.time/now)
+     b0 (wat.time/now) rb (bench/native v) b1 (wat.time/now)
+     c0 (wat.time/now) rc (bench/native v) c1 (wat.time/now)
+     d0 (wat.time/now) rd (bench/spec v)   d1 (wat.time/now)]
+    (wat.kernel/println
+      (wat.string/interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: spec={ad}ms native={bd}ms | B: native={cd}ms spec={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
-        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ad (wat.i64// (bench/ns a0 a1) 1000000)
+        :bd (wat.i64// (bench/ns b0 b1) 1000000)
+        :cd (wat.i64// (bench/ns c0 c1) 1000000)
+        :dd (wat.i64// (bench/ns d0 d1) 1000000)))))

@@ -18,40 +18,40 @@
 ;; the verifier would have to reason about monotonicity and comparison direction against a
 ;; literal. It was correctly refused, and replaced by this, which is the honest shape of "deep
 ;; workload" anyway: transitive reachability is what real deep Datalog looks like, not a counter.
-(:wat::core::defrecord :cap::Edge  [a <- wat.type/i64  b <- wat.type/i64])
-(:wat::core::defrecord :cap::Start [n <- wat.type/i64])
-(:wat::core::defrecord :cap::Reach [n <- wat.type/i64])
+(wat.core/defrecord cap/Edge  [a :- wat.type/i64  b :- wat.type/i64])
+(wat.core/defrecord cap/Start [n :- wat.type/i64])
+(wat.core/defrecord cap/Reach [n :- wat.type/i64])
 
-(:wat::rete::defrule :cap::seed
-  :when [(:cap::Start (?n :- :n))]
-  :then [(:cap::Reach :n ?n)])
+(wat.rete/defrule cap/seed
+  :when [(cap/Start (?n :- :n))]
+  :then [(cap/Reach :n ?n)])
 
 ;; The cyclic rule — Reach reads Reach — and legal, because `?y` is copied from Edge.
-(:wat::rete::defrule :cap::step
-  :when [(:cap::Reach (?x :- :n))
-         (:cap::Edge (?x :- :a) (?y :- :b))]
-  :then [(:cap::Reach :n ?y)])
+(wat.rete/defrule cap/step
+  :when [(cap/Reach (?x :- :n))
+         (cap/Edge (?x :- :a) (?y :- :b))]
+  :then [(cap/Reach :n ?y)])
 
-(:wat::rete::defquery :cap::q :params [] :when [(?fact :- :cap::Reach)])
+(wat.rete/defquery cap/q :params [] :when [(?fact :- cap/Reach)])
 
-(:wat::core::defn :cap::edges [] -> (wat.type/PersistentVector :- [:cap::Edge])
-  (:wat::core::into (wat.type/PersistentVector :- [:cap::Edge])
-    (:wat::core::mapv
-      (:wat::core::fn [i <- wat.type/i64] -> :cap::Edge
-        (:cap::Edge :a i :b (:wat::i64::+ i 1)))
-      (:wat::core::range 0 500))))
+(wat.core/defn cap/edges [] :- (wat.type/PersistentVector :- [cap/Edge])
+  (wat.core/into (wat.type/PersistentVector :- [cap/Edge])
+    (wat.core/mapv
+      (wat.core/fn [i :- wat.type/i64] :- cap/Edge
+        (cap/Edge :a i :b (wat.i64/+ i 1)))
+      (wat.core/range 0 500))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::i64::to-string
-      (:wat::core::length
-        (:wat::rete::query
-          (:wat::core::match (:wat::rete::fire-rules
-            (:wat::core::match (:wat::rete::insert
-              (:wat::core::match (:wat::rete::insert-all
-                (:wat::core::match (:wat::rete::compile-all
-                  (wat.type/PersistentVector :- [:wat::rete::Rule] (:cap::seed) (:cap::step))
-                  (wat.type/PersistentVector :- [:wat::rete::Query] (:cap::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                (:cap::edges)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-              (:cap::Start :n 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-          (:cap::q))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.i64/to-string
+      (wat.core/length
+        (wat.rete/query
+          (wat.core/match (wat.rete/fire-rules
+            (wat.core/match (wat.rete/insert
+              (wat.core/match (wat.rete/insert-all
+                (wat.core/match (wat.rete/compile-all
+                  (wat.type/PersistentVector :- [wat.rete/Rule] (cap/seed) (cap/step))
+                  (wat.type/PersistentVector :- [wat.rete/Query] (cap/q))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                (cap/edges)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+              (cap/Start :n 0)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+          (cap/q))))))

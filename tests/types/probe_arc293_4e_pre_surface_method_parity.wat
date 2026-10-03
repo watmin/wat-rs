@@ -9,15 +9,15 @@
 ;; GREEN at 293.4e-pre: a surface method `(make [self … extra-args …] -> ret)` dispatches with the
 ;; right arity (and the generic `make :- [T]` resolves), at parity with arc-267 generic protocol methods.
 
-(:wat::core::defsurface :t::Maker
+(wat.core/defsurface t/Maker
   :nature wat.type/Struct
-  :features [(make [self <- :t::Maker  x <- wat.type/i64] -> wat.type/i64)])
+  :features [(make [self :- t/Maker  x :- wat.type/i64] :- wat.type/i64)])
 
-(:wat::core::defrecord :t::Id [tag <- wat.type/i64])
+(wat.core/defrecord t/Id [tag :- wat.type/i64])
 
-(:wat::core::extend-type :t::Id :t::Maker
+(wat.core/extend-type t/Id t/Maker
   (make [self x] x))
 
-(:wat::core::defn :t::use [m <- :t::Maker] -> wat.type/i64 (:t::Maker/make m 42))
+(wat.core/defn t/use [m :- t/Maker] :- wat.type/i64 (t.Maker/make m 42))
 
-(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::use (:t::Id :tag 1)))
+(wat.core/defn t/probe [] :- wat.type/i64 (t/use (t/Id :tag 1)))

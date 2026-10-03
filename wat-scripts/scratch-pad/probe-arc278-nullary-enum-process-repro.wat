@@ -1,39 +1,39 @@
 ;; v7: does MATCHING (not just constructing) a program-locally-declared enum, inside an ORDINARY
 ;; public op (no -on-connect/-on-disconnect declared at all), break :locus process child startup?
-(:wat::core::defsurface :probe::Mini :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Mini :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Mini::PingRequest [])
-   (:wat::core::defenum :probe::Mini::PingResponse :wat::enum::Pure
-     :Ok               [ok <- wat.type/bool]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Mini/PingRequest [])
+   (wat.core/defenum probe.Mini/PingResponse wat.enum/Pure
+     :Ok               [ok :- wat.type/bool]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(ping [self <- :probe::Mini  req <- :probe::Mini::PingRequest] -> :probe::Mini::PingResponse :max-request-bytes 524288)])
+  [(ping [self :- probe/Mini  req :- probe.Mini/PingRequest] :- probe.Mini/PingResponse :max-request-bytes 524288)])
 
-(:wat::core::defenum :probe::Mini::Tag :wat::enum::Pure
+(wat.core/defenum probe.Mini/Tag wat.enum/Pure
   :Closed   []
   :Lost     []
   :Rejected [])
 
-(:wat::service::defservice :probe::mini
-  :satisfies :probe::Mini
-  :durable   [tag <- :probe::Mini::Tag]
+(wat.service/defservice probe/mini
+  :satisfies probe/Mini
+  :durable   [tag :- probe.Mini/Tag]
   :ephemeral []
-  :init (:wat::core::fn [record <- :probe::mini::Record] -> :probe::mini::State
-          (:probe::mini::State :durable record))
+  :init (wat.core/fn [record :- probe.mini/Record] :- probe.mini/State
+          (probe.mini/State :durable record))
   :impls
   [(ping [s ctx req]
-     (:wat::core::let
-       [t (:probe::mini::Record/tag (:probe::mini::State/durable s))
-        ok (:wat::core::match t
-             [:probe::Mini::Tag.Closed {} true]
-             [:probe::Mini::Tag.Lost {} false]
-             [:probe::Mini::Tag.Rejected {} false])]
-       (:wat::service::Outcome.Reply {:state s :reply (:probe::Mini::PingResponse.Ok {:ok ok})})))])
+     (wat.core/let
+       [t (probe.mini.Record/tag (probe.mini.State/durable s))
+        ok (wat.core/match t
+             [probe.Mini/Tag.Closed {} true]
+             [probe.Mini/Tag.Lost {} false]
+             [probe.Mini/Tag.Rejected {} false])]
+       (wat.service/Outcome.Reply {:state s :reply (probe.Mini/PingResponse.Ok {:ok ok})})))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [h (:probe::mini/start :locus (:wat::spawn::process) :record (:probe::mini::Record :tag (:probe::Mini::Tag.Closed {})))
-     c (:wat::core::match (:wat::kernel::connect (:probe::mini::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r (:probe::Mini/ping c (:probe::Mini::PingRequest))]
-    (:wat::kernel::println "ok")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [h (probe.mini/start :locus (wat.spawn/process) :record (probe.mini/Record :tag (probe.Mini/Tag.Closed {})))
+     c (wat.core/match (wat.kernel/connect (probe.mini.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r (probe.Mini/ping c (probe.Mini/PingRequest))]
+    (wat.kernel/println "ok")))

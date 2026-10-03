@@ -1,10 +1,10 @@
 ;; tests/function/recursive_patterns_t2.wat — result_tuple_destructure
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
               [resp
-                (:wat::core::Result.Ok {:value (wat.type/Tuple :- [wat.type/String wat.type/i64] "ok" 7)})
+                (wat.core/Result.Ok {:value (wat.type/Tuple :- [wat.type/String wat.type/i64] "ok" 7)})
                line
-                (:wat::core::match resp 
-                  [:wat::core::Result.Ok {:value (k v)} (:wat::string::concat k (:wat::i64::to-string v))]
-                  [:wat::core::Result.Err {:error msg} msg])]
-              (:wat::kernel::println line)))
+                (wat.core/match resp 
+                  [wat.core/Result.Ok {:value (k v)} (wat.string/concat k (wat.i64/to-string v))]
+                  [wat.core/Result.Err {:error msg} msg])]
+              (wat.kernel/println line)))

@@ -6,34 +6,34 @@
 ;; site, so a plain String crosses the wire and is stored verbatim.
 
 ;; a concrete log payload — a user record the producer `edn::write`s into the opaque message String.
-(:wat::core::defrecord :user::PriceEvent
-  [asset <- wat.type/keyword
-   price <- wat.type/i64])
+(wat.core/defrecord user/PriceEvent
+  [asset :- wat.type/keyword
+   price :- wat.type/i64])
 
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [sh      (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-               :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     saddr   (:wat::query::mem-store::Handle/addr sh)
-     jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-               :record (:wat::telemetry::journal::Record) :store-addr saddr)
-     journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [sh      (wat.query.mem-store/start :locus (wat.spawn/thread)
+               :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     saddr   (wat.query.mem-store.Handle/addr sh)
+     jh      (wat.telemetry.journal/start :locus (wat.spawn/thread)
+               :record (wat.telemetry.journal/Record) :store-addr saddr)
+     journal (wat.core/match (wat.kernel/connect (wat.telemetry.journal.Handle/addr jh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags    (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     msg     (:wat::edn::write (:user::PriceEvent :asset :BTC :price 100000))
-     l       (:wat::telemetry::Log
-               :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 456
-               :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info :message msg)
-     batch   (wat.type/Vector :- [:wat::telemetry::Log] l)
-     _wr     (:wat::telemetry::Journal/write-logs journal
-               (:wat::telemetry::Journal::WriteLogsRequest batch))
-     client  (:wat::core::match (:wat::kernel::connect saddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     pk      (:wat::edn::write (:wat::telemetry::PartitionKey
-                                 :namespace "probe-ns" :kind :wat::telemetry::Kind.Log))
-     resp    (:wat::query::Store/scan client
-               (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::query::Store::ScanResponse.Success {:rows rows :cursor _cursor}
-        (:wat::core::if (:wat::core::= (:wat::core::count rows) 1)
-          (:wat::query::Row/data (:wat::core::first rows))
+     msg     (wat.edn/write (user/PriceEvent :asset :BTC :price 100000))
+     l       (wat.telemetry/Log
+               :namespace "probe-ns" :uuid (wat.uuid/nil) :tags tags :time-ns 456
+               :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info :message msg)
+     batch   (wat.type/Vector :- [wat.telemetry/Log] l)
+     _wr     (wat.telemetry.Journal/write-logs journal
+               (wat.telemetry.Journal/WriteLogsRequest batch))
+     client  (wat.core/match (wat.kernel/connect saddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     pk      (wat.edn/write (wat.telemetry/PartitionKey
+                                 :namespace "probe-ns" :kind wat.telemetry/Kind.Log))
+     resp    (wat.query.Store/scan client
+               (wat.query.Store/ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.query.Store/ScanResponse.Success {:rows rows :cursor _cursor}
+        (wat.core/if (wat.core/= (wat.core/count rows) 1)
+          (wat.query.Row/data (wat.core/first rows))
           "WRONG-ROW-COUNT")]
-      [_ "SCAN-FAILED"])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [_ "SCAN-FAILED"])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

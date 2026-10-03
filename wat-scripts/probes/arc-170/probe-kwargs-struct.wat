@@ -9,16 +9,16 @@
 ;;   :probe::apply-it::Kwargs record.
 ;; GREEN after the flip: result == 42.
 
-(:wat::core::defn :probe::apply-it
-  [& [f <- [wat.type/i64 :-> wat.type/i64]
-      n <- wat.type/i64]]
-  -> wat.type/i64
-  (:wat::core::apply  f n []))
+(wat.core/defn probe/apply-it
+  [& [f :- [wat.type/i64 :-> wat.type/i64]
+      n :- wat.type/i64]]
+  :- wat.type/i64
+  (wat.core/apply  f n []))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [result (:probe::apply-it :f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [result (probe/apply-it :f (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.i64/* x 2))
                                :n 21)]
-    (:wat::core::do
-      (:wat::test::assert-eq result 42)
-      (:wat::kernel::println (:wat::i64::to-string result)))))
+    (wat.core/do
+      (wat.test/assert-eq result 42)
+      (wat.kernel/println (wat.i64/to-string result)))))

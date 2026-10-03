@@ -15,11 +15,11 @@
 ;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the error names
 ;; "closure-extract", "not implemented", and ":wat::kernel::Process", and that "LEAK" never
 ;; prints.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [p  (:wat::test::spawn-peer (:wat::spawn::process)
-          (:wat::core::forms (:wat::core::defn :user::main [] -> wat.type/nil nil)))
-     f  (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-          (:wat::core::let [_ (:wat::core::match (:wat::kernel::send p x) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])] x))
-     wf (:wat::kernel::fn-forms f :probe::work)]
-    (:wat::kernel::println "LEAK: impure capture was reified without error")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [p  (wat.test/spawn-peer (wat.spawn/process)
+          (wat.core/forms (wat.core/defn user/main [] :- wat.type/nil nil)))
+     f  (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+          (wat.core/let [_ (wat.core/match (wat.kernel/send p x) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])] x))
+     wf (wat.kernel/fn-forms f probe/work)]
+    (wat.kernel/println "LEAK: impure capture was reified without error")))

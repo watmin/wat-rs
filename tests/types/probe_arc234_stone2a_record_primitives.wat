@@ -9,33 +9,33 @@
 ;; construction shape, `:wat::core::type`, `Record/field-at`, hologram equality — is unchanged;
 ;; only how the input is built changed.
 
-(:wat::holon::defrecord :myapp::Voltage [magnitude <- wat.type/f64])
-(:wat::holon::defrecord :myapp::Point [x <- wat.type/i64  y <- wat.type/i64])
+(wat.holon/defrecord myapp/Voltage [magnitude :- wat.type/f64])
+(wat.holon/defrecord myapp/Point [x :- wat.type/i64  y :- wat.type/i64])
 
 ;; ─── Probe 1: construction returns :wat::holon::Record (HolonRecord aggregate) ──────
-(:wat::core::defn :user::probe-1 [] -> :wat::holon::Record
-  (:myapp::Voltage :magnitude 5.0))
+(wat.core/defn user/probe-1 [] :- wat.holon/Record
+  (myapp/Voltage :magnitude 5.0))
 
 ;; ─── Probe 2: :wat::core::type returns class_fqdn ────────────────────────────
-(:wat::core::defn :user::probe-2 [] -> wat.type/String
-  (:wat::core::let
-    [v (:myapp::Voltage :magnitude 5.0)]
-    (:wat::core::type v)))
+(wat.core/defn user/probe-2 [] :- wat.type/String
+  (wat.core/let
+    [v (myapp/Voltage :magnitude 5.0)]
+    (wat.core/type v)))
 
 ;; ─── Probe 3: single-field struct_form ───────────────────────────────────────
-(:wat::core::defn :user::probe-3 [] -> :wat::holon::Record
-  (:myapp::Voltage :magnitude 42.0))
+(wat.core/defn user/probe-3 [] :- wat.holon/Record
+  (myapp/Voltage :magnitude 42.0))
 
 ;; ─── Probe 4: multi-field construction ───────────────────────────────────────
-(:wat::core::defn :user::probe-4 [] -> :wat::holon::Record
-  (:myapp::Point :x 3 :y 4))
+(wat.core/defn user/probe-4 [] :- wat.holon/Record
+  (myapp/Point :x 3 :y 4))
 
 ;; ─── Probe 5: Record/field-at positional access ──────────────────────────────
-(:wat::core::defn :user::probe-5 [] -> wat.type/i64
-  (:wat::core::let
-    [v (:myapp::Point :x 3 :y 4)]
-    (:wat::record::field-at v 1)))
+(wat.core/defn user/probe-5 [] :- wat.type/i64
+  (wat.core/let
+    [v (myapp/Point :x 3 :y 4)]
+    (wat.record/field-at v 1)))
 
 ;; ─── Probe 7: equality via holon_form ────────────────────────────────────────
-(:wat::core::defn :user::probe-7 [] -> :wat::holon::Record
-  (:myapp::Voltage :magnitude 5.0))
+(wat.core/defn user/probe-7 [] :- wat.holon/Record
+  (myapp/Voltage :magnitude 5.0))

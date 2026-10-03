@@ -6,8 +6,8 @@
 ;; differs from the direct primitive call. After expansion, the defmacro form is
 ;; consumed by expand_all and the remaining output is one form:
 ;; (:my::prim 42 99 1 -1).
-(:wat::core::defmacro :test::MyAlias
-  [x <- wat.type/AST y <- wat.type/AST]
-  -> wat.type/AST
-  `(:my::prim ~x ~y 1 -1))
-(:test::MyAlias 42 99)
+(wat.core/defmacro test/MyAlias
+  [x :- wat.type/AST y :- wat.type/AST]
+  :- wat.type/AST
+  `(my/prim ~x ~y 1 -1))
+(test/MyAlias 42 99)

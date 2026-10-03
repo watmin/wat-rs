@@ -9,6 +9,6 @@
 ;; entry (wat/main.wat) does that, when needed (none in this minimal
 ;; example — the substrate defaults cover everything).
 
-(:wat::load-file! "deeper.wat")
+(wat/load-file! "deeper.wat")
 
-(:wat::core::defn :user::with_loader::helper::greeting [] -> wat.type/String (:user::with_loader::deeper::compute))
+(wat.core/defn user.with_loader.helper/greeting [] :- wat.type/String (user.with_loader.deeper/compute))

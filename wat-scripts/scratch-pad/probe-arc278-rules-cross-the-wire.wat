@@ -69,122 +69,122 @@
 ;; (fixing it means loosening the general untyped reader, not "one arm in one walker").
 
 ;; ── the surface — `defs` is the SUBJECT: a (Vector :- [WatAST]) as a request field ───────────────
-(:wat::core::defsurface :probe::RuleWire :nature :wat::kernel::Peer
+(wat.core/defsurface probe/RuleWire :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::RuleWire::InstallRequest
-     [defs <- (wat.type/Vector :- [wat.type/AST])])
-   (:wat::core::defenum :probe::RuleWire::InstallResponse :wat::enum::Pure
-     :Derived          [n <- wat.type/i64]
-     :Rejected         [reason <- wat.type/String]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.RuleWire/InstallRequest
+     [defs :- (wat.type/Vector :- [wat.type/AST])])
+   (wat.core/defenum probe.RuleWire/InstallResponse wat.enum/Pure
+     :Derived          [n :- wat.type/i64]
+     :Rejected         [reason :- wat.type/String]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(install [self <- :probe::RuleWire  req <- :probe::RuleWire::InstallRequest] -> :probe::RuleWire::InstallResponse :max-request-bytes 524288)])
+  [(install [self :- probe/RuleWire  req :- probe.RuleWire/InstallRequest] :- probe.RuleWire/InstallResponse :max-request-bytes 524288)])
 
 ;; ── the evaluand the SERVICE runs, in the world built from what it was handed ──────────────
 ;; `collect-rules` reflects the namespace of the world it is standing in — the service never
 ;; names a rule; it asks the world the client shipped it. 150 > 100 derives exactly one Hot.
-(:wat::core::defn :probe::evaluand [] -> wat.type/AST
-  (:wat::core::quote
-    (:wat::core::length
-      (:wat::rete::query
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert
-            (:wat::core::match (:wat::rete::compile-all
-              (:wat::rete::collect-rules :usr)
-              (wat.type/PersistentVector :- [:wat::rete::Query]
-                (:wat::rete::make-query "usr::Hot"
-                  (:wat::core::quote [])
-                  (:wat::core::quote [(:usr::Hot)])))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:usr::Temp :c 150)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-        (:wat::rete::make-query "usr::Hot"
-          (:wat::core::quote [])
-          (:wat::core::quote [(:usr::Hot)]))))))
+(wat.core/defn probe/evaluand [] :- wat.type/AST
+  (wat.core/quote
+    (wat.core/length
+      (wat.rete/query
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert
+            (wat.core/match (wat.rete/compile-all
+              (wat.rete/collect-rules :usr)
+              (wat.type/PersistentVector :- [wat.rete/Query]
+                (wat.rete/make-query "usr::Hot"
+                  (wat.core/quote [])
+                  (wat.core/quote [(usr/Hot)])))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (usr/Temp :c 150)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+        (wat.rete/make-query "usr::Hot"
+          (wat.core/quote [])
+          (wat.core/quote [(usr/Hot)]))))))
 
 ;; ── the service — receives defs off the wire, builds a world, fires, replies with the count ──
-(:wat::service::defservice :probe::rulewiresvc
-  :satisfies :probe::RuleWire
-  :durable   [installs <- wat.type/i64]
+(wat.service/defservice probe/rulewiresvc
+  :satisfies probe/RuleWire
+  :durable   [installs :- wat.type/i64]
   :ephemeral []
-  :init (:wat::core::fn [record <- :probe::rulewiresvc::Record] -> :probe::rulewiresvc::State
-          (:probe::rulewiresvc::State :durable record))
+  :init (wat.core/fn [record :- probe.rulewiresvc/Record] :- probe.rulewiresvc/State
+          (probe.rulewiresvc/State :durable record))
   :impls
   [(install [s ctx req]
-     (:wat::core::match
-       (:wat::eval-with-defs! (:probe::evaluand) (:probe::RuleWire::InstallRequest/defs req))
-       [:wat::eval::FormOutcome.Declared {}
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::RuleWire::InstallResponse.Rejected {:reason "declared"})})]
-       [:wat::eval::FormOutcome.Evaluated {:value v}
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::RuleWire::InstallResponse.Derived {:n v})})]
-       [:wat::eval::FormOutcome.CheckFailed {:cause _cause}
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::RuleWire::InstallResponse.Rejected {:reason "check-failed"})})]
-       [:wat::eval::FormOutcome.Raised {:cause _cause}
-         (:wat::service::Outcome.Reply {:state s :reply (:probe::RuleWire::InstallResponse.Rejected {:reason "raised"})})]))])
+     (wat.core/match
+       (wat/eval-with-defs! (probe/evaluand) (probe.RuleWire.InstallRequest/defs req))
+       [wat.eval/FormOutcome.Declared {}
+         (wat.service/Outcome.Reply {:state s :reply (probe.RuleWire/InstallResponse.Rejected {:reason "declared"})})]
+       [wat.eval/FormOutcome.Evaluated {:value v}
+         (wat.service/Outcome.Reply {:state s :reply (probe.RuleWire/InstallResponse.Derived {:n v})})]
+       [wat.eval/FormOutcome.CheckFailed {:cause _cause}
+         (wat.service/Outcome.Reply {:state s :reply (probe.RuleWire/InstallResponse.Rejected {:reason "check-failed"})})]
+       [wat.eval/FormOutcome.Raised {:cause _cause}
+         (wat.service/Outcome.Reply {:state s :reply (probe.RuleWire/InstallResponse.Rejected {:reason "raised"})})]))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
-(:wat::core::defn :probe::payload-complete [] -> (wat.type/Vector :- [wat.type/AST])
+(wat.core/defn probe/payload-complete [] :- (wat.type/Vector :- [wat.type/AST])
   (wat.type/Vector :- [wat.type/AST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
-    (:wat::core::quote
-      (:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
-        (:wat::rete::i64::> n 100)))
-    (:wat::core::quote
-      (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
-        :then [(:usr::Hot :c ?c)]))))
+    (wat.core/quote (wat.core/defrecord usr/Temp [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/Hot  [c :- wat.type/i64]))
+    (wat.core/quote
+      (wat.rete.core/defn usr/big? [n :- wat.type/i64] :- wat.type/bool
+        (wat.rete.i64/> n 100)))
+    (wat.core/quote
+      (wat.rete/defrule usr/rule-userfn
+        :when [(usr/Temp (?c :- :c)) (wat.rete/where (usr/big? ?c))]
+        :then [(usr/Hot :c ?c)]))))
 
-(:wat::core::defn :probe::payload-missing-helper [] -> (wat.type/Vector :- [wat.type/AST])
+(wat.core/defn probe/payload-missing-helper [] :- (wat.type/Vector :- [wat.type/AST])
   (wat.type/Vector :- [wat.type/AST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
-    (:wat::core::quote
-      (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
-        :then [(:usr::Hot :c ?c)]))))
+    (wat.core/quote (wat.core/defrecord usr/Temp [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/Hot  [c :- wat.type/i64]))
+    (wat.core/quote
+      (wat.rete/defrule usr/rule-userfn
+        :when [(usr/Temp (?c :- :c)) (wat.rete/where (usr/big? ?c))]
+        :then [(usr/Hot :c ?c)]))))
 
 ;; ── the client ────────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :probe::connect! [h <- :probe::rulewiresvc::Handle] -> :probe::RuleWire
-  (:wat::core::match (:wat::kernel::connect (:probe::rulewiresvc::Handle/addr h))
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+(wat.core/defn probe/connect! [h :- probe.rulewiresvc/Handle] :- probe/RuleWire
+  (wat.core/match (wat.kernel/connect (probe.rulewiresvc.Handle/addr h))
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}   (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))
 
-(:wat::core::defn :probe::install!
-  [label <- wat.type/String
-   defs  <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/nil
-  (:wat::core::let
-    [h (:probe::rulewiresvc/start :locus (:wat::spawn::process)
-         :record (:probe::rulewiresvc::Record :installs 0))
-     c (:probe::connect! h)]
-    (:wat::core::match (:probe::RuleWire/install c (:probe::RuleWire::InstallRequest :defs defs))
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::RuleWire::InstallResponse.Derived {:n n}
-            (:wat::kernel::println
-              (:wat::string::concat label " => DERIVED n=" (:wat::i64::to-string n)))]
-          [:probe::RuleWire::InstallResponse.Rejected {:reason reason}
-            (:wat::kernel::println (:wat::string::concat label " => REJECTED " reason))]
-          [:probe::RuleWire::InstallResponse.RequestTooLarge {:bytes bytes :cap cap}
-            (:wat::kernel::println
-              (:wat::string::concat label " => REQUEST-TOO-LARGE bytes="
-                (:wat::i64::to-string bytes) " cap=" (:wat::i64::to-string cap)))]
-          [:probe::RuleWire::InstallResponse.RequestMalformed {:path _p :expected expected :got got}
-            (:wat::kernel::println
-              (:wat::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got))])]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::println
-          (:wat::string::concat label " => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::println (:wat::string::concat label " => STOPPED before reply"))]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::println (:wat::string::concat label " => CLOSED before reply"))])))
+(wat.core/defn probe/install!
+  [label :- wat.type/String
+   defs  :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/nil
+  (wat.core/let
+    [h (probe.rulewiresvc/start :locus (wat.spawn/process)
+         :record (probe.rulewiresvc/Record :installs 0))
+     c (probe/connect! h)]
+    (wat.core/match (probe.RuleWire/install c (probe.RuleWire/InstallRequest :defs defs))
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.RuleWire/InstallResponse.Derived {:n n}
+            (wat.kernel/println
+              (wat.string/concat label " => DERIVED n=" (wat.i64/to-string n)))]
+          [probe.RuleWire/InstallResponse.Rejected {:reason reason}
+            (wat.kernel/println (wat.string/concat label " => REJECTED " reason))]
+          [probe.RuleWire/InstallResponse.RequestTooLarge {:bytes bytes :cap cap}
+            (wat.kernel/println
+              (wat.string/concat label " => REQUEST-TOO-LARGE bytes="
+                (wat.i64/to-string bytes) " cap=" (wat.i64/to-string cap)))]
+          [probe.RuleWire/InstallResponse.RequestMalformed {:path _p :expected expected :got got}
+            (wat.kernel/println
+              (wat.string/concat label " => REQUEST-MALFORMED expected=" expected " got=" got))])]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/println
+          (wat.string/concat label " => LOST " (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/println (wat.string/concat label " => STOPPED before reply"))]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/println (wat.string/concat label " => CLOSED before reply"))])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:probe::install! "SUBJECT (helper IN payload)" (:probe::payload-complete))
-    (:probe::install! "CONTROL (helper OMITTED)   " (:probe::payload-missing-helper))
-    (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (probe/install! "SUBJECT (helper IN payload)" (probe/payload-complete))
+    (probe/install! "CONTROL (helper OMITTED)   " (probe/payload-missing-helper))
+    (wat.kernel/println
       "READ: SUBJECT DERIVED n=1 AND CONTROL REJECTED check-failed => a Vector<WatAST> crosses a process service boundary intact and the far side fires the rule. Any other pairing refutes it.")))

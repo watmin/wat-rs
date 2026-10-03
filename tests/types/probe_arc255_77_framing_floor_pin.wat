@@ -11,14 +11,14 @@
 ;; to `wat.uuid/UUID` in the SAME commit as the Rust-side rename, so this fixture exercises the
 ;; post-rename spelling after conversion while this probe (`.rs` companion) keeps asserting the
 ;; SAME four pinned numbers — proving the rename + the trap's cure are both numerically inert.
-(:wat::core::defrecord :probe::FFFloorI64  [v <- wat.type/i64])
-(:wat::core::defrecord :probe::FFFloorF64  [v <- wat.type/f64])
-(:wat::core::defrecord :probe::FFFloorUuid [v <- wat.uuid/UUID])
-(:wat::core::defrecord :probe::FFFloorBool [v <- wat.type/bool])
+(wat.core/defrecord probe/FFFloorI64  [v :- wat.type/i64])
+(wat.core/defrecord probe/FFFloorF64  [v :- wat.type/f64])
+(wat.core/defrecord probe/FFFloorUuid [v :- wat.uuid/UUID])
+(wat.core/defrecord probe/FFFloorBool [v :- wat.type/bool])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorI64))
-    (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorF64))
-    (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorUuid))
-    (:wat::kernel::println (:wat::telemetry::framing-floor-of :probe::FFFloorBool))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.telemetry/framing-floor-of probe/FFFloorI64))
+    (wat.kernel/println (wat.telemetry/framing-floor-of probe/FFFloorF64))
+    (wat.kernel/println (wat.telemetry/framing-floor-of probe/FFFloorUuid))
+    (wat.kernel/println (wat.telemetry/framing-floor-of probe/FFFloorBool))))

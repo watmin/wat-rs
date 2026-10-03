@@ -11,8 +11,8 @@
 ;; If this file ever stops loading, the sibling's RED stops meaning what its name says —
 ;; fix THIS first, then re-read the gap.
 
-(:wat::core::defn :probe::ordinary [n <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::> n 100))
+(wat.core/defn probe/ordinary [n :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/> n 100))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe::ordinary 42)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe/ordinary 42)))

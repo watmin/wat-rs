@@ -6,15 +6,15 @@
 ;;
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral session tmp).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "== metadata-of if ==")
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::core::if))
-    (:wat::kernel::println "== metadata-of let ==")
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::core::let))
-    (:wat::kernel::println "== render-doc if ==")
-    (:wat::kernel::println (:wat::core::render-doc :wat::core::if))
-    (:wat::kernel::println "== render-doc let ==")
-    (:wat::kernel::println (:wat::core::render-doc :wat::core::let))
-    (:wat::kernel::println "== show-source i64::+ (intrinsic, unaffected) ==")
-    (:wat::kernel::println (:wat::core::show-source :wat::i64::+))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "== metadata-of if ==")
+    (wat.kernel/pprintln (wat.runtime/metadata-of wat.core/if))
+    (wat.kernel/println "== metadata-of let ==")
+    (wat.kernel/pprintln (wat.runtime/metadata-of wat.core/let))
+    (wat.kernel/println "== render-doc if ==")
+    (wat.kernel/println (wat.core/render-doc wat.core/if))
+    (wat.kernel/println "== render-doc let ==")
+    (wat.kernel/println (wat.core/render-doc wat.core/let))
+    (wat.kernel/println "== show-source i64::+ (intrinsic, unaffected) ==")
+    (wat.kernel/println (wat.core/show-source wat.i64/+))))

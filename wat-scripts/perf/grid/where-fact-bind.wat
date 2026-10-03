@@ -3,99 +3,99 @@
 ;; type keyword has `::`. Accumulate stays `(?n <- (acc) :from …)`.
 ;; You cannot get a record without asking for it.
 
-(:wat::core::defrecord :wfb::Temp [c <- wat.type/i64 loc <- wat.type/String])
-(:wat::core::defrecord :wfb::Hit [c <- wat.type/i64])
+(wat.core/defrecord wfb/Temp [c :- wat.type/i64 loc :- wat.type/String])
+(wat.core/defrecord wfb/Hit [c :- wat.type/i64])
 
-(:wat::rete::defrule :wfb::cool
-  :when [(?t :- :wfb::Temp)
-         (:wat::rete::where (:wat::rete::i64::< (:wfb::Temp/c ?t) 20))]
-  :then [(:wfb::Hit :c (:wfb::Temp/c ?t))])
+(wat.rete/defrule wfb/cool
+  :when [(?t :- wfb/Temp)
+         (wat.rete/where (wat.rete.i64/< (wfb.Temp/c ?t) 20))]
+  :then [(wfb/Hit :c (wfb.Temp/c ?t))])
 
-(:wat::rete::defquery :wfb::q-bound
+(wat.rete/defquery wfb/q-bound
   :params []
-  :when [(?t :- :wfb::Temp)])
+  :when [(?t :- wfb/Temp)])
 
-(:wat::rete::defquery :wfb::q-plain
+(wat.rete/defquery wfb/q-plain
   :params []
-  :when [(?fact :- :wfb::Temp)])
+  :when [(?fact :- wfb/Temp)])
 
-(:wat::rete::defquery :wfb::q-both
+(wat.rete/defquery wfb/q-both
   :params []
-  :when [(?t :- :wfb::Temp (?c :- :c))])
+  :when [(?t :- wfb/Temp (?c :- :c))])
 
-(:wat::rete::defquery :wfb::q-Hit
+(wat.rete/defquery wfb/q-Hit
   :params []
-  :when [(:wfb::Hit (?c :- :c))])
+  :when [(wfb/Hit (?c :- :c))])
 
 ;; Accum query of two Temps at one loc — one group. Clara :from is a
 ;; fact pattern, not `[?t <- Temp]` (that form is a condition, not :from).
-(:wat::rete::defquery :wfb::q-from
+(wat.rete/defquery wfb/q-from
   :params []
-  :when [(?n :- (:wat::rete::acc::count) :from (:wfb::Temp (?loc :- :loc)))])
+  :when [(?n :- (wat.rete.acc/count) :from (wfb/Temp (?loc :- :loc)))])
 
-(:wat::core::defn :wfb::has-key
-  [answers <- (wat.type/PersistentVector :- [wat.type/PersistentMap])
-   k       <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
+(wat.core/defn wfb/has-key
+  [answers :- (wat.type/PersistentVector :- [wat.type/PersistentMap])
+   k       :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/length answers) 0)
     "empty"
-    (:wat::core::match
-      (:wat::core::get (:wat::core::first answers) k)
-      [:wat::core::Option.Some {:value _} "yes"]
-      [:wat::core::Option.None {} "none"])))
+    (wat.core/match
+      (wat.core/get (wat.core/first answers) k)
+      [wat.core/Option.Some {:value _} "yes"]
+      [wat.core/Option.None {} "none"])))
 
-(:wat::core::defn :wfb::line
-  [row <- wat.type/i64 name <- wat.type/String body <- wat.type/String]
-  -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat (:wat::string::concat " " name) body))))
+(wat.core/defn wfb/line
+  [row :- wat.type/i64 name :- wat.type/String body :- wat.type/String]
+  :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat (wat.string/concat " " name) body))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:wfb::cool))
-                    queries (wat.type/PersistentVector :- [:wat::rete::Query]
-                              (:wfb::q-bound) (:wfb::q-plain) (:wfb::q-both)
-                              (:wfb::q-Hit))
-                    world (:wat::core::match (:wat::rete::fire-rules
-                            (:wat::core::match (:wat::rete::insert
-                              (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                              (:wfb::Temp :c 15 :loc "MCI")
-                              (:wfb::Temp :c 80 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    bound (:wat::rete::query world (:wfb::q-bound))
-                    plain (:wat::rete::query world (:wfb::q-plain))
-                    both  (:wat::rete::query world (:wfb::q-both))
-                    hits  (:wat::rete::query world (:wfb::q-Hit))]
-    (:wfb::line 1 "bound"
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length bound)))
-        (:wat::string::concat " has=?t " (:wfb::has-key bound "?t"))))
-    (:wfb::line 2 "plain"
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length plain)))
-        (:wat::string::concat " has=?t " (:wfb::has-key plain "?t"))))
-    (:wfb::line 3 "both"
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length both)))
-        (:wat::string::concat
-          (:wat::string::concat " has=?t " (:wfb::has-key both "?t"))
-          (:wat::string::concat " has=?c " (:wfb::has-key both "?c")))))
-    (:wfb::line 4 "cool"
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length hits)))
-        (:wat::string::concat " -> "
-          (:wat::i64::to-string
-            (:wat::core::Option/expect
-              (:wat::core::get (:wat::core::first hits) "?c")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [rules   (wat.type/PersistentVector :- [wat.rete/Rule] (wfb/cool))
+                    queries (wat.type/PersistentVector :- [wat.rete/Query]
+                              (wfb/q-bound) (wfb/q-plain) (wfb/q-both)
+                              (wfb/q-Hit))
+                    world (wat.core/match (wat.rete/fire-rules
+                            (wat.core/match (wat.rete/insert
+                              (wat.core/match (wat.rete/compile-all rules queries) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                              (wfb/Temp :c 15 :loc "MCI")
+                              (wfb/Temp :c 80 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    bound (wat.rete/query world (wfb/q-bound))
+                    plain (wat.rete/query world (wfb/q-plain))
+                    both  (wat.rete/query world (wfb/q-both))
+                    hits  (wat.rete/query world (wfb/q-Hit))]
+    (wfb/line 1 "bound"
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string (wat.core/length bound)))
+        (wat.string/concat " has=?t " (wfb/has-key bound "?t"))))
+    (wfb/line 2 "plain"
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string (wat.core/length plain)))
+        (wat.string/concat " has=?t " (wfb/has-key plain "?t"))))
+    (wfb/line 3 "both"
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string (wat.core/length both)))
+        (wat.string/concat
+          (wat.string/concat " has=?t " (wfb/has-key both "?t"))
+          (wat.string/concat " has=?c " (wfb/has-key both "?c")))))
+    (wfb/line 4 "cool"
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string (wat.core/length hits)))
+        (wat.string/concat " -> "
+          (wat.i64/to-string
+            (wat.core.Option/expect
+              (wat.core/get (wat.core/first hits) "?c")
               "q-Hit: ?c")))))
-    (:wfb::line 5 "from"
-      (:wat::core::let [only-q (:wat::core::match (:wat::rete::fire-rules
-                                 (:wat::core::match (:wat::rete::insert
-                                   (:wat::core::match (:wat::rete::compile-all
-                                     (wat.type/PersistentVector :- [:wat::rete::Rule])
-                                     (wat.type/PersistentVector :- [:wat::rete::Query] (:wfb::q-from))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                                   (:wfb::Temp :c 15 :loc "MCI")
-                                   (:wfb::Temp :c 80 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                        grouped (:wat::rete::query only-q (:wfb::q-from))]
-        (:wat::string::concat
-          " n=" (:wat::i64::to-string (:wat::core::length grouped)))))))
+    (wfb/line 5 "from"
+      (wat.core/let [only-q (wat.core/match (wat.rete/fire-rules
+                                 (wat.core/match (wat.rete/insert
+                                   (wat.core/match (wat.rete/compile-all
+                                     (wat.type/PersistentVector :- [wat.rete/Rule])
+                                     (wat.type/PersistentVector :- [wat.rete/Query] (wfb/q-from))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                                   (wfb/Temp :c 15 :loc "MCI")
+                                   (wfb/Temp :c 80 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                        grouped (wat.rete/query only-q (wfb/q-from))]
+        (wat.string/concat
+          " n=" (wat.i64/to-string (wat.core/length grouped)))))))

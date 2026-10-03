@@ -19,162 +19,162 @@
 ;;
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/assertion-failed-to-kwargs.wat
 
-(:wat::core::defn :user::node-text
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/String
-  (:wat::string::subs src
-    (:wat::fix::node-start-offset node lines)
-    (:wat::fix::node-end-offset node lines)))
+(wat.core/defn user/node-text
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/String
+  (wat.string/subs src
+    (wat.fix/node-start-offset node lines)
+    (wat.fix/node-end-offset node lines)))
 
-(:wat::core::defn :user::head-spelling [node <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/head-spelling [node :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         ""
-        (:wat::core::let [h (:wat::core::first ch) k (:wat::core::ast-kind h)]
-          (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
-            (:wat::core::ast-name h)
+        (wat.core/let [h (wat.core/first ch) k (wat.core/ast-kind h)]
+          (wat.core/if (wat.core/or (wat.core/= k "keyword") (wat.core/= k "symbol"))
+            (wat.core/ast-name h)
             ""))))
     ""))
 
-(:wat::core::defn :user::assertion-failed-call? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [h (:user::head-spelling node)]
-    (:wat::core::or
-      (:wat::core::= h ":wat::kernel::assertion-failed!")
-      (:wat::core::= h "wat.kernel/assertion-failed!"))))
+(wat.core/defn user/assertion-failed-call? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [h (user/head-spelling node)]
+    (wat.core/or
+      (wat.core/= h ":wat::kernel::assertion-failed!")
+      (wat.core/= h "wat.kernel/assertion-failed!"))))
 
-(:wat::core::defn :user::none-placeholder? [n <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [k (:wat::core::ast-kind n)]
-    (:wat::core::if (:wat::core::= k "keyword")
-      (:wat::core::let [nm (:wat::core::ast-name n)]
-        (:wat::core::or (:wat::core::= nm ":wat::core::None")
-          (:wat::core::or (:wat::core::= nm ":None")
-            (:wat::core::= nm ":wat::core::Option::None"))))
-      (:wat::core::if (:wat::core::= k "symbol")
-        (:wat::core::let [nm (:wat::core::ast-name n)]
-          (:wat::core::or (:wat::core::= nm "wat.core/None")
-            (:wat::core::= nm "wat.core/Option.None")))
+(wat.core/defn user/none-placeholder? [n :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [k (wat.core/ast-kind n)]
+    (wat.core/if (wat.core/= k "keyword")
+      (wat.core/let [nm (wat.core/ast-name n)]
+        (wat.core/or (wat.core/= nm ":wat::core::None")
+          (wat.core/or (wat.core/= nm ":None")
+            (wat.core/= nm ":wat::core::Option::None"))))
+      (wat.core/if (wat.core/= k "symbol")
+        (wat.core/let [nm (wat.core/ast-name n)]
+          (wat.core/or (wat.core/= nm "wat.core/None")
+            (wat.core/= nm "wat.core/Option.None")))
         false))))
 
 ;; 3 positional args, first not a keyword (kwargs already start with :message etc.).
-(:wat::core::defn :user::positional-call? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:user::assertion-failed-call? node)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 4)
-        (:wat::core::not (:wat::core::= (:wat::core::ast-kind
-                                         (:wat::core::Option/expect (:wat::core::get ch 1) "pos first arg"))
+(wat.core/defn user/positional-call? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (user/assertion-failed-call? node)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 4)
+        (wat.core/not (wat.core/= (wat.core/ast-kind
+                                         (wat.core.Option/expect (wat.core/get ch 1) "pos first arg"))
                                        "keyword"))
         false))
     false))
 
-(:wat::core::defn :user::rewrite-text
-  [head-text <- wat.type/String
-   msg-text  <- wat.type/String
-   act-text  <- wat.type/String
-   exp-text  <- wat.type/String
-   drop-act  <- wat.type/bool
-   drop-exp  <- wat.type/bool]
-  -> wat.type/String
-  (:wat::core::let [base (:wat::string::concat "("
-                         (:wat::string::concat head-text
-                           (:wat::string::concat " :message " msg-text)))]
-    (:wat::core::if drop-act
-      (:wat::core::if drop-exp
-        (:wat::string::concat base ")")
-        (:wat::string::concat base
-          (:wat::string::concat " :expected "
-            (:wat::string::concat exp-text ")"))))
-      (:wat::core::if drop-exp
-        (:wat::string::concat base
-          (:wat::string::concat " :actual "
-            (:wat::string::concat act-text ")")))
-        (:wat::string::concat base
-          (:wat::string::concat " :actual "
-            (:wat::string::concat act-text
-              (:wat::string::concat " :expected "
-                (:wat::string::concat exp-text ")")))))))))
+(wat.core/defn user/rewrite-text
+  [head-text :- wat.type/String
+   msg-text  :- wat.type/String
+   act-text  :- wat.type/String
+   exp-text  :- wat.type/String
+   drop-act  :- wat.type/bool
+   drop-exp  :- wat.type/bool]
+  :- wat.type/String
+  (wat.core/let [base (wat.string/concat "("
+                         (wat.string/concat head-text
+                           (wat.string/concat " :message " msg-text)))]
+    (wat.core/if drop-act
+      (wat.core/if drop-exp
+        (wat.string/concat base ")")
+        (wat.string/concat base
+          (wat.string/concat " :expected "
+            (wat.string/concat exp-text ")"))))
+      (wat.core/if drop-exp
+        (wat.string/concat base
+          (wat.string/concat " :actual "
+            (wat.string/concat act-text ")")))
+        (wat.string/concat base
+          (wat.string/concat " :actual "
+            (wat.string/concat act-text
+              (wat.string/concat " :expected "
+                (wat.string/concat exp-text ")")))))))))
 
-(:wat::core::defn :user::call-edit
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
-  (:wat::core::let
-    [ch   (:wat::core::ast->children node)
-     head (:wat::core::Option/expect (:wat::core::get ch 0) "call-edit head")
-     msg  (:wat::core::Option/expect (:wat::core::get ch 1) "call-edit msg")
-     act  (:wat::core::Option/expect (:wat::core::get ch 2) "call-edit actual")
-     exp  (:wat::core::Option/expect (:wat::core::get ch 3) "call-edit expected")
-     off  (:wat::fix::node-start-offset node lines)
-     old  (:user::node-text node src lines)
-     new  (:user::rewrite-text
-            (:user::node-text head src lines)
-            (:user::node-text msg src lines)
-            (:user::node-text act src lines)
-            (:user::node-text exp src lines)
-            (:user::none-placeholder? act)
-            (:user::none-placeholder? exp))]
+(wat.core/defn user/call-edit
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+  (wat.core/let
+    [ch   (wat.core/ast->children node)
+     head (wat.core.Option/expect (wat.core/get ch 0) "call-edit head")
+     msg  (wat.core.Option/expect (wat.core/get ch 1) "call-edit msg")
+     act  (wat.core.Option/expect (wat.core/get ch 2) "call-edit actual")
+     exp  (wat.core.Option/expect (wat.core/get ch 3) "call-edit expected")
+     off  (wat.fix/node-start-offset node lines)
+     old  (user/node-text node src lines)
+     new  (user/rewrite-text
+            (user/node-text head src lines)
+            (user/node-text msg src lines)
+            (user/node-text act src lines)
+            (user/node-text exp src lines)
+            (user/none-placeholder? act)
+            (user/none-placeholder? exp))]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; Walk: a matching positional call emits ONE whole-node edit and does not
 ;; recurse (the replacement covers the list). Everything else recurses.
-(:wat::core::defn :user::edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::positional-call? node)
+(wat.core/defn user/edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/positional-call? node)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-      (:user::call-edit node src lines))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::edits-seq (:wat::core::ast->children node) src lines)
+      (user/call-edit node src lines))
+    (wat.core/if (wat.fix/structural? node)
+      (user/edits-seq (wat.core/ast->children node) src lines)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::edits-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/edits-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::edits (:wat::core::first items) src lines)
-      (:user::edits-seq (:wat::core::into [] (:wat::core::rest items)) src lines))))
+    (wat.core/concat
+      (user/edits (wat.core/first items) src lines)
+      (user/edits-seq (wat.core/into [] (wat.core/rest items)) src lines))))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     eds   (:user::edits-seq (:wat::core::ast->children tree) src lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     eds   (user/edits-seq (wat.core/ast->children tree) src lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
-(:wat::core::defn :user::rewrite-each
-  [paths <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/rewrite-each
+  [paths :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::if (:wat::core::= path "tests/kernel/probe_arc109_assertion_kwargs__positional.wat")
-        (:wat::core::do
-          (:wat::kernel::println (:wat::string::concat "[assertion-kwargs] skip positional-control " path))
-          (:user::rewrite-each (:wat::core::rest paths)))
-        (:wat::core::do
-          (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-          (:wat::kernel::println (:wat::string::concat "[assertion-kwargs] " path))
-          (:user::rewrite-each (:wat::core::rest paths)))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/if (wat.core/= path "tests/kernel/probe_arc109_assertion_kwargs__positional.wat")
+        (wat.core/do
+          (wat.kernel/println (wat.string/concat "[assertion-kwargs] skip positional-control " path))
+          (user/rewrite-each (wat.core/rest paths)))
+        (wat.core/do
+          (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+          (wat.kernel/println (wat.string/concat "[assertion-kwargs] " path))
+          (user/rewrite-each (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-             [:wat::kernel::ReadlnOutcome.Eof {}
-               (:wat::kernel::assertion-failed! :message "readln: end of input")]
-             [:wat::kernel::ReadlnOutcome.Stopped {}
-               (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::rewrite-each paths)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [paths (wat.core/match (wat.kernel/readln)
+             [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+             [wat.kernel/ReadlnOutcome.Eof {}
+               (wat.kernel/assertion-failed! :message "readln: end of input")]
+             [wat.kernel/ReadlnOutcome.Stopped {}
+               (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+    (user/rewrite-each paths)))

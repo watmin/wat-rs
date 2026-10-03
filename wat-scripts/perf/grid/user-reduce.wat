@@ -34,116 +34,116 @@
 ;;   echo '[20 50]' | cargo wat ./wat-scripts/perf/grid/user-reduce.wat
 ;;   => #grid/Result {:axis "user-reduce" :size [20 50] :derived [...] :native-ns N}
 
-(:wat::core::defrecord :ur::Station [loc <- wat.type/i64])
-(:wat::core::defrecord :ur::Reading [loc <- wat.type/i64  value <- wat.type/i64])
-(:wat::core::defrecord :ur::Agg [loc <- wat.type/i64  sos <- wat.type/i64])
+(wat.core/defrecord ur/Station [loc :- wat.type/i64])
+(wat.core/defrecord ur/Reading [loc :- wat.type/i64  value :- wat.type/i64])
+(wat.core/defrecord ur/Agg [loc :- wat.type/i64  sos :- wat.type/i64])
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
 ;; the USER custom fold: Σ x² over the whole gathered vector — pure∧det (passes the 8-custom fence).
 ;; Identical to the repo differential exemplar (probe_arc278_8custom_native_differential.rs:26-30).
-(:wat::rete::core::defn :ur::sum-of-squares [xs <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::rete::core::foldl
-    (:wat::rete::core::fn [acc <- wat.type/i64  x <- wat.type/i64] -> wat.type/i64
+(wat.rete.core/defn ur/sum-of-squares [xs :- (wat.type/PersistentVector :- [wat.type/i64])] :- wat.type/i64
+  (wat.rete.core/foldl
+    (wat.rete.core/fn [acc :- wat.type/i64  x :- wat.type/i64] :- wat.type/i64
       ;; sum-of-squares over readings is always >= 0 (a square is never negative, and a sum of
       ;; non-negative squares is never negative) — -1 is impossible as a legitimate result at
       ;; either op, so it cannot be confused with a real value if the undefined point is ever hit.
-      (:wat::rete::i64::+ acc (:wat::rete::i64::* x x :undefined -1) :undefined -1))
+      (wat.rete.i64/+ acc (wat.rete.i64/* x x :undefined -1) :undefined -1))
     0 xs))
 
 ;; mod7 n — n mod 7 via (n - (n/7)*7); wat has no i64::mod, and strat-neg.wat uses this same
 ;; div/mul/sub identity for its mod-2 test. Keeps reading values in [0,7) so Σx² stays small.
-(:wat::core::defn :ur::mod7 [n <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::- n (:wat::i64::* (:wat::i64::/ n 7) 7)))
+(wat.core/defn ur/mod7 [n :- wat.type/i64] :- wat.type/i64
+  (wat.i64/- n (wat.i64/* (wat.i64// n 7) 7)))
 
 ;; encode loc s — canonical single-i64 witness for one derived Agg(loc, s) fact.
-(:wat::core::defn :ur::encode [loc <- wat.type/i64  s <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ (:wat::i64::* loc 1000000) s))
+(wat.core/defn ur/encode [loc :- wat.type/i64  s :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ (wat.i64/* loc 1000000) s))
 
 ;; the ONE rule: per Station, fold the user sum-of-squares over that location's Readings → Agg.
-(:wat::rete::defrule :ur::flag
+(wat.rete/defrule ur/flag
   :when
-  [(:ur::Station (?loc :- :loc))
-   (?s :- (:ur::sum-of-squares ?v) :from (:ur::Reading (?loc :- :loc) (?v :- :value)))]
+  [(ur/Station (?loc :- :loc))
+   (?s :- (ur/sum-of-squares ?v) :from (ur/Reading (?loc :- :loc) (?v :- :value)))]
   :then
-  [(:ur::Agg ?loc ?s)])
+  [(ur/Agg ?loc ?s)])
 
-(:wat::rete::defquery :ur::q-Agg
+(wat.rete/defquery ur/q-Agg
   :params []
-  :when [(?fact :- :ur::Agg)])
+  :when [(?fact :- ur/Agg)])
 
 
 ;; seed-loc session loc reads — stage Station(loc) then Reading(loc, (loc+j) mod 7) for j in [0,reads).
 ;; loc-facts acc loc reads — Station(loc) then its `reads` Readings, appended to a FACT VECTOR.
 ;; No longer threads a Session: staging is one BATCH `insert-all` at the end of `seed-all`.
-(:wat::core::defn :ur::loc-facts
-  [acc <- (wat.type/PersistentVector :- [wat.type/Record])  loc <- wat.type/i64  reads <- wat.type/i64]
-  -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::foldl
-    (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Record])  j <- wat.type/i64]
-                    -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::i64::+ loc j)))))
-    (:wat::core::conj acc (:ur::Station loc))
-    (:wat::core::range 0 reads)))
+(wat.core/defn ur/loc-facts
+  [acc :- (wat.type/PersistentVector :- [wat.type/Record])  loc :- wat.type/i64  reads :- wat.type/i64]
+  :- (wat.type/PersistentVector :- [wat.type/Record])
+  (wat.core/foldl
+    (wat.core/fn [a :- (wat.type/PersistentVector :- [wat.type/Record])  j :- wat.type/i64]
+                    :- (wat.type/PersistentVector :- [wat.type/Record])
+      (wat.core/conj a (ur/Reading :loc loc :value (ur/mod7 (wat.i64/+ loc j)))))
+    (wat.core/conj acc (ur/Station loc))
+    (wat.core/range 0 reads)))
 
 ;; seed-all session locs reads — stage every location's Station + Reading block.
-(:wat::core::defn :ur::seed-all
-  [session <- :wat::rete::Session  locs <- wat.type/i64  reads <- wat.type/i64]
-  -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn ur/seed-all
+  [session :- wat.rete/Session  locs :- wat.type/i64  reads :- wat.type/i64]
+  :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  loc <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:ur::loc-facts acc loc reads))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  loc :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (ur/loc-facts acc loc reads))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 locs))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 locs))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :ur::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn ur/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Agg fact, canonically encoded and sorted ascending. THE
 ;; accuracy witness: the full per-location aggregate set (a wrong Σx² anywhere shows up).
-(:wat::core::defn :ur::derived-vector
-  [fired <- :wat::rete::Session]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [codes (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-                           (:wat::core::map
-                             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f))))
-                             (:wat::rete::query fired (:ur::q-Agg))))]
-    (:ur::vec->pvec (:wat::core::sort codes))))
+(wat.core/defn ur/derived-vector
+  [fired :- wat.rete/Session]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [codes (wat.core/into (wat.type/Vector :- [wat.type/i64])
+                           (wat.core/map
+                             (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (ur/encode (ur.Agg/loc f) (ur.Agg/sos f))))
+                             (wat.rete/query fired (ur/q-Agg))))]
+    (ur/vec->pvec (wat.core/sort codes))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
-(:wat::core::defn :ur::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn ur/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    locs    (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [locs reads]")
-                    reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [locs reads]")
-                    rules   (:wat::rete::collect-rules :ur)
-                    staged  (:ur::seed-all (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:ur::q-Agg))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) locs reads)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    locs    (wat.core.Option/expect  (wat.core/get params 0) "stdin: [locs reads]")
+                    reads   (wat.core.Option/expect  (wat.core/get params 1) "stdin: [locs reads]")
+                    rules   (wat.rete/collect-rules :ur)
+                    staged  (ur/seed-all (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (ur/q-Agg))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) locs reads)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
-                    n0      (:wat::time::now)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    n1      (:wat::time::now)
-                    derived (:ur::derived-vector fired)
-                    nat-ns  (:ur::ns-between n0 n1)
+                    n0      (wat.time/now)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    n1      (wat.time/now)
+                    derived (ur/derived-vector fired)
+                    nat-ns  (ur/ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "user-reduce" :size (wat.type/PersistentVector :- [wat.type/i64] locs reads) :derived derived :native-ns nat-ns :oracle-derived (:ur::derived-vector ofired) :oracle-ns (:ur::ns-between o0 o1)))))
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "user-reduce" :size (wat.type/PersistentVector :- [wat.type/i64] locs reads) :derived derived :native-ns nat-ns :oracle-derived (ur/derived-vector ofired) :oracle-ns (ur/ns-between o0 o1)))))

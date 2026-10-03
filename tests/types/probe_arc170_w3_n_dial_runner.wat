@@ -15,62 +15,62 @@
 ;; `tests/types/probe_arc170_w3_n_dial_runner_checks_clean.rs`, which runs `wat --check` on it and
 ;; asserts rc 0.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure :Ok [reply :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                                      :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::echo
-  :satisfies :probe::Echo  :durable []  :ephemeral []
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
+(wat.service/defservice probe/echo
+  :satisfies probe/Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome.Reply {:state s
-              :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+            (wat.service/Outcome.Reply {:state s
+              :reply (probe.Echo/EchoResponse.Ok {:reply (probe.Echo.EchoRequest/msg req)})}))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Kv :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- wat.type/String])
-   (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                               :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Kv/GetRequest  [k :- wat.type/String])
+   (wat.core/defenum probe.Kv/GetResponse wat.enum/Pure :Ok [v :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                               :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::kv
-  :satisfies :probe::Kv  :durable []  :ephemeral []
+  [(get [self :- probe/Kv  req :- probe.Kv/GetRequest] :- probe.Kv/GetResponse :max-request-bytes 524288)])
+(wat.service/defservice probe/kv
+  :satisfies probe/Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome.Reply {:state s
-              :reply (:probe::Kv::GetResponse.Ok {:v (:probe::Kv::GetRequest/k req)})}))])
+            (wat.service/Outcome.Reply {:state s
+              :reply (probe.Kv/GetResponse.Ok {:v (probe.Kv.GetRequest/k req)})}))])
 
 ;; The hand-written N=2 dial-runner — the shape W3's codegen would emit. Item I = String,
 ;; O = String. The carrier D = (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]); ctx holds the dialed pair.
-(:wat::core::defn :probe::multi-dial-runner
-  [self    <- (:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String]) (:wat::bracket::PoolMsg :- [(wat.type/Tuple :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])]) wat.type/String])])
-   work-fn <- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply]) wat.type/String :-> wat.type/String]
-   ctx     <- (:wat::core::Option :- [(wat.type/Tuple :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])])])]
-  -> wat.type/nil
-  (:wat::core::match (:wat::kernel::recv self)
-    [:wat::kernel::RecvOutcome.Message {:msg m}
-      (:wat::core::match m
-        [:wat::bracket::PoolMsg.Setup {:deps deps}
+(wat.core/defn probe/multi-dial-runner
+  [self    :- (wat.kernel/Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String]) (wat.bracket/PoolMsg :- [(wat.type/Tuple :- [(wat.kernel/Address :- [probe.Echo/Op probe.Echo/Reply]) (wat.kernel/Address :- [probe.Kv/Op probe.Kv/Reply])]) wat.type/String])])
+   work-fn :- [(wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply]) (wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply]) wat.type/String :-> wat.type/String]
+   ctx     :- (wat.core/Option :- [(wat.type/Tuple :- [(wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply]) (wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply])])])]
+  :- wat.type/nil
+  (wat.core/match (wat.kernel/recv self)
+    [wat.kernel/RecvOutcome.Message {:msg m}
+      (wat.core/match m
+        [wat.bracket/PoolMsg.Setup {:deps deps}
           ;; deps : (Tuple :- [(Address' :- [Echo]) (Address' :- [Kv])]) — connect' EACH component into its typed Peer'
-          (:probe::multi-dial-runner self work-fn
-            (:wat::core::Option.Some
-              {:value (wat.type/Tuple :- [(:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]) (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])]
-                (:wat::core::match (:wat::kernel::connect (:wat::core::first deps)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-                (:wat::core::match (:wat::kernel::connect (:wat::core::second deps)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))}))]
-        [:wat::bracket::PoolMsg.Work {:pair pair}
-          (:wat::core::let
-            [c   (:wat::core::Option/expect ctx "multi-dial-runner: Work before Setup")
-             out (wat.type/Tuple :- [wat.type/i64 wat.type/String] (:wat::core::first pair)
-                   (work-fn (:wat::core::first c) (:wat::core::second c) (:wat::core::second pair)))
+          (probe/multi-dial-runner self work-fn
+            (wat.core/Option.Some
+              {:value (wat.type/Tuple :- [(wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply]) (wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply])]
+                (wat.core/match (wat.kernel/connect (wat.core/first deps)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+                (wat.core/match (wat.kernel/connect (wat.core/second deps)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))}))]
+        [wat.bracket/PoolMsg.Work {:pair pair}
+          (wat.core/let
+            [c   (wat.core.Option/expect ctx "multi-dial-runner: Work before Setup")
+             out (wat.type/Tuple :- [wat.type/i64 wat.type/String] (wat.core/first pair)
+                   (work-fn (wat.core/first c) (wat.core/second c) (wat.core/second pair)))
              ;; arc 278 #73 — discard-only send; the recv' at the top of the next iteration
              ;; faces a stop as its own outcome.
-             _   (:wat::core::match (:wat::kernel::send self out) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-            (:probe::multi-dial-runner self work-fn ctx))])]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
+             _   (wat.core/match (wat.kernel/send self out) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+            (probe/multi-dial-runner self work-fn ctx))])]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
     ;; arc 278 #73 — single self-peer worker (no "keep serving others" distinction from
     ;; "the world is ending"): either way this loop's one channel is done. Same body as
     ;; Closed, stated by name rather than folded together silently.
-    [:wat::kernel::RecvOutcome.Stopped {} nil]
-    [:wat::kernel::RecvOutcome.Closed {} nil]))
+    [wat.kernel/RecvOutcome.Stopped {} nil]
+    [wat.kernel/RecvOutcome.Closed {} nil]))

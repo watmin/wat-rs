@@ -18,35 +18,35 @@
 ;; Only clean-passes + quoted-raises isolates it.
 
 ;; ── the CONTROL: no quote, and every symbol it names is real ────────────────────────────────
-(:wat::core::defn :probe::clean [] -> wat.type/i64
+(wat.core/defn probe/clean [] :- wat.type/i64
   42)
 
 ;; ── the SUBJECT: identical shipping, but the body is QUOTED DATA naming things that do not
 ;; exist and are not meant to. This is legal, ordinary wat: `quote` is how you build a form.
 ;; `mystery-symbol` is a bare Symbol — deliberately NOT `?`-prefixed, so the result cannot be
 ;; read as being about rete's pattern-variable spelling.
-(:wat::core::defn :probe::quoted-junk [] -> wat.type/AST
-  (:wat::core::quote (mystery-symbol another-nonexistent-name)))
+(wat.core/defn probe/quoted-junk [] :- wat.type/AST
+  (wat.core/quote (mystery-symbol another-nonexistent-name)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; ARM 1 — the control. Expect a closure to come back.
-     clean-forms (:wat::kernel::fn-forms :probe::clean
-                   (:wat::keyword::from-string "user::root-clean"))
-     _c (:wat::kernel::println
-          (:wat::string::concat "CONTROL closure forms="
-            (:wat::i64::to-string (:wat::core::length clean-forms))))
+     clean-forms (wat.kernel/fn-forms probe/clean
+                   (wat.keyword/from-string "user::root-clean"))
+     _c (wat.kernel/println
+          (wat.string/concat "CONTROL closure forms="
+            (wat.i64/to-string (wat.core/length clean-forms))))
      ;; ARM 2 — the subject. If the walker reads quoted data as code, THIS raises, and the raise
      ;; names `mystery-symbol` — a symbol that appears nowhere except inside a quote.
-     junk-forms (:wat::kernel::fn-forms :probe::quoted-junk
-                  (:wat::keyword::from-string "user::root-junk"))
-     _j (:wat::kernel::println
-          (:wat::string::concat "SUBJECT closure forms="
-            (:wat::i64::to-string (:wat::core::length junk-forms))))]
+     junk-forms (wat.kernel/fn-forms probe/quoted-junk
+                  (wat.keyword/from-string "user::root-junk"))
+     _j (wat.kernel/println
+          (wat.string/concat "SUBJECT closure forms="
+            (wat.i64/to-string (wat.core/length junk-forms))))]
     ;; ★ THIS FILE CHANGED ROLE WHEN THE FIX LANDED. It was written as a RED gate: reaching
     ;; this line at all was the DISCONFIRMATION, because the subject arm raised before it.
     ;; The walker now routes through `resolve::boundary::quote_boundary`, so both arms return
     ;; and this line is the PASS. Left in place as the standing REGRESSION gate — if the
     ;; subject arm ever raises again, the walker has gone back to reading data as code.
-    (:wat::kernel::println
+    (wat.kernel/println
       "PASS — both arms extracted; the walker treats quoted data as DATA, not as references")))

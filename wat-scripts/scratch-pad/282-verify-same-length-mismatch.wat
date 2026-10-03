@@ -5,9 +5,9 @@
 ;;   src         = "hello world"
 ;;   edit        = offset 6, claim "world" — the TRUE claim, new "there"
 ;;   the source at 6..11 is "world" — same length, different text.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [src   "hello world"
      edits (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] 6 "world" "there"))]
-    (:wat::kernel::println (:wat::fix::fix-text-apply src edits))))
+    (wat.kernel/println (wat.fix/fix-text-apply src edits))))

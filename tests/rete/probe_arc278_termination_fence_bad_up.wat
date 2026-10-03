@@ -7,25 +7,25 @@
 ;; written to accept any fence at all and every other row would still pass.
 ;;
 ;; Arc 278 item 8 — the termination verifier reads the `where` fence.
-(:wat::core::defrecord :b8::N [k <- wat.type/i64])
+(wat.core/defrecord b8/N [k :- wat.type/i64])
 
-(:wat::rete::defrule :b8::bad-up
+(wat.rete/defrule b8/bad-up
   :when
-  [(:b8::N (?k :- :k))
-   (:wat::rete::where (:wat::rete::i64::> ?k 500))]
+  [(b8/N (?k :- :k))
+   (wat.rete/where (wat.rete.i64/> ?k 500))]
   :then
-  [(:b8::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])
+  [(b8/N :k (wat.rete.i64/+ ?k 1 :undefined 0))])
 
-(:wat::rete::defquery :b8::q :params [] :when [(?fact :- :b8::N)])
+(wat.rete/defquery b8/q :params [] :when [(?fact :- b8/N)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match
-    (:wat::rete::compile-all (:wat::rete::collect-rules :b8) (wat.type/PersistentVector :- [:wat::rete::Query] (:b8::q)))
-    [:wat::rete::CompileOutcome.Compiled {:session __s} (:wat::kernel::println "ADMITTED")]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match
+    (wat.rete/compile-all (wat.rete/collect-rules :b8) (wat.type/PersistentVector :- [wat.rete/Query] (b8/q)))
+    [wat.rete/CompileOutcome.Compiled {:session __s} (wat.kernel/println "ADMITTED")]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
       ;; Same vocabulary as every other converted fixture in this suite — the arm NAME first, then
       ;; its fields — so one reader (`arm_str`) serves them all.
-      (:wat::core::do
-        (:wat::kernel::println "ARM MayNotTerminate")
-        (:wat::kernel::println rule)
-        (:wat::kernel::println fact-type))]))
+      (wat.core/do
+        (wat.kernel/println "ARM MayNotTerminate")
+        (wat.kernel/println rule)
+        (wat.kernel/println fact-type))]))

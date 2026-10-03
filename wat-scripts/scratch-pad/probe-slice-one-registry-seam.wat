@@ -112,33 +112,33 @@
 ;;   second half of the probe (a `tests/` unit test); this half is the wat-observable seam and
 ;;   it is the half that decides slice one's SHAPE.
 
-(:wat::core::defn :seam::row [label <- wat.type/String  v <- wat.type/bool] -> wat.type/String
-  (:wat::string::concat label (:wat::core::if v " TRUE" " FALSE")))
+(wat.core/defn seam/row [label :- wat.type/String  v :- wat.type/bool] :- wat.type/String
+  (wat.string/concat label (wat.core/if v " TRUE" " FALSE")))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     ;; ── ROW A — CLAIM 1: does a kwargs surface lower to a positional prime? ───────────────
     ;; `readln` is the documented instance (a defmacro over `readln'`). Print its expansion and
     ;; read whether the `:max-buffer-bytes` keyword survives into the emitted form.
-    [expanded (:wat::core::write-forms
-                (:wat::core::macroexpand
-                  (:wat::core::quote (:wat::kernel::readln :max-buffer-bytes 4096))))
-     _  (:wat::kernel::println (:wat::string::concat "A expansion ......... " expanded))
+    [expanded (wat.core/write-forms
+                (wat.core/macroexpand
+                  (wat.core/quote (wat.kernel/readln :max-buffer-bytes 4096))))
+     _  (wat.kernel/println (wat.string/concat "A expansion ......... " expanded))
 
      ;; ── ROWS B/C — the two purity oracles, same verb, side by side ────────────────────────
      ;; POSITIVE CONTROL: i64::+ is classified in the fence's hand map.
-     _  (:wat::kernel::println
-          (:seam::row "B fence pure?  i64::+ ..... "
-                      (:wat::rete::pure? (:wat::core::quote (:wat::i64::+ 1 2)))))
-     _  (:wat::kernel::println
-          (:seam::row "B fence det?   i64::+ ..... "
-                      (:wat::rete::deterministic? (:wat::core::quote (:wat::i64::+ 1 2)))))
+     _  (wat.kernel/println
+          (seam/row "B fence pure?  i64::+ ..... "
+                      (wat.rete/pure? (wat.core/quote (wat.i64/+ 1 2)))))
+     _  (wat.kernel/println
+          (seam/row "B fence det?   i64::+ ..... "
+                      (wat.rete/deterministic? (wat.core/quote (wat.i64/+ 1 2)))))
 
      ;; NEGATIVE CONTROL on the determinism axis: pure, but the one entry in the deriver's
      ;; NONDETERMINISTIC residual. Both oracles must call it non-deterministic.
-     _  (:wat::kernel::println
-          (:seam::row "C fence det?   Uuid/v4 .... "
-                      (:wat::rete::deterministic? (:wat::core::quote (:wat::uuid::v4)))))
+     _  (wat.kernel/println
+          (seam/row "C fence det?   Uuid/v4 .... "
+                      (wat.rete/deterministic? (wat.core/quote (wat.uuid/v4)))))
 
      ;; ── ROW D — ★ THE SEAM, made observable ───────────────────────────────────────────────
      ;; `:wat::core::Bytes::to-hex` is the discriminator, and it is chosen by MEASUREMENT, not
@@ -153,13 +153,13 @@
      ;;
      ;; So if the fence answers FALSE here, being in the registry buys a verb NOTHING at the
      ;; fence — the two systems are disconnected, which is the claim slice one rests on.
-     _  (:wat::kernel::println
-          (:seam::row "D fence pure?  Bytes::to-hex "
-                      (:wat::rete::pure?
-                        (:wat::core::quote (:wat::bytes::to-hex (wat.type/Vector :- [wat.type/i64] 255 0 16))))))
+     _  (wat.kernel/println
+          (seam/row "D fence pure?  Bytes::to-hex "
+                      (wat.rete/pure?
+                        (wat.core/quote (wat.bytes/to-hex (wat.type/Vector :- [wat.type/i64] 255 0 16))))))
      ;; …and the SAME verb through the registry's own reflection surface. The two answers side
      ;; by side ARE the finding. (Called, not quoted — a first draft printed the quoted FORM and
      ;; measured nothing.)
-     _  (:wat::kernel::println "D metadata-of  Bytes::to-hex (the registry's own answer) =")
-     _  (:wat::kernel::println (:wat::runtime::metadata-of :wat::bytes::to-hex))]
-    (:wat::kernel::println "-- A = the lowering; B/C = controls; D = the seam --")))
+     _  (wat.kernel/println "D metadata-of  Bytes::to-hex (the registry's own answer) =")
+     _  (wat.kernel/println (wat.runtime/metadata-of wat.bytes/to-hex))]
+    (wat.kernel/println "-- A = the lowering; B/C = controls; D = the seam --")))

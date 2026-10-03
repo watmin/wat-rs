@@ -9,21 +9,21 @@
 ;; STRONGER assertion than the old exit-code check — it proves the declaration was registered
 ;; AND callable AND returned the right value, not merely that the child did not crash.
 ;; Exemplar: wat_arc170_program_contracts_t5_launch_lambda.wat (same shape, minus the send').
-(:wat::core::defn :my::launch [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :h::helper [] -> wat.type/i64 42)
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [v    (:h::helper)
-                _out (:wat::kernel::println v)]
+(wat.core/defn my/launch [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn h/helper [] :- wat.type/i64 42)
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [v    (h/helper)
+                _out (wat.kernel/println v)]
                nil))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m} m]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m} m]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "launch: child closed before sending its value")])))

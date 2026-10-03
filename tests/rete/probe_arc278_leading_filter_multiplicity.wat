@@ -29,74 +29,74 @@
 
 ;; ── :lf2 — a 2-link chain (2 rounds) ─────────────────────────────────────────
 
-(:wat::core::defrecord :lf2::Wind [loc <- wat.type/String])
-(:wat::core::defrecord :lf2::Ghost [k <- wat.type/i64])
-(:wat::core::defrecord :lf2::S1 [k <- wat.type/i64])
-(:wat::core::defrecord :lf2::S2 [k <- wat.type/i64])
+(wat.core/defrecord lf2/Wind [loc :- wat.type/String])
+(wat.core/defrecord lf2/Ghost [k :- wat.type/i64])
+(wat.core/defrecord lf2/S1 [k :- wat.type/i64])
+(wat.core/defrecord lf2/S2 [k :- wat.type/i64])
 
-(:wat::rete::defrule :lf2::r2 :when [(:lf2::S1 (?k :- :k))] :then [(:lf2::S2 :k ?k)])
+(wat.rete/defrule lf2/r2 :when [(lf2/S1 (?k :- :k))] :then [(lf2/S2 :k ?k)])
 
 ;; Two Winds, ONE distinct loc => exactly one distinct inner binding.
-(:wat::rete::defquery :lf2::q-exists :params []
-  :when [(:wat::rete::exists (:lf2::Wind (?loc :- :loc)))])
+(wat.rete/defquery lf2/q-exists :params []
+  :when [(wat.rete/exists (lf2/Wind (?loc :- :loc)))])
 ;; Ghost is never asserted => the empty world matches with ONE empty token.
-(:wat::rete::defquery :lf2::q-not :params []
-  :when [(:wat::rete::not (:lf2::Ghost))])
+(wat.rete/defquery lf2/q-not :params []
+  :when [(wat.rete/not (lf2/Ghost))])
 
 ;; ── :lf6 — a 6-link chain (6 rounds), otherwise identical ────────────────────
 
-(:wat::core::defrecord :lf6::Wind [loc <- wat.type/String])
-(:wat::core::defrecord :lf6::Ghost [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S1 [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S2 [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S3 [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S4 [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S5 [k <- wat.type/i64])
-(:wat::core::defrecord :lf6::S6 [k <- wat.type/i64])
+(wat.core/defrecord lf6/Wind [loc :- wat.type/String])
+(wat.core/defrecord lf6/Ghost [k :- wat.type/i64])
+(wat.core/defrecord lf6/S1 [k :- wat.type/i64])
+(wat.core/defrecord lf6/S2 [k :- wat.type/i64])
+(wat.core/defrecord lf6/S3 [k :- wat.type/i64])
+(wat.core/defrecord lf6/S4 [k :- wat.type/i64])
+(wat.core/defrecord lf6/S5 [k :- wat.type/i64])
+(wat.core/defrecord lf6/S6 [k :- wat.type/i64])
 
-(:wat::rete::defrule :lf6::r2 :when [(:lf6::S1 (?k :- :k))] :then [(:lf6::S2 :k ?k)])
-(:wat::rete::defrule :lf6::r3 :when [(:lf6::S2 (?k :- :k))] :then [(:lf6::S3 :k ?k)])
-(:wat::rete::defrule :lf6::r4 :when [(:lf6::S3 (?k :- :k))] :then [(:lf6::S4 :k ?k)])
-(:wat::rete::defrule :lf6::r5 :when [(:lf6::S4 (?k :- :k))] :then [(:lf6::S5 :k ?k)])
-(:wat::rete::defrule :lf6::r6 :when [(:lf6::S5 (?k :- :k))] :then [(:lf6::S6 :k ?k)])
+(wat.rete/defrule lf6/r2 :when [(lf6/S1 (?k :- :k))] :then [(lf6/S2 :k ?k)])
+(wat.rete/defrule lf6/r3 :when [(lf6/S2 (?k :- :k))] :then [(lf6/S3 :k ?k)])
+(wat.rete/defrule lf6/r4 :when [(lf6/S3 (?k :- :k))] :then [(lf6/S4 :k ?k)])
+(wat.rete/defrule lf6/r5 :when [(lf6/S4 (?k :- :k))] :then [(lf6/S5 :k ?k)])
+(wat.rete/defrule lf6/r6 :when [(lf6/S5 (?k :- :k))] :then [(lf6/S6 :k ?k)])
 
-(:wat::rete::defquery :lf6::q-exists :params []
-  :when [(:wat::rete::exists (:lf6::Wind (?loc :- :loc)))])
-(:wat::rete::defquery :lf6::q-not :params []
-  :when [(:wat::rete::not (:lf6::Ghost))])
+(wat.rete/defquery lf6/q-exists :params []
+  :when [(wat.rete/exists (lf6/Wind (?loc :- :loc)))])
+(wat.rete/defquery lf6/q-not :params []
+  :when [(wat.rete/not (lf6/Ghost))])
 
 ;; ── the witnesses ────────────────────────────────────────────────────────────
 
-(:wat::core::defn :lf2::rows [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::let [rules (:wat::rete::collect-rules :lf2)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules
-                            (wat.type/PersistentVector :- [:wat::rete::Query] (:lf2::q-exists) (:lf2::q-not))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:wat::core::match (:wat::rete::insert-all s0
-                            (wat.type/PersistentVector :- [:lf2::Wind] (:lf2::Wind "MCI") (:lf2::Wind "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s2    (:wat::core::match (:wat::rete::insert-all s1
-                            (wat.type/PersistentVector :- [:lf2::S1] (:lf2::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::core::mapv
-      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
+(wat.core/defn lf2/rows [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/let [rules (wat.rete/collect-rules :lf2)
+                    s0    (wat.core/match (wat.rete/compile-all rules
+                            (wat.type/PersistentVector :- [wat.rete/Query] (lf2/q-exists) (lf2/q-not))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (wat.core/match (wat.rete/insert-all s0
+                            (wat.type/PersistentVector :- [lf2/Wind] (lf2/Wind "MCI") (lf2/Wind "MCI"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s2    (wat.core/match (wat.rete/insert-all s1
+                            (wat.type/PersistentVector :- [lf2/S1] (lf2/S1 1))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    fired (wat.core/match (wat.rete/fire-rules s2) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.core/mapv
+      (wat.core/fn [n :- wat.type/i64] :- wat.type/i64 n)
       (wat.type/PersistentVector :- [wat.type/i64]
-        (:wat::core::length (:wat::rete::query fired (:lf2::q-exists)))
-        (:wat::core::length (:wat::rete::query fired (:lf2::q-not)))))))
+        (wat.core/length (wat.rete/query fired (lf2/q-exists)))
+        (wat.core/length (wat.rete/query fired (lf2/q-not)))))))
 
-(:wat::core::defn :lf6::rows [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::let [rules (:wat::rete::collect-rules :lf6)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules
-                            (wat.type/PersistentVector :- [:wat::rete::Query] (:lf6::q-exists) (:lf6::q-not))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:wat::core::match (:wat::rete::insert-all s0
-                            (wat.type/PersistentVector :- [:lf6::Wind] (:lf6::Wind "MCI") (:lf6::Wind "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s2    (:wat::core::match (:wat::rete::insert-all s1
-                            (wat.type/PersistentVector :- [:lf6::S1] (:lf6::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    fired (:wat::core::match (:wat::rete::fire-rules s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::core::mapv
-      (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
+(wat.core/defn lf6/rows [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/let [rules (wat.rete/collect-rules :lf6)
+                    s0    (wat.core/match (wat.rete/compile-all rules
+                            (wat.type/PersistentVector :- [wat.rete/Query] (lf6/q-exists) (lf6/q-not))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (wat.core/match (wat.rete/insert-all s0
+                            (wat.type/PersistentVector :- [lf6/Wind] (lf6/Wind "MCI") (lf6/Wind "MCI"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s2    (wat.core/match (wat.rete/insert-all s1
+                            (wat.type/PersistentVector :- [lf6/S1] (lf6/S1 1))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    fired (wat.core/match (wat.rete/fire-rules s2) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.core/mapv
+      (wat.core/fn [n :- wat.type/i64] :- wat.type/i64 n)
       (wat.type/PersistentVector :- [wat.type/i64]
-        (:wat::core::length (:wat::rete::query fired (:lf6::q-exists)))
-        (:wat::core::length (:wat::rete::query fired (:lf6::q-not)))))))
+        (wat.core/length (wat.rete/query fired (lf6/q-exists)))
+        (wat.core/length (wat.rete/query fired (lf6/q-not)))))))
 
 ;; [exists@2rounds, not@2rounds, exists@6rounds, not@6rounds] — all must be 1.
-(:wat::core::defn :user::leading-rows [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::into (:lf2::rows) (:lf6::rows)))
+(wat.core/defn user/leading-rows [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/into (lf2/rows) (lf6/rows)))

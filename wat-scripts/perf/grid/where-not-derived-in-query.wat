@@ -28,58 +28,58 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-not-derived-in-query.clj
 
-(:wat::core::defrecord :wndq::S1  [k <- wat.type/i64])
-(:wat::core::defrecord :wndq::S2  [k <- wat.type/i64])
-(:wat::core::defrecord :wndq::S3  [k <- wat.type/i64])
-(:wat::core::defrecord :wndq::Hit [k <- wat.type/i64])
+(wat.core/defrecord wndq/S1  [k :- wat.type/i64])
+(wat.core/defrecord wndq/S2  [k :- wat.type/i64])
+(wat.core/defrecord wndq/S3  [k :- wat.type/i64])
+(wat.core/defrecord wndq/Hit [k :- wat.type/i64])
 
 ;; S2 and S3 exist ONLY by derivation. Nothing inserts either.
-(:wat::rete::defrule :wndq::r1 :when [(:wndq::S1 (?k :- :k))] :then [(:wndq::S2 :k ?k)])
-(:wat::rete::defrule :wndq::r2 :when [(:wndq::S2 (?k :- :k))] :then [(:wndq::S3 :k ?k)])
+(wat.rete/defrule wndq/r1 :when [(wndq/S1 (?k :- :k))] :then [(wndq/S2 :k ?k)])
+(wat.rete/defrule wndq/r2 :when [(wndq/S2 (?k :- :k))] :then [(wndq/S3 :k ?k)])
 
 ;; The same negation in a RULE — the contrast that answers "is a query stratified the way a rule
 ;; is?" in the output itself rather than in a comment.
-(:wat::rete::defrule :wndq::r-not-S2
-  :when [(:wat::rete::not (:wndq::S2))]
-  :then [(:wndq::Hit :k 1)])
+(wat.rete/defrule wndq/r-not-S2
+  :when [(wat.rete/not (wndq/S2))]
+  :then [(wndq/Hit :k 1)])
 
-(:wat::rete::defquery :wndq::q-not-S2 :params [] :when [(:wat::rete::not (:wndq::S2))])
-(:wat::rete::defquery :wndq::q-not-S3 :params [] :when [(:wat::rete::not (:wndq::S3))])
-(:wat::rete::defquery :wndq::q-Hit    :params [] :when [(?fact :- :wndq::Hit)])
-(:wat::rete::defquery :wndq::q-S2     :params [] :when [(?fact :- :wndq::S2)])
+(wat.rete/defquery wndq/q-not-S2 :params [] :when [(wat.rete/not (wndq/S2))])
+(wat.rete/defquery wndq/q-not-S3 :params [] :when [(wat.rete/not (wndq/S3))])
+(wat.rete/defquery wndq/q-Hit    :params [] :when [(?fact :- wndq/Hit)])
+(wat.rete/defquery wndq/q-S2     :params [] :when [(?fact :- wndq/S2)])
 
-(:wat::core::defn :wndq::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn wndq/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
-(:wat::core::defn :wndq::run
-  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   q     <- :wat::rete::Query]
-  -> wat.type/i64
-  (:wat::core::length
-    (:wat::rete::query
-      (:wat::core::match (:wat::rete::fire-rules
-        (:wat::core::match (:wat::rete::insert
-          (:wat::core::match (:wat::rete::compile-all rules
-            (wat.type/PersistentVector :- [:wat::rete::Query]
-              (:wndq::q-not-S2) (:wndq::q-not-S3) (:wndq::q-Hit) (:wndq::q-S2))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-          (:wndq::S1 :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+(wat.core/defn wndq/run
+  [rules :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   q     :- wat.rete/Query]
+  :- wat.type/i64
+  (wat.core/length
+    (wat.rete/query
+      (wat.core/match (wat.rete/fire-rules
+        (wat.core/match (wat.rete/insert
+          (wat.core/match (wat.rete/compile-all rules
+            (wat.type/PersistentVector :- [wat.rete/Query]
+              (wndq/q-not-S2) (wndq/q-not-S3) (wndq/q-Hit) (wndq/q-S2))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+          (wndq/S1 :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       q)))
 
 ;; Row 1 is the agreeing control and is here, not in a separate file, so a "fix" that achieves
 ;; agreement by breaking the ABSENT case fails visibly in the same output.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [none  (wat.type/PersistentVector :- [:wat::rete::Rule])
-     d1    (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1))
-     d2    (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1) (:wndq::r2))
-     ruled (wat.type/PersistentVector :- [:wat::rete::Rule] (:wndq::r1) (:wndq::r-not-S2))]
-    (:wndq::line 1 "query-no-chain" (:wndq::run none  (:wndq::q-not-S2)))
-    (:wndq::line 2 "query-chain-d1" (:wndq::run d1    (:wndq::q-not-S2)))
-    (:wndq::line 3 "query-chain-d2" (:wndq::run d2    (:wndq::q-not-S3)))
-    (:wndq::line 4 "rule-chain"     (:wndq::run ruled (:wndq::q-Hit)))
-    (:wndq::line 5 "control-S2"     (:wndq::run d1    (:wndq::q-S2)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [none  (wat.type/PersistentVector :- [wat.rete/Rule])
+     d1    (wat.type/PersistentVector :- [wat.rete/Rule] (wndq/r1))
+     d2    (wat.type/PersistentVector :- [wat.rete/Rule] (wndq/r1) (wndq/r2))
+     ruled (wat.type/PersistentVector :- [wat.rete/Rule] (wndq/r1) (wndq/r-not-S2))]
+    (wndq/line 1 "query-no-chain" (wndq/run none  (wndq/q-not-S2)))
+    (wndq/line 2 "query-chain-d1" (wndq/run d1    (wndq/q-not-S2)))
+    (wndq/line 3 "query-chain-d2" (wndq/run d2    (wndq/q-not-S3)))
+    (wndq/line 4 "rule-chain"     (wndq/run ruled (wndq/q-Hit)))
+    (wndq/line 5 "control-S2"     (wndq/run d1    (wndq/q-S2)))))

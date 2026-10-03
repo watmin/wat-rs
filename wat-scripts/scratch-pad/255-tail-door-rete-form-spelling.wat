@@ -25,24 +25,24 @@
 ;; were mis-placed (above the re-mapping), the unmapped `:wat::rete::core::if` would miss the
 ;; registry lookup and fall through to `eval_inner` — still correct, but recursing on the native
 ;; Rust stack, which a shallow run cannot distinguish from success.
-(:wat::core::defn :probe::countdown-rete-if [n <- wat.type/i64] -> wat.type/i64
-  (:wat::rete::core::if (:wat::i64::<= n 0)
+(wat.core/defn probe/countdown-rete-if [n :- wat.type/i64] :- wat.type/i64
+  (wat.rete.core/if (wat.i64/<= n 0)
     0
-    (:probe::countdown-rete-if (:wat::i64::- n 1))))
+    (probe/countdown-rete-if (wat.i64/- n 1))))
 
 ;; The CONTROL for depth: the same recursion at a depth nothing could need a trampoline for. If
 ;; the deep case below fails while this passes, depth is the variable being measured, not a typo.
-(:wat::core::defn :probe::shallow [] -> wat.type/i64
-  (:probe::countdown-rete-if 10))
+(wat.core/defn probe/shallow [] :- wat.type/i64
+  (probe/countdown-rete-if 10))
 
 ;; THE DEEP CASE — chosen well past any native stack frame budget. With the guard correctly
 ;; placed (this stone's shipped state), this returns 0 without growing the Rust call stack. A
 ;; mis-placed guard (STOP-1) would SIGSEGV here instead of erroring, exactly as the pre-tail-door
 ;; `and`/`or` case did in `probe-s5-tail-position-is-load-bearing.wat`.
-(:wat::core::defn :probe::deep [] -> wat.type/i64
-  (:probe::countdown-rete-if 200000))
+(wat.core/defn probe/deep [] :- wat.type/i64
+  (probe/countdown-rete-if 200000))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:probe::shallow))
-    (:wat::kernel::println (:probe::deep))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (probe/shallow))
+    (wat.kernel/println (probe/deep))))

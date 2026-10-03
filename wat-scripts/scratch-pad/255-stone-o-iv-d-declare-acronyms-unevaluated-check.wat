@@ -10,12 +10,12 @@
 ;; the static pre-pass/checker arm the same way O-iv-c-1's probe bypassed `apply`'s own
 ;; static arg-vector check.
 
-(:wat::core::defn :probe::show
-  [tag <- wat.type/String r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
-  -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
+(wat.core/defn probe/show
+  [tag :- wat.type/String r :- (wat.core/Result :- [wat.type/Value wat.core/EvalError])]
+  :- wat.type/nil
+  (wat.kernel/println (wat.string/concat tag ": " (wat.edn/write r))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:probe::show "declare-acronyms with an erroring ns expr, via eval-ast!+quote"
-    (:wat::eval-ast! (:wat::core::quote
-      (:wat::string::declare-acronyms (:wat::i64::/ 1 0) ["ACL"])))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (probe/show "declare-acronyms with an erroring ns expr, via eval-ast!+quote"
+    (wat/eval-ast! (wat.core/quote
+      (wat.string/declare-acronyms (wat.i64// 1 0) ["ACL"])))))

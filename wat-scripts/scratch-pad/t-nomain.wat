@@ -1,1 +1,1 @@
-(:wat::core::defn :user::helper [] -> wat.type/i64 42)
+(wat.core/defn user/helper [] :- wat.type/i64 42)

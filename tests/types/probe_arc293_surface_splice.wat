@@ -11,29 +11,29 @@
 ;; over the merged field list, and each spliced field gets its own `:Rec/field` accessor.
 
 ;; a Scope-shaped surface: attributes only (namespace, uuid, time-ns).
-(:wat::core::defsurface :probe::Scope :nature wat.type/Record
-  :features [namespace <- wat.type/String
-             uuid      <- wat.type/String
-             time-ns   <- wat.type/i64])
+(wat.core/defsurface probe/Scope :nature wat.type/Record
+  :features [namespace :- wat.type/String
+             uuid      :- wat.type/String
+             time-ns   :- wat.type/i64])
 
 ;; a second surface, to prove MULTIPLE splices merge (a record satisfying both).
-(:wat::core::defsurface :probe::Named :nature wat.type/Record
-  :features [name <- wat.type/String])
+(wat.core/defsurface probe/Named :nature wat.type/Record
+  :features [name :- wat.type/String])
 
 ;; a record that splices BOTH surfaces' attributes, then adds its own field.
 ;; merged field order (first-occurrence): namespace, uuid, time-ns, name, value.
-(:wat::core::defrecord :probe::Metric
-  [~@:probe::Scope
-   ~@:probe::Named
-   value <- wat.type/i64])
+(wat.core/defrecord probe/Metric
+  [~@probe/Scope
+   ~@probe/Named
+   value :- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
+(wat.core/defn user/main [] :- wat.type/nil
   ;; Arc 294 item 9a — the bare name is now the kwargs companion (order-free
   ;; `:field value` pairs); raw positional construction over the merged
   ;; (spliced + own) field list goes through the PRIME, minted at type-
   ;; registration from the REGISTERED (post-splice) fields.
-  (:wat::core::let [m (:probe::Metric' "market-eval" "u-123" 456 "requests" 7)]
+  (wat.core/let [m (probe/Metric' "market-eval" "u-123" 456 "requests" 7)]
     ;; a spliced field (from Scope) + a spliced field (from Named) + the own field
-    (:wat::kernel::println (:probe::Metric/namespace m))
-    (:wat::kernel::println (:probe::Metric/name m))
-    (:wat::kernel::println (:probe::Metric/value m))))
+    (wat.kernel/println (probe.Metric/namespace m))
+    (wat.kernel/println (probe.Metric/name m))
+    (wat.kernel/println (probe.Metric/value m))))

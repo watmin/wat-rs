@@ -3,4 +3,4 @@
 ;; startable program (no top-level defn/:user::main) — a single expression string the child
 ;; re-parses to build its `ProgramEnv`. Read from disk (never inlined) so no test carries a
 ;; string literal wat's own reader would accept.
-(:wat::program::EmptyEnv)
+(wat.program/EmptyEnv)

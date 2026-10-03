@@ -5,10 +5,10 @@
 ;; program. It lives apart from the cure row because the cure row's fixture does not
 ;; FREEZE pre-cure: a control sharing that file would be unreadable on the binary it
 ;; exists to measure.
-(:wat::core::defrecord :user::Crate [n <- wat.type/i64])
+(wat.core/defrecord user/Crate [n :- wat.type/i64])
 
-(:wat::core::defmacro :user::Crate/of [n <- wat.type/AST] -> wat.type/AST
-  `(:user::Crate :n ~n))
+(wat.core/defmacro user.Crate/of [n :- wat.type/AST] :- wat.type/AST
+  `(user/Crate :n ~n))
 
-(:wat::core::defn :user::control [] -> wat.type/i64
-  (:user::Crate/n (:user::Crate/of 9)))
+(wat.core/defn user/control [] :- wat.type/i64
+  (user.Crate/n (user.Crate/of 9)))

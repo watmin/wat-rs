@@ -28,13 +28,13 @@
 ;; exact string that named the original hole — instead of a bare "expected failure, got success".
 ;; Do not replace it with a neutral sentinel.
 
-(:wat::core::defrecord :fsn::Src   [k <- wat.type/i64])
-(:wat::core::defrecord :fsn::Inner [x <- wat.type/i64])
-(:wat::core::defrecord :fsn::Outer [k <- wat.type/i64  inner <- :fsn::Inner])
+(wat.core/defrecord fsn/Src   [k :- wat.type/i64])
+(wat.core/defrecord fsn/Inner [x :- wat.type/i64])
+(wat.core/defrecord fsn/Outer [k :- wat.type/i64  inner :- fsn/Inner])
 
-(:wat::rete::defrule :fsn::r
-  :when [(:fsn::Src (?k :- :k))]
-  :then [(:fsn::Outer :k ?k :inner (:fsn::Inner :nope ?k))])
+(wat.rete/defrule fsn/r
+  :when [(fsn/Src (?k :- :k))]
+  :then [(fsn/Outer :k ?k :inner (fsn/Inner :nope ?k))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "ACCEPTED-UNVALIDATED"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "ACCEPTED-UNVALIDATED"))

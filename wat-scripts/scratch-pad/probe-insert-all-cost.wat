@@ -20,75 +20,75 @@
 ;; stdout: one #iac/Cost EDN line
 ;;   echo '[40000]' | ./target/release/wat wat-scripts/scratch-pad/probe-insert-all-cost.wat
 
-(:wat::core::defrecord :iac::Reading [g <- wat.type/i64  v <- wat.type/i64])
-(:wat::core::defrecord :iac::Out     [g <- wat.type/i64])
+(wat.core/defrecord iac/Reading [g :- wat.type/i64  v :- wat.type/i64])
+(wat.core/defrecord iac/Out     [g :- wat.type/i64])
 
 ;; One rule, so the Session under test has a real compiled network rather than an empty one.
 ;; `insert`/`insert-all` perform ZERO activation (wat/rete.wat:828-830 — the WM stays open until
 ;; fire-rules), so the network's size must not affect the per-insert cost.
-(:wat::rete::defrule :iac::pass-rule
+(wat.rete/defrule iac/pass-rule
   :when
-  [(:iac::Reading (?g :- :g))]
+  [(iac/Reading (?g :- :g))]
   :then
-  [(:iac::Out ?g)])
+  [(iac/Out ?g)])
 
-(:wat::core::defrecord :iac::Cost
-  [n              <- wat.type/i64
-   chained-ns     <- wat.type/i64   ;; n × construct + foldl + insert (2-ary, N rebuilds)
-   batch-ns       <- wat.type/i64   ;; n × construct + conj, then ONE insert-all (1 rebuild)
-   drop-ns        <- wat.type/i64   ;; chained-ns - batch-ns (the win)
-   chained-len    <- wat.type/i64   ;; witness: must equal n
-   batch-len      <- wat.type/i64]) ;; witness: must equal n
+(wat.core/defrecord iac/Cost
+  [n              :- wat.type/i64
+   chained-ns     :- wat.type/i64   ;; n × construct + foldl + insert (2-ary, N rebuilds)
+   batch-ns       :- wat.type/i64   ;; n × construct + conj, then ONE insert-all (1 rebuild)
+   drop-ns        :- wat.type/i64   ;; chained-ns - batch-ns (the win)
+   chained-len    :- wat.type/i64   ;; witness: must equal n
+   batch-len      :- wat.type/i64]) ;; witness: must equal n
 
-(:wat::core::defn :iac::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn iac/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
 ;; ── arm 1 — the existing hot path: construct + 2-ary insert, one fact at a time ──────────────
-(:wat::core::defn :iac::seed-chained [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert s (:iac::Reading :g 0 :v i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn iac/seed-chained [session :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert s (iac/Reading :g 0 :v i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
-    (:wat::core::range 0 n)))
+    (wat.core/range 0 n)))
 
 ;; ── arm 2 — construct + conj into a vector, then ONE insert-all call ─────────────────────────
-(:wat::core::defn :iac::seed-batch [session <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::let [facts (:wat::core::foldl
-                             (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:iac::Reading])  i <- wat.type/i64]
-                               -> (wat.type/PersistentVector :- [:iac::Reading])
-                               (:wat::core::conj acc (:iac::Reading :g 0 :v i)))
-                             (wat.type/PersistentVector :- [:iac::Reading])
-                             (:wat::core::range 0 n))]
-    (:wat::core::match (:wat::rete::insert-all session facts) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
+(wat.core/defn iac/seed-batch [session :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/let [facts (wat.core/foldl
+                             (wat.core/fn [acc :- (wat.type/PersistentVector :- [iac/Reading])  i :- wat.type/i64]
+                               :- (wat.type/PersistentVector :- [iac/Reading])
+                               (wat.core/conj acc (iac/Reading :g 0 :v i)))
+                             (wat.type/PersistentVector :- [iac/Reading])
+                             (wat.core/range 0 n))]
+    (wat.core/match (wat.rete/insert-all session facts) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )
-                             [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-                             [:wat::kernel::ReadlnOutcome.Eof {}
-                               (:wat::kernel::assertion-failed! :message "readln: end of input")]
-                             [:wat::kernel::ReadlnOutcome.Stopped {}
-                               (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    n       (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [n]")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params (wat.core/match (wat.kernel/readln )
+                             [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+                             [wat.kernel/ReadlnOutcome.Eof {}
+                               (wat.kernel/assertion-failed! :message "readln: end of input")]
+                             [wat.kernel/ReadlnOutcome.Stopped {}
+                               (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    n       (wat.core.Option/expect (wat.core/get params 0) "stdin: [n]")
 
                     ;; Two independent compiled sessions, compiled OUTSIDE every timed window.
-                    session-a (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :iac)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    session-b (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :iac)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+                    session-a (wat.core/match (wat.rete/compile (wat.rete/collect-rules :iac)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    session-b (wat.core/match (wat.rete/compile (wat.rete/collect-rules :iac)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
 
-                    t0      (:wat::time::now)
-                    sa      (:iac::seed-chained session-a n)
-                    t1      (:wat::time::now)
+                    t0      (wat.time/now)
+                    sa      (iac/seed-chained session-a n)
+                    t1      (wat.time/now)
 
-                    t2      (:wat::time::now)
-                    sb      (:iac::seed-batch session-b n)
-                    t3      (:wat::time::now)
+                    t2      (wat.time/now)
+                    sb      (iac/seed-batch session-b n)
+                    t3      (wat.time/now)
 
-                    chained-ns (:iac::ns-between t0 t1)
-                    batch-ns   (:iac::ns-between t2 t3)]
-    (:wat::kernel::println
-      (:iac::Cost
+                    chained-ns (iac/ns-between t0 t1)
+                    batch-ns   (iac/ns-between t2 t3)]
+    (wat.kernel/println
+      (iac/Cost
         :n            n
         :chained-ns   chained-ns
         :batch-ns     batch-ns
-        :drop-ns      (:wat::i64::- chained-ns batch-ns)
-        :chained-len  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sa)))
-        :batch-len    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts sb)))))))
+        :drop-ns      (wat.i64/- chained-ns batch-ns)
+        :chained-len  (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts sa)))
+        :batch-len    (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts sb)))))))

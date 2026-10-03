@@ -16,13 +16,13 @@
 ;; Shape copied from the real builders (`wat-scripts/perf/grid/min-finding.wat:65-70`,
 ;; `node-share.wat:65-70`): a fn parameter spliced into a quasiquoted `where`.
 
-(:wat::core::defn :uq::build-where [threshold <- wat.type/i64] -> wat.type/AST
-  (:wat::core::quasiquote
-    (:wat::rete::where (:wat::core::>= ?n (:wat::core::unquote threshold)))))
+(wat.core/defn uq/build-where [threshold :- wat.type/i64] :- wat.type/AST
+  (wat.core/quasiquote
+    (wat.rete/where (wat.core/>= ?n (wat.core/unquote threshold)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [built (:uq::build-where 42)]
-    (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [built (uq/build-where 42)]
+    (wat.kernel/println
       (wat.type/PersistentMap :- [wat.type/keyword wat.type/AST]
         ;; THE MEASUREMENT: the rendered form the fence would receive. If `unquote` survived
         ;; evaluation it would appear here as a head; if it is template syntax, `42` appears in
@@ -30,4 +30,4 @@
         :built-form built
         ;; Non-vacuity: a DIFFERENT argument must produce a DIFFERENT form. If both printed the
         ;; same thing, the splice never happened and the line above would prove nothing.
-        :other-form (:uq::build-where 7)))))
+        :other-form (uq/build-where 7)))))

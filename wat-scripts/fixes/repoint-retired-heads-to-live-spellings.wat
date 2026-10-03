@@ -60,11 +60,11 @@
 ;; process-grants-call? — a List headed EXACTLY :wat::spawn::process/grants with exactly one
 ;; argument (head + 1 arg = 2 children). Both the head identity and the arity are checked so a
 ;; differently-shaped call is left untouched rather than mis-edited.
-(:wat::core::defn :user::process-grants-call? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 2)
-        (:wat::fix::calls-to? node ":wat::spawn::process/grants")
+(wat.core/defn user/process-grants-call? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 2)
+        (wat.fix/calls-to? node ":wat::spawn::process/grants")
         false))
     false))
 
@@ -76,19 +76,19 @@
 ;; The outer list's own closing paren is untouched — unlike first-of-drop-edits (which collapses
 ;; two nested lists into one and so needs a third edit for the inner paren), this only drops one
 ;; argument out of an EXISTING call.
-(:wat::core::defn :user::process-grants-edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [ch        (:wat::core::ast->children node)
-     head      (:wat::core::first ch)
-     arg       (:wat::core::first (:wat::core::rest ch))
-     head-off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
-     head-name (:wat::core::ast-name head)
-     gap-off   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span head) lines)
-     gap-text  (:wat::fix::fix-text-span-text (:wat::core::ast-end-span head) (:wat::core::ast-end-span arg) lines src)]
+(wat.core/defn user/process-grants-edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [ch        (wat.core/ast->children node)
+     head      (wat.core/first ch)
+     arg       (wat.core/first (wat.core/rest ch))
+     head-off  (wat.fix/fix-text-offset-of (wat.core/ast-span head) lines)
+     head-name (wat.core/ast-name head)
+     gap-off   (wat.fix/fix-text-offset-of (wat.core/ast-end-span head) lines)
+     gap-text  (wat.fix/fix-text-span-text (wat.core/ast-end-span head) (wat.core/ast-end-span arg) lines src)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::spawn::process")
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] gap-off gap-text ""))))
@@ -97,40 +97,40 @@
 ;; first-of-drop-scan/-walk (wat/fix.wat:1251/1268): a match emits its edits and does NOT also
 ;; recurse into its own children (the whole matched call is replaced as a unit); a non-match
 ;; recurses into every structural child.
-(:wat::core::defn :user::process-grants-scan
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::process-grants-call? node)
-    (:user::process-grants-edits node src lines)
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::process-grants-walk (:wat::core::ast->children node) src lines)
+(wat.core/defn user/process-grants-scan
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/process-grants-call? node)
+    (user/process-grants-edits node src lines)
+    (wat.core/if (wat.fix/structural? node)
+      (user/process-grants-walk (wat.core/ast->children node) src lines)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::process-grants-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/process-grants-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::process-grants-scan (:wat::core::first items) src lines)
-      (:user::process-grants-walk (:wat::core::rest items) src lines))))
+    (wat.core/concat
+      (user/process-grants-scan (wat.core/first items) src lines)
+      (user/process-grants-walk (wat.core/rest items) src lines))))
 
 ;; process-grants-to-plain — the entry point for the form rewrite. src in, migrated src out;
 ;; comment- and layout-faithful (splices the ORIGINAL text at spans via fix-text-apply).
-(:wat::core::defn :user::process-grants-to-plain [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     eds   (:user::process-grants-walk (:wat::core::ast->children tree) src lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/process-grants-to-plain [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     eds   (user/process-grants-walk (wat.core/ast->children tree) src lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── tuple-get(t, 0) -> first(t) form rewrite ────────────────────────────────────────────────
 
@@ -139,17 +139,17 @@
 ;; whose own source text reads "0". The literal-index requirement is deliberate: `first` is
 ;; only the correct successor for index 0 (`second`/`third` would be for 1/2) — a differently-
 ;; indexed call is left untouched rather than mis-edited.
-(:wat::core::defn :user::tuple-get-zero-call?
-  [node <- wat.type/AST src <- wat.type/String lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
-        (:wat::core::if (:wat::fix::calls-to? node ":wat::core::tuple-get")
-          (:wat::core::let [idx (:wat::core::nth ch 2)]
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind idx) "int")
-              (:wat::core::=
-                (:wat::fix::fix-text-span-text (:wat::core::ast-span idx) (:wat::core::ast-end-span idx) lines src)
+(wat.core/defn user/tuple-get-zero-call?
+  [node :- wat.type/AST src :- wat.type/String lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 3)
+        (wat.core/if (wat.fix/calls-to? node ":wat::core::tuple-get")
+          (wat.core/let [idx (wat.core/nth ch 2)]
+            (wat.core/if (wat.core/= (wat.core/ast-kind idx) "int")
+              (wat.core/=
+                (wat.fix/fix-text-span-text (wat.core/ast-span idx) (wat.core/ast-end-span idx) lines src)
                 "0")
               false))
           false)
@@ -160,83 +160,83 @@
 ;;   1. head span -> rename text ":wat::core::tuple-get" -> ":wat::core::first"
 ;;   2. the gap from the tuple-argument's own end-span to the index-argument's own end-span
 ;;      (the trailing " 0") -> deleted.
-(:wat::core::defn :user::tuple-get-zero-edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [ch         (:wat::core::ast->children node)
-     head       (:wat::core::first ch)
-     tuple-arg  (:wat::core::nth ch 1)
-     idx-arg    (:wat::core::nth ch 2)
-     head-off   (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
-     head-name  (:wat::core::ast-name head)
-     gap-off    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span tuple-arg) lines)
-     gap-text   (:wat::fix::fix-text-span-text (:wat::core::ast-end-span tuple-arg) (:wat::core::ast-end-span idx-arg) lines src)]
+(wat.core/defn user/tuple-get-zero-edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [ch         (wat.core/ast->children node)
+     head       (wat.core/first ch)
+     tuple-arg  (wat.core/nth ch 1)
+     idx-arg    (wat.core/nth ch 2)
+     head-off   (wat.fix/fix-text-offset-of (wat.core/ast-span head) lines)
+     head-name  (wat.core/ast-name head)
+     gap-off    (wat.fix/fix-text-offset-of (wat.core/ast-end-span tuple-arg) lines)
+     gap-text   (wat.fix/fix-text-span-text (wat.core/ast-end-span tuple-arg) (wat.core/ast-end-span idx-arg) lines src)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] head-off head-name ":wat::core::first")
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] gap-off gap-text ""))))
 
 ;; tuple-get-zero-scan / tuple-get-zero-walk — recursive descent, same shape as
 ;; process-grants-scan/-walk above.
-(:wat::core::defn :user::tuple-get-zero-scan
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::tuple-get-zero-call? node src lines)
-    (:user::tuple-get-zero-edits node src lines)
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::tuple-get-zero-walk (:wat::core::ast->children node) src lines)
+(wat.core/defn user/tuple-get-zero-scan
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/tuple-get-zero-call? node src lines)
+    (user/tuple-get-zero-edits node src lines)
+    (wat.core/if (wat.fix/structural? node)
+      (user/tuple-get-zero-walk (wat.core/ast->children node) src lines)
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::tuple-get-zero-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/tuple-get-zero-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::tuple-get-zero-scan (:wat::core::first items) src lines)
-      (:user::tuple-get-zero-walk (:wat::core::rest items) src lines))))
+    (wat.core/concat
+      (user/tuple-get-zero-scan (wat.core/first items) src lines)
+      (user/tuple-get-zero-walk (wat.core/rest items) src lines))))
 
 ;; tuple-get-zero-to-first — the entry point for this form rewrite.
-(:wat::core::defn :user::tuple-get-zero-to-first [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     eds   (:user::tuple-get-zero-walk (:wat::core::ast->children tree) src lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/tuple-get-zero-to-first [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     eds   (user/tuple-get-zero-walk (wat.core/ast->children tree) src lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── entry point: compose the pure rename + the two form rewrites ───────────────────────────
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:user::tuple-get-zero-to-first
-    (:user::process-grants-to-plain
-      (:wat::fix::rename-keyword-prefix ":wat::core::reduce-walk" ":wat::core::foldl-spec-walk"
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (user/tuple-get-zero-to-first
+    (user/process-grants-to-plain
+      (wat.fix/rename-keyword-prefix ":wat::core::reduce-walk" ":wat::core::foldl-spec-walk"
         src))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[repointed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[repointed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

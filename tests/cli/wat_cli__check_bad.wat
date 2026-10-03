@@ -25,5 +25,5 @@
 ;; rather than an accident. Check errors leave `check_program` sorted into SOURCE order, so
 ;; the ReturnTypeMismatch (span = the WHOLE body form) precedes the TypeMismatch at the
 ;; argument nested inside it.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::i64::+ "not-a-number" 1))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.i64/+ "not-a-number" 1))

@@ -7,36 +7,36 @@
 ;; "get-object" -> "Getobject"), the generated req-ty `:my::Svc::GetObjectRequest` would not
 ;; resolve to the user-declared record and startup would fail. Running the service end-to-end
 ;; therefore proves the kebab<->pascal derivation handles the multi-word op.
-(:wat::core::defsurface :my::Svc :nature :wat::kernel::Peer
+(wat.core/defsurface my/Svc :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :my::Svc::GetObjectRequest  [n <- wat.type/i64])
-   (:wat::core::defenum :my::Svc::GetObjectResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord my.Svc/GetObjectRequest  [n :- wat.type/i64])
+   (wat.core/defenum my.Svc/GetObjectResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get-object [self <- :my::Svc  req <- :my::Svc::GetObjectRequest] -> :my::Svc::GetObjectResponse :max-request-bytes 524288)])
+  [(get-object [self :- my/Svc  req :- my.Svc/GetObjectRequest] :- my.Svc/GetObjectResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :my::svc
-  :satisfies :my::Svc
-  :durable [count <- wat.type/i64]
+(wat.service/defservice my/svc
+  :satisfies my/Svc
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(get-object [s ctx req]
-     (:wat::service::Outcome.Reply {:state s :reply (:my::Svc::GetObjectResponse.Ok {:value (:my::Svc::GetObjectRequest/n req)})}))])
+     (wat.service/Outcome.Reply {:state s :reply (my.Svc/GetObjectResponse.Ok {:value (my.Svc.GetObjectRequest/n req)})}))])
 
 ;; End-to-end through the KEBAB client method `:my::svc/get-object` (multi-word); echoes the
 ;; request's n back as the response value (42), proving the whole multi-word wiring resolved.
-(:wat::core::defn :user::req-id [] -> wat.type/i64
-  (:wat::core::let
-    [h (:my::svc/start :locus (:wat::spawn::thread) :record (:my::svc::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:my::svc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r (:my::svc/get-object c (:my::Svc::GetObjectRequest :n 42))
-     _ (:my::svc/stop h)]
-    (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:my::Svc::GetObjectResponse.Ok {:value value} value]
+(wat.core/defn user/req-id [] :- wat.type/i64
+  (wat.core/let
+    [h (my.svc/start :locus (wat.spawn/thread) :record (my.svc/Record :count 0))
+     c (wat.core/match (wat.kernel/connect (my.svc.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r (my.svc/get-object c (my.Svc/GetObjectRequest :n 42))
+     _ (my.svc/stop h)]
+    (wat.core/match r [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [my.Svc/GetObjectResponse.Ok {:value value} value]
       ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-      [:my::Svc::GetObjectResponse.RequestTooLarge {:bytes bytes :cap cap}
-        (:wat::kernel::assertion-failed! :message "req-id: unexpected RequestTooLarge")]
-      [:my::Svc::GetObjectResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [my.Svc/GetObjectResponse.RequestTooLarge {:bytes bytes :cap cap}
+        (wat.kernel/assertion-failed! :message "req-id: unexpected RequestTooLarge")]
+      [my.Svc/GetObjectResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

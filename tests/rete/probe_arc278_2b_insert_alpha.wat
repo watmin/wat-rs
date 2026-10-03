@@ -1,7 +1,7 @@
 ;; tests/rete/probe_arc278_2b_insert_alpha.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the :user::Temp record used by the insert/fire tests.
 
-(:wat::core::defrecord :user::Temp [value <- wat.type/i64])
+(wat.core/defrecord user/Temp [value :- wat.type/i64])
 
 ;; Shared lifecycle: one rule `(:user::Temp (?t <- :value) (> ?t 20))`; stage a matching fact (25) and
 ;; a non-matching one (15), fire-once, and inspect alpha-memory (the three probe assertions below).
@@ -12,59 +12,59 @@
 ;; with the oracle's `fire-rules$oracle`, which returns alpha empty via `fire-stratified`). The rule's
 ;; RHS is empty, so single-pass and fixpoint coincide for these three assertions regardless.
 
-(:wat::core::defn :test::compile-temp-rule [] -> :wat::rete::Session
-  (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))
-     rule  (:wat::rete::Rule :name "r" :lhs (wat.type/PersistentVector :- [wat.type/AST] cond) :rhs (wat.type/PersistentVector :- [wat.type/AST]))]
-    (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rule)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+(wat.core/defn test/compile-temp-rule [] :- wat.rete/Session
+  (wat.core/let
+    [cond  (wat.core/quote (user/Temp (?t :- :value) (wat.rete.i64/> ?t 20)))
+     rule  (wat.rete/Rule :name "r" :lhs (wat.type/PersistentVector :- [wat.type/AST] cond) :rhs (wat.type/PersistentVector :- [wat.type/AST]))]
+    (wat.core/match (wat.rete/compile (wat.type/PersistentVector :- [wat.rete/Rule] rule)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])))
 
-(:wat::core::defn :test::seed-temps [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::insert s (:user::Temp :value 25)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:user::Temp :value 15)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn test/seed-temps [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/insert s (user/Temp :value 25)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (user/Temp :value 15)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::fire-once [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-once s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")]))
+(wat.core/defn test/fire-once [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-once s) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-once: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-once: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::fired-temp-alpha [] -> :wat::rete::Session
-  (:test::fire-once (:test::seed-temps (:test::compile-temp-rule))))
+(wat.core/defn test/fired-temp-alpha [] :- wat.rete/Session
+  (test/fire-once (test/seed-temps (test/compile-temp-rule))))
 
-(:wat::core::defn :user::compile-then-fire-empty-alpha [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:test::fire-once (:test::compile-temp-rule))
+(wat.core/defn user/compile-then-fire-empty-alpha [] :- wat.type/i64
+  (wat.core/let
+    [fired (test/fire-once (test/compile-temp-rule))
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
-     amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::keys amem))))
+     amem  (wat.rete.Session/alpha-memory fired)]
+    (wat.core/length (wat.core/keys amem))))
 
-(:wat::core::defn :user::seed-temps-fact-count [] -> wat.type/i64
-  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts (:test::seed-temps (:test::compile-temp-rule))))))
+(wat.core/defn user/seed-temps-fact-count [] :- wat.type/i64
+  (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts (test/seed-temps (test/compile-temp-rule))))))
 
 ;; (1) exactly one AlphaNode populated (one condition; one of two staged facts matches).
-(:wat::core::defn :user::alpha-populated-count [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:test::fired-temp-alpha)
+(wat.core/defn user/alpha-populated-count [] :- wat.type/i64
+  (wat.core/let
+    [fired (test/fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
-     amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::keys amem))))
+     amem  (wat.rete.Session/alpha-memory fired)]
+    (wat.core/length (wat.core/keys amem))))
 
 ;; (2) the populated alpha holds ONE Element — 15 was rejected by (> ?t 20).
-(:wat::core::defn :user::alpha-matching-element-count [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:test::fired-temp-alpha)
+(wat.core/defn user/alpha-matching-element-count [] :- wat.type/i64
+  (wat.core/let
+    [fired (test/fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
-     amem  (:wat::rete::Session/alpha-memory fired)
-     aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::keys amem) 0) "aid")
-     elems (:wat::core::Option/expect (:wat::core::get amem aid) "elems")]
-    (:wat::core::length elems)))
+     amem  (wat.rete.Session/alpha-memory fired)
+     aid   (wat.core.Option/expect (wat.core/get (wat.core/keys amem) 0) "aid")
+     elems (wat.core.Option/expect (wat.core/get amem aid) "elems")]
+    (wat.core/length elems)))
 
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
-(:wat::core::defn :user::alpha-element-t-binding [] -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::let
-    [fired (:test::fired-temp-alpha)
+(wat.core/defn user/alpha-element-t-binding [] :- (wat.core/Option :- [wat.type/i64])
+  (wat.core/let
+    [fired (test/fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
-     amem  (:wat::rete::Session/alpha-memory fired)
-     aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::keys amem) 0) "aid")
-     elems (:wat::core::Option/expect (:wat::core::get amem aid) "elems")
-     elem  (:wat::core::Option/expect (:wat::core::get elems 0) "elem")
-     binds (:wat::rete::Element/bindings elem)]
-    (:wat::core::get binds "?t")))
+     amem  (wat.rete.Session/alpha-memory fired)
+     aid   (wat.core.Option/expect (wat.core/get (wat.core/keys amem) 0) "aid")
+     elems (wat.core.Option/expect (wat.core/get amem aid) "elems")
+     elem  (wat.core.Option/expect (wat.core/get elems 0) "elem")
+     binds (wat.rete.Element/bindings elem)]
+    (wat.core/get binds "?t")))

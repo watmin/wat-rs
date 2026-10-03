@@ -20,33 +20,33 @@
 ;; Returns [message actual-or-":None" expected-or-":None"] — the same triple the old
 ;; RunResult.failure path produced, now sourced from the peer's own Lost cause.
 
-(:wat::core::defn :my::compute [] -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::let
+(wat.core/defn my/compute [] :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/let
     [p
-      (:wat::test::spawn-peer (:wat::spawn::process)
-        (:wat::core::forms
-          (:wat::core::defn :user::main [] -> wat.type/nil
-            (:wat::test::assert-eq 1 2))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
+      (wat.test/spawn-peer (wat.spawn/process)
+        (wat.core/forms
+          (wat.core/defn user/main [] :- wat.type/nil
+            (wat.test/assert-eq 1 2))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
         (wat.type/Vector :- [wat.type/String] "UNEXPECTED-MESSAGE")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Panic {:message _message :failure failure}
-            (:wat::core::match failure
-              [:wat::core::Option.Some {:value f}
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/match cause
+          [wat.kernel/LociDiedError.Panic {:message _message :failure failure}
+            (wat.core/match failure
+              [wat.core/Option.Some {:value f}
                (wat.type/Vector :- [wat.type/String]
-                 (:wat::kernel::Failure/message f)
-                 (:wat::core::match (:wat::kernel::Failure/actual f)
-                   [:wat::core::Option.Some {:value a} a]
-                   [:wat::core::Option.None {} ":None"])
-                 (:wat::core::match (:wat::kernel::Failure/expected f)
-                   [:wat::core::Option.Some {:value e} e]
-                   [:wat::core::Option.None {} ":None"]))]
-              [:wat::core::Option.None {}
+                 (wat.kernel.Failure/message f)
+                 (wat.core/match (wat.kernel.Failure/actual f)
+                   [wat.core/Option.Some {:value a} a]
+                   [wat.core/Option.None {} ":None"])
+                 (wat.core/match (wat.kernel.Failure/expected f)
+                   [wat.core/Option.Some {:value e} e]
+                   [wat.core/Option.None {} ":None"]))]
+              [wat.core/Option.None {}
                (wat.type/Vector :- [wat.type/String] "NO-FAILURE-PAYLOAD")])]
           [_ (wat.type/Vector :- [wat.type/String] "LOST-NON-PANIC")])]
-      [:wat::kernel::RecvOutcome.Stopped {}
+      [wat.kernel/RecvOutcome.Stopped {}
         (wat.type/Vector :- [wat.type/String] "UNEXPECTED-STOPPED")]
-      [:wat::kernel::RecvOutcome.Closed {}
+      [wat.kernel/RecvOutcome.Closed {}
         (wat.type/Vector :- [wat.type/String] "UNEXPECTED-CLOSED")])))

@@ -21,49 +21,49 @@
 ;; Finding: docs/arc/2026/06/278-rules-engine/the-position-axis-was-chosen-not-derived/
 ;;          FINDING-acc-count-miscounts-with-an-unused-bind.md
 
-(:wat::core::defrecord :cnb::Station [location <- wat.type/String])
-(:wat::core::defrecord :cnb::Reading [location <- wat.type/String  value <- wat.type/i64])
-(:wat::core::defrecord :cnb::Plain   [n <- wat.type/i64])
-(:wat::core::defrecord :cnb::Extra   [n <- wat.type/i64])
+(wat.core/defrecord cnb/Station [location :- wat.type/String])
+(wat.core/defrecord cnb/Reading [location :- wat.type/String  value :- wat.type/i64])
+(wat.core/defrecord cnb/Plain   [n :- wat.type/i64])
+(wat.core/defrecord cnb/Extra   [n :- wat.type/i64])
 
-(:wat::rete::defrule :cnb::plain
-  :when [(:cnb::Station (?loc :- :location))
-         (?n :- (:wat::rete::acc::count) :from (:cnb::Reading (?loc :- :location)))]
-  :then [(:cnb::Plain :n ?n)])
+(wat.rete/defrule cnb/plain
+  :when [(cnb/Station (?loc :- :location))
+         (?n :- (wat.rete.acc/count) :from (cnb/Reading (?loc :- :location)))]
+  :then [(cnb/Plain :n ?n)])
 
 ;; identical, plus ONE bind that nothing consumes
-(:wat::rete::defrule :cnb::with-unused-bind
-  :when [(:cnb::Station (?loc :- :location))
-         (?n :- (:wat::rete::acc::count) :from (:cnb::Reading (?loc :- :location) (?v :- :value)))]
-  :then [(:cnb::Extra :n ?n)])
+(wat.rete/defrule cnb/with-unused-bind
+  :when [(cnb/Station (?loc :- :location))
+         (?n :- (wat.rete.acc/count) :from (cnb/Reading (?loc :- :location) (?v :- :value)))]
+  :then [(cnb/Extra :n ?n)])
 
-(:wat::rete::defquery :cnb::q-plain :params [] :when [(?f :- :cnb::Plain)])
-(:wat::rete::defquery :cnb::q-extra :params [] :when [(?f :- :cnb::Extra)])
+(wat.rete/defquery cnb/q-plain :params [] :when [(?f :- cnb/Plain)])
+(wat.rete/defquery cnb/q-extra :params [] :when [(?f :- cnb/Extra)])
 
-(:wat::core::defn :cnb::ins [s <- :wat::rete::Session  f <- :cnb::Reading] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s f) [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert")]))
+(wat.core/defn cnb/ins [s :- wat.rete/Session  f :- cnb/Reading] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s f) [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert")]))
 
-(:wat::core::defn :cnb::n [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
-  (:cnb::Plain/n (:wat::core::Option/expect
-    (:wat::core::get (:wat::core::first (:wat::rete::query s q)) "?f") "row")))
+(wat.core/defn cnb/n [s :- wat.rete/Session  q :- wat.rete/Query] :- wat.type/i64
+  (cnb.Plain/n (wat.core.Option/expect
+    (wat.core/get (wat.core/first (wat.rete/query s q)) "?f") "row")))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :cnb)
-          (wat.type/PersistentVector :- [:wat::rete::Query] (:cnb::q-plain) (:cnb::q-extra)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:cnb::Station :location "A")) [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert")])
-     s2 (:cnb::ins s1 (:cnb::Reading :location "A" :value 10))
-     s3 (:cnb::ins s2 (:cnb::Reading :location "A" :value 20))
-     s4 (:cnb::ins s3 (:cnb::Reading :location "A" :value 30))
-     fired (:wat::core::match (:wat::rete::fire-rules s4) [:wat::rete::FireOutcome.Fired {:value __f} __f]
-             [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "mem")]
-             [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "cap")])
-     plain (:cnb::n fired (:cnb::q-plain))
-     extra (:wat::i64::- (:cnb::Extra/n (:wat::core::Option/expect
-             (:wat::core::get (:wat::core::first (:wat::rete::query fired (:cnb::q-extra))) "?f") "row")) 0)]
-    (:wat::kernel::println (:wat::core::format
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :cnb)
+          (wat.type/PersistentVector :- [wat.rete/Query] (cnb/q-plain) (cnb/q-extra)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "compile")])
+     s1 (wat.core/match (wat.rete/insert s0 (cnb/Station :location "A")) [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert")])
+     s2 (cnb/ins s1 (cnb/Reading :location "A" :value 10))
+     s3 (cnb/ins s2 (cnb/Reading :location "A" :value 20))
+     s4 (cnb/ins s3 (cnb/Reading :location "A" :value 30))
+     fired (wat.core/match (wat.rete/fire-rules s4) [wat.rete/FireOutcome.Fired {:value __f} __f]
+             [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (wat.kernel/assertion-failed! :message "mem")]
+             [wat.rete/FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (wat.kernel/assertion-failed! :message "cap")])
+     plain (cnb/n fired (cnb/q-plain))
+     extra (wat.i64/- (cnb.Extra/n (wat.core.Option/expect
+             (wat.core/get (wat.core/first (wat.rete/query fired (cnb/q-extra))) "?f") "row")) 0)]
+    (wat.kernel/println (wat.core/format
       "3 readings inserted -> plain={p}  with-unused-bind={e}   (both must be 3)" :p plain :e extra))))

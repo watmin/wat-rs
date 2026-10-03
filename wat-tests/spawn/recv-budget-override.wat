@@ -23,29 +23,29 @@
 ;;
 ;; Model: overcap-flood-no-deadlock.wat (since deleted) + the recv'-wall value
 ;; contract (probe_arc278_recv_over_budget_reason). PRIMED ONLY.
-(:wat::test::deftest :wat-tests::recv-budget::tiny-budget-rejects-oversized-message
+(wat.test/deftest wat-tests.recv-budget/tiny-budget-rejects-oversized-message
   
-  (:wat::core::let
-    [child (:wat::test::spawn-peer (:wat::spawn::process::max-message-bytes 64)
-             (:wat::core::forms
+  (wat.core/let
+    [child (wat.test/spawn-peer (wat.spawn.process/max-message-bytes 64)
+             (wat.core/forms
                ;; double "x" 8× → 2^8 = 256-char String; println'd it is a
                ;; COMPLETE ('\n'-terminated) frame of ~258 bytes on the wire.
-               (:wat::core::defn :my::rep [s <- wat.type/String n <- wat.type/i64] -> wat.type/String
-                 (:wat::core::if (:wat::core::= n 0)
+               (wat.core/defn my/rep [s :- wat.type/String n :- wat.type/i64] :- wat.type/String
+                 (wat.core/if (wat.core/= n 0)
                      s
-                     (:my::rep (:wat::string::concat s s) (:wat::i64::- n 1))))
-               (:wat::core::defn :user::main [] -> wat.type/nil
-                 (:wat::kernel::println (:my::rep "x" 8)))))]
+                     (my/rep (wat.string/concat s s) (wat.i64/- n 1))))
+               (wat.core/defn user/main [] :- wat.type/nil
+                 (wat.kernel/println (my/rep "x" 8)))))]
     ;; The 64-byte budget must reject the 258-byte complete message as ::Lost with
     ;; the frame-cap reason. ::Message = the budget was ignored (delivered); ::Closed
     ;; = a bare EOF with no reason — both are the failure. The global per-test
     ;; time-limit catches any deadlock regression.
-    (:wat::core::match (:wat::kernel::recv child)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "tiny budget ignored: the oversized frame was DELIVERED, not rejected")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::test::assert-contains (:wat::kernel::LociDiedError/message cause) "frame exceeded cap")]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "expected the over-budget frame to surface as ::Lost with the cap reason, got a ::Stopped — the child was ALIVE")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected the over-budget frame to surface as ::Lost with the cap reason, got a bare ::Closed")])))
+    (wat.core/match (wat.kernel/recv child)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "tiny budget ignored: the oversized frame was DELIVERED, not rejected")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.test/assert-contains (wat.kernel.LociDiedError/message cause) "frame exceeded cap")]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "expected the over-budget frame to surface as ::Lost with the cap reason, got a ::Stopped — the child was ALIVE")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected the over-budget frame to surface as ::Lost with the cap reason, got a bare ::Closed")])))

@@ -7,39 +7,39 @@
 ;; instead of the retired IOReader/IOWriter stdin-echo path. Presence proof
 ;; prints "absent"/"present" via println (EDN-encoded Strings). Observable
 ;; stdout: "absent"\n"present"\n"wat-atoms"\n.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [program
-       (:wat::core::quote
-         (:wat::kernel::println "wat-atoms"))
+       (wat.core/quote
+         (wat.kernel/println "wat-atoms"))
      program-atom
-       (:wat::holon::Atom (:wat::holon::to-holon program))
+       (wat.holon/Atom (wat.holon/to-holon program))
      key-atom
-       (:wat::holon::Atom (:wat::holon::to-holon "hello-world"))
+       (wat.holon/Atom (wat.holon/to-holon "hello-world"))
 
      ;; Compose: program-atom bound under key-atom.
      bound
-       (:wat::holon::Bind key-atom program-atom)
+       (wat.holon/Bind key-atom program-atom)
 
      ;; Substrate proof #1: program-atom's signal is GONE from bound.
      ;; Arc 037 slice 3: presence? does the honest per-d threshold
      ;; comparison internally. absent = not present.
      _
-       (:wat::kernel::println
-         (:wat::core::if
-           (:wat::holon::presence? program-atom bound)
+       (wat.kernel/println
+         (wat.core/if
+           (wat.holon/presence? program-atom bound)
            "present"
            "absent"))
 
      ;; Self-inverse: bind(bind(k, p), k) recovers p at the vector level.
      recovered
-       (:wat::holon::Bind bound key-atom)
+       (wat.holon/Bind bound key-atom)
 
      ;; Substrate proof #2: program-atom's signal is BACK in recovered.
      _
-       (:wat::kernel::println
-         (:wat::core::if
-           (:wat::holon::presence? program-atom recovered)
+       (wat.kernel/println
+         (wat.core/if
+           (wat.holon/presence? program-atom recovered)
            "present"
            "absent"))
 
@@ -49,6 +49,6 @@
     ;; is no longer available; run the original quoted WatAST directly.
     ;; eval-ast! returns (:Result :- [wat::holon::HolonAST EvalError]) per
     ;; the 2026-04-20 INSCRIPTION.
-    (:wat::core::match (:wat::eval-ast! program)
-      [:wat::core::Result.Ok {:value _} nil]
-      [:wat::core::Result.Err {:error _} nil])))
+    (wat.core/match (wat/eval-ast! program)
+      [wat.core/Result.Ok {:value _} nil]
+      [wat.core/Result.Err {:error _} nil])))

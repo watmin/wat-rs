@@ -16,19 +16,19 @@
 ;; comparator whose `keyfn` is bound NOWHERE), must still print `true` / `false` / `false` —
 ;; unchanged by this stone.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; row 1 — keyfn PURE, bound in scope -> true
-    (:wat::kernel::println
-      (:wat::core::let [keyfn (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-                                 (:wat::core::* x 2))]
-        (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
-            (:wat::core::< (keyfn a) (keyfn b)))))))
+    (wat.kernel/println
+      (wat.core/let [keyfn (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+                                 (wat.core/* x 2))]
+        (wat.rete/pure? (wat.core/quote
+          (wat.core/fn [a :- wat.type/i64 b :- wat.type/i64] :- wat.type/bool
+            (wat.core/< (keyfn a) (keyfn b)))))))
     ;; row 2 — keyfn EFFECTFUL, bound in scope -> false (no widening)
-    (:wat::kernel::println
-      (:wat::core::let [keyfn (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-                                 (:wat::core::do (:wat::kernel::println "!") x))]
-        (:wat::rete::pure? (:wat::core::quote
-          (:wat::core::fn [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/bool
-            (:wat::core::< (keyfn a) (keyfn b)))))))))
+    (wat.kernel/println
+      (wat.core/let [keyfn (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+                                 (wat.core/do (wat.kernel/println "!") x))]
+        (wat.rete/pure? (wat.core/quote
+          (wat.core/fn [a :- wat.type/i64 b :- wat.type/i64] :- wat.type/bool
+            (wat.core/< (keyfn a) (keyfn b)))))))))

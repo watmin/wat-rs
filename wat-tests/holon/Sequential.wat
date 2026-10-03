@@ -8,24 +8,24 @@
 ;; rhythms, the trading lab's rhythm.rs module) rests on this.
 
 
-(:wat::test::deftest :wat-tests::holon::Sequential::test-self-identity
+(wat.test/deftest wat-tests.holon.Sequential/test-self-identity
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
      abc
-      (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b c))]
-    (:wat::test::assert-eq (:wat::holon::presence? abc abc) true)))
+      (wat.holon/Sequential (wat.type/Vector :- [wat.holon/HolonAST] a b c))]
+    (wat.test/assert-eq (wat.holon/presence? abc abc) true)))
 
-(:wat::test::deftest :wat-tests::holon::Sequential::test-order-sensitivity
+(wat.test/deftest wat-tests.holon.Sequential/test-order-sensitivity
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
      abc
-      (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
+      (wat.holon/Sequential (wat.type/Vector :- [wat.holon/HolonAST] a b c))
      acb
-      (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a c b))]
-    (:wat::test::assert-eq (:wat::holon::presence? abc acb) false)))
+      (wat.holon/Sequential (wat.type/Vector :- [wat.holon/HolonAST] a c b))]
+    (wat.test/assert-eq (wat.holon/presence? abc acb) false)))

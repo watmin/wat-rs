@@ -9,5 +9,5 @@
 ;; it OUTRIGHT as `DottedName`, before the `defenum` below is ever reached. The collision
 ;; this file was built to demonstrate is now structurally unconstructible, which is the
 ;; rung ABOVE catching it; see the sibling `.rs`'s module doc.
-(:wat::core::defn :my::app::Foo.Bar [] -> wat.type/i64 1)
-(:wat::core::defenum :my::app::Foo :wat::enum::Pure :Bar)
+(wat.core/defn my.app/Foo.Bar [] :- wat.type/i64 1)
+(wat.core/defenum my.app/Foo wat.enum/Pure :Bar)

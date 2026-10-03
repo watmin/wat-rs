@@ -10,6 +10,6 @@
 ;; RED at HEAD: it loads cleanly (the grounded breach — a struct then crosses a process peer). GREEN after
 ;; 293.W: the load is REJECTED with a containment-rule error naming the offending field.
 
-(:wat::core::defstruct :w::Conn [fd <- wat.type/i64])                      ; a struct (in-locus, non-portable)
+(wat.core/defstruct w/Conn [fd :- wat.type/i64])                      ; a struct (in-locus, non-portable)
 
-(:wat::core::defrecord :w::Bad  [tag <- wat.type/i64  c <- :w::Conn])      ; ILLEGAL — a record cannot hold a struct
+(wat.core/defrecord w/Bad  [tag :- wat.type/i64  c :- w/Conn])      ; ILLEGAL — a record cannot hold a struct

@@ -4,4 +4,4 @@
 ;; Program B: the same primitive call as the companion
 ;; probe_hash_scope_renumber_alias.wat's expansion, written directly — no macro
 ;; involved.
-(:my::prim 42 99 1 -1)
+(my/prim 42 99 1 -1)

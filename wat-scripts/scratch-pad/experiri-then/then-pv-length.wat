@@ -3,31 +3,31 @@
 ;; bool-native one) — broadens the :then sample beyond the two calibration cells and the
 ;; historically-buggy match cell. hit=[1,2] (length 2, ok=true), miss=[9] (length 1, ok=false).
 ;; Expect: 1.
-(:wat::core::defrecord :probe::In  [k <- wat.type/String  v <- (wat.type/PersistentVector :- [wat.type/i64])])
-(:wat::core::defrecord :probe::Out [k <- wat.type/String  ok <- wat.type/bool])
+(wat.core/defrecord probe/In  [k :- wat.type/String  v :- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord probe/Out [k :- wat.type/String  ok :- wat.type/bool])
 
-(:wat::rete::defrule :probe::rule
+(wat.rete/defrule probe/rule
   :when
-  [(:probe::In (?k :- :k) (?v :- :v))]
+  [(probe/In (?k :- :k) (?v :- :v))]
   :then
-  [(:probe::Out :k ?k :ok (:wat::rete::i64::= (:wat::rete::vector::length ?v) 2))])
+  [(probe/Out :k ?k :ok (wat.rete.i64/= (wat.rete.vector/length ?v) 2))])
 
-(:wat::rete::defquery :probe::q
+(wat.rete/defquery probe/q
   :params []
-  :when [(?fact :- :probe::Out)])
+  :when [(?fact :- probe/Out)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::core::let
-      [rules   (:wat::rete::collect-rules :probe)
-       session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-       session (:wat::core::match (:wat::rete::insert session (:probe::In :k "hit"  :v (wat.type/PersistentVector :- [wat.type/i64] 1 2))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-       session (:wat::core::match (:wat::rete::insert session (:probe::In :k "miss" :v (wat.type/PersistentVector :- [wat.type/i64] 9))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-       fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-      (:wat::core::foldl
-        (:wat::core::fn [acc <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
-          (:wat::core::if (:probe::Out/ok (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact"))
-            (:wat::i64::+ acc 1)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.core/let
+      [rules   (wat.rete/collect-rules :probe)
+       session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (probe/q))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __ft} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+       session (wat.core/match (wat.rete/insert session (probe/In :k "hit"  :v (wat.type/PersistentVector :- [wat.type/i64] 1 2))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+       session (wat.core/match (wat.rete/insert session (probe/In :k "miss" :v (wat.type/PersistentVector :- [wat.type/i64] 9))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __ilimit :used __iused :staged __icount} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+       fired   (wat.core/match (wat.rete/fire-rules session) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+      (wat.core/foldl
+        (wat.core/fn [acc :- wat.type/i64  p :- wat.type/PersistentMap] :- wat.type/i64
+          (wat.core/if (probe.Out/ok (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact"))
+            (wat.i64/+ acc 1)
             acc))
         0
-        (:wat::rete::query fired (:probe::q))))))
+        (wat.rete/query fired (probe/q))))))

@@ -32,28 +32,28 @@
 ;; The rewrite is comment-faithful and idempotent (re-running yields zero changes — the
 ;; old primed prefixes are gone), so it is safe to run over a clean tree.
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::fix::rename-keyword-prefix ":rust::sqlite'" ":rust::sqlite"
-    (:wat::fix::rename-keyword-prefix ":wat::sqlite'" ":wat::sqlite"
-      (:wat::fix::rename-keyword-prefix ":wat::query::sqlite-store'" ":wat::query::sqlite-store"
-        (:wat::fix::rename-keyword-prefix ":wat::query::mem-store'" ":wat::query::mem-store"
-          (:wat::fix::rename-keyword-prefix ":wat::telemetry'" ":wat::telemetry"
-            (:wat::fix::rename-keyword-prefix ":wat::telemetry'::span'" ":wat::telemetry::span"
-              (:wat::fix::rename-keyword-prefix ":wat::telemetry'::journal'" ":wat::telemetry::journal"
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.fix/rename-keyword-prefix ":rust::sqlite'" ":rust::sqlite"
+    (wat.fix/rename-keyword-prefix ":wat::sqlite'" ":wat::sqlite"
+      (wat.fix/rename-keyword-prefix ":wat::query::sqlite-store'" ":wat::query::sqlite-store"
+        (wat.fix/rename-keyword-prefix ":wat::query::mem-store'" ":wat::query::mem-store"
+          (wat.fix/rename-keyword-prefix ":wat::telemetry'" ":wat::telemetry"
+            (wat.fix/rename-keyword-prefix ":wat::telemetry'::span'" ":wat::telemetry::span"
+              (wat.fix/rename-keyword-prefix ":wat::telemetry'::journal'" ":wat::telemetry::journal"
                 src))))))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[deprimed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[deprimed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

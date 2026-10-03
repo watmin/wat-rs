@@ -2,6 +2,6 @@
 ;; slurped via startup_beside(file!()).
 
 ;; compute: invoke the live cpu-count verb — no installed program env required.
-(:wat::core::defn :probe::compute [] -> wat.type/i64
-  (:wat::program::cpu-count))
+(wat.core/defn probe/compute [] :- wat.type/i64
+  (wat.program/cpu-count))
 

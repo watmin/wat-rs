@@ -47,76 +47,76 @@
 ;; stdout: one #phase/Split EDN line
 ;;   echo '[50 2000]' | ./target/release/wat wat-scripts/scratch-pad/probe-node-share-phase-split.wat
 
-(:wat::core::defrecord :phase::A   [k <- wat.type/i64])
-(:wat::core::defrecord :phase::B   [k <- wat.type/i64])
-(:wat::core::defrecord :phase::Out [k <- wat.type/i64])
+(wat.core/defrecord phase/A   [k :- wat.type/i64])
+(wat.core/defrecord phase/B   [k :- wat.type/i64])
+(wat.core/defrecord phase/Out [k :- wat.type/i64])
 
 ;; Split — the per-phase census. `derived-count` is the NON-VACUITY witness: if derive were
 ;; short-circuiting, its ns would look cheap and this count would be 0. It must equal `items`.
-(:wat::core::defrecord :phase::Split
-  [rules         <- wat.type/i64
-   items         <- wat.type/i64
-   build-ns      <- wat.type/i64
-   compile-ns    <- wat.type/i64
-   seed-ns       <- wat.type/i64
-   fire-ns       <- wat.type/i64
-   derive-ns     <- wat.type/i64
-   derived-count <- wat.type/i64])
+(wat.core/defrecord phase/Split
+  [rules         :- wat.type/i64
+   items         :- wat.type/i64
+   build-ns      :- wat.type/i64
+   compile-ns    :- wat.type/i64
+   seed-ns       :- wat.type/i64
+   fire-ns       :- wat.type/i64
+   derive-ns     :- wat.type/i64
+   derived-count :- wat.type/i64])
 
-(:wat::rete::defquery :phase::q-Out
+(wat.rete/defquery phase/q-Out
   :params []
-  :when [(?fact :- :phase::Out)])
+  :when [(?fact :- phase/Out)])
 
 
 ;; ── copied from grid/node-share.wat (namespace changed only) ─────────────────
 
-(:wat::core::defn :phase::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:phase::A (?k :- :k)))
-                    b-c     (:wat::core::quasiquote (:phase::B (?k :- :k)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
-                                (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::i64::- ?k
-                                    (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
-                    ins     (:wat::core::quasiquote (:phase::Out ?k))]
-    (:wat::rete::Rule :name (:wat::i64::to-string i)
+(wat.core/defn phase/build-rule [i :- wat.type/i64  n :- wat.type/i64] :- wat.rete/Rule
+  (wat.core/let [a-c     (wat.core/quasiquote (phase/A (?k :- :k)))
+                    b-c     (wat.core/quasiquote (phase/B (?k :- :k)))
+                    where-c (wat.core/quasiquote
+                              (wat.rete/where
+                                (wat.core/= (wat.core/unquote i)
+                                  (wat.i64/- ?k
+                                    (wat.i64/* (wat.i64// ?k (wat.core/unquote n)) (wat.core/unquote n))))))
+                    ins     (wat.core/quasiquote (phase/Out ?k))]
+    (wat.rete/Rule :name (wat.i64/to-string i)
       :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
       :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
-(:wat::core::defn :phase::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
-      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::conj acc (:phase::build-rule i n)))
-    (wat.type/PersistentVector :- [:wat::rete::Rule])
-    (:wat::core::range 0 n)))
+(wat.core/defn phase/build-rules [n :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.rete/Rule])  i :- wat.type/i64]
+      :- (wat.type/PersistentVector :- [wat.rete/Rule])
+      (wat.core/conj acc (phase/build-rule i n)))
+    (wat.type/PersistentVector :- [wat.rete/Rule])
+    (wat.core/range 0 n)))
 
-(:wat::core::defn :phase::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert s (:phase::A i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:phase::B i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn phase/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/insert s (phase/A i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (phase/B i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     session
-    (:wat::core::range 0 items)))
+    (wat.core/range 0 items)))
 
-(:wat::core::defn :phase::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  x <- wat.type/i64]
-      -> (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::core::conj acc x))
+(wat.core/defn phase/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])  x :- wat.type/i64]
+      :- (wat.type/PersistentVector :- [wat.type/i64])
+      (wat.core/conj acc x))
     (wat.type/PersistentVector :- [wat.type/i64])
     v))
 
-(:wat::core::defn :phase::derived-vector
-  [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:phase::vec->pvec
-    (:wat::core::sort
-      (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-        (:wat::core::map
-          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:phase::Out/k f)))
-          (:wat::rete::query fired (:phase::q-Out)))))))
+(wat.core/defn phase/derived-vector
+  [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (phase/vec->pvec
+    (wat.core/sort
+      (wat.core/into (wat.type/Vector :- [wat.type/i64])
+        (wat.core/map
+          (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (phase.Out/k f)))
+          (wat.rete/query fired (phase/q-Out)))))))
 
-(:wat::core::defn :phase::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn phase/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
 ;; ── main — five instants, four phases, nothing else between them ─────────────
 ;;
@@ -125,34 +125,34 @@
 ;; (process startup, the frozen-world load, the final println) is deliberately unmeasured —
 ;; the question is the split BETWEEN phases, and the wall-clock differential above already
 ;; bounds the fixed cost at ~0.18s.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln )
-                              [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-                              [:wat::kernel::ReadlnOutcome.Eof {}
-                                (:wat::kernel::assertion-failed! :message "readln: end of input")]
-                              [:wat::kernel::ReadlnOutcome.Stopped {}
-                                (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
-                    items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln )
+                              [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+                              [wat.kernel/ReadlnOutcome.Eof {}
+                                (wat.kernel/assertion-failed! :message "readln: end of input")]
+                              [wat.kernel/ReadlnOutcome.Stopped {}
+                                (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    rules-n (wat.core.Option/expect (wat.core/get params 0) "stdin: [rules items]")
+                    items   (wat.core.Option/expect (wat.core/get params 1) "stdin: [rules items]")
 
-                    t0      (:wat::time::now)
-                    rules   (:phase::build-rules rules-n)
-                    t1      (:wat::time::now)
-                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:phase::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    t2      (:wat::time::now)
-                    staged  (:phase::seed session items)
-                    t3      (:wat::time::now)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    t4      (:wat::time::now)
-                    derived (:phase::derived-vector fired)
-                    t5      (:wat::time::now)]
-    (:wat::kernel::println
-      (:phase::Split
+                    t0      (wat.time/now)
+                    rules   (phase/build-rules rules-n)
+                    t1      (wat.time/now)
+                    session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (phase/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    t2      (wat.time/now)
+                    staged  (phase/seed session items)
+                    t3      (wat.time/now)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    t4      (wat.time/now)
+                    derived (phase/derived-vector fired)
+                    t5      (wat.time/now)]
+    (wat.kernel/println
+      (phase/Split
         :rules         rules-n
         :items         items
-        :build-ns      (:phase::ns-between t0 t1)
-        :compile-ns    (:phase::ns-between t1 t2)
-        :seed-ns       (:phase::ns-between t2 t3)
-        :fire-ns       (:phase::ns-between t3 t4)
-        :derive-ns     (:phase::ns-between t4 t5)
-        :derived-count (:wat::core::length derived)))))
+        :build-ns      (phase/ns-between t0 t1)
+        :compile-ns    (phase/ns-between t1 t2)
+        :seed-ns       (phase/ns-between t2 t3)
+        :fire-ns       (phase/ns-between t3 t4)
+        :derive-ns     (phase/ns-between t4 t5)
+        :derived-count (wat.core/length derived)))))

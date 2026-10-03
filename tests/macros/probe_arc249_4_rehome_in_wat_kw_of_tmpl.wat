@@ -4,15 +4,15 @@
 ;; macro whose quasiquote body calls ANOTHER macro, `:my::mk` calling `:test::mk-kw` here) —
 ;; so the vehicle swaps to a local test-only macro that mints a plain keyword with no angle
 ;; spelling anywhere, keeping the exact same test topology.
-(:wat::core::defmacro :test::mk-kw
-  [head <- wat.type/AST arg <- wat.type/AST] -> wat.type/AST
-  (:wat::core::let [head-text (:wat::keyword::to-string head)
-                    arg-text  (:wat::keyword::to-string arg)
-                    full (:wat::string::concat head-text
-                           (:wat::string::concat "-" arg-text))]
-    `~(:wat::keyword::from-string full)))
-(:wat::core::defmacro :my::mk
-  [e <- wat.type/AST] -> wat.type/AST
-  `(:test::mk-kw :foo ~e))
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::keyword::to-string (:my::mk :bar)))
+(wat.core/defmacro test/mk-kw
+  [head :- wat.type/AST arg :- wat.type/AST] :- wat.type/AST
+  (wat.core/let [head-text (wat.keyword/to-string head)
+                    arg-text  (wat.keyword/to-string arg)
+                    full (wat.string/concat head-text
+                           (wat.string/concat "-" arg-text))]
+    `~(wat.keyword/from-string full)))
+(wat.core/defmacro my/mk
+  [e :- wat.type/AST] :- wat.type/AST
+  `(test/mk-kw :foo ~e))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.keyword/to-string (my/mk :bar)))

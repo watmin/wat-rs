@@ -15,47 +15,47 @@
 ;;
 ;; MEASUREMENT ONLY — prints and exits; no assertion, nothing is fixed.
 
-(:wat::core::defsurface :probe-det::Bag :nature :wat::kernel::Peer
+(wat.core/defsurface probe-det/Bag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe-det::Bag::PutRequest
-     [items <- (wat.type/Vector :- [wat.type/String])])
-   (:wat::core::defenum :probe-det::Bag::PutResponse :wat::enum::Pure
-     :Ok              [len <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe-det.Bag/PutRequest
+     [items :- (wat.type/Vector :- [wat.type/String])])
+   (wat.core/defenum probe-det.Bag/PutResponse wat.enum/Pure
+     :Ok              [len :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :probe-det::Bag  req <- :probe-det::Bag::PutRequest]
-     -> :probe-det::Bag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- probe-det/Bag  req :- probe-det.Bag/PutRequest]
+     :- probe-det.Bag/PutResponse :max-request-bytes 4096)])
 
-(:wat::service::defservice :probe-det::bag-svc
-  :satisfies :probe-det::Bag
-  :durable   [n <- wat.type/i64]
+(wat.service/defservice probe-det/bag-svc
+  :satisfies probe-det/Bag
+  :durable   [n :- wat.type/i64]
   :ephemeral []
   :impls
   ;; The handler uses `items[0]` AS A STRING — exactly what the declaration promises.
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe-det::Bag::PutResponse.Ok
-         {:len (:wat::string::length
-           (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe-det.Bag/PutResponse.Ok
+         {:len (wat.string/length
+           (wat.core/nth (probe-det.Bag.PutRequest/items req) 0))})}))])
 
-(:wat::core::defn :probe-det::round-trip
-  [c     <- (:wat::kernel::Peer :- [:probe-det::Bag::Op :probe-det::Bag::Reply])
-   label <- wat.type/String
-   req   <- :probe-det::Bag::PutRequest]
-  -> wat.type/nil
-  (:wat::core::match (:probe-det::Bag/put c req)
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:probe-det::Bag::PutResponse.Ok {:len len}
-          (:wat::kernel::println
-            (:wat::string::concat label " => Ok, string::length = "
-              (:wat::i64::to-string len)))]
-        [:probe-det::Bag::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::println
-            (:wat::string::concat label " => RequestTooLarge"))]
-        [:probe-det::Bag::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
+(wat.core/defn probe-det/round-trip
+  [c     :- (wat.kernel/Peer :- [probe-det.Bag/Op probe-det.Bag/Reply])
+   label :- wat.type/String
+   req   :- probe-det.Bag/PutRequest]
+  :- wat.type/nil
+  (wat.core/match (probe-det.Bag/put c req)
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [probe-det.Bag/PutResponse.Ok {:len len}
+          (wat.kernel/println
+            (wat.string/concat label " => Ok, string::length = "
+              (wat.i64/to-string len)))]
+        [probe-det.Bag/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+          (wat.kernel/println
+            (wat.string/concat label " => RequestTooLarge"))]
+        [probe-det.Bag/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
     ;; arm at runtime is a `:wat::kernel::Failure`, NOT the declared
     ;; `:wat::kernel::LociDiedError` — calling `LociDiedError/message` on it raises
@@ -63,33 +63,33 @@
     ;; scope; the arm prints a static label so the measurement transcript stays clean.
     ;; The reason text observed in that raise was:
     ;;   "service peer lost (reason on the owner's crash channel)" (wat/spawn.wat:351)
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::println
-        (:wat::string::concat label
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/println
+        (wat.string/concat label
           " => RecvOutcome::Lost — THE SERVICE DIED serving this request"))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Stopped"))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed"))]))
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/println
+        (wat.string/concat label " => RecvOutcome::Stopped"))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/println
+        (wat.string/concat label " => RecvOutcome::Closed"))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [h (:probe-det::bag-svc/start :locus (:wat::spawn::process)
-         :record (:probe-det::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:probe-det::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
-     good (:probe-det::Bag::PutRequest
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [h (probe-det.bag-svc/start :locus (wat.spawn/process)
+         :record (probe-det.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (probe-det.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))] [wat.kernel/ConnectOutcome.WrongPeer {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))])
+     good (probe-det.Bag/PutRequest
             :items (wat.type/Vector :- [wat.type/String] "abcd"))
-     _ (:probe-det::round-trip c "[process] control " good)
-     bad (:wat::edn::read "#probe-det.Bag/PutRequest {:items [1 2 3]}")
-     _ (:probe-det::round-trip c "[process] MISTYPED" bad)]
+     _ (probe-det/round-trip c "[process] control " good)
+     bad (wat.edn/read "#probe-det.Bag/PutRequest {:items [1 2 3]}")
+     _ (probe-det/round-trip c "[process] MISTYPED" bad)]
     nil))

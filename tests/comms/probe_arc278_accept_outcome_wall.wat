@@ -14,25 +14,25 @@
 
 ;; HAPPY PATH → AcceptOutcome::Accepted[peer]. `connect'` queues a connect-request in
 ;; the rendezvous slot; `accept'` dequeues + wraps the authorized server Peer'.
-(:wat::core::defn :user::accept-happy [] -> (:wat::kernel::AcceptOutcome :- [wat.type/i64 wat.type/i64])
-  (:wat::core::let
-    [pair    (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
-     l       (:wat::spawn::Bound/listener pair)
-     addr    (:wat::spawn::Bound/address pair)
-     _client (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
-    (:wat::kernel::accept l)))
+(wat.core/defn user/accept-happy [] :- (wat.kernel/AcceptOutcome :- [wat.type/i64 wat.type/i64])
+  (wat.core/let
+    [pair    (wat.kernel/listener (wat.spawn/thread) wat.type/i64 wat.type/i64)
+     l       (wat.spawn.Bound/listener pair)
+     addr    (wat.spawn.Bound/address pair)
+     _client (wat.core/match (wat.kernel/connect addr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])]
+    (wat.kernel/accept l)))
 
 ;; Extract ONLY the listener (rx); the enclosing `Bound` (holding the address's
 ;; crossbeam Sender) is dropped when this helper returns — so the rendezvous has no
 ;; live senders left.
-(:wat::core::defn :user::orphaned-listener [] -> (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
-  (:wat::spawn::Bound/listener
-    (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)))
+(wat.core/defn user/orphaned-listener [] :- (wat.kernel/Listener :- [wat.type/i64 wat.type/i64])
+  (wat.spawn.Bound/listener
+    (wat.kernel/listener (wat.spawn/thread) wat.type/i64 wat.type/i64)))
 
 ;; GONE FOR GOOD → AcceptOutcome::Closed. accept' on a listener whose address
 ;; (the only rendezvous Sender) was dropped → crossbeam recv Disconnected → Closed.
 ;; A stop is Stopped, not this arm. Not a raise the server loop unwinds past.
-(:wat::core::defn :user::accept-closed [] -> (:wat::kernel::AcceptOutcome :- [wat.type/i64 wat.type/i64])
-  (:wat::core::let
-    [l (:user::orphaned-listener)]
-    (:wat::kernel::accept l)))
+(wat.core/defn user/accept-closed [] :- (wat.kernel/AcceptOutcome :- [wat.type/i64 wat.type/i64])
+  (wat.core/let
+    [l (user/orphaned-listener)]
+    (wat.kernel/accept l)))

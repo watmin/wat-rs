@@ -17,91 +17,91 @@
 ;;
 ;; Run: cargo run --release --bin wat -- wat-scripts/scratch-pad/arc278-produced-type-userfn-facts.wat
 
-(:wat::core::defrecord :a2::Src  [k <- wat.type/i64])
-(:wat::core::defrecord :a2::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :a2::Rate [count <- wat.type/i64])
-(:wat::core::defrecord :a2::Out  [n <- wat.type/i64])
+(wat.core/defrecord a2/Src  [k :- wat.type/i64])
+(wat.core/defrecord a2/Bad  [k :- wat.type/i64])
+(wat.core/defrecord a2/Rate [count :- wat.type/i64])
+(wat.core/defrecord a2/Out  [n :- wat.type/i64])
 
-(:wat::rete::core::defn :a2::mk-rate
-  [k <- wat.type/i64]
-  -> :a2::Rate
-  (:a2::Rate :count k))
+(wat.rete.core/defn a2/mk-rate
+  [k :- wat.type/i64]
+  :- a2/Rate
+  (a2/Rate :count k))
 
-(:wat::rete::defrule :a2::bad
-  :when [(:a2::Src (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::= ?k 2))]
-  :then [(:a2::Bad :k ?k)])
+(wat.rete/defrule a2/bad
+  :when [(a2/Src (?k :- :k))
+         (wat.rete/where (wat.rete.i64/= ?k 2))]
+  :then [(a2/Bad :k ?k)])
 
-(:wat::rete::defrule :a2::via
-  :when [(:a2::Src (?k :- :k))
-         (:wat::rete::not (:a2::Bad (?k :- :k)))]
-  :then [(:a2::mk-rate ?k)])
+(wat.rete/defrule a2/via
+  :when [(a2/Src (?k :- :k))
+         (wat.rete/not (a2/Bad (?k :- :k)))]
+  :then [(a2/mk-rate ?k)])
 
-(:wat::rete::defrule :a2::out
-  :when [(:a2::Rate (?n :- :count))]
-  :then [(:a2::Out :n ?n)])
+(wat.rete/defrule a2/out
+  :when [(a2/Rate (?n :- :count))]
+  :then [(a2/Out :n ?n)])
 
-(:wat::rete::defquery :a2::q-Rate :params [] :when [(?f :- :a2::Rate)])
-(:wat::rete::defquery :a2::q-Out  :params [] :when [(?f :- :a2::Out)])
-(:wat::rete::defquery :a2::q-Bad  :params [] :when [(?f :- :a2::Bad)])
+(wat.rete/defquery a2/q-Rate :params [] :when [(?f :- a2/Rate)])
+(wat.rete/defquery a2/q-Out  :params [] :when [(?f :- a2/Out)])
+(wat.rete/defquery a2/q-Bad  :params [] :when [(?f :- a2/Bad)])
 
-(:wat::core::defn :a2::readback [s <- :wat::rete::Session]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn a2/readback [s :- wat.rete/Session]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64]
-    (:wat::core::length (:wat::rete::query s (:a2::q-Bad)))
-    (:wat::core::length (:wat::rete::query s (:a2::q-Rate)))
-    (:wat::core::length (:wat::rete::query s (:a2::q-Out)))))
+    (wat.core/length (wat.rete/query s (a2/q-Bad)))
+    (wat.core/length (wat.rete/query s (a2/q-Rate)))
+    (wat.core/length (wat.rete/query s (a2/q-Out)))))
 
-(:wat::core::defn :a2::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
+(wat.core/defn a2/empty-records [] :- (wat.type/PersistentVector :- [wat.type/Record])
   (wat.type/PersistentVector :- [wat.type/Record]))
 
-(:wat::core::defn :a2::staged [] -> :wat::rete::Session
-  (:wat::core::let [rules (wat.type/PersistentVector :- [:wat::rete::Rule] (:a2::bad) (:a2::via) (:a2::out))
-                    qs    (wat.type/PersistentVector :- [:wat::rete::Query] (:a2::q-Rate) (:a2::q-Out) (:a2::q-Bad))
-                    session (:wat::core::match (:wat::rete::compile-all rules qs)
-                              [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-                              [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-                                (:wat::kernel::assertion-failed! :message "compile: MayNotTerminate")])]
-    (:wat::core::match
-      (:wat::rete::insert-all session
-        (:wat::core::conj
-          (:a2::empty-records)
-          (:a2::Src :k 1)))
-      [:wat::rete::InsertOutcome.Inserted {:session __s} __s]
-      [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
-        (:wat::kernel::assertion-failed! :message "insert: ceiling")])))
+(wat.core/defn a2/staged [] :- wat.rete/Session
+  (wat.core/let [rules (wat.type/PersistentVector :- [wat.rete/Rule] (a2/bad) (a2/via) (a2/out))
+                    qs    (wat.type/PersistentVector :- [wat.rete/Query] (a2/q-Rate) (a2/q-Out) (a2/q-Bad))
+                    session (wat.core/match (wat.rete/compile-all rules qs)
+                              [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+                              [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+                                (wat.kernel/assertion-failed! :message "compile: MayNotTerminate")])]
+    (wat.core/match
+      (wat.rete/insert-all session
+        (wat.core/conj
+          (a2/empty-records)
+          (a2/Src :k 1)))
+      [wat.rete/InsertOutcome.Inserted {:session __s} __s]
+      [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
+        (wat.kernel/assertion-failed! :message "insert: ceiling")])))
 
-(:wat::core::defn :user::native-facts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:a2::readback
-    (:wat::core::match (:wat::rete::fire-rules (:a2::staged))
-      [:wat::rete::FireOutcome.Fired {:value __f} __f]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-        (:wat::kernel::assertion-failed! :message "native fire: ceiling")]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-        (:wat::kernel::assertion-failed! :message "native fire: round cap")])))
+(wat.core/defn user/native-facts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (a2/readback
+    (wat.core/match (wat.rete/fire-rules (a2/staged))
+      [wat.rete/FireOutcome.Fired {:value __f} __f]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+        (wat.kernel/assertion-failed! :message "native fire: ceiling")]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+        (wat.kernel/assertion-failed! :message "native fire: round cap")])))
 
-(:wat::core::defn :user::oracle-facts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:a2::readback
-    (:wat::core::match (:wat::rete::fire-rules$oracle (:a2::staged))
-      [:wat::rete::FireOutcome.Fired {:value __f} __f]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-        (:wat::kernel::assertion-failed! :message "oracle fire: ceiling")]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-        (:wat::kernel::assertion-failed! :message "oracle fire: round cap")])))
+(wat.core/defn user/oracle-facts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (a2/readback
+    (wat.core/match (wat.rete/fire-rules$oracle (a2/staged))
+      [wat.rete/FireOutcome.Fired {:value __f} __f]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+        (wat.kernel/assertion-failed! :message "oracle fire: ceiling")]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+        (wat.kernel/assertion-failed! :message "oracle fire: round cap")])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
 ;; ⛔ THERE IS NO "COMPILE: Compiled" PRINT, DELIBERATELY. One stood here and was struck
 ;; 2026-09-07: it was a LITERAL, printed unconditionally BEFORE anything compiled, so a
 ;; failing compile produced the line "COMPILE: Compiled" and then aborted. Checking it
 ;; proved nothing about compilation. The real evidence that the constructing rete defn
 ;; `:a2::mk-rate` is admitted is that this program REACHES the output below: the genuine
 ;; CompileOutcome match above assertion-fails on MayNotTerminate, so completion is the proof.
-    (:wat::kernel::println "ORACLE STRATA:")
-    (:wat::kernel::println (:wat::rete::stratify (wat.type/PersistentVector :- [:wat::rete::Rule] (:a2::bad) (:a2::via) (:a2::out))))
-    (:wat::kernel::println "ORACLE rule-produces via:")
-    (:wat::kernel::println (:wat::rete::rule-produces (:a2::via)))
-    (:wat::kernel::println "NATIVE facts [Bad Rate Out]:")
-    (:wat::kernel::println (:user::native-facts))
-    (:wat::kernel::println "ORACLE facts [Bad Rate Out]:")
-    (:wat::kernel::println (:user::oracle-facts))))
+    (wat.kernel/println "ORACLE STRATA:")
+    (wat.kernel/println (wat.rete/stratify (wat.type/PersistentVector :- [wat.rete/Rule] (a2/bad) (a2/via) (a2/out))))
+    (wat.kernel/println "ORACLE rule-produces via:")
+    (wat.kernel/println (wat.rete/rule-produces (a2/via)))
+    (wat.kernel/println "NATIVE facts [Bad Rate Out]:")
+    (wat.kernel/println (user/native-facts))
+    (wat.kernel/println "ORACLE facts [Bad Rate Out]:")
+    (wat.kernel/println (user/oracle-facts))))

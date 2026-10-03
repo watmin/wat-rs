@@ -12,29 +12,29 @@
 
 ;; ─── 1. expansion equivalence ──────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Amplify::test-amplify-is-blend-sugar
+(wat.test/deftest wat-tests.holon.Amplify/test-amplify-is-blend-sugar
   
-  (:wat::core::let
-    [x (:wat::holon::to-holon "anchor")
-     y (:wat::holon::to-holon "signal")
+  (wat.core/let
+    [x (wat.holon/to-holon "anchor")
+     y (wat.holon/to-holon "signal")
      s 2.5
-     sugar    (:wat::holon::Amplify x y s)
-     explicit (:wat::holon::Blend   x y 1.0 s)]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? sugar explicit)
+     sugar    (wat.holon/Amplify x y s)
+     explicit (wat.holon/Blend   x y 1.0 s)]
+    (wat.test/assert-eq
+      (wat.holon/coincident? sugar explicit)
       true)))
 
 ;; ─── 2. scale distinguishability ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Amplify::test-amplify-scale-differs
+(wat.test/deftest wat-tests.holon.Amplify/test-amplify-scale-differs
   
-  (:wat::core::let
-    [x    (:wat::holon::to-holon "anchor")
-     y    (:wat::holon::to-holon "signal")
+  (wat.core/let
+    [x    (wat.holon/to-holon "anchor")
+     y    (wat.holon/to-holon "signal")
      ;; s=1.0: x and y equally weighted. s=2.0: y doubly weighted.
      ;; Different blend vectors → not coincident.
-     unit (:wat::holon::Amplify x y 1.0)
-     loud (:wat::holon::Amplify x y 2.0)]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? unit loud)
+     unit (wat.holon/Amplify x y 1.0)
+     loud (wat.holon/Amplify x y 2.0)]
+    (wat.test/assert-eq
+      (wat.holon/coincident? unit loud)
       false)))

@@ -4,4 +4,4 @@
 ;; stone's own stdlib conversion: `wat/test.wat`'s `deftest` macro emits exactly this
 ;; shape, and hundreds of `wat-tests/**/*.wat` deftests failed to freeze until
 ;; `check_legacy_user_main_signature` (src/check.rs) learned to denote before comparing.
-(:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "new-spelling main ran"))
+(wat.core/defn user/main [] :- wat.type/nil (wat.kernel/println "new-spelling main ran"))

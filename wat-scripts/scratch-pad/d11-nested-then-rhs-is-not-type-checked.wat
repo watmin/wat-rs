@@ -39,34 +39,34 @@
 ;; ANTI-VACUITY: the well-typed nested rule below must derive, or this file proves nothing. What
 ;; it now proves is the other half of the cure — that a WELL-TYPED nested constructor still
 ;; compiles and fires.
-(:wat::core::defrecord :d11r::Box   [k <- wat.type/i64  s <- wat.type/String])
-(:wat::core::defrecord :d11r::Inner [n <- wat.type/i64])
-(:wat::core::defrecord :d11r::Outer [i <- :d11r::Inner])
+(wat.core/defrecord d11r/Box   [k :- wat.type/i64  s :- wat.type/String])
+(wat.core/defrecord d11r/Inner [n :- wat.type/i64])
+(wat.core/defrecord d11r/Outer [i :- d11r/Inner])
 
-(:wat::rete::defrule :d11r::ok
-  :when [(:d11r::Box (?k :- :k))]
-  :then [(:d11r::Outer :i (:d11r::Inner :n ?k))])          ;; i64 into i64, NESTED — the CONTROL
+(wat.rete/defrule d11r/ok
+  :when [(d11r/Box (?k :- :k))]
+  :then [(d11r/Outer :i (d11r/Inner :n ?k))])          ;; i64 into i64, NESTED — the CONTROL
 
-(:wat::rete::defquery :d11r::qo :params [] :when [(?f :- :d11r::Outer)])
+(wat.rete/defquery d11r/qo :params [] :when [(?f :- d11r/Outer)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d11r)
-                             (wat.type/PersistentVector :- [:wat::rete::Query] (:d11r::qo)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "mnt")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:d11r::Box :k 7 :s "nested-string"))
-          [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "ceiling")])]
-    (:wat::core::match (:wat::rete::fire-rules s1)
-      [:wat::rete::FireOutcome.Fired {:value __f}
-        (:wat::core::do
-          (:wat::kernel::println "CONTROL nested Outer.i.n:")
-          (:wat::kernel::println (:wat::core::format "{v}" :v
-            (:d11r::Inner/n (:d11r::Outer/i
-              (:wat::core::Option/expect
-                (:wat::core::get (:wat::core::first (:wat::rete::query __f (:d11r::qo))) "?f")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :d11r)
+                             (wat.type/PersistentVector :- [wat.rete/Query] (d11r/qo)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "mnt")])
+     s1 (wat.core/match (wat.rete/insert s0 (d11r/Box :k 7 :s "nested-string"))
+          [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "ceiling")])]
+    (wat.core/match (wat.rete/fire-rules s1)
+      [wat.rete/FireOutcome.Fired {:value __f}
+        (wat.core/do
+          (wat.kernel/println "CONTROL nested Outer.i.n:")
+          (wat.kernel/println (wat.core/format "{v}" :v
+            (d11r.Inner/n (d11r.Outer/i
+              (wat.core.Option/expect
+                (wat.core/get (wat.core/first (wat.rete/query __f (d11r/qo))) "?f")
                 "control")))))
-          (:wat::kernel::println "SUBJECT (was `:nh::bad`) is now refused at rule-compile — see the header"))]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::println "ceil")]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::println "roundcap")])))
+          (wat.kernel/println "SUBJECT (was `:nh::bad`) is now refused at rule-compile — see the header"))]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (wat.kernel/println "ceil")]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (wat.kernel/println "roundcap")])))

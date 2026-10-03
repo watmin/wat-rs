@@ -7,36 +7,36 @@
 ;;
 ;; Same golden as the mem-on-process + thread-differential tiers — so sqlite ≡ mem on a fork too.
 
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [sh      (:wat::query::sqlite-store/start :locus (:wat::spawn::process)
-               :record (:wat::query::sqlite-store::Record
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [sh      (wat.query.sqlite-store/start :locus (wat.spawn/process)
+               :record (wat.query.sqlite-store/Record
                          :path ":memory:" :index-names (wat.type/Vector :- [wat.type/String] "by-uuid")))
-     saddr   (:wat::query::sqlite-store::Handle/addr sh)
+     saddr   (wat.query.sqlite-store.Handle/addr sh)
      ;; journal' on a PROCESS; grant journal's child pid to sqlite-store's gate before :init dials.
-     jh      (:wat::telemetry::journal/start
-               :locus (:wat::spawn::process::post-spawn
-                        (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                          (:wat::query::sqlite-store/grant sh
-                            (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-               :record (:wat::telemetry::journal::Record) :store-addr saddr)
-     journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+     jh      (wat.telemetry.journal/start
+               :locus (wat.spawn.process/post-spawn
+                        (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                          (wat.query.sqlite-store/grant sh
+                            (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+               :record (wat.telemetry.journal/Record) :store-addr saddr)
+     journal (wat.core/match (wat.kernel/connect (wat.telemetry.journal.Handle/addr jh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags    (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     m       (:wat::telemetry::Metric
-               :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 123
-               :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric.I64 {:val 7})
-               :unit :wat::telemetry::Unit.Count)
-     batch   (wat.type/Vector :- [:wat::telemetry::Metric] m)
-     _wr     (:wat::telemetry::Journal/write-metrics journal
-               (:wat::telemetry::Journal::WriteMetricsRequest batch))
-     client  (:wat::core::match (:wat::kernel::connect saddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     pk      (:wat::edn::write (:wat::telemetry::PartitionKey
-                                 :namespace "probe-ns" :kind :wat::telemetry::Kind.Metric))
-     resp    (:wat::query::Store/scan client
-               (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::query::Store::ScanResponse.Success {:rows rows :cursor _cursor}
-        (:wat::core::if (:wat::core::= (:wat::core::count rows) 1)
-          (:wat::query::Row/data (:wat::core::first rows))
+     m       (wat.telemetry/Metric
+               :namespace "probe-ns" :uuid (wat.uuid/nil) :tags tags :time-ns 123
+               :start-time-ns 100 :name :requests :value (wat.telemetry/Numeric.I64 {:val 7})
+               :unit wat.telemetry/Unit.Count)
+     batch   (wat.type/Vector :- [wat.telemetry/Metric] m)
+     _wr     (wat.telemetry.Journal/write-metrics journal
+               (wat.telemetry.Journal/WriteMetricsRequest batch))
+     client  (wat.core/match (wat.kernel/connect saddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     pk      (wat.edn/write (wat.telemetry/PartitionKey
+                                 :namespace "probe-ns" :kind wat.telemetry/Kind.Metric))
+     resp    (wat.query.Store/scan client
+               (wat.query.Store/ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 10 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.query.Store/ScanResponse.Success {:rows rows :cursor _cursor}
+        (wat.core/if (wat.core/= (wat.core/count rows) 1)
+          (wat.query.Row/data (wat.core/first rows))
           "WRONG-ROW-COUNT")]
-      [_ "SCAN-FAILED"])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [_ "SCAN-FAILED"])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

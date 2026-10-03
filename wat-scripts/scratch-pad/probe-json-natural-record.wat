@@ -16,21 +16,21 @@
 ;;   CONTROL bare-keyed + SUBJECT bare-keyed  => no gap; the read of the match arms is wrong
 ;;   CONTROL bare-keyed + SUBJECT #-tagged    => the gap is real; Stone 2a is the fix
 
-(:wat::core::defstruct :probe::ContentS
-  [type <- wat.type/String
-   text <- wat.type/String])
+(wat.core/defstruct probe/ContentS
+  [type :- wat.type/String
+   text :- wat.type/String])
 
-(:wat::core::defrecord :probe::ContentR
-  [type <- wat.type/String
-   text <- wat.type/String])
+(wat.core/defrecord probe/ContentR
+  [type :- wat.type/String
+   text :- wat.type/String])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; CONTROL — the struct. If this is not bare-keyed JSON, nothing below means anything.
-    (:wat::kernel::println
-      (:wat::edn::write-json-natural
-        (:probe::ContentS :type "text" :text "42")))
+    (wat.kernel/println
+      (wat.edn/write-json-natural
+        (probe/ContentS :type "text" :text "42")))
     ;; SUBJECT — the identical shape as a record.
-    (:wat::kernel::println
-      (:wat::edn::write-json-natural
-        (:probe::ContentR :type "text" :text "42")))))
+    (wat.kernel/println
+      (wat.edn/write-json-natural
+        (probe/ContentR :type "text" :text "42")))))

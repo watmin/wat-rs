@@ -1,34 +1,34 @@
 ;; RELAND 10: does fire-rules die when the Session was stored in a defstruct
 ;; field (the service's ephemeral :template) rather than a let-local?
-(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
-(:wat::core::defstruct :r10::Box [template <- :wat::rete::Session])
+(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot  [c :- wat.type/i64])
+(wat.core/defrecord usr/Warn [c :- wat.type/i64])
+(wat.core/defstruct r10/Box [template :- wat.rete/Session])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules (wat.type/PersistentVector :- [:wat::rete::Rule]
-             (:wat::rete::make-rule "usr::hot-rule"
-               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
-               (:wat::core::quote [(:usr::Hot :c ?c)]))
-             (:wat::rete::make-rule "usr::warn-rule"
-               (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
-               (:wat::core::quote [(:usr::Warn :c ?c)])))
-     queries (wat.type/PersistentVector :- [:wat::rete::Query]
-               (:wat::rete::make-query "usr::Hot" (:wat::core::quote [])
-                 (:wat::core::quote [(?fact :- :usr::Hot)]))
-               (:wat::rete::make-query "usr::Warn" (:wat::core::quote [])
-                 (:wat::core::quote [(?fact :- :usr::Warn)])))
-     session (:wat::core::match (:wat::rete::compile-all rules queries) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     boxed (:r10::Box :template session)
-     pulled (:r10::Box/template boxed)
-     fact (:wat::edn::read (:wat::edn::write (:usr::Temp :c 60)))]
-    (:wat::kernel::println "STORED-AND-PULLED")
-    (:wat::core::let
-      [inserted (:wat::core::match (:wat::rete::insert pulled fact) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])]
-      (:wat::kernel::println "INSERTED")
-      (:wat::core::let
-        [fired (:wat::core::match (:wat::rete::fire-rules inserted) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-        (:wat::kernel::println "FIRED")
-        (:wat::kernel::pprintln (:wat::core::count (:wat::rete::factbag::items (:wat::rete::Session/facts fired))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules (wat.type/PersistentVector :- [wat.rete/Rule]
+             (wat.rete/make-rule "usr::hot-rule"
+               (wat.core/quote [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))])
+               (wat.core/quote [(usr/Hot :c ?c)]))
+             (wat.rete/make-rule "usr::warn-rule"
+               (wat.core/quote [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))])
+               (wat.core/quote [(usr/Warn :c ?c)])))
+     queries (wat.type/PersistentVector :- [wat.rete/Query]
+               (wat.rete/make-query "usr::Hot" (wat.core/quote [])
+                 (wat.core/quote [(?fact :- usr/Hot)]))
+               (wat.rete/make-query "usr::Warn" (wat.core/quote [])
+                 (wat.core/quote [(?fact :- usr/Warn)])))
+     session (wat.core/match (wat.rete/compile-all rules queries) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     boxed (r10/Box :template session)
+     pulled (r10.Box/template boxed)
+     fact (wat.edn/read (wat.edn/write (usr/Temp :c 60)))]
+    (wat.kernel/println "STORED-AND-PULLED")
+    (wat.core/let
+      [inserted (wat.core/match (wat.rete/insert pulled fact) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])]
+      (wat.kernel/println "INSERTED")
+      (wat.core/let
+        [fired (wat.core/match (wat.rete/fire-rules inserted) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+        (wat.kernel/println "FIRED")
+        (wat.kernel/pprintln (wat.core/count (wat.rete.factbag/items (wat.rete.Session/facts fired))))
         nil))))

@@ -19,41 +19,41 @@
 ;; admitting, since it is trivially true). Both counts print on one line so the artifact proves
 ;; the claim on its own, without re-deriving the surrounding harness by hand.
 
-(:wat::core::defrecord :clw::N [k <- wat.type/i64])
-(:wat::core::defrecord :clw::Seen [k <- wat.type/i64])
-(:wat::core::defrecord :clw::SeenControl [k <- wat.type/i64])
+(wat.core/defrecord clw/N [k :- wat.type/i64])
+(wat.core/defrecord clw/Seen [k :- wat.type/i64])
+(wat.core/defrecord clw/SeenControl [k :- wat.type/i64])
 
-(:wat::rete::defrule :clw::r
-  :when [(:clw::N (?k :- :k) (:wat::rete::where (:wat::rete::core::bool::= true true)))]
-  :then [(:clw::Seen :k ?k)])
+(wat.rete/defrule clw/r
+  :when [(clw/N (?k :- :k) (wat.rete/where (wat.rete.core.bool/= true true)))]
+  :then [(clw/Seen :k ?k)])
 
 ;; CONTROL — identical shape, clause-level `where` simply deleted. Must derive, or the harness
 ;; itself (fact insertion, field read, `:then`) is broken and the where-arm's zero proves nothing.
-(:wat::rete::defrule :clw::r-control
-  :when [(:clw::N (?k :- :k))]
-  :then [(:clw::SeenControl :k ?k)])
+(wat.rete/defrule clw/r-control
+  :when [(clw/N (?k :- :k))]
+  :then [(clw/SeenControl :k ?k)])
 
-(:wat::rete::defquery :clw::q-seen :params [] :when [(?f :- :clw::Seen)])
-(:wat::rete::defquery :clw::q-seen-control :params [] :when [(?f :- :clw::SeenControl)])
+(wat.rete/defquery clw/q-seen :params [] :when [(?f :- clw/Seen)])
+(wat.rete/defquery clw/q-seen-control :params [] :when [(?f :- clw/SeenControl)])
 
-(:wat::core::defn :clw::fired [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules
-    (:wat::core::match (:wat::rete::insert-all
-      (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :clw)
-        (wat.type/PersistentVector :- [:wat::rete::Query] (:clw::q-seen) (:clw::q-seen-control)))
-        [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-        [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-      (wat.type/PersistentVector :- [:clw::N] (:clw::N :k 1)))
-      [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-      [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
+(wat.core/defn clw/fired [] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules
+    (wat.core/match (wat.rete/insert-all
+      (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :clw)
+        (wat.type/PersistentVector :- [wat.rete/Query] (clw/q-seen) (clw/q-seen-control)))
+        [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+        [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+      (wat.type/PersistentVector :- [clw/N] (clw/N :k 1)))
+      [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+      [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert: ceiling")])
     )
-    [:wat::rete::FireOutcome.Fired {:value __f} __f]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")]))
+    [wat.rete/FireOutcome.Fired {:value __f} __f]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (wat.kernel/assertion-failed! :message "fire: ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (wat.kernel/assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s        (:clw::fired)
-     where-n  (:wat::core::length (:wat::rete::query s (:clw::q-seen)))
-     control-n (:wat::core::length (:wat::rete::query s (:clw::q-seen-control)))]
-    (:wat::kernel::println (:wat::core::format "where-arm {w}, control {c}" :w where-n :c control-n))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s        (clw/fired)
+     where-n  (wat.core/length (wat.rete/query s (clw/q-seen)))
+     control-n (wat.core/length (wat.rete/query s (clw/q-seen-control)))]
+    (wat.kernel/println (wat.core/format "where-arm {w}, control {c}" :w where-n :c control-n))))

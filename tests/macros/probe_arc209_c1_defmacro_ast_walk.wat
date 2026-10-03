@@ -4,13 +4,13 @@
 ;; PROOF 1 — a defmacro drives ast->children + drop + first on its Vector arg, returns a child.
 ;; PROGRAM-BODY path: the param v is bound as a wat__WatAST node-value, so ast->children accepts
 ;; it. (:user::second-child [10 20 30]) -> children [10 20 30] -> drop 1 -> [20 30] -> first -> 20.
-(:wat::core::defmacro :user::second-child
-  [v <- wat.type/AST]
-  -> wat.type/AST
-  (:wat::core::nth (:wat::core::ast->children v) 1))
+(wat.core/defmacro user/second-child
+  [v :- wat.type/AST]
+  :- wat.type/AST
+  (wat.core/nth (wat.core/ast->children v) 1))
 
-(:wat::core::defn :user::probe-walk [] -> wat.type/i64
-  (:user::second-child [10 20 30]))
+(wat.core/defn user/probe-walk [] :- wat.type/i64
+  (user/second-child [10 20 30]))
 
 ;; PROOF 2 — a defmacro rebuilds a Vector node via with-children, dropping the first element.
 ;; Program-body path again. (:user::drop-first [10 20 30]) -> with-children v (drop children 1)
@@ -18,12 +18,12 @@
 ;; Arc 118.2a — `drop` flipped LAZY; `with-children` needs a concrete `(Vector :- [WatAST])`. `rest`
 ;; stays eager/container-preserving and is on the macro program-body pure-total allow-list, so
 ;; a single-element drop is `rest` instead.
-(:wat::core::defmacro :user::drop-first
-  [v <- wat.type/AST]
-  -> wat.type/AST
-  (:wat::core::with-children v
-     (:wat::core::rest (:wat::core::ast->children v))))
+(wat.core/defmacro user/drop-first
+  [v :- wat.type/AST]
+  :- wat.type/AST
+  (wat.core/with-children v
+     (wat.core/rest (wat.core/ast->children v))))
 
-(:wat::core::defn :user::probe-rebuild [] -> wat.type/i64
-  (:wat::core::length (:user::drop-first [10 20 30])))
+(wat.core/defn user/probe-rebuild [] :- wat.type/i64
+  (wat.core/length (user/drop-first [10 20 30])))
 

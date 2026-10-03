@@ -10,12 +10,12 @@
 ;; MUST RAISE — before AND after. A silent success here means the stone deleted a
 ;; post-condition the author wrote and the checker promised: a worse hole than the
 ;; stack exhaustion it set out to fix.
-(:wat::core::defclause :probe::never-negative
-  ([n <- wat.type/i64] -> wat.type/i64
-    :ensure (:wat::core::fn [r <- wat.type/i64] -> wat.type/bool
-              (:wat::i64::>= r 0))
-    (:wat::core::if (:wat::core::= n 0)
+(wat.core/defclause probe/never-negative
+  ([n :- wat.type/i64] :- wat.type/i64
+    :ensure (wat.core/fn [r :- wat.type/i64] :- wat.type/bool
+              (wat.i64/>= r 0))
+    (wat.core/if (wat.core/= n 0)
       -1
-      (:probe::never-negative (:wat::core::- n 1)))))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe::never-negative 10)))
+      (probe/never-negative (wat.core/- n 1)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe/never-negative 10)))

@@ -8,33 +8,33 @@
 ;; RED at HEAD: :wat::core::aggregate-new is unknown → startup/eval fails.
 ;; GREEN after 294.c.2a: all three natures construct + the holon's hologram measures.
 
-(:wat::core::defstruct  :test::an::ST [a <- wat.type/i64  b <- wat.type/i64])
-(:wat::core::defrecord  :test::an::BR [a <- wat.type/i64  b <- wat.type/i64])
-(:wat::holon::defrecord :test::an::HR [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defstruct  test.an/ST [a :- wat.type/i64  b :- wat.type/i64])
+(wat.core/defrecord  test.an/BR [a :- wat.type/i64  b :- wat.type/i64])
+(wat.holon/defrecord test.an/HR [a :- wat.type/i64  b :- wat.type/i64])
 
 ;; struct constructed via aggregate-new → field reads back (= 7)
-(:wat::core::defn :user::an-struct-a [] -> wat.type/i64
-  (:test::an::ST/a (:wat::core::aggregate-new :test::an::ST 7 8)))
+(wat.core/defn user/an-struct-a [] :- wat.type/i64
+  (test.an.ST/a (wat.core/aggregate-new test.an/ST 7 8)))
 
 ;; base record constructed via aggregate-new → field reads back (= 8)
-(:wat::core::defn :user::an-record-b [] -> wat.type/i64
-  (:test::an::BR/b (:wat::core::aggregate-new :test::an::BR 7 8)))
+(wat.core/defn user/an-record-b [] :- wat.type/i64
+  (test.an.BR/b (wat.core/aggregate-new test.an/BR 7 8)))
 
 ;; holon record constructed via aggregate-new → field reads back (= 7), hologram derived
-(:wat::core::defn :user::an-holon-a [] -> wat.type/i64
-  (:test::an::HR/a (:wat::core::aggregate-new :test::an::HR 7 8)))
+(wat.core/defn user/an-holon-a [] :- wat.type/i64
+  (test.an.HR/a (wat.core/aggregate-new test.an/HR 7 8)))
 
 ;; the DERIVED hologram is correct: cosine of a holon record with itself = 1.0
 ;; Arc 278 the cosine outcome wall — cosine now returns :wat::holon::CosineOutcome,
 ;; not a bare f64; the .rs side extracts the Similarity variant's field.
-(:wat::core::defn :user::an-holon-self-cos [] -> :wat::holon::CosineOutcome
-  (:wat::core::let [h (:wat::core::aggregate-new :test::an::HR 7 8)]
-    (:wat::holon::cosine h h)))
+(wat.core/defn user/an-holon-self-cos [] :- wat.holon/CosineOutcome
+  (wat.core/let [h (wat.core/aggregate-new test.an/HR 7 8)]
+    (wat.holon/cosine h h)))
 
 ;; the DERIVED hologram is DATA-DEPENDENT (not a constant/empty bundle): two holon
 ;; records differing only in field b measure < 1.0. Self-cosine alone is trivially
 ;; 1.0 for any value; this proves the hologram actually encodes the fields.
-(:wat::core::defn :user::an-holon-diff-cos [] -> :wat::holon::CosineOutcome
-  (:wat::holon::cosine
-    (:wat::core::aggregate-new :test::an::HR 7 8)
-    (:wat::core::aggregate-new :test::an::HR 7 9)))
+(wat.core/defn user/an-holon-diff-cos [] :- wat.holon/CosineOutcome
+  (wat.holon/cosine
+    (wat.core/aggregate-new test.an/HR 7 8)
+    (wat.core/aggregate-new test.an/HR 7 9)))

@@ -15,17 +15,17 @@
 ;; prints 200000.
 
 ;; Deliberately NON-tail: the recursion is an argument to `+`.
-(:wat::core::defn :probe::count-deep
-  [s <- (:wat::stream::Stream :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::match (:wat::stream::next s)
-    [:wat::stream::NextOutcome.Item {:value value :rest rest}
-      (:wat::core::+ 1 (:probe::count-deep rest))]
-    [:wat::stream::NextOutcome.Exhausted {} 0]))
+(wat.core/defn probe/count-deep
+  [s :- (wat.stream/Stream :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/match (wat.stream/next s)
+    [wat.stream/NextOutcome.Item {:value value :rest rest}
+      (wat.core/+ 1 (probe/count-deep rest))]
+    [wat.stream/NextOutcome.Exhausted {} 0]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n 200000
-     s (:wat::core::map
-         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
-         (:wat::core::range 0 n))]
-    (:wat::kernel::println (:probe::count-deep s))))
+     s (wat.core/map
+         (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x)
+         (wat.core/range 0 n))]
+    (wat.kernel/println (probe/count-deep s))))

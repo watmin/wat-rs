@@ -54,122 +54,122 @@
 ;; Usage (stdin = an i64 vector [depth]; stdout = one #grid/Result EDN line):
 ;;   echo '[9]' | cargo wat ./wat-scripts/perf/grid/accum-lead-derived.wat
 
-(:wat::core::defrecord :ald::Step  [level <- wat.type/i64])
-(:wat::core::defrecord :ald::Tally [n <- wat.type/i64])
+(wat.core/defrecord ald/Step  [level :- wat.type/i64])
+(wat.core/defrecord ald/Tally [n :- wat.type/i64])
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
-(:wat::rete::defquery :ald::q-Step
+(wat.rete/defquery ald/q-Step
   :params []
-  :when [(?fact :- :ald::Step)])
+  :when [(?fact :- ald/Step)])
 
 
-(:wat::rete::defquery :ald::q-Tally
+(wat.rete/defquery ald/q-Tally
   :params []
-  :when [(?fact :- :ald::Tally)])
+  :when [(?fact :- ald/Tally)])
 
 
 ;; build-step k — Step(k) :- Step(k-1). Level literals spliced via quasiquote, same as
 ;; accum-over-derived's per-level rule. One generated rule per level.
-(:wat::core::defn :ald::build-step [k <- wat.type/i64] -> :wat::rete::Rule
-  (:wat::core::let [prev (:wat::i64::- k 1)
-                    c (:wat::core::quasiquote (:ald::Step (?l :- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))
-                    t (:wat::core::quasiquote (:ald::Step (:wat::core::unquote k)))]
-    (:wat::rete::Rule :name (:wat::i64::to-string k)
+(wat.core/defn ald/build-step [k :- wat.type/i64] :- wat.rete/Rule
+  (wat.core/let [prev (wat.i64/- k 1)
+                    c (wat.core/quasiquote (ald/Step (?l :- :level) (wat.rete.i64/= ?l (wat.core/unquote prev))))
+                    t (wat.core/quasiquote (ald/Step (wat.core/unquote k)))]
+    (wat.rete/Rule :name (wat.i64/to-string k)
       :lhs (wat.type/PersistentVector :- [wat.type/AST] c)
       :rhs (wat.type/PersistentVector :- [wat.type/AST] t))))
 
 ;; ★ THE CELL. tally is a LEADING accumulate — its ONLY condition, no anchor, no join —
 ;; over Step, which the SAME ruleset derives via build-step above.
-(:wat::core::defn :ald::tally-rule [] -> :wat::rete::Rule
-  (:wat::rete::Rule :name "tally"
+(wat.core/defn ald/tally-rule [] :- wat.rete/Rule
+  (wat.rete/Rule :name "tally"
     :lhs (wat.type/PersistentVector :- [wat.type/AST]
-      (:wat::core::quote (?n :- (:wat::rete::acc::count) :from (:ald::Step))))
+      (wat.core/quote (?n :- (wat.rete.acc/count) :from (ald/Step))))
     :rhs (wat.type/PersistentVector :- [wat.type/AST]
-      (:wat::core::quote (:ald::Tally ?n)))))
+      (wat.core/quote (ald/Tally ?n)))))
 
 ;; build-rules depth — tally plus one Step(k):-Step(k-1) per k in [1,depth].
-(:wat::core::defn :ald::build-rules [depth <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  k <- wat.type/i64]
-                    -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::conj acc (:ald::build-step k)))
-    (wat.type/PersistentVector :- [:wat::rete::Rule] (:ald::tally-rule))
-    (:wat::core::range 1 (:wat::i64::+ depth 1))))
+(wat.core/defn ald/build-rules [depth :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.rete/Rule])  k :- wat.type/i64]
+                    :- (wat.type/PersistentVector :- [wat.rete/Rule])
+      (wat.core/conj acc (ald/build-step k)))
+    (wat.type/PersistentVector :- [wat.rete/Rule] (ald/tally-rule))
+    (wat.core/range 1 (wat.i64/+ depth 1))))
 
-(:wat::core::defn :ald::seed-facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::conj
-    (wat.type/PersistentVector :- [:ald::Step])
-    (:ald::Step :level 0)))
+(wat.core/defn ald/seed-facts [] :- (wat.type/PersistentVector :- [wat.type/Record])
+  (wat.core/conj
+    (wat.type/PersistentVector :- [ald/Step])
+    (ald/Step :level 0)))
 
-(:wat::core::defn :ald::seed [session <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all session (:ald::seed-facts))
-    [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
-     (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn ald/seed [session :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all session (ald/seed-facts))
+    [wat.rete/InsertOutcome.Inserted {:session __staged} __staged]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
+     (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ald::fire [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules s)
-    [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-     (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-     (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn ald/fire [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules s)
+    [wat.rete/FireOutcome.Fired {:value __fired} __fired]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+     (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+     (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :ald::enc [kind <- wat.type/i64  level <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+
-    (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* level 1000000000))
+(wat.core/defn ald/enc [kind :- wat.type/i64  level :- wat.type/i64  id :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+
+    (wat.i64/+ (wat.i64/* kind 1000000000000000) (wat.i64/* level 1000000000))
     id))
 
-(:wat::core::defn :ald::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn ald/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector — sorted, NOT deduped. Derived Step levels (level > 0) plus every Tally.
 ;; A leaked intermediate tally OR a per-round duplicate is an EXTRA ELEMENT.
-(:wat::core::defn :ald::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let
-    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::map
-            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-                (:ald::enc 0 (:ald::Step/level f) 0)))
-            (:wat::core::filter
-              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/bool
-                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-                  (:wat::i64::> (:ald::Step/level f) 0)))
-              (:wat::rete::query fired (:ald::q-Step)))))
-     c1 (:wat::core::into c0
-          (:wat::core::map
-            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-                (:ald::enc 1 0 (:ald::Tally/n f))))
-            (:wat::rete::query fired (:ald::q-Tally))))]
-    (:ald::vec->pvec (:wat::core::sort c1))))
+(wat.core/defn ald/derived-vector [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let
+    [c0 (wat.core/into (wat.type/Vector :- [wat.type/i64])
+          (wat.core/map
+            (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+              (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+                (ald/enc 0 (ald.Step/level f) 0)))
+            (wat.core/filter
+              (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/bool
+                (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+                  (wat.i64/> (ald.Step/level f) 0)))
+              (wat.rete/query fired (ald/q-Step)))))
+     c1 (wat.core/into c0
+          (wat.core/map
+            (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+              (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+                (ald/enc 1 0 (ald.Tally/n f))))
+            (wat.rete/query fired (ald/q-Tally))))]
+    (ald/vec->pvec (wat.core/sort c1))))
 
-(:wat::core::defn :ald::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn ald/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth]")
-                    rules   (:ald::build-rules depth)
-                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:ald::q-Step) (:ald::q-Tally))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    depth   (wat.core.Option/expect (wat.core/get params 0) "stdin: [depth]")
+                    rules   (ald/build-rules depth)
+                    session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (ald/q-Step) (ald/q-Tally))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
                     ;; Variable MUST be named `staged` so GRID_SKIP_ORACLE / axes_live rewrite
                     ;; `fire-rules$oracle staged` and not a first-fire leftover.
-                    staged  (:ald::seed session)
-                    n0      (:wat::time::now)
-                    fired   (:ald::fire staged)
-                    n1      (:wat::time::now)
-                    derived (:ald::derived-vector fired)
-                    nat-ns  (:ald::ns-between n0 n1)
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "accum-lead-derived" :size (wat.type/PersistentVector :- [wat.type/i64] depth) :derived derived :native-ns nat-ns :oracle-derived (:ald::derived-vector ofired) :oracle-ns (:ald::ns-between o0 o1)))))
+                    staged  (ald/seed session)
+                    n0      (wat.time/now)
+                    fired   (ald/fire staged)
+                    n1      (wat.time/now)
+                    derived (ald/derived-vector fired)
+                    nat-ns  (ald/ns-between n0 n1)
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "accum-lead-derived" :size (wat.type/PersistentVector :- [wat.type/i64] depth) :derived derived :native-ns nat-ns :oracle-derived (ald/derived-vector ofired) :oracle-ns (ald/ns-between o0 o1)))))

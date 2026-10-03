@@ -36,46 +36,46 @@
 ;; wat-grep actually needs.
 
 ;; the LHS fact carries BOTH ends — exactly what `:fx::Span` emits per node.
-(:wat::core::defrecord :p::Loc
-  [line     <- wat.type/i64
-   col      <- wat.type/i64
-   end-line <- wat.type/i64
-   end-col  <- wat.type/i64])
+(wat.core/defrecord p/Loc
+  [line     :- wat.type/i64
+   col      :- wat.type/i64
+   end-line :- wat.type/i64
+   end-col  :- wat.type/i64])
 
-(:wat::core::defrecord :p::Hit
-  [span <- :wat::core::Span
-   why  <- wat.type/String])
+(wat.core/defrecord p/Hit
+  [span :- wat.core/Span
+   why  :- wat.type/String])
 
 ;; the RHS: LHS binds all four coordinates from a plain fact; the filename "a.wat" is supplied
 ;; IN the RHS (it is a property of the run, exactly as the DESIGN argues); `:end` is a real
 ;; `Some(Pos)` built from the bound end coords, because a wat-built Span always knows its end.
-(:wat::rete::defrule :p::build-hit
-  :when [(:p::Loc (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))]
-  :then [(:p::Hit
-           :span (:wat::core::Span
+(wat.rete/defrule p/build-hit
+  :when [(p/Loc (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))]
+  :then [(p/Hit
+           :span (wat.core/Span
                    :file "a.wat"
                    :line ?l
                    :col  ?c
                    ;; ⚠ QUALIFIED, and it is not a style choice — see the finding at the foot.
-                   :end  (:wat::core::Option.Some {:value (:wat::core::Pos :line ?el :col ?ec)}))
+                   :end  (wat.core/Option.Some {:value (wat.core/Pos :line ?el :col ?ec)}))
            :why "complete Span — Pos inside Some inside Span, all four coords LHS-bound")])
 
-(:wat::rete::defquery :p::q-Hit
+(wat.rete/defquery p/q-Hit
   :params []
-  :when [(?fact :- :p::Hit)])
+  :when [(?fact :- p/Hit)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules (wat.type/PersistentVector :- [:wat::rete::Rule] (:p::build-hit))
-     s0    (:wat::core::match (:wat::rete::insert
-             (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:p::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-             (:p::Loc :line 7 :col 1 :end-line 7 :end-col 26)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (:wat::rete::fire-rules s0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     hits  (:wat::rete::query fired (:p::q-Hit))
-     hit   (:wat::core::Option/expect
-             (:wat::core::get (:wat::core::first hits) "?fact")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules (wat.type/PersistentVector :- [wat.rete/Rule] (p/build-hit))
+     s0    (wat.core/match (wat.rete/insert
+             (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (p/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+             (p/Loc :line 7 :col 1 :end-line 7 :end-col 26)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (wat.rete/fire-rules s0) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     hits  (wat.rete/query fired (p/q-Hit))
+     hit   (wat.core.Option/expect
+             (wat.core/get (wat.core/first hits) "?fact")
              "q-Hit: ?fact")]
-    (:wat::kernel::println hit)))
+    (wat.kernel/println hit)))
 
 ;; ─── NOTE FOR RULE AUTHORS (2026-08-24) — USE DECLARED ENUMS, NOT CORE'S ALIASES ─────────────
 ;;

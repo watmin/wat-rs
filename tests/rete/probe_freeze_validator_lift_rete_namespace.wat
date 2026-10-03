@@ -10,10 +10,10 @@
 ;; fires via the generic drain (not a hand-rolled call) and that the boxed error's `to_edn()`
 ;; still tags `#wat.rete/MalformedClause` (dynamic dispatch through `Box<dyn
 ;; FreezeValidatorError>` preserves the concrete validator's own namespace).
-(:wat::core::defrecord :weather::Temperature [celsius <- wat.type/i64  location <- wat.type/String])
-(:wat::core::defrecord :alert::Unattended    [location <- wat.type/String])
-(:wat::rete::defrule :alert::unattended
+(wat.core/defrecord weather/Temperature [celsius :- wat.type/i64  location :- wat.type/String])
+(wat.core/defrecord alert/Unattended    [location :- wat.type/String])
+(wat.rete/defrule alert/unattended
   :when
-  [(:weather::Temperature :celsius (?loc :- :location) :location (?c :- :celsius))]
+  [(weather/Temperature :celsius (?loc :- :location) :location (?c :- :celsius))]
   :then
-  [(:alert::Unattended :location ?loc)])
+  [(alert/Unattended :location ?loc)])

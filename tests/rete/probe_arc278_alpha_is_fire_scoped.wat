@@ -5,57 +5,57 @@
 ;; `(> ?t 20)`), extended with a non-empty RHS (2b's rule had an empty :rhs, deriving nothing) so a
 ;; derived-fact differential exists alongside the alpha-key-count differential.
 
-(:wat::core::defrecord :afs::Temp [value <- wat.type/i64])
-(:wat::core::defrecord :afs::Hot  [value <- wat.type/i64])
+(wat.core/defrecord afs/Temp [value :- wat.type/i64])
+(wat.core/defrecord afs/Hot  [value :- wat.type/i64])
 
-(:wat::rete::defquery :afs::q-Hot
+(wat.rete/defquery afs/q-Hot
   :params []
-  :when [(?fact :- :afs::Hot)])
+  :when [(?fact :- afs/Hot)])
 
 
 ;; One condition, one matching fact (25) and one non-matching fact (15, fails > 20); RHS derives
 ;; :afs::Hot from the matching fact only.
-(:wat::core::defn :afs::built [] -> :wat::rete::Session
-  (:wat::core::let
-    [cond  (:wat::core::quote (:afs::Temp (?t :- :value) (:wat::rete::i64::> ?t 20)))
-     rhs1  (:wat::core::quote (:afs::Hot ?t))
-     rule  (:wat::rete::Rule :name "afs" :lhs (wat.type/PersistentVector :- [wat.type/AST] cond) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))
-     sess0 (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:afs::q-Hot))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     sess1 (:wat::core::match (:wat::rete::insert sess0 (:afs::Temp :value 25)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     sess2 (:wat::core::match (:wat::rete::insert sess1 (:afs::Temp :value 15)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])]
+(wat.core/defn afs/built [] :- wat.rete/Session
+  (wat.core/let
+    [cond  (wat.core/quote (afs/Temp (?t :- :value) (wat.rete.i64/> ?t 20)))
+     rhs1  (wat.core/quote (afs/Hot ?t))
+     rule  (wat.rete/Rule :name "afs" :lhs (wat.type/PersistentVector :- [wat.type/AST] cond) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs1))
+     sess0 (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] rule) (wat.type/PersistentVector :- [wat.rete/Query] (afs/q-Hot))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     sess1 (wat.core/match (wat.rete/insert sess0 (afs/Temp :value 25)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     sess2 (wat.core/match (wat.rete/insert sess1 (afs/Temp :value 15)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])]
     sess2))
 
 ;; (1) native-alpha-key-count — fired via native fixpoint `fire-rules`. Expect 0: the clear happened.
-(:wat::core::defn :user::native-alpha-key-count [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:wat::core::match (:wat::rete::fire-rules (:afs::built)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+(wat.core/defn user/native-alpha-key-count [] :- wat.type/i64
+  (wat.core/let
+    [fired (wat.core/match (wat.rete/fire-rules (afs/built)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
-     amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::keys amem))))
+     amem  (wat.rete.Session/alpha-memory fired)]
+    (wat.core/length (wat.core/keys amem))))
 
 ;; (2) oracle-alpha-key-count — fired via `fire-rules$oracle` (the wat ORACLE, never optimized). Expect
 ;; 0: `fire-stratified` returns alpha-memory empty (wat/rete/oracle/fire.wat:349) — asserted here, not assumed.
-(:wat::core::defn :user::oracle-alpha-key-count [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:wat::core::match (:wat::rete::fire-rules$oracle (:afs::built)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+(wat.core/defn user/oracle-alpha-key-count [] :- wat.type/i64
+  (wat.core/let
+    [fired (wat.core/match (wat.rete/fire-rules$oracle (afs/built)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
-     amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::keys amem))))
+     amem  (wat.rete.Session/alpha-memory fired)]
+    (wat.core/length (wat.core/keys amem))))
 
 ;; (4) single-pass-alpha-key-count — fired via native `fire-once` (single-pass). Expect > 0: THE
 ;; ANCHOR — proves this workload really does populate alpha, so (1)/(2)/(3) are not vacuously true
 ;; over a workload that matches nothing. `fire-once` is deliberately left untouched by this stone.
-(:wat::core::defn :user::single-pass-alpha-key-count [] -> wat.type/i64
-  (:wat::core::let
-    [fired (:wat::core::match (:wat::rete::fire-once (:afs::built)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-once: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-once: fixpoint round cap exceeded")])
+(wat.core/defn user/single-pass-alpha-key-count [] :- wat.type/i64
+  (wat.core/let
+    [fired (wat.core/match (wat.rete/fire-once (afs/built)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-once: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-once: fixpoint round cap exceeded")])
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
-     amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::keys amem))))
+     amem  (wat.rete.Session/alpha-memory fired)]
+    (wat.core/length (wat.core/keys amem))))
 
 ;; (5) native-derived-count / oracle-derived-count — the RESULT (production output), expected equal
 ;; and > 0: closing the alpha divergence must not move what fire actually derives.
-(:wat::core::defn :user::native-derived-count [] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:afs::built)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:afs::q-Hot))))
+(wat.core/defn user/native-derived-count [] :- wat.type/i64
+  (wat.core/length (wat.rete/query (wat.core/match (wat.rete/fire-rules (afs/built)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (afs/q-Hot))))
 
-(:wat::core::defn :user::oracle-derived-count [] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:afs::built)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:afs::q-Hot))))
+(wat.core/defn user/oracle-derived-count [] :- wat.type/i64
+  (wat.core/length (wat.rete/query (wat.core/match (wat.rete/fire-rules$oracle (afs/built)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (afs/q-Hot))))

@@ -8,7 +8,7 @@
 ;; This is the exact drift the RULING exists to eliminate, minted inside the campaign, by
 ;; the stone that added the alias field — and it appeared the instant an alias was allowed
 ;; to declare axes instead of inheriting them.
-(:wat::core::def :user::main
-  (:wat::core::fn [] -> wat.type/nil
-    (:wat::kernel::println (:wat::core::render-doc :wat::rete::i64::>))
-    (:wat::kernel::println (:wat::core::render-doc :wat::i64::>))))
+(wat.core/def user/main
+  (wat.core/fn [] :- wat.type/nil
+    (wat.kernel/println (wat.core/render-doc wat.rete.i64/>))
+    (wat.kernel/println (wat.core/render-doc wat.i64/>))))

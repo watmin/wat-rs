@@ -27,54 +27,54 @@
 ;; ROW 7 — `presence?`/`coincident?` are 2-arity, no `:undefined` marker.
 ;; ROW 9 — the i64/f64 Fallback quartets are unregressed by this strike.
 
-(:wat::core::defn :probe::run [] -> wat.type/nil
-  (:wat::core::let
-    [h     (:wat::holon::to-holon "some-atom")
-     other (:wat::holon::to-holon "an-entirely-different-atom")
-     zero  (:wat::holon::Blend h h 1.0 -1.0)
+(wat.core/defn probe/run [] :- wat.type/nil
+  (wat.core/let
+    [h     (wat.holon/to-holon "some-atom")
+     other (wat.holon/to-holon "an-entirely-different-atom")
+     zero  (wat.holon/Blend h h 1.0 -1.0)
 
      ;; ROW 2 — the seam: unwrapped scalar feeds :wat::rete::core::f64::> directly.
      row2-similar-above-0.9
-       (:wat::rete::f64::> (:wat::rete::holon::cosine h h :undefined 0.0) 0.9)
+       (wat.rete.f64/> (wat.rete.holon/cosine h h :undefined 0.0) 0.9)
 
      ;; ROW 5 — the happy payload as a bare f64 (row 2 already proves it composes
      ;; with f64::>; this captures the raw value too).
-     row5-happy-scalar (:wat::rete::holon::cosine h h :undefined 0.0)
+     row5-happy-scalar (wat.rete.holon/cosine h h :undefined 0.0)
 
      ;; ROW 3 — degenerate operand, fallback fires (not a fabricated 0.0).
-     row3-degenerate-fallback (:wat::rete::holon::cosine zero other :undefined -1.0)
+     row3-degenerate-fallback (wat.rete.holon/cosine zero other :undefined -1.0)
 
      ;; ROW 4 — SAME degenerate expression, two different fallback constants.
-     row4-run-a (:wat::rete::holon::cosine zero other :undefined -1.0)
-     row4-run-b (:wat::rete::holon::cosine zero other :undefined 7.0)
+     row4-run-a (wat.rete.holon/cosine zero other :undefined -1.0)
+     row4-run-b (wat.rete.holon/cosine zero other :undefined 7.0)
 
      ;; ROW 6 — dot: happy path unwraps Computed.product; degenerate dot is still
      ;; an HONEST 0.0 by DEFINITION (dot has no Degenerate arm) — this call exists
      ;; only to prove `dot`'s Fallback arm doesn't misfire on the same zero operand
      ;; cosine treats as degenerate, taking the REAL computed 0.0, not the fallback.
-     row6-dot-happy      (:wat::rete::holon::dot h h :undefined -999.0)
-     row6-dot-zero-honest (:wat::rete::holon::dot zero other :undefined -999.0)
+     row6-dot-happy      (wat.rete.holon/dot h h :undefined -999.0)
+     row6-dot-zero-honest (wat.rete.holon/dot zero other :undefined -999.0)
 
      ;; ROW 7 — predicates need no marker: 2-arity, bool.
-     row7-presence   (:wat::rete::holon::presence? h h)
-     row7-coincident (:wat::rete::holon::coincident? h h)
+     row7-presence   (wat.rete.holon/presence? h h)
+     row7-coincident (wat.rete.holon/coincident? h h)
 
      ;; ROW 9 — i64/f64 fallback quartets unregressed.
-     row9-i64-div (:wat::rete::i64::/ 1 0 :undefined -1)
-     row9-f64-div (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)]
+     row9-i64-div (wat.rete.i64// 1 0 :undefined -1)
+     row9-f64-div (wat.rete.f64// 0.0 0.0 :undefined -1.0)]
 
-    (:wat::core::do
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row2-similar-above-0.9 row2-similar-above-0.9))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row5-happy-scalar row5-happy-scalar))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row3-degenerate-fallback row3-degenerate-fallback))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-a row4-run-a))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-b row4-run-b))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-happy row6-dot-happy))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-zero-honest row6-dot-zero-honest))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-presence row7-presence))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-coincident row7-coincident))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row9-i64-div row9-i64-div))
-      (:wat::kernel::println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row9-f64-div row9-f64-div)))))
+    (wat.core/do
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row2-similar-above-0.9 row2-similar-above-0.9))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row5-happy-scalar row5-happy-scalar))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row3-degenerate-fallback row3-degenerate-fallback))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-a row4-run-a))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row4-run-b row4-run-b))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-happy row6-dot-happy))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row6-dot-zero-honest row6-dot-zero-honest))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-presence row7-presence))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :row7-coincident row7-coincident))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :row9-i64-div row9-i64-div))
+      (wat.kernel/println (wat.type/PersistentMap :- [wat.type/keyword wat.type/f64] :row9-f64-div row9-f64-div)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:probe::run))
+(wat.core/defn user/main [] :- wat.type/nil
+  (probe/run))

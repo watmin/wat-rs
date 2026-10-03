@@ -28,73 +28,73 @@
 ;; not on the wire.
 
 ;; ── the surface: parametric (arc 170 C2 — a shipped capability), messages bare ──────────────
-(:wat::core::defsurface :wat-tests::Box :- [T] :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/Box :- [T] :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::Box::PutRequest [item <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::Box::PutResponse :wat::enum::Pure
+  [(wat.core/defrecord wat-tests.Box/PutRequest [item :- wat.type/i64])
+   (wat.core/defenum wat-tests.Box/PutResponse wat.enum/Pure
      ;; `echo` carries the handler's answer back so the round-trip asserts a VALUE, not just
      ;; "no crash": item + 1 when the generic durable holds something, item + 0 when empty.
-     :Ok              [echo <- wat.type/i64]
+     :Ok              [echo :- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- (:wat-tests::Box :- [T])  req <- :wat-tests::Box::PutRequest]
-     -> :wat-tests::Box::PutResponse :max-request-bytes 1024)])
+  [(put [self :- (wat-tests/Box :- [T])  req :- wat-tests.Box/PutRequest]
+     :- wat-tests.Box/PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
 ;; `held <- (Option :- [T])` is the whole point: the durable record — and therefore ::State, ::Admin,
 ;; ::Status and ::Handle, each of which carries it — is generic in T.
-(:wat::service::defservice :wat-tests::box-svc :- [T]
-  :satisfies (:wat-tests::Box :- [T])
-  :durable   [held <- (:wat::core::Option :- [T])]
+(wat.service/defservice wat-tests/box-svc :- [T]
+  :satisfies (wat-tests/Box :- [T])
+  :durable   [held :- (wat.core/Option :- [T])]
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat-tests::Box::PutResponse.Ok
-         {:echo (:wat::i64::+
-           (:wat-tests::Box::PutRequest/item req)
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat-tests.Box/PutResponse.Ok
+         {:echo (wat.i64/+
+           (wat-tests.Box.PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
-           (:wat::core::match
-               (:wat-tests::box-svc::Record/held (:wat-tests::box-svc::State/durable s))
-             [:wat::core::Option.Some {:value v} 1]
-             [:wat::core::Option.None {} 0]))})}))])
+           (wat.core/match
+               (wat-tests.box-svc.Record/held (wat-tests.box-svc.State/durable s))
+             [wat.core/Option.Some {:value v} 1]
+             [wat.core/Option.None {} 0]))})}))])
 
 ;; ── the gate: stand it up on the thread locus and round-trip one call ───────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)` — the generic
 ;; service is instantiated exactly the way a caller instantiates any other generic fn.
 ;; Expected: item 7 + 1 (durable is `Some`) = 8.
-(:wat::test::deftest :wat-tests::service::parametric-round-trip-on-thread
+(wat.test/deftest wat-tests.service/parametric-round-trip-on-thread
 
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::box-svc/start :locus (:wat::spawn::thread)
-           :record (:wat-tests::box-svc::Record :held (:wat::core::Option.Some {:value 42})))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::box-svc::Handle/addr h))
-           [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-           [:wat::kernel::ConnectOutcome.Closed {:cause c}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-           [:wat::kernel::ConnectOutcome.Undialable {:cause c}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-           [:wat::kernel::ConnectOutcome.Failed {:cause c}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       r (:wat-tests::box-svc/put c (:wat-tests::Box::PutRequest :item 7))]
-      (:wat::core::match r
-        [:wat::kernel::RecvOutcome.Message {:msg __recv}
-          (:wat::core::match __recv
-            [:wat-tests::Box::PutResponse.Ok {:echo echo} echo]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.box-svc/start :locus (wat.spawn/thread)
+           :record (wat-tests.box-svc/Record :held (wat.core/Option.Some {:value 42})))
+       c (wat.core/match (wat.kernel/connect (wat-tests.box-svc.Handle/addr h))
+           [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+           [wat.kernel/ConnectOutcome.Closed {:cause c}
+             (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+           [wat.kernel/ConnectOutcome.Undialable {:cause c}
+             (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c}
+             (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+           [wat.kernel/ConnectOutcome.Failed {:cause c}
+             (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       r (wat-tests.box-svc/put c (wat-tests.Box/PutRequest :item 7))]
+      (wat.core/match r
+        [wat.kernel/RecvOutcome.Message {:msg __recv}
+          (wat.core/match __recv
+            [wat-tests.Box/PutResponse.Ok {:echo echo} echo]
             ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-            [:wat-tests::Box::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-              (:wat::kernel::assertion-failed! :message "box-svc put: unexpected RequestTooLarge")]
-            [:wat-tests::Box::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-              (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-        [:wat::kernel::RecvOutcome.Lost {:cause __cause}
-          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-        [:wat::kernel::RecvOutcome.Stopped {}
-          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome.Closed {}
-          (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+            [wat-tests.Box/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+              (wat.kernel/assertion-failed! :message "box-svc put: unexpected RequestTooLarge")]
+            [wat-tests.Box/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+              (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+        [wat.kernel/RecvOutcome.Lost {:cause __cause}
+          (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))]
+        [wat.kernel/RecvOutcome.Stopped {}
+          (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+        [wat.kernel/RecvOutcome.Closed {}
+          (wat.kernel/assertion-failed! :message "recv': peer closed")]))
     8))

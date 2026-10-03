@@ -7,64 +7,64 @@
 ;;   (3) heterogeneous DEDUCTIONS collect into a (Vector :Value): a Hot AND a Warn in one (PV :- [Value])
 ;;       (the reply-wire carrier the caller, holding the defs, matches back).
 
-(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
+(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot  [c :- wat.type/i64])
+(wat.core/defrecord usr/Warn [c :- wat.type/i64])
 
-(:wat::rete::defrule :usr::hot-rule
-  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-  :then [(:usr::Hot :c ?c)])
+(wat.rete/defrule usr/hot-rule
+  :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+  :then [(usr/Hot :c ?c)])
 
-(:wat::rete::defrule :usr::warn-rule
-  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-  :then [(:usr::Warn :c ?c)])
+(wat.rete/defrule usr/warn-rule
+  :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+  :then [(usr/Warn :c ?c)])
 
-(:wat::rete::defquery :usr::q-Hot
+(wat.rete/defquery usr/q-Hot
   :params []
-  :when [(?fact :- :usr::Hot)])
+  :when [(?fact :- usr/Hot)])
 
 
-(:wat::rete::defquery :usr::q-Warn
+(wat.rete/defquery usr/q-Warn
   :params []
-  :when [(?fact :- :usr::Warn)])
+  :when [(?fact :- usr/Warn)])
 
 
 ;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a (PV :- [Value])
 ;; (Hot's + Warn's — heterogeneous, up-cast to the universal top :wat::core::Value).
-(:wat::core::defn :usr::deduce-one
-  [template <- :wat::rete::Session  seed <- :usr::Temp]
-  -> (wat.type/PersistentVector :- [wat.type/Value])
-  (:wat::core::let
-    [fired (:wat::core::match (:wat::rete::fire-rules (:wat::core::match (:wat::rete::insert template seed) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     hots  (:wat::rete::query fired (:usr::q-Hot))
-     warns (:wat::rete::query fired (:usr::q-Warn))
-     acc0  (:wat::core::foldl
-             (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Value])  p <- wat.type/PersistentMap]
-               -> (wat.type/PersistentVector :- [wat.type/Value])
-               (:wat::core::conj a
-                 (:wat::core::Option/expect
-                   (:wat::core::get p "?fact")
+(wat.core/defn usr/deduce-one
+  [template :- wat.rete/Session  seed :- usr/Temp]
+  :- (wat.type/PersistentVector :- [wat.type/Value])
+  (wat.core/let
+    [fired (wat.core/match (wat.rete/fire-rules (wat.core/match (wat.rete/insert template seed) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     hots  (wat.rete/query fired (usr/q-Hot))
+     warns (wat.rete/query fired (usr/q-Warn))
+     acc0  (wat.core/foldl
+             (wat.core/fn [a :- (wat.type/PersistentVector :- [wat.type/Value])  p :- wat.type/PersistentMap]
+               :- (wat.type/PersistentVector :- [wat.type/Value])
+               (wat.core/conj a
+                 (wat.core.Option/expect
+                   (wat.core/get p "?fact")
                    "q-Hot: ?fact")))
              (wat.type/PersistentVector :- [wat.type/Value])
              hots)]
-    (:wat::core::foldl
-      (:wat::core::fn [a <- (wat.type/PersistentVector :- [wat.type/Value])  p <- wat.type/PersistentMap]
-        -> (wat.type/PersistentVector :- [wat.type/Value])
-        (:wat::core::conj a
-          (:wat::core::Option/expect
-            (:wat::core::get p "?fact")
+    (wat.core/foldl
+      (wat.core/fn [a :- (wat.type/PersistentVector :- [wat.type/Value])  p :- wat.type/PersistentMap]
+        :- (wat.type/PersistentVector :- [wat.type/Value])
+        (wat.core/conj a
+          (wat.core.Option/expect
+            (wat.core/get p "?fact")
             "q-Warn: ?fact")))
       acc0
       warns)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules    (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::hot-rule) (:usr::warn-rule))
-     template (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     hot      (:usr::deduce-one template (:usr::Temp :c 60))   ;; expect 2 deductions (Hot + Warn)
-     cold     (:usr::deduce-one template (:usr::Temp :c 10))   ;; expect 0 (below threshold)
-     total    (:wat::core::+ (:wat::core::length hot) (:wat::core::length cold))]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::string::concat "hot="   (:wat::core::str (:wat::core::length hot))))
-      (:wat::kernel::println (:wat::string::concat "cold="  (:wat::core::str (:wat::core::length cold))))
-      (:wat::kernel::println (:wat::string::concat "total=" (:wat::core::str total))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules    (wat.type/PersistentVector :- [wat.rete/Rule] (usr/hot-rule) (usr/warn-rule))
+     template (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (usr/q-Hot) (usr/q-Warn))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     hot      (usr/deduce-one template (usr/Temp :c 60))   ;; expect 2 deductions (Hot + Warn)
+     cold     (usr/deduce-one template (usr/Temp :c 10))   ;; expect 0 (below threshold)
+     total    (wat.core/+ (wat.core/length hot) (wat.core/length cold))]
+    (wat.core/do
+      (wat.kernel/println (wat.string/concat "hot="   (wat.core/str (wat.core/length hot))))
+      (wat.kernel/println (wat.string/concat "cold="  (wat.core/str (wat.core/length cold))))
+      (wat.kernel/println (wat.string/concat "total=" (wat.core/str total))))))

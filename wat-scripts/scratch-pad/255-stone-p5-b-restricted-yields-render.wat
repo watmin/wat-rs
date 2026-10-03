@@ -29,9 +29,9 @@
 ;;   program has to reflect on one. That is the argument FOR a sanctioned reflective path
 ;;   (option B), not against closing the hole. See
 ;;   NOTE-restricted-call-fires-on-mention-not-call.md.
-(:wat::core::def :user::thread-doc (:wat::core::render-doc :wat::kernel::spawn-thread))
-(:wat::core::def :user::process-doc (:wat::core::render-doc :wat::kernel::spawn-process))
+(wat.core/def user/thread-doc (wat.core/render-doc wat.kernel/spawn-thread))
+(wat.core/def user/process-doc (wat.core/render-doc wat.kernel/spawn-process))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println :user::thread-doc)
-  (:wat::kernel::println :user::process-doc))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println user/thread-doc)
+  (wat.kernel/println user/process-doc))

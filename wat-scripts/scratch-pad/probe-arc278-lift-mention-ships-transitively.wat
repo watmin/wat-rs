@@ -12,52 +12,52 @@
 ;;   MENTION-DEEP — lifted fn calls a fn that calls a fn → TWO levels of transitivity
 ;; MENTION-1 == PC means transitive collection works and ONE mention suffices.
 
-(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
+(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot  [c :- wat.type/i64])
 
 ;; the leaf helper
-(:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::> n 100))
+(wat.rete.core/defn usr/big? [n :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/> n 100))
 
 ;; a MIDDLE fn that calls the leaf — this is what a lifted where-body looks like
-(:wat::rete::core::defn :usr::ok-rule$where0 [?c :- wat.type/i64] -> wat.type/bool
-  (:usr::big? ?c))
+(wat.rete.core/defn usr/ok-rule$where0 [?c :- wat.type/i64] :- wat.type/bool
+  (usr/big? ?c))
 
 ;; ── PC — everything in ordinary call position: the CEILING ──────────────────
-(:wat::core::defn :usr::pc [] -> wat.type/bool
-  (:usr::ok-rule$where0 150))
+(wat.core/defn usr/pc [] :- wat.type/bool
+  (usr/ok-rule$where0 150))
 
 ;; ── BASE — the shape defrule emits today: names live only inside the quote ──
-(:wat::core::defn :usr::rule-base [] -> :wat::rete::Rule
-  (:wat::rete::make-rule "usr::rule-base"
-    (:wat::core::quote [(:usr::Temp (?c :- :c))
-                        (:wat::rete::where (:usr::ok-rule$where0 ?c))])
-    (:wat::core::quote [(:usr::Hot :c ?c)])))
+(wat.core/defn usr/rule-base [] :- wat.rete/Rule
+  (wat.rete/make-rule "usr::rule-base"
+    (wat.core/quote [(usr/Temp (?c :- :c))
+                        (wat.rete/where (usr/ok-rule$where0 ?c))])
+    (wat.core/quote [(usr/Hot :c ?c)])))
 
 ;; ── MENTION-1 — identical, plus ONE mention of the LIFTED fn ────────────────
-(:wat::core::defn :usr::rule-mentioned [] -> :wat::rete::Rule
-  (:wat::core::let [$where0 :usr::ok-rule$where0]
-    (:wat::rete::make-rule "usr::rule-mentioned"
-      (:wat::core::quote [(:usr::Temp (?c :- :c))
-                          (:wat::rete::where (:usr::ok-rule$where0 ?c))])
-      (:wat::core::quote [(:usr::Hot :c ?c)]))))
+(wat.core/defn usr/rule-mentioned [] :- wat.rete/Rule
+  (wat.core/let [$where0 usr/ok-rule$where0]
+    (wat.rete/make-rule "usr::rule-mentioned"
+      (wat.core/quote [(usr/Temp (?c :- :c))
+                          (wat.rete/where (usr/ok-rule$where0 ?c))])
+      (wat.core/quote [(usr/Hot :c ?c)]))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [pc (:wat::kernel::fn-forms :usr::pc
-          (:wat::keyword::from-string "user::root-pc"))
-     _p (:wat::kernel::println
-          (:wat::string::concat "PC        (both in call position) forms="
-            (:wat::i64::to-string (:wat::core::length pc))))
-     bs (:wat::kernel::fn-forms :usr::rule-base
-          (:wat::keyword::from-string "user::root-bs"))
-     _b (:wat::kernel::println
-          (:wat::string::concat "BASE      (quote only)            forms="
-            (:wat::i64::to-string (:wat::core::length bs))))
-     mn (:wat::kernel::fn-forms :usr::rule-mentioned
-          (:wat::keyword::from-string "user::root-mn"))
-     _m (:wat::kernel::println
-          (:wat::string::concat "MENTION-1 (one mention of $where0) forms="
-            (:wat::i64::to-string (:wat::core::length mn))))]
-    (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [pc (wat.kernel/fn-forms usr/pc
+          (wat.keyword/from-string "user::root-pc"))
+     _p (wat.kernel/println
+          (wat.string/concat "PC        (both in call position) forms="
+            (wat.i64/to-string (wat.core/length pc))))
+     bs (wat.kernel/fn-forms usr/rule-base
+          (wat.keyword/from-string "user::root-bs"))
+     _b (wat.kernel/println
+          (wat.string/concat "BASE      (quote only)            forms="
+            (wat.i64/to-string (wat.core/length bs))))
+     mn (wat.kernel/fn-forms usr/rule-mentioned
+          (wat.keyword/from-string "user::root-mn"))
+     _m (wat.kernel/println
+          (wat.string/concat "MENTION-1 (one mention of $where0) forms="
+            (wat.i64/to-string (wat.core/length mn))))]
+    (wat.kernel/println
       "MENTION-1 == PC => transitive; ONE mention ships the whole chain")))

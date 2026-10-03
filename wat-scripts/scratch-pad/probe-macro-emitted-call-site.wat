@@ -27,16 +27,16 @@
 ;;   PASS: both report THEIR OWN caller line in main (30 and 31), and they DIFFER.
 ;;   FAIL: both report this file's macro-definition line, identical — the constant label.
 
-(:wat::core::defn :probe::inner [] -> :wat::kernel::Frame
-  (:wat::core::let
-    [origin (:wat::kernel::call-site)]
+(wat.core/defn probe/inner [] :- wat.kernel/Frame
+  (wat.core/let
+    [origin (wat.kernel/call-site)]
     origin))
 
 ;; the macro EMITS the call to :probe::inner — mirroring bracket-map emitting (map-worker …)
-(:wat::core::defmacro :probe::emit-call [] -> wat.type/AST
-  `(:probe::inner))
+(wat.core/defmacro probe/emit-call [] :- wat.type/AST
+  `(probe/inner))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:probe::emit-call))
-    (:wat::kernel::println (:probe::emit-call))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (probe/emit-call))
+    (wat.kernel/println (probe/emit-call))))

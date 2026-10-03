@@ -9,11 +9,11 @@
 ;; GREEN after K0c: position 0 (self) is SKIPPED in the method arg-type comparison — self is the
 ;; receiver, tautologically the surface; it must never be re-checked.
 
-(:wat::core::defsurface :se::Named :nature wat.type/Record
-  :features [(name [self <- :se::Named] -> wat.type/String)])
+(wat.core/defsurface se/Named :nature wat.type/Record
+  :features [(name [self :- se/Named] :- wat.type/String)])
 
-(:wat::core::defrecord :se::Person [name <- wat.type/String])   ; the `name` field accessor backs the method member
+(wat.core/defrecord se/Person [name :- wat.type/String])   ; the `name` field accessor backs the method member
 
-(:wat::core::defn :se::greet [x <- :se::Named] -> wat.type/String (:se::Named/name x))
+(wat.core/defn se/greet [x :- se/Named] :- wat.type/String (se.Named/name x))
 
-(:wat::core::defn :se::demo [] -> wat.type/String (:se::greet (:se::Person :name "bob")))
+(wat.core/defn se/demo [] :- wat.type/String (se/greet (se/Person :name "bob")))

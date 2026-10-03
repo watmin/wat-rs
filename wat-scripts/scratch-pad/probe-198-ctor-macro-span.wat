@@ -2,39 +2,39 @@
 ;; kwargs-construct companion macro actually emits for `(:my::Token 7)`, node by node,
 ;; via macroexpand + ast-span/ast-end-span (never executed as real code, so the
 ;; restriction check never fires — this is pure introspection of the expansion).
-(:wat::core::defstruct :my::Token
-  {:restricted-to [:my::issuer::]}
-  [id <- wat.type/i64])
+(wat.core/defstruct my/Token
+  {:restricted-to [my.issuer]}
+  [id :- wat.type/i64])
 
-(:wat::core::defn :probe::pos-str [p <- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] -> wat.type/String
-  (:wat::string::concat "l" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::get p :line) "line"))
-    ":c" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::get p :col) "col"))))
+(wat.core/defn probe/pos-str [p :- (wat.type/HashMap :- [wat.type/keyword wat.type/i64])] :- wat.type/String
+  (wat.string/concat "l" (wat.i64/to-string (wat.core.Option/expect (wat.core/get p :line) "line"))
+    ":c" (wat.i64/to-string (wat.core.Option/expect (wat.core/get p :col) "col"))))
 
-(:wat::core::defn :probe::dump-children [kids <- (wat.type/Vector :- [wat.type/AST]) i <- wat.type/i64 depth <- wat.type/i64] -> wat.type/nil
-  (:wat::core::match (:wat::core::get kids i)
-    [:wat::core::Option.Some {:value c} (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth))]
-    [:wat::core::Option.None {} nil]))
+(wat.core/defn probe/dump-children [kids :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64 depth :- wat.type/i64] :- wat.type/nil
+  (wat.core/match (wat.core/get kids i)
+    [wat.core/Option.Some {:value c} (wat.core/do (probe/dump c depth) (probe/dump-children kids (wat.core/+ i 1) depth))]
+    [wat.core/Option.None {} nil]))
 
-(:wat::core::defn :probe::dump [node <- wat.type/AST depth <- wat.type/i64] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println
-      (:wat::string::concat "depth=" (:wat::i64::to-string depth)
-        " kind=" (:wat::core::ast-kind node)
-        " form=" (:wat::core::ast->source node)
-        "  span=[" (:probe::pos-str (:wat::core::ast-span node))
-        " .. " (:probe::pos-str (:wat::core::ast-end-span node))
+(wat.core/defn probe/dump [node :- wat.type/AST depth :- wat.type/i64] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println
+      (wat.string/concat "depth=" (wat.i64/to-string depth)
+        " kind=" (wat.core/ast-kind node)
+        " form=" (wat.core/ast->source node)
+        "  span=[" (probe/pos-str (wat.core/ast-span node))
+        " .. " (probe/pos-str (wat.core/ast-end-span node))
         "]"))
-    (:probe::dump-children (:wat::core::ast->children node) 0 (:wat::core::+ depth 1))))
+    (probe/dump-children (wat.core/ast->children node) 0 (wat.core/+ depth 1))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [forms (:wat::core::match (:wat::core::read-string "(:my::Token 7)")
-              [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-              [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     form (:wat::core::first forms)
-     exp  (:wat::core::macroexpand form)]
-    (:wat::core::do
-      (:wat::kernel::println "==== ORIGINAL FORM ====")
-      (:probe::dump form 0)
-      (:wat::kernel::println "==== EXPANDED FORM ====")
-      (:probe::dump exp 0))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [forms (wat.core/match (wat.core/read-string "(:my::Token 7)")
+              [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+              [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     form (wat.core/first forms)
+     exp  (wat.core/macroexpand form)]
+    (wat.core/do
+      (wat.kernel/println "==== ORIGINAL FORM ====")
+      (probe/dump form 0)
+      (wat.kernel/println "==== EXPANDED FORM ====")
+      (probe/dump exp 0))))

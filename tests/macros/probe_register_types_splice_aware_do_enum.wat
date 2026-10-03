@@ -1,6 +1,6 @@
-(:wat::core::do
-  (:wat::core::defenum :diag::Color :wat::enum::Pure
+(wat.core/do
+  (wat.core/defenum diag/Color wat.enum/Pure
     :Red
     :Green
     :Blue)
-  (:wat::core::defn :diag::something [] -> wat.type/i64 42))
+  (wat.core/defn diag/something [] :- wat.type/i64 42))

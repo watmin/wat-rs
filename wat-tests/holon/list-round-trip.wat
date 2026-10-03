@@ -6,69 +6,69 @@
 
 ;; ─── 1: List/of and List/length ────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::list-of-length
+(wat.test/deftest wat-tests.holon.list-round-trip/list-of-length
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 1 2 3)
-     n  (:wat::core::length xs)]
-    (:wat::test::assert-eq n 3)))
+     n  (wat.core/length xs)]
+    (wat.test/assert-eq n 3)))
 
 ;; ─── 2: Empty list ─────────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::empty-list
+(wat.test/deftest wat-tests.holon.list-round-trip/empty-list
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64])]
-    (:wat::test::assert-eq (:wat::core::empty? xs) true)))
+    (wat.test/assert-eq (wat.core/empty? xs) true)))
 
 ;; ─── 3: List/empty? false ─────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::nonempty-list-not-empty
+(wat.test/deftest wat-tests.holon.list-round-trip/nonempty-list-not-empty
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 1)]
-    (:wat::test::assert-eq (:wat::core::empty? xs) false)))
+    (wat.test/assert-eq (wat.core/empty? xs) false)))
 
 ;; ─── 4: List/contains? found ─────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::contains-found
+(wat.test/deftest wat-tests.holon.list-round-trip/contains-found
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 1 2 3)]
-    (:wat::test::assert-eq (:wat::core::contains? xs 2) true)))
+    (wat.test/assert-eq (wat.core/contains? xs 2) true)))
 
 ;; ─── 5: List/contains? not found ─────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::contains-not-found
+(wat.test/deftest wat-tests.holon.list-round-trip/contains-not-found
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 1 2 3)]
-    (:wat::test::assert-eq (:wat::core::contains? xs 99) false)))
+    (wat.test/assert-eq (wat.core/contains? xs 99) false)))
 
 ;; ─── 6: rest length ────────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::rest-length
+(wat.test/deftest wat-tests.holon.list-round-trip/rest-length
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 1 2 3)
-     tl (:wat::core::rest xs)]
-    (:wat::test::assert-eq (:wat::core::length tl) 2)))
+     tl (wat.core/rest xs)]
+    (wat.test/assert-eq (wat.core/length tl) 2)))
 
 ;; ─── 7: conj prepends — length increases ──────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::conj-length
+(wat.test/deftest wat-tests.holon.list-round-trip/conj-length
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/List :- [wat.type/i64] 2 3)
-     ys (:wat::core::conj xs 1)]
-    (:wat::test::assert-eq (:wat::core::length ys) 3)))
+     ys (wat.core/conj xs 1)]
+    (wat.test/assert-eq (wat.core/length ys) 3)))
 
 ;; ─── 8: same-type equality List == List (same contents) ─────────────────
 
-(:wat::test::deftest :wat-tests::holon::list-round-trip::list-eq-vector
+(wat.test/deftest wat-tests.holon.list-round-trip/list-eq-vector
   
-  (:wat::core::let
+  (wat.core/let
     [lst  (wat.type/List :- [wat.type/i64] 1 2 3)
      lst2 (wat.type/List :- [wat.type/i64] 1 2 3)
-     eq   (:wat::core::= lst lst2)]
-    (:wat::test::assert-eq eq true)))
+     eq   (wat.core/= lst lst2)]
+    (wat.test/assert-eq eq true)))

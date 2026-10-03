@@ -6,34 +6,34 @@
 ;; unrelated reason — "it refused" is also what a broken fixture looks like. This one must COMPILE
 ;; AND FIRE, and it prints the number of derived facts so a silent no-match cannot pass either.
 
-(:wat::core::defrecord :fso::Src   [k <- wat.type/i64])
-(:wat::core::defrecord :fso::Inner [x <- wat.type/i64])
-(:wat::core::defrecord :fso::Outer [k <- wat.type/i64  inner <- :fso::Inner])
+(wat.core/defrecord fso/Src   [k :- wat.type/i64])
+(wat.core/defrecord fso/Inner [x :- wat.type/i64])
+(wat.core/defrecord fso/Outer [k :- wat.type/i64  inner :- fso/Inner])
 
-(:wat::rete::defrule :fso::r
-  :when [(:fso::Src (?k :- :k) (?b :- :k) (:wat::rete::i64::= :k 5))]
-  :then [(:fso::Outer :k ?k :inner (:fso::Inner :x ?b))])
+(wat.rete/defrule fso/r
+  :when [(fso/Src (?k :- :k) (?b :- :k) (wat.rete.i64/= :k 5))]
+  :then [(fso/Outer :k ?k :inner (fso/Inner :x ?b))])
 
-(:wat::rete::defquery :fso::q :params [] :when [(?f :- :fso::Outer)])
+(wat.rete/defquery fso/q :params [] :when [(?f :- fso/Outer)])
 
-(:wat::core::defn :fso::fire [] -> wat.type/i64
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :fso) (wat.type/PersistentVector :- [:wat::rete::Query] (:fso::q)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-            (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:fso::Src :k 5))
-          [:wat::rete::InsertOutcome.Inserted {:session __st} __st]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
-            (:wat::kernel::assertion-failed! :message "insert: ceiling")])]
-    (:wat::core::length (:wat::rete::query
-      (:wat::core::match (:wat::rete::fire-rules s1)
-        [:wat::rete::FireOutcome.Fired {:value __f} __f]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
-          (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-          (:wat::kernel::assertion-failed! :message "fire: round cap")])
-      (:fso::q)))))
+(wat.core/defn fso/fire [] :- wat.type/i64
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :fso) (wat.type/PersistentVector :- [wat.rete/Query] (fso/q)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+            (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+     s1 (wat.core/match (wat.rete/insert s0 (fso/Src :k 5))
+          [wat.rete/InsertOutcome.Inserted {:session __st} __st]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
+            (wat.kernel/assertion-failed! :message "insert: ceiling")])]
+    (wat.core/length (wat.rete/query
+      (wat.core/match (wat.rete/fire-rules s1)
+        [wat.rete/FireOutcome.Fired {:value __f} __f]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
+          (wat.kernel/assertion-failed! :message "fire: ceiling")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+          (wat.kernel/assertion-failed! :message "fire: round cap")])
+      (fso/q)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:fso::fire)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (fso/fire)))

@@ -9,101 +9,101 @@
 ;;
 ;; Prove the miss before fixing the join rematch.
 
-(:wat::core::defrecord :wjl::Temp [c <- wat.type/i64 loc <- wat.type/String])
-(:wat::core::defrecord :wjl::Wind [kph <- wat.type/i64 loc <- wat.type/String])
-(:wat::core::defrecord :wjl::Hit  [loc <- wat.type/String])
+(wat.core/defrecord wjl/Temp [c :- wat.type/i64 loc :- wat.type/String])
+(wat.core/defrecord wjl/Wind [kph :- wat.type/i64 loc :- wat.type/String])
+(wat.core/defrecord wjl/Hit  [loc :- wat.type/String])
 
 ;; THE HOLE — leftover `?c` lives on the Wind cond, not in a :where.
-(:wat::rete::defrule :wjl::wind-above-temp-inline
+(wat.rete/defrule wjl/wind-above-temp-inline
   :when
-  [(:wjl::Temp (?loc :- :loc) (?c :- :c))
-   (:wjl::Wind (?loc :- :loc) (?w :- :kph)
-     (:wat::rete::i64::> ?w ?c))]
+  [(wjl/Temp (?loc :- :loc) (?c :- :c))
+   (wjl/Wind (?loc :- :loc) (?w :- :kph)
+     (wat.rete.i64/> ?w ?c))]
   :then
-  [(:wjl::Hit :loc ?loc)])
+  [(wjl/Hit :loc ?loc)])
 
 ;; CONTROL — same predicate, TestNode after the join. Both engines honor this.
-(:wat::rete::defrule :wjl::wind-above-temp-where
+(wat.rete/defrule wjl/wind-above-temp-where
   :when
-  [(:wjl::Temp (?loc :- :loc) (?c :- :c))
-   (:wjl::Wind (?loc :- :loc) (?w :- :kph))
-   (:wat::rete::where (:wat::rete::i64::> ?w ?c))]
+  [(wjl/Temp (?loc :- :loc) (?c :- :c))
+   (wjl/Wind (?loc :- :loc) (?w :- :kph))
+   (wat.rete/where (wat.rete.i64/> ?w ?c))]
   :then
-  [(:wjl::Hit :loc ?loc)])
+  [(wjl/Hit :loc ?loc)])
 
-(:wat::rete::defquery :wjl::q-Hit
+(wat.rete/defquery wjl/q-Hit
   :params []
-  :when [(?fact :- :wjl::Hit)])
+  :when [(?fact :- wjl/Hit)])
 
-(:wat::core::defn :wjl::n-hit [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query s (:wjl::q-Hit))))
+(wat.core/defn wjl/n-hit [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (wat.rete/query s (wjl/q-Hit))))
 
-(:wat::core::defn :wjl::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn wjl/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
-(:wat::core::defn :wjl::run [rule <- :wat::rete::Rule] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all
-    (wat.type/PersistentVector :- [:wat::rete::Rule] rule)
-    (wat.type/PersistentVector :- [:wat::rete::Query] (:wjl::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn wjl/run [rule :- wat.rete/Rule] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all
+    (wat.type/PersistentVector :- [wat.rete/Rule] rule)
+    (wat.type/PersistentVector :- [wat.rete/Query] (wjl/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [inline (:wjl::run (:wjl::wind-above-temp-inline))
-                    where  (:wjl::run (:wjl::wind-above-temp-where))]
-    (:wjl::line 1 "empty-inline"
-      (:wjl::n-hit (:wat::core::match (:wat::rete::fire-rules inline) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:wjl::line 2 "temp-only-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline (:wjl::Temp :c 10 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:wjl::line 3 "wind-only-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline (:wjl::Wind :kph 20 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [inline (wjl/run (wjl/wind-above-temp-inline))
+                    where  (wjl/run (wjl/wind-above-temp-where))]
+    (wjl/line 1 "empty-inline"
+      (wjl/n-hit (wat.core/match (wat.rete/fire-rules inline) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 2 "temp-only-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline (wjl/Temp :c 10 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 3 "wind-only-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline (wjl/Wind :kph 20 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     ;; Clara 0 — wind is not above temp. Wat must print 0 to be in parity.
-    (:wjl::line 4 "below-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 5 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 4 "below-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 5 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     ;; Clara 1 — 20 > 10. Wat must print 1 to be in parity.
-    (:wjl::line 5 "above-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 20 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 5 "above-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 20 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     ;; Clara 0 — equal is not >.
-    (:wjl::line 6 "equal-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 10 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 6 "equal-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 10 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     ;; CONTROL: same facts as 4 / 5, predicate in a :where. Both engines.
-    (:wjl::line 7 "below-where"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert where
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 5 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
-    (:wjl::line 8 "above-where"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert where
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 20 :loc "MCI")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 7 "below-where"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert where
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 5 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
+    (wjl/line 8 "above-where"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert where
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 20 :loc "MCI")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))
     ;; Clara 1 — only MCI is above; ORD is below.
-    (:wjl::line 9 "two-locs-inline"
-      (:wjl::n-hit
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert inline
-            (:wjl::Temp :c 10 :loc "MCI")
-            (:wjl::Wind :kph 20 :loc "MCI")
-            (:wjl::Temp :c 10 :loc "ORD")
-            (:wjl::Wind :kph 5 :loc "ORD")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))
+    (wjl/line 9 "two-locs-inline"
+      (wjl/n-hit
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert inline
+            (wjl/Temp :c 10 :loc "MCI")
+            (wjl/Wind :kph 20 :loc "MCI")
+            (wjl/Temp :c 10 :loc "ORD")
+            (wjl/Wind :kph 5 :loc "ORD")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

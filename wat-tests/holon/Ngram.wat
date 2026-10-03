@@ -15,49 +15,49 @@
 
 ;; ─── 1. empty bundle on oversize n ─────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Ngram::test-ngram-empty-on-oversize
+(wat.test/deftest wat-tests.holon.Ngram/test-ngram-empty-on-oversize
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
      ;; n=5 > len([a b c])=3 → window returns [] → Bundle([]) → Ok(empty bundle).
      result
-       (:wat::core::match
-         (:wat::holon::Ngram 5 (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
+       (wat.core/match
+         (wat.holon/Ngram 5 (wat.type/Vector :- [wat.holon/HolonAST] a b c))
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])
      ;; An empty bundle carries no signal — none of the input atoms
      ;; are present in it.
      ]
-    (:wat::test::assert-eq (:wat::holon::presence? a result) false)))
+    (wat.test/assert-eq (wat.holon/presence? a result) false)))
 
 ;; ─── 2. n-parametricity ────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Ngram::test-ngram-n2-vs-n3-differ
+(wat.test/deftest wat-tests.holon.Ngram/test-ngram-n2-vs-n3-differ
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
-     d (:wat::holon::to-holon "d")
-     xs (wat.type/Vector :- [:wat::holon::HolonAST] a b c d)
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
+     d (wat.holon/to-holon "d")
+     xs (wat.type/Vector :- [wat.holon/HolonAST] a b c d)
      ;; Ngram 2 [a b c d] = Bundle([Seq(a,b), Seq(b,c), Seq(c,d)]) — three 2-windows.
      ;; Ngram 3 [a b c d] = Bundle([Seq(a,b,c), Seq(b,c,d)])       — two 3-windows.
      ;; Different window sizes → structurally distinct bundles → not coincident.
      n2
-       (:wat::core::match
-         (:wat::holon::Ngram 2 xs)
+       (wat.core/match
+         (wat.holon/Ngram 2 xs)
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])
      n3
-       (:wat::core::match
-         (:wat::holon::Ngram 3 xs)
+       (wat.core/match
+         (wat.holon/Ngram 3 xs)
          
-         [:wat::core::Result.Ok {:value h} h]
-         [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? n2 n3)
+         [wat.core/Result.Ok {:value h} h]
+         [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq
+      (wat.holon/coincident? n2 n3)
       false)))

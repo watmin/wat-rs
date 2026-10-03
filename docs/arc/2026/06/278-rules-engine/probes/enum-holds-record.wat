@@ -5,14 +5,14 @@
 ;;   #probe/Error.Err1 {:err #probe/Err1 {:msg "boom"}}    ;; 1-field variant -> map holding the record
 ;;   #probe/Error.Pair {:code 42 :msg "boom"}              ;; 2-field variant -> named map
 
-(:wat::core::defrecord :probe::Err1 [msg <- wat.type/String])
-(:wat::core::defrecord :probe::Err2 [code <- wat.type/i64])
+(wat.core/defrecord probe/Err1 [msg :- wat.type/String])
+(wat.core/defrecord probe/Err2 [code :- wat.type/i64])
 
-(:wat::core::defenum :probe::Error :wat::enum::Pure
-  :Err1 [err <- :probe::Err1]                              ;; variant holds a RECORD
-  :Err2 [err <- :probe::Err2]
-  :Pair [code <- wat.type/i64  msg <- wat.type/String])   ;; a TWO-field variant (positional tuple)
+(wat.core/defenum probe/Error wat.enum/Pure
+  :Err1 [err :- probe/Err1]                              ;; variant holds a RECORD
+  :Err2 [err :- probe/Err2]
+  :Pair [code :- wat.type/i64  msg :- wat.type/String])   ;; a TWO-field variant (positional tuple)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe::Error.Err1 {:err (:probe::Err1 "boom")}))    ;; 1 field -> [record]
-  (:wat::kernel::println (:probe::Error.Pair {:code 42 :msg "boom"})))               ;; 2 fields -> [42 "boom"]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe/Error.Err1 {:err (probe/Err1 "boom")}))    ;; 1 field -> [record]
+  (wat.kernel/println (probe/Error.Pair {:code 42 :msg "boom"})))               ;; 2 fields -> [42 "boom"]

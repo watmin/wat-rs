@@ -23,18 +23,18 @@
 ;; `--check` with: "malformed :wat::core::= form: the rete enum-equality surface admits ENUM
 ;; operands only — got :wat::core::i64 and :wat::core::i64."
 
-(:wat::core::defenum :eq::Method :wat::enum::Pure :GET :POST :PUT :DELETE)
-(:wat::core::defenum :eq::Status :wat::enum::Pure :OPEN :CLOSED)
+(wat.core/defenum eq/Method wat.enum/Pure :GET :POST :PUT :DELETE)
+(wat.core/defenum eq/Status wat.enum/Pure :OPEN :CLOSED)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
     (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool]
       ;; ACCEPT — same user enum, both operands. The row's whole job.
-      :same-variant      (:wat::rete::core::enum::= :eq::Method.POST :eq::Method.POST)
+      :same-variant      (wat.rete.core.enum/= eq/Method.POST eq/Method.POST)
       ;; NON-VACUITY: a row hard-wired to `true` passes the line above and fails this one.
-      :different-variant (:wat::rete::core::enum::= :eq::Method.GET  :eq::Method.POST)
+      :different-variant (wat.rete.core.enum/= eq/Method.GET  eq/Method.POST)
       ;; `not=` is a distinct row with its own core_name — exercised, not assumed.
-      :not-eq-differing  (:wat::rete::core::enum::not= :eq::Method.GET :eq::Method.POST)
-      :not-eq-same       (:wat::rete::core::enum::not= :eq::Method.PUT :eq::Method.PUT)
+      :not-eq-differing  (wat.rete.core.enum/not= eq/Method.GET eq/Method.POST)
+      :not-eq-same       (wat.rete.core.enum/not= eq/Method.PUT eq/Method.PUT)
       ;; A SECOND enum proves the gate is about enum-ness, not about one hard-coded type.
-      :second-enum       (:wat::rete::core::enum::= :eq::Status.OPEN :eq::Status.OPEN))))
+      :second-enum       (wat.rete.core.enum/= eq/Status.OPEN eq/Status.OPEN))))

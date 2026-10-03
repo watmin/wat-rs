@@ -25,67 +25,67 @@
 ;; Compare medians across two BUILDS (with and without the cure); a single build's
 ;; numbers are machine-relative and mean nothing on their own.
 
-(:wat::core::defrecord :d7p::Row
-  [k <- wat.type/i64  a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defrecord d7p/Row
+  [k :- wat.type/i64  a :- wat.type/i64  b :- wat.type/i64])
 ;; Deliberately never inserted: the join's right side stays empty so the fire
 ;; derives nothing and the timing window is the seed pass plus an empty join.
-(:wat::core::defrecord :d7p::Other [k <- wat.type/i64])
-(:wat::core::defrecord :d7p::Hit   [k <- wat.type/i64])
+(wat.core/defrecord d7p/Other [k :- wat.type/i64])
+(wat.core/defrecord d7p/Hit   [k :- wat.type/i64])
 
 ;; Both conditions are BIND-ONLY over an undiscriminated class, which is exactly
 ;; the shape `undiscriminated_leaves` + `bind_only` admits to the occupancy batch.
-(:wat::rete::defrule :d7p::r
-  :when  [(:d7p::Row   (?k :- :k))
-          (:d7p::Other (?k :- :k))]
-  :then  [(:d7p::Hit ?k)])
+(wat.rete/defrule d7p/r
+  :when  [(d7p/Row   (?k :- :k))
+          (d7p/Other (?k :- :k))]
+  :then  [(d7p/Hit ?k)])
 
-(:wat::rete::defquery :d7p::q :params [] :when [(?fact :- :d7p::Hit)])
+(wat.rete/defquery d7p/q :params [] :when [(?fact :- d7p/Hit)])
 
-(:wat::core::defn :d7p::rows
-  [n <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record])
-    (:wat::core::into (wat.type/Vector :- [wat.type/Record])
-      (:wat::core::map
-        (:wat::core::fn [i <- wat.type/i64] -> wat.type/Record
-          (:d7p::Row :k i :a i :b i))
-        (:wat::core::range 0 n)))))
+(wat.core/defn d7p/rows
+  [n :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.type/Record])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/Record])
+    (wat.core/into (wat.type/Vector :- [wat.type/Record])
+      (wat.core/map
+        (wat.core/fn [i :- wat.type/i64] :- wat.type/Record
+          (d7p/Row :k i :a i :b i))
+        (wat.core/range 0 n)))))
 
-(:wat::core::defn :d7p::staged [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
-      (:wat::core::match (:wat::rete::compile-all
-          (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7p::r))
-          (wat.type/PersistentVector :- [:wat::rete::Query] (:d7p::q)))
-        [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-        [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-          (:wat::kernel::assertion-failed! :message "compile")])
-      (:d7p::rows n))
-    [:wat::rete::InsertOutcome.Inserted {:session __s} __s]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
-      (:wat::kernel::assertion-failed! :message "insert")]))
+(wat.core/defn d7p/staged [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
+      (wat.core/match (wat.rete/compile-all
+          (wat.type/PersistentVector :- [wat.rete/Rule] (d7p/r))
+          (wat.type/PersistentVector :- [wat.rete/Query] (d7p/q)))
+        [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+        [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+          (wat.kernel/assertion-failed! :message "compile")])
+      (d7p/rows n))
+    [wat.rete/InsertOutcome.Inserted {:session __s} __s]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
+      (wat.kernel/assertion-failed! :message "insert")]))
 
-(:wat::core::defn :d7p::fire-ns [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::let
-    [t0 (:wat::time::now)
-     fired (:wat::core::match (:wat::rete::fire-rules s)
-             [:wat::rete::FireOutcome.Fired {:value __f} __f]
-             [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-               (:wat::kernel::assertion-failed! :message "ceiling")]
-             [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __x}
-               (:wat::kernel::assertion-failed! :message "cap")])
+(wat.core/defn d7p/fire-ns [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/let
+    [t0 (wat.time/now)
+     fired (wat.core/match (wat.rete/fire-rules s)
+             [wat.rete/FireOutcome.Fired {:value __f} __f]
+             [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+               (wat.kernel/assertion-failed! :message "ceiling")]
+             [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __x}
+               (wat.kernel/assertion-failed! :message "cap")])
      ;; Force the result so the fire cannot be elided or deferred out of the window.
-     n (:wat::core::length
-         (:wat::core::into (wat.type/Vector :- [wat.type/PersistentMap])
-           (:wat::rete::query fired (:d7p::q))))
-     t1 (:wat::time::now)]
-    (:wat::i64::+
-      (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0))
+     n (wat.core/length
+         (wat.core/into (wat.type/Vector :- [wat.type/PersistentMap])
+           (wat.rete/query fired (d7p/q))))
+     t1 (wat.time/now)]
+    (wat.i64/+
+      (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0))
       n)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s (:d7p::staged 200000)
-     samples (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-               (:wat::core::map
-                 (:wat::core::fn [__i <- wat.type/i64] -> wat.type/i64 (:d7p::fire-ns s))
-                 (:wat::core::range 0 9)))]
-    (:wat::kernel::println (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) samples))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s (d7p/staged 200000)
+     samples (wat.core/into (wat.type/Vector :- [wat.type/i64])
+               (wat.core/map
+                 (wat.core/fn [__i :- wat.type/i64] :- wat.type/i64 (d7p/fire-ns s))
+                 (wat.core/range 0 9)))]
+    (wat.kernel/println (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) samples))))

@@ -42,35 +42,35 @@
 ;; EXPECT: "before-fire", then the query returns exactly one :pfo::Hit with k=2 and sum=-999 (the
 ;; FALLBACK value, not a crash, not the true overflowed sum) — proof the fallback path fired.
 
-(:wat::core::defrecord :pfo::Big [k <- wat.type/i64  n <- wat.type/i64])
-(:wat::core::defrecord :pfo::Hit [k <- wat.type/i64  sum <- wat.type/i64])
+(wat.core/defrecord pfo/Big [k :- wat.type/i64  n :- wat.type/i64])
+(wat.core/defrecord pfo/Hit [k :- wat.type/i64  sum :- wat.type/i64])
 
 ;; ?n is i64::MAX for k=2; (?n + 1) overflows. The TOTAL fence variant must not raise — it must
 ;; substitute :undefined's fallback (-999) and let the rule fire normally.
-(:wat::rete::defrule :pfo::add-in-where
+(wat.rete/defrule pfo/add-in-where
   :when
-  [(:pfo::Big (?k :- :k) (?n :- :n))
-   (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?n 1 :undefined -999) -1000000))]
+  [(pfo/Big (?k :- :k) (?n :- :n))
+   (wat.rete/where (wat.rete.i64/> (wat.rete.i64/+ ?n 1 :undefined -999) -1000000))]
   :then
-  [(:pfo::Hit ?k (:wat::rete::i64::+ ?n 1 :undefined -999))])
+  [(pfo/Hit ?k (wat.rete.i64/+ ?n 1 :undefined -999))])
 
-(:wat::rete::defquery :pfo::q-Hit
+(wat.rete/defquery pfo/q-Hit
   :params []
-  :when [(?fact :- :pfo::Hit)])
+  :when [(?fact :- pfo/Hit)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [session (:wat::core::match (:wat::rete::insert-all
-               (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:pfo::add-in-where)) (wat.type/PersistentVector :- [:wat::rete::Query] (:pfo::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-               (wat.type/PersistentVector :- [:pfo::Big]
-                 (:pfo::Big :k 1 :n 1)
-                 (:pfo::Big :k 2 :n 9223372036854775807))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     _       (:wat::kernel::println "before-fire")
-     fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     _       (:wat::kernel::println "after-fire")
-     hits    (:wat::rete::query fired (:pfo::q-Hit))]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/nil  h <- wat.type/PersistentMap] -> wat.type/nil
-        (:wat::kernel::println h))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [session (wat.core/match (wat.rete/insert-all
+               (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] (pfo/add-in-where)) (wat.type/PersistentVector :- [wat.rete/Query] (pfo/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+               (wat.type/PersistentVector :- [pfo/Big]
+                 (pfo/Big :k 1 :n 1)
+                 (pfo/Big :k 2 :n 9223372036854775807))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     _       (wat.kernel/println "before-fire")
+     fired   (wat.core/match (wat.rete/fire-rules session) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     _       (wat.kernel/println "after-fire")
+     hits    (wat.rete/query fired (pfo/q-Hit))]
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/nil  h :- wat.type/PersistentMap] :- wat.type/nil
+        (wat.kernel/println h))
       nil
       hits)))

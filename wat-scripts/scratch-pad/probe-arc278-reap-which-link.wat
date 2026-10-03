@@ -13,109 +13,109 @@
 ;;   row 2  tail, h NOT carried             -> CLOSED      (the bug)
 ;;   row 3  tail, h CARRIED as an argument  -> ?           (the discriminator)
 
-(:wat::core::defsurface :rw::Bag :nature :wat::kernel::Peer
+(wat.core/defsurface rw/Bag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :rw::Bag::PutRequest [n <- wat.type/i64])
-   (:wat::core::defenum :rw::Bag::PutResponse :wat::enum::Pure
-     :Ok               [n <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord rw.Bag/PutRequest [n :- wat.type/i64])
+   (wat.core/defenum rw.Bag/PutResponse wat.enum/Pure
+     :Ok               [n :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :rw::Bag  req <- :rw::Bag::PutRequest]
-     -> :rw::Bag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- rw/Bag  req :- rw.Bag/PutRequest]
+     :- rw.Bag/PutResponse :max-request-bytes 4096)])
 
-(:wat::service::defservice :rw::bag-svc
-  :satisfies :rw::Bag  :durable [n <- wat.type/i64]  :ephemeral []
+(wat.service/defservice rw/bag-svc
+  :satisfies rw/Bag  :durable [n :- wat.type/i64]  :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:rw::Bag::PutResponse.Ok {:n 1})}))])
+  [(put [s ctx req] (wat.service/Outcome.Reply {:state s :reply (rw.Bag/PutResponse.Ok {:n 1})}))])
 
-(:wat::core::defn :rw::try [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
-                           label <- wat.type/String] -> wat.type/nil
-  (:wat::core::match (:rw::Bag/put c (:rw::Bag::PutRequest :n 1))
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::kernel::println (:wat::string::concat label " => Message (served)"))]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::println (:wat::string::concat label " => LOST"))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::println (:wat::string::concat label " => STOPPED"))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))]))
+(wat.core/defn rw/try [c :- (wat.kernel/Peer :- [rw.Bag/Op rw.Bag/Reply])
+                           label :- wat.type/String] :- wat.type/nil
+  (wat.core/match (rw.Bag/put c (rw.Bag/PutRequest :n 1))
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.kernel/println (wat.string/concat label " => Message (served)"))]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/println (wat.string/concat label " => LOST"))]
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/println (wat.string/concat label " => STOPPED"))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/println (wat.string/concat label " => CLOSED"))]))
 
 ;; The discriminator: the Handle rides in as an argument, so it outlives the caller's env.
-(:wat::core::defn :rw::try-with-handle [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
-                                       h <- :rw::bag-svc::Handle
-                                       label <- wat.type/String] -> wat.type/nil
+(wat.core/defn rw/try-with-handle [c :- (wat.kernel/Peer :- [rw.Bag/Op rw.Bag/Reply])
+                                       h :- rw.bag-svc/Handle
+                                       label :- wat.type/String] :- wat.type/nil
   ;; NOT a tail call — a bare `(:rw/try c label)` here would itself tail-drop `h` before
   ;; the put ran, re-manufacturing the very reap this row is trying to rule out.
-  (:wat::core::do (:rw::try c label) nil))
+  (wat.core/do (rw/try c label) nil))
 
 ;; Field-level discriminators: carry ONLY the lineage peer, or ONLY the address.
-(:wat::core::defn :rw::try-with-lineage [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
-                                        lp <- (:wat::spawn::Spawned :- [:rw::bag-svc::Admin :rw::bag-svc::Status])
-                                        label <- wat.type/String] -> wat.type/nil
-  (:wat::core::do (:rw::try c label) nil))
+(wat.core/defn rw/try-with-lineage [c :- (wat.kernel/Peer :- [rw.Bag/Op rw.Bag/Reply])
+                                        lp :- (wat.spawn/Spawned :- [rw.bag-svc/Admin rw.bag-svc/Status])
+                                        label :- wat.type/String] :- wat.type/nil
+  (wat.core/do (rw/try c label) nil))
 
-(:wat::core::defn :rw::try-with-addr [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
-                                     a <- (:wat::kernel::Address :- [:rw::Bag::Op :rw::Bag::Reply])
-                                     label <- wat.type/String] -> wat.type/nil
-  (:wat::core::do (:rw::try c label) nil))
+(wat.core/defn rw/try-with-addr [c :- (wat.kernel/Peer :- [rw.Bag/Op rw.Bag/Reply])
+                                     a :- (wat.kernel/Address :- [rw.Bag/Op rw.Bag/Reply])
+                                     label :- wat.type/String] :- wat.type/nil
+  (wat.core/do (rw/try c label) nil))
 
-(:wat::core::defn :rw::row-non-tail [] -> wat.type/nil
-  (:wat::core::let
-    [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:rw::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
-    (:wat::core::do (:rw::try c "row1 non-tail       ") nil)))
+(wat.core/defn rw/row-non-tail [] :- wat.type/nil
+  (wat.core/let
+    [h (rw.bag-svc/start :locus (wat.spawn/thread) :record (rw.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (rw.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])]
+    (wat.core/do (rw/try c "row1 non-tail       ") nil)))
 
-(:wat::core::defn :rw::row-tail-bare [] -> wat.type/nil
-  (:wat::core::let
-    [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:rw::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
-    (:rw::try c "row2 tail, no handle")))
+(wat.core/defn rw/row-tail-bare [] :- wat.type/nil
+  (wat.core/let
+    [h (rw.bag-svc/start :locus (wat.spawn/thread) :record (rw.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (rw.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])]
+    (rw/try c "row2 tail, no handle")))
 
-(:wat::core::defn :rw::row-tail-carry-handle [] -> wat.type/nil
-  (:wat::core::let
-    [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:rw::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
-    (:rw::try-with-handle c h "row3 tail, carry h  ")))
+(wat.core/defn rw/row-tail-carry-handle [] :- wat.type/nil
+  (wat.core/let
+    [h (rw.bag-svc/start :locus (wat.spawn/thread) :record (rw.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (rw.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])]
+    (rw/try-with-handle c h "row3 tail, carry h  ")))
 
-(:wat::core::defn :rw::row-tail-carry-lineage [] -> wat.type/nil
-  (:wat::core::let
-    [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:rw::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
-    (:rw::try-with-lineage c (:rw::bag-svc::Handle/handle h) "row4 tail, carry lineage")))
+(wat.core/defn rw/row-tail-carry-lineage [] :- wat.type/nil
+  (wat.core/let
+    [h (rw.bag-svc/start :locus (wat.spawn/thread) :record (rw.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (rw.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])]
+    (rw/try-with-lineage c (rw.bag-svc.Handle/handle h) "row4 tail, carry lineage")))
 
-(:wat::core::defn :rw::row-tail-carry-addr [] -> wat.type/nil
-  (:wat::core::let
-    [h (:rw::bag-svc/start :locus (:wat::spawn::thread) :record (:rw::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:rw::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])]
-    (:rw::try-with-addr c (:rw::bag-svc::Handle/addr h) "row5 tail, carry addr   ")))
+(wat.core/defn rw/row-tail-carry-addr [] :- wat.type/nil
+  (wat.core/let
+    [h (rw.bag-svc/start :locus (wat.spawn/thread) :record (rw.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (rw.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])]
+    (rw/try-with-addr c (rw.bag-svc.Handle/addr h) "row5 tail, carry addr   ")))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:rw::row-non-tail)
-    (:rw::row-tail-bare)
-    (:rw::row-tail-carry-handle)
-    (:rw::row-tail-carry-lineage)
-    (:rw::row-tail-carry-addr)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (rw/row-non-tail)
+    (rw/row-tail-bare)
+    (rw/row-tail-carry-handle)
+    (rw/row-tail-carry-lineage)
+    (rw/row-tail-carry-addr)
     nil))

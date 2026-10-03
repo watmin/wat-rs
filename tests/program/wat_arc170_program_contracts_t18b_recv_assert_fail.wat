@@ -17,25 +17,25 @@
 ;; Spawn a process peer whose :user::main readln's an i64 then asserts it equals 3; send' 2 to
 ;; feed the child's readln → assert-eq 2 3 fails → child panics before its println → the peer
 ;; dies → recv-all' returns (Err (LociDiedError::Panic …)).
-(:wat::core::defn :my::test::recv-assert-fail []
-  -> (:wat::core::Result :- [(wat.type/Vector :- [wat.type/i64]) :wat::kernel::LociDiedError])
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [n (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+(wat.core/defn my.test/recv-assert-fail []
+  :- (wat.core/Result :- [(wat.type/Vector :- [wat.type/i64]) wat.kernel/LociDiedError])
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [n (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
                 ;; assert-eq: n=2 vs expected=3 — this fails, child panics
-                _ (:wat::test::assert-eq n 3)
+                _ (wat.test/assert-eq n 3)
                 ;; println never reached (child already dead):
-                _2 (:wat::kernel::println n)]
+                _2 (wat.kernel/println n)]
                nil))))
-     _ (:wat::core::match (:wat::kernel::send p 2)
-         [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.HandleClosed {} nil]
+     _ (wat.core/match (wat.kernel/send p 2)
+         [wat.kernel/SendOutcome.Sent {} nil]
+         [wat.kernel/SendOutcome.HandleClosed {} nil]
          ;; arc 278 #73 — uniform, precondition is the recv-all' right below: a stop
          ;; that interrupted this write is still in force when the read parks, so the
          ;; drain returns Err[Stopped] and the caller is told once, by that Result.
-         [:wat::kernel::SendOutcome.Stopped {} nil]
-         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-    (:wat::kernel::recv-all p)))
+         [wat.kernel/SendOutcome.Stopped {} nil]
+         [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+    (wat.kernel/recv-all p)))

@@ -16,112 +16,112 @@
 ;;    locus gives `(Handle :- [String i64 Shared])`, a process locus `… Wire`, and an abstract
 ;;    `(Locus :- [T])` passes its `T` through. The refused claims are in
 ;;    `probe_arc255_24_start_impl_claims_the_other_transport.wat.bad`.
-(:wat::core::defsurface :probe::Pair :- [K V] :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Pair :- [K V] :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Pair::PutRequest [item <- wat.type/i64])
-   (:wat::core::defenum :probe::Pair::PutResponse :wat::enum::Pure
-     :Ok               [echo <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Pair/PutRequest [item :- wat.type/i64])
+   (wat.core/defenum probe.Pair/PutResponse wat.enum/Pure
+     :Ok               [echo :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- (:probe::Pair :- [K V])  req <- :probe::Pair::PutRequest]
-     -> :probe::Pair::PutResponse :max-request-bytes 1024)])
+  [(put [self :- (probe/Pair :- [K V])  req :- probe.Pair/PutRequest]
+     :- probe.Pair/PutResponse :max-request-bytes 1024)])
 
-(:wat::service::defservice :probe::pair-svc :- [K V]
-  :satisfies (:probe::Pair :- [K V])
-  :durable   [k <- (:wat::core::Option :- [K])  v <- (:wat::core::Option :- [V])]
+(wat.service/defservice probe/pair-svc :- [K V]
+  :satisfies (probe/Pair :- [K V])
+  :durable   [k :- (wat.core/Option :- [K])  v :- (wat.core/Option :- [V])]
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::Pair::PutResponse.Ok {:echo (:probe::Pair::PutRequest/item req)})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.Pair/PutResponse.Ok {:echo (probe.Pair.PutRequest/item req)})}))])
 
-(:wat::core::defn :probe::seed [] -> (:probe::pair-svc::Record :- [wat.type/String wat.type/i64])
-  (:probe::pair-svc::Record
-    :k (:wat::core::Option.Some {:value "hi"})
-    :v (:wat::core::Option.Some {:value 42})))
+(wat.core/defn probe/seed [] :- (probe.pair-svc/Record :- [wat.type/String wat.type/i64])
+  (probe.pair-svc/Record
+    :k (wat.core/Option.Some {:value "hi"})
+    :v (wat.core/Option.Some {:value 42})))
 
 ;; ── the start$impl rows (accepted) ──────────────────────────────────────────────────────────
-(:wat::core::defn :probe::thread-is-shared []
-  -> (:probe::pair-svc::Handle :- [wat.type/String wat.type/i64 :wat::kernel::Transport.Shared])
-  (:probe::pair-svc/start$impl (:wat::spawn::thread) (:probe::seed)))
+(wat.core/defn probe/thread-is-shared []
+  :- (probe.pair-svc/Handle :- [wat.type/String wat.type/i64 wat.kernel/Transport.Shared])
+  (probe.pair-svc/start$impl (wat.spawn/thread) (probe/seed)))
 
-(:wat::core::defn :probe::process-is-wire []
-  -> (:probe::pair-svc::Handle :- [wat.type/String wat.type/i64 :wat::kernel::Transport.Wire])
-  (:probe::pair-svc/start$impl (:wat::spawn::process) (:probe::seed)))
+(wat.core/defn probe/process-is-wire []
+  :- (probe.pair-svc/Handle :- [wat.type/String wat.type/i64 wat.kernel/Transport.Wire])
+  (probe.pair-svc/start$impl (wat.spawn/process) (probe/seed)))
 
-(:wat::core::defn :probe::abstract-locus-passes-its-transport :- [T]
-  [locus <- (:wat::spawn::Locus :- [T])]
-  -> (:probe::pair-svc::Handle :- [wat.type/String wat.type/i64 T])
-  (:probe::pair-svc/start$impl locus (:probe::seed)))
+(wat.core/defn probe/abstract-locus-passes-its-transport :- [T]
+  [locus :- (wat.spawn/Locus :- [T])]
+  :- (probe.pair-svc/Handle :- [wat.type/String wat.type/i64 T])
+  (probe.pair-svc/start$impl locus (probe/seed)))
 
 ;; ── the emitted-form census, as a value ─────────────────────────────────────────────────────
-(:wat::core::defn :probe::defn-row [form <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::let [cs (:wat::core::ast->children form)]
-    (:wat::core::if (:wat::core::< (:wat::core::length cs) 3)
+(wat.core/defn probe/defn-row [form :- wat.type/AST] :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/let [cs (wat.core/ast->children form)]
+    (wat.core/if (wat.core/< (wat.core/length cs) 3)
       (wat.type/Vector :- [wat.type/String])
-      (:wat::core::if (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first cs))) ":wat::core::defn")
+      (wat.core/if (wat.core/= (wat.core/canonical-identity (wat.core/ast-name (wat.core/first cs))) ":wat::core::defn")
         (wat.type/Vector :- [wat.type/String]
-          (:wat::string::concat
-            (:wat::core::ast-name (:wat::core::nth cs 1))
+          (wat.string/concat
+            (wat.core/ast-name (wat.core/nth cs 1))
             " "
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::nth cs 2)) "keyword")
-              (:wat::core::if (:wat::core::= (:wat::core::ast-name (:wat::core::nth cs 2)) ":-")
-                (:wat::core::write-forms (:wat::core::nth cs 3))
+            (wat.core/if (wat.core/= (wat.core/ast-kind (wat.core/nth cs 2)) "keyword")
+              (wat.core/if (wat.core/= (wat.core/ast-name (wat.core/nth cs 2)) ":-")
+                (wat.core/write-forms (wat.core/nth cs 3))
                 "-")
               "-")))
         (wat.type/Vector :- [wat.type/String])))))
 
-(:wat::core::defn :probe::is-list-headed? [form <- wat.type/AST head <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind form) "list")
-    (:wat::core::let [cs (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::core::empty? cs)
+(wat.core/defn probe/is-list-headed? [form :- wat.type/AST head :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind form) "list")
+    (wat.core/let [cs (wat.core/ast->children form)]
+      (wat.core/if (wat.core/empty? cs)
         false
-        (:wat::core::= (:wat::core::canonical-identity (:wat::core::ast-name (:wat::core::first cs))) (:wat::core::canonical-identity head))))
+        (wat.core/= (wat.core/canonical-identity (wat.core/ast-name (wat.core/first cs))) (wat.core/canonical-identity head))))
     false))
 
-(:wat::core::defn :probe::defn-rows [exp <- wat.type/AST] -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) c <- wat.type/AST]
-      -> (wat.type/Vector :- [wat.type/String])
-      (:wat::core::if (:probe::is-list-headed? c ":wat::core::do")
-        (:wat::core::foldl
-          (:wat::core::fn [acc2 <- (wat.type/Vector :- [wat.type/String]) cc <- wat.type/AST]
-            -> (wat.type/Vector :- [wat.type/String])
-            (:wat::core::if (:probe::is-list-headed? cc ":wat::core::defn")
-              (:wat::core::concat acc2 (:probe::defn-row cc))
+(wat.core/defn probe/defn-rows [exp :- wat.type/AST] :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) c :- wat.type/AST]
+      :- (wat.type/Vector :- [wat.type/String])
+      (wat.core/if (probe/is-list-headed? c ":wat::core::do")
+        (wat.core/foldl
+          (wat.core/fn [acc2 :- (wat.type/Vector :- [wat.type/String]) cc :- wat.type/AST]
+            :- (wat.type/Vector :- [wat.type/String])
+            (wat.core/if (probe/is-list-headed? cc ":wat::core::defn")
+              (wat.core/concat acc2 (probe/defn-row cc))
               acc2))
           acc
-          (:wat::core::rest (:wat::core::ast->children c)))
-        (:wat::core::if (:probe::is-list-headed? c ":wat::core::defn")
-          (:wat::core::concat acc (:probe::defn-row c))
+          (wat.core/rest (wat.core/ast->children c)))
+        (wat.core/if (probe/is-list-headed? c ":wat::core::defn")
+          (wat.core/concat acc (probe/defn-row c))
           acc)))
     (wat.type/Vector :- [wat.type/String])
-    (:wat::core::rest (:wat::core::ast->children exp))))
+    (wat.core/rest (wat.core/ast->children exp))))
 
-(:wat::core::defn :probe::emitted-defn-binders [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/String]) (wat.type/Vector :- [wat.type/String])])
+(wat.core/defn probe/emitted-defn-binders [] :- (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/String]) (wat.type/Vector :- [wat.type/String])])
   (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/String]) (wat.type/Vector :- [wat.type/String])]
-    (:probe::defn-rows
-      (:wat::core::macroexpand
-        (:wat::core::quote
-          (:wat::service::defservice :probe::mono-svc
-            :satisfies :probe::Mono :durable [] :ephemeral []
-            :impls [(get [s ctx req] (:wat::service::Outcome.Reply {:state s :reply req}))]))))
-    (:probe::defn-rows
-      (:wat::core::macroexpand
-        (:wat::core::quote
-          (:wat::service::defservice :probe::pair-svc :- [K V]
-            :satisfies (:probe::Pair :- [K V])
-            :durable   [k <- (:wat::core::Option :- [K])  v <- (:wat::core::Option :- [V])]
+    (probe/defn-rows
+      (wat.core/macroexpand
+        (wat.core/quote
+          (wat.service/defservice probe/mono-svc
+            :satisfies probe/Mono :durable [] :ephemeral []
+            :impls [(get [s ctx req] (wat.service/Outcome.Reply {:state s :reply req}))]))))
+    (probe/defn-rows
+      (wat.core/macroexpand
+        (wat.core/quote
+          (wat.service/defservice probe/pair-svc :- [K V]
+            :satisfies (probe/Pair :- [K V])
+            :durable   [k :- (wat.core/Option :- [K])  v :- (wat.core/Option :- [V])]
             :ephemeral []
-            :impls [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply req}))]))))))
+            :impls [(put [s ctx req] (wat.service/Outcome.Reply {:state s :reply req}))]))))))
 
-(:wat::core::defsurface :probe::Mono :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Mono :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Mono::GetRequest [k <- wat.type/String])
-   (:wat::core::defenum :probe::Mono::GetResponse :wat::enum::Pure
-     :Ok               [v <- wat.type/String]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Mono/GetRequest [k :- wat.type/String])
+   (wat.core/defenum probe.Mono/GetResponse wat.enum/Pure
+     :Ok               [v :- wat.type/String]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get [self <- :probe::Mono  req <- :probe::Mono::GetRequest] -> :probe::Mono::GetResponse :max-request-bytes 1024)])
+  [(get [self :- probe/Mono  req :- probe.Mono/GetRequest] :- probe.Mono/GetResponse :max-request-bytes 1024)])

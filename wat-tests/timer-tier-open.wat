@@ -14,22 +14,22 @@
 ;; spawn-locus, not a PeerKind; and there is no tier-open `Timer'` type. Everything else
 ;; (select', Vector, ServiceEvent, PeerKind, :wat::time::Millisecond) already exists.
 ;;
-(:wat::test::deftest :wat-tests::timer::tier-open-after-peerkind
+(wat.test/deftest wat-tests.timer/tier-open-after-peerkind
   
-  (:wat::test::assert-eq
-    (:wat::core::match
-      (:wat::kernel::select
-        (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])]
-          (:wat::kernel::after :wat::program::PeerKind.process
-                               (:wat::time::Millisecond 50)
+  (wat.test/assert-eq
+    (wat.core/match
+      (wat.kernel/select
+        (wat.type/Vector :- [(wat.kernel/Peer :- [wat.type/nil wat.type/keyword])]
+          (wat.kernel/after wat.program/PeerKind.process
+                               (wat.time/Millisecond 50)
                                :tick)))
        
-      [:wat::spawn::ServiceEvent.Message {:idx _idx :msg msg} msg]
-      [:wat::spawn::ServiceEvent.Closed {:idx _idx} :no-tick]
-      [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} :no-tick]
-      [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} :no-tick]  ;; arc 278 — unreachable for a timer
-      [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} :no-tick]   ;; arc 278 Stone 1a — unreachable for a timer
-      [:wat::spawn::ServiceEvent.Shutdown {} :no-tick]
-      [:wat::spawn::ServiceEvent.Connection {:peer _peer} :no-tick]
-      [:wat::spawn::ServiceEvent.Admin {:msg _msg} :no-tick])
+      [wat.spawn/ServiceEvent.Message {:idx _idx :msg msg} msg]
+      [wat.spawn/ServiceEvent.Closed {:idx _idx} :no-tick]
+      [wat.spawn/ServiceEvent.Lost {:idx _idx :cause _cause} :no-tick]
+      [wat.spawn/ServiceEvent.Malformed {:idx _idx :cause _cause} :no-tick]  ;; arc 278 — unreachable for a timer
+      [wat.spawn/ServiceEvent.Rejected {:idx _idx :cause _cause} :no-tick]   ;; arc 278 Stone 1a — unreachable for a timer
+      [wat.spawn/ServiceEvent.Shutdown {} :no-tick]
+      [wat.spawn/ServiceEvent.Connection {:peer _peer} :no-tick]
+      [wat.spawn/ServiceEvent.Admin {:msg _msg} :no-tick])
     :tick))

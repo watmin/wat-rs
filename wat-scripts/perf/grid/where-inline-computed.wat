@@ -80,189 +80,189 @@
 ;; arc, and it is why these rows exist HERE, against Clara, rather than only as a Rust probe.
 ;; Clara is the only party to this comparison that did not inherit our mistake.
 
-(:wat::core::defn :wic::items [] -> wat.type/i64 210)
+(wat.core/defn wic/items [] :- wat.type/i64 210)
 
-(:wat::core::defn :wic::row-count [] -> wat.type/i64 14)
+(wat.core/defn wic/row-count [] :- wat.type/i64 14)
 
-(:wat::core::defrecord :wic::Req [k <- wat.type/i64])
-(:wat::core::defrecord :wic::Hit [k <- wat.type/i64])
+(wat.core/defrecord wic/Req [k :- wat.type/i64])
+(wat.core/defrecord wic/Hit [k :- wat.type/i64])
 
 ;; ROW 1 — INLINE, computed operand. The position and shape that were silently broken.
-(:wat::rete::defrule :wic::inline-gt
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::i64::> (:wat::rete::i64::+ :k 2 :undefined 0) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-gt
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.i64/> (wat.rete.i64/+ :k 2 :undefined 0) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 2 — FENCE, the identical predicate. This position always worked; it is the control that
 ;; makes row 1 a comparison rather than an assertion.
-(:wat::rete::defrule :wic::fence-gt
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::+ ?k 2 :undefined 0) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-gt
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where (wat.rete.i64/> (wat.rete.i64/+ ?k 2 :undefined 0) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 3 — INLINE, exact equality. n=1: brackets the answer from both sides.
-(:wat::rete::defrule :wic::inline-eq
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::i64::= (:wat::rete::i64::+ :k 2 :undefined 0) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-eq
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.i64/= (wat.rete.i64/+ :k 2 :undefined 0) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 4 — FENCE, exact equality.
-(:wat::rete::defrule :wic::fence-eq
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::= (:wat::rete::i64::+ ?k 2 :undefined 0) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-eq
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where (wat.rete.i64/= (wat.rete.i64/+ ?k 2 :undefined 0) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 5 — INLINE, the field reference inside a `let` BINDER VECTOR. `[x :k]` is a
 ;; `WatAST::Vector`, which the rewriter's `other => clone` catch-all passed through untouched:
 ;; `:k` stayed a bare keyword, compared unequal to every i64, and this row read n=0 in BOTH
 ;; engines while every gate was green.
-(:wat::rete::defrule :wic::inline-let-gt
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::i64::> (:wat::rete::core::let [x :k] x) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-let-gt
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.i64/> (wat.rete.core/let [x :k] x) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 6 — FENCE, the identical predicate. This position always worked, which is exactly what made
 ;; row 5's silence invisible: the same expression answered correctly two lines away.
-(:wat::rete::defrule :wic::fence-let-gt
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::let [x ?k] x) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-let-gt
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where (wat.rete.i64/> (wat.rete.core/let [x ?k] x) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 7 — INLINE, exact equality. n=1 brackets a never-match and an always-match from both sides.
-(:wat::rete::defrule :wic::inline-let-eq
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::i64::= (:wat::rete::core::let [x :k] x) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-let-eq
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.i64/= (wat.rete.core/let [x :k] x) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 8 — FENCE, exact equality.
-(:wat::rete::defrule :wic::fence-let-eq
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::= (:wat::rete::core::let [x ?k] x) 100))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-let-eq
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where (wat.rete.i64/= (wat.rete.core/let [x ?k] x) 100))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 9 — `cond` as the inline HEAD. Refused until 2026-08-28 with `"alpha 0 cond did not
 ;; compile"` — a refusal that named nothing, because the expander never reached this position.
-(:wat::rete::defrule :wic::inline-cond
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::core::cond ((:wat::rete::i64::> :k 100) true) (:else false)))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-cond
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.core/cond ((wat.rete.i64/> :k 100) true) (:else false)))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 10 — FENCE. `cond` ALWAYS worked here, which is precisely how the inline refusal survived.
-(:wat::rete::defrule :wic::fence-cond
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where
-           (:wat::rete::core::cond ((:wat::rete::i64::> ?k 100) true) (:else false)))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-cond
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where
+           (wat.rete.core/cond ((wat.rete.i64/> ?k 100) true) (:else false)))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 11 — `let` as the inline HEAD. Provably bool because its BODY is.
-(:wat::rete::defrule :wic::inline-let-head
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::core::let [x :k] (:wat::rete::i64::> x 100)))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-let-head
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.core/let [x :k] (wat.rete.i64/> x 100)))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 12 — FENCE.
-(:wat::rete::defrule :wic::fence-let-head
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::i64::> x 100)))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-let-head
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where (wat.rete.core/let [x ?k] (wat.rete.i64/> x 100)))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 13 — `match` as the inline HEAD, on `= 100` so n=1 brackets it from both sides.
-(:wat::rete::defrule :wic::inline-match
-  :when [(:wic::Req (?k :- :k)
-           (:wat::rete::core::match (:wat::rete::i64::= :k 100) [true true] [false false]))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/inline-match
+  :when [(wic/Req (?k :- :k)
+           (wat.rete.core/match (wat.rete.i64/= :k 100) [true true] [false false]))]
+  :then [(wic/Hit :k ?k)])
 
 ;; ROW 14 — FENCE.
-(:wat::rete::defrule :wic::fence-match
-  :when [(:wic::Req (?k :- :k))
-         (:wat::rete::where
-           (:wat::rete::core::match (:wat::rete::i64::= ?k 100) [true true] [false false]))]
-  :then [(:wic::Hit :k ?k)])
+(wat.rete/defrule wic/fence-match
+  :when [(wic/Req (?k :- :k))
+         (wat.rete/where
+           (wat.rete.core/match (wat.rete.i64/= ?k 100) [true true] [false false]))]
+  :then [(wic/Hit :k ?k)])
 
-(:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact :- :wic::Hit)])
+(wat.rete/defquery wic/q-Hit :params [] :when [(?fact :- wic/Hit)])
 
-(:wat::core::defn :wic::rule-for [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::cond
-    ((:wat::core::= row 1) "inline-gt")
-    ((:wat::core::= row 2) "fence-gt")
-    ((:wat::core::= row 3) "inline-eq")
-    ((:wat::core::= row 4) "fence-eq")
-    ((:wat::core::= row 5) "inline-let-gt")
-    ((:wat::core::= row 6) "fence-let-gt")
-    ((:wat::core::= row 7) "inline-let-eq")
-    ((:wat::core::= row 8) "fence-let-eq")
-    ((:wat::core::= row 9) "inline-cond")
-    ((:wat::core::= row 10) "fence-cond")
-    ((:wat::core::= row 11) "inline-let-head")
-    ((:wat::core::= row 12) "fence-let-head")
-    ((:wat::core::= row 13) "inline-match")
+(wat.core/defn wic/rule-for [row :- wat.type/i64] :- wat.type/String
+  (wat.core/cond
+    ((wat.core/= row 1) "inline-gt")
+    ((wat.core/= row 2) "fence-gt")
+    ((wat.core/= row 3) "inline-eq")
+    ((wat.core/= row 4) "fence-eq")
+    ((wat.core/= row 5) "inline-let-gt")
+    ((wat.core/= row 6) "fence-let-gt")
+    ((wat.core/= row 7) "inline-let-eq")
+    ((wat.core/= row 8) "fence-let-eq")
+    ((wat.core/= row 9) "inline-cond")
+    ((wat.core/= row 10) "fence-cond")
+    ((wat.core/= row 11) "inline-let-head")
+    ((wat.core/= row 12) "fence-let-head")
+    ((wat.core/= row 13) "inline-match")
     (:else "fence-match")))
 
-(:wat::core::defn :wic::rules-for [row <- wat.type/i64]
-  -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1) (:wic::inline-gt))
-      ((:wat::core::= row 2) (:wic::fence-gt))
-      ((:wat::core::= row 3) (:wic::inline-eq))
-      ((:wat::core::= row 4) (:wic::fence-eq))
-      ((:wat::core::= row 5) (:wic::inline-let-gt))
-      ((:wat::core::= row 6) (:wic::fence-let-gt))
-      ((:wat::core::= row 7) (:wic::inline-let-eq))
-      ((:wat::core::= row 8) (:wic::fence-let-eq))
-      ((:wat::core::= row 9) (:wic::inline-cond))
-      ((:wat::core::= row 10) (:wic::fence-cond))
-      ((:wat::core::= row 11) (:wic::inline-let-head))
-      ((:wat::core::= row 12) (:wic::fence-let-head))
-      ((:wat::core::= row 13) (:wic::inline-match))
-      (:else (:wic::fence-match)))))
+(wat.core/defn wic/rules-for [row :- wat.type/i64]
+  :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1) (wic/inline-gt))
+      ((wat.core/= row 2) (wic/fence-gt))
+      ((wat.core/= row 3) (wic/inline-eq))
+      ((wat.core/= row 4) (wic/fence-eq))
+      ((wat.core/= row 5) (wic/inline-let-gt))
+      ((wat.core/= row 6) (wic/fence-let-gt))
+      ((wat.core/= row 7) (wic/inline-let-eq))
+      ((wat.core/= row 8) (wic/fence-let-eq))
+      ((wat.core/= row 9) (wic/inline-cond))
+      ((wat.core/= row 10) (wic/fence-cond))
+      ((wat.core/= row 11) (wic/inline-let-head))
+      ((wat.core/= row 12) (wic/fence-let-head))
+      ((wat.core/= row 13) (wic/inline-match))
+      (:else (wic/fence-match)))))
 
-(:wat::core::defn :wic::seed [session <- :wat::rete::Session  items <- wat.type/i64]
-  -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wic/seed [session :- wat.rete/Session  items :- wat.type/i64]
+  :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj acc (:wic::Req :k i)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj acc (wic/Req :k i)))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :wic::derived-ints [fired <- :wat::rete::Session]
-  -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-            (:wic::Hit/k f)))
-        (:wat::rete::query fired (:wic::q-Hit))))))
+(wat.core/defn wic/derived-ints [fired :- wat.rete/Session]
+  :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+          (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+            (wic.Hit/k f)))
+        (wat.rete/query fired (wic/q-Hit))))))
 
-(:wat::core::defn :wic::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wic/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
-(:wat::core::defn :wic::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wic::rules-for row)
-                    staged  (:wic::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wic::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wic::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wic::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wic::rule-for row)))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wic::render-ints derived))))))
+(wat.core/defn wic/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wic/rules-for row)
+                    staged  (wic/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wic/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wic/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wic/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wic/rule-for row)))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wic/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wic::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wic/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wic::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wic/row-count) 1))))

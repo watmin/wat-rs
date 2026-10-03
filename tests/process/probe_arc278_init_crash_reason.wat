@@ -8,28 +8,28 @@
 ;;
 ;; The .rs drives this on BOTH loci (thread + process) under a bounded harness.
 
-(:wat::core::defsurface :t::Boom :nature :wat::kernel::Peer
+(wat.core/defsurface t/Boom :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :t::Boom::PingRequest  [x <- wat.type/i64])
-   (:wat::core::defenum :t::Boom::PingResponse :wat::enum::Pure
-     :Ok              [x <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord t.Boom/PingRequest  [x :- wat.type/i64])
+   (wat.core/defenum t.Boom/PingResponse wat.enum/Pure
+     :Ok              [x :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(ping [self <- :t::Boom req <- :t::Boom::PingRequest] -> :t::Boom::PingResponse :max-request-bytes 524288)])
+  [(ping [self :- t/Boom req :- t.Boom/PingRequest] :- t.Boom/PingResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :t::boominit
-  :satisfies :t::Boom
+(wat.service/defservice t/boominit
+  :satisfies t/Boom
   :durable []
-  :init (:wat::core::fn
-          [record <- :t::boominit::Record]
-          -> :t::boominit::State
-          (:wat::core::let
-            [_ (:wat::kernel::assertion-failed! :message "BOOM-INIT-SENTINEL-99")]
-            (:t::boominit::State :durable record)))
+  :init (wat.core/fn
+          [record :- t.boominit/Record]
+          :- t.boominit/State
+          (wat.core/let
+            [_ (wat.kernel/assertion-failed! :message "BOOM-INIT-SENTINEL-99")]
+            (t.boominit/State :durable record)))
   :impls
   [(ping [s ctx req]
-     (:wat::service::Outcome.Reply {:state s :reply (:t::Boom::PingResponse.Ok {:x 0})}))])
+     (wat.service/Outcome.Reply {:state s :reply (t.Boom/PingResponse.Ok {:x 0})}))])
 
 ;; The owner starts the crashing service and dials it. This MUST raise carrying the sentinel
 ;; (the :init crash reason reached the owner), not hang and not lose the reason.
@@ -41,38 +41,38 @@
 ;; so the OWNER's `/start` call raises the reason (the .rs catches that raise). If a tier instead
 ;; surfaced the crash at the ping's recv' (a matchable ::Lost VALUE), this body RETURNS the reason as
 ;; a String; the .rs handles both (raise-at-/start OR value-at-ping) and asserts the sentinel.
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [h   (:t::boominit/start :locus (:wat::spawn::thread) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:wat::core::match r
-      [:wat::kernel::RecvOutcome.Message {:msg __recv}
-        (:wat::core::match __recv
-          [:t::Boom::PingResponse.Ok {:x x} "UNEXPECTED-OK"]
-          [:t::Boom::PingResponse.RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
-          [:t::Boom::PingResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::LociDiedError/message __cause)]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [h   (t.boominit/start :locus (wat.spawn/thread) :record (t.boominit/Record))
+     svc (wat.core/match (wat.kernel/connect (t.boominit.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r   (t.Boom/ping svc (t.Boom/PingRequest :x 1))]
+    (wat.core/match r
+      [wat.kernel/RecvOutcome.Message {:msg __recv}
+        (wat.core/match __recv
+          [t.Boom/PingResponse.Ok {:x x} "UNEXPECTED-OK"]
+          [t.Boom/PingResponse.RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
+          [t.Boom/PingResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+      [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel.LociDiedError/message __cause)]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
 
 ;; PROCESS locus — at HEAD /start SUCCEEDED (Started sent before :init ran) and the owner's
 ;; connect' collapsed to a bare ECONNREFUSED with the reason discarded. GREEN: the reordered
 ;; launch handshake (send ship → recv Started) makes an :init crash surface over the crash-aware
 ;; `recv' svc`, so /start raises the ProcessPanics envelope carrying the sentinel.
-(:wat::core::defn :user::compute-process [] -> wat.type/String
-  (:wat::core::let
-    [h   (:t::boominit/start :locus (:wat::spawn::process) :record (:t::boominit::Record))
-     svc (:wat::core::match (:wat::kernel::connect (:t::boominit::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     r   (:t::Boom/ping svc (:t::Boom::PingRequest :x 1))]
-    (:wat::core::match r
-      [:wat::kernel::RecvOutcome.Message {:msg __recv}
-        (:wat::core::match __recv
-          [:t::Boom::PingResponse.Ok {:x x} "UNEXPECTED-OK"]
-          [:t::Boom::PingResponse.RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
-          [:t::Boom::PingResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::LociDiedError/message __cause)]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+(wat.core/defn user/compute-process [] :- wat.type/String
+  (wat.core/let
+    [h   (t.boominit/start :locus (wat.spawn/process) :record (t.boominit/Record))
+     svc (wat.core/match (wat.kernel/connect (t.boominit.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     r   (t.Boom/ping svc (t.Boom/PingRequest :x 1))]
+    (wat.core/match r
+      [wat.kernel/RecvOutcome.Message {:msg __recv}
+        (wat.core/match __recv
+          [t.Boom/PingResponse.Ok {:x x} "UNEXPECTED-OK"]
+          [t.Boom/PingResponse.RequestTooLarge {:bytes bytes :cap cap} "UNEXPECTED-TOO-LARGE"]
+          [t.Boom/PingResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+            (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+      [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel.LociDiedError/message __cause)]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

@@ -34,31 +34,31 @@
 ;; `infer_positional_accessor`: 1-arg only, `Tuple` branch returns element 0). This rung's own
 ;; claim is unchanged: it still proves `t <- (Tuple :- [i64 i64])` reads its first slot.
 
-(:wat::core::defn :user::rung-binary-typevars
-  [f <- [U T :-> U] seed <- U x <- T] -> U
-  (:wat::core::apply f seed [x]))
+(wat.core/defn user/rung-binary-typevars
+  [f :- [U T :-> U] seed :- U x :- T] :- U
+  (wat.core/apply f seed [x]))
 
-(:wat::core::defn :user::rung-pred
-  [f <- [T :-> wat.type/bool] x <- T] -> wat.type/bool
-  (:wat::core::apply f [x]))
+(wat.core/defn user/rung-pred
+  [f :- [T :-> wat.type/bool] x :- T] :- wat.type/bool
+  (wat.core/apply f [x]))
 
 
 ;; NULLARY — both real sites (wat/spawn.wat:51, :105) only CARRY the value; neither applies it
 ;; at the declaration site, so the probe mirrors that: the rung proves the annotation parses and
 ;; the value threads through a signature, which is exactly what the two migrating sites do.
-(:wat::core::defn :user::rung-nullary
-  [f <- [:-> wat.type/Record]] -> [:-> wat.type/Record]
+(wat.core/defn user/rung-nullary
+  [f :- [:-> wat.type/Record]] :- [:-> wat.type/Record]
   f)
 
-(:wat::core::defn :user::rung-nested-ret
-  [f <- [wat.type/i64 T :-> (:wat::core::Option :- [U])] i <- wat.type/i64 x <- T]
-  -> (:wat::core::Option :- [U])
-  (:wat::core::apply f i [x]))
+(wat.core/defn user/rung-nested-ret
+  [f :- [wat.type/i64 T :-> (wat.core/Option :- [U])] i :- wat.type/i64 x :- T]
+  :- (wat.core/Option :- [U])
+  (wat.core/apply f i [x]))
 
-(:wat::core::defn :user::rung-nested-arg
-  [f <- [(:wat::kernel::Peer :- [S R]) I :-> O] p <- (:wat::kernel::Peer :- [S R]) i <- I] -> O
-  (:wat::core::apply f p [i]))
+(wat.core/defn user/rung-nested-arg
+  [f :- [(wat.kernel/Peer :- [S R]) I :-> O] p :- (wat.kernel/Peer :- [S R]) i :- I] :- O
+  (wat.core/apply f p [i]))
 
-(:wat::core::defn :user::rung-tuple
-  [t <- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])] -> wat.type/i64
-  (:wat::core::first t))
+(wat.core/defn user/rung-tuple
+  [t :- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])] :- wat.type/i64
+  (wat.core/first t))

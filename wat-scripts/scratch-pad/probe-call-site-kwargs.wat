@@ -11,14 +11,14 @@
 ;; frames" rather than anything about macros or spawning.
 
 ;; positional control — already known-good, repeated here so both run in ONE process
-(:wat::core::defn :probe::positional [] -> :wat::kernel::Frame
-  (:wat::core::let [origin (:wat::kernel::call-site)] origin))
+(wat.core/defn probe/positional [] :- wat.kernel/Frame
+  (wat.core/let [origin (wat.kernel/call-site)] origin))
 
 ;; the subject: a kwargs fn, the exact shape defservice's start/resume use
-(:wat::core::defn :probe::kw [& [tag <- wat.type/String]] -> :wat::kernel::Frame
-  (:wat::core::let [origin (:wat::kernel::call-site)] origin))
+(wat.core/defn probe/kw [& [tag :- wat.type/String]] :- wat.kernel/Frame
+  (wat.core/let [origin (wat.kernel/call-site)] origin))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:probe::positional))
-    (:wat::kernel::println (:probe::kw :tag "x"))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (probe/positional))
+    (wat.kernel/println (probe/kw :tag "x"))))

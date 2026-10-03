@@ -1,7 +1,7 @@
 ;; T7: factory pattern — factory captures its arg.
-(:wat::core::defstruct :my::Cfg
-  [val <- wat.type/i64])
-(:wat::core::defn :my::factory [config <- :my::Cfg] -> [wat.type/i64 :-> wat.type/i64]
-  (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64
-              (:wat::i64::+ n (:my::Cfg/val config))))
-(:wat::core::defn :my::make [] -> [wat.type/i64 :-> wat.type/i64] (:my::factory (:my::Cfg :val 100)))
+(wat.core/defstruct my/Cfg
+  [val :- wat.type/i64])
+(wat.core/defn my/factory [config :- my/Cfg] :- [wat.type/i64 :-> wat.type/i64]
+  (wat.core/fn [n :- wat.type/i64] :- wat.type/i64
+              (wat.i64/+ n (my.Cfg/val config))))
+(wat.core/defn my/make [] :- [wat.type/i64 :-> wat.type/i64] (my/factory (my/Cfg :val 100)))

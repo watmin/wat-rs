@@ -1,8 +1,8 @@
 ;; tests/reflection/probe_arc255_reflection_parity_user_form.wat
 ;; Fixture for user_form_carries_guaranteed_baseline (ignored — arc-255 not yet built).
 ;; A bare user defn (no explicit metadata); metadata-of must return Some(baseline).
-(:wat::core::defn :my::f [x <- wat.type/i64] -> wat.type/i64 x)
-(:wat::core::defn :user::compute [] -> wat.type/bool
-  (:wat::core::match (:wat::runtime::metadata-of :my::f) 
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+(wat.core/defn my/f [x :- wat.type/i64] :- wat.type/i64 x)
+(wat.core/defn user/compute [] :- wat.type/bool
+  (wat.core/match (wat.runtime/metadata-of my/f) 
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))

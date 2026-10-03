@@ -28,35 +28,35 @@
 ;; fix — STOP-4 in the brief names a related process/thread asymmetry as a real,
 ;; separately-tracked defect and says not to chase it; this is reported, not fixed.
 
-(:wat::core::defrecord :vprobe2::WatAstField [form <- wat.type/AST])
-(:wat::core::defrecord :vprobe2::I64Field [n <- wat.type/i64])
+(wat.core/defrecord vprobe2/WatAstField [form :- wat.type/AST])
+(wat.core/defrecord vprobe2/I64Field [n :- wat.type/i64])
 
-(:wat::core::defn :vprobe2::render [v <- :wat::edn::Validation] -> wat.type/String
-  (:wat::core::match v
-    [:wat::edn::Validation.Valid {} "VALID"]
-    [:wat::edn::Validation.Invalid {:path path :expected expected :got got}
-      (:wat::string::concat "INVALID at "
-        (:wat::string::concat (:wat::edn::write path)
-          (:wat::string::concat " expected="
-            (:wat::string::concat expected
-              (:wat::string::concat " got=" got)))))]))
+(wat.core/defn vprobe2/render [v :- wat.edn/Validation] :- wat.type/String
+  (wat.core/match v
+    [wat.edn/Validation.Valid {} "VALID"]
+    [wat.edn/Validation.Invalid {:path path :expected expected :got got}
+      (wat.string/concat "INVALID at "
+        (wat.string/concat (wat.edn/write path)
+          (wat.string/concat " expected="
+            (wat.string/concat expected
+              (wat.string/concat " got=" got)))))]))
 
 ;; ── GATE ROW 3 — a bare (not Vector-wrapped) :wat::WatAST field ────────────────
-(:wat::core::defn :vprobe2::gate-row-3 [] -> wat.type/nil
-  (:wat::core::let
-    [good (:vprobe2::WatAstField :form (:wat::core::quote (:wat::core::defrecord :usr::A [c <- wat.type/i64])))]
-    (:wat::kernel::println
-      (:wat::string::concat "GATE-3 bare WatAST field => " (:vprobe2::render (:wat::edn::validate good :vprobe2::WatAstField))))))
+(wat.core/defn vprobe2/gate-row-3 [] :- wat.type/nil
+  (wat.core/let
+    [good (vprobe2/WatAstField :form (wat.core/quote (wat.core/defrecord usr/A [c :- wat.type/i64])))]
+    (wat.kernel/println
+      (wat.string/concat "GATE-3 bare WatAST field => " (vprobe2/render (wat.edn/validate good vprobe2/WatAstField))))))
 
 ;; ── GATE ROW 4 — THE NEGATIVE ROW: a genuinely wrong field must still refuse ───
-(:wat::core::defn :vprobe2::gate-row-4 [] -> wat.type/nil
-  (:wat::core::let
-    [bad (:wat::edn::read "#vprobe2/I64Field {:n \"not-an-i64\"}")]
-    (:wat::kernel::println
-      (:wat::string::concat "GATE-4 i64 field handed a String => " (:vprobe2::render (:wat::edn::validate bad :vprobe2::I64Field))))))
+(wat.core/defn vprobe2/gate-row-4 [] :- wat.type/nil
+  (wat.core/let
+    [bad (wat.edn/read "#vprobe2/I64Field {:n \"not-an-i64\"}")]
+    (wat.kernel/println
+      (wat.string/concat "GATE-4 i64 field handed a String => " (vprobe2/render (wat.edn/validate bad vprobe2/I64Field))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:vprobe2::gate-row-3)
-    (:vprobe2::gate-row-4)
-    (:wat::kernel::println "READ: GATE-3 must be VALID (the identity refinement can never fail). GATE-4 must be INVALID at [n] expected=:wat::core::i64 got=String (nothing else loosened).")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (vprobe2/gate-row-3)
+    (vprobe2/gate-row-4)
+    (wat.kernel/println "READ: GATE-3 must be VALID (the identity refinement can never fail). GATE-4 must be INVALID at [n] expected=:wat::core::i64 got=String (nothing else loosened).")))

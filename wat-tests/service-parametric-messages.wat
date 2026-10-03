@@ -61,44 +61,44 @@
 ;; surface's own. A violation is a located `MalformedDecl` on the defsurface form.
 
 ;; ── the surface: messages PARAMETRIC, K and V in the payload ────────────────────────────────
-(:wat::core::defsurface :wat-tests::PCache :- [K V] :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/PCache :- [K V] :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::PCache::GetRequest :- [K]
+  [(wat.core/defrecord wat-tests.PCache/GetRequest :- [K]
      ;; ONE type-param field and ONE concrete field, deliberately side by side: the request-shape
      ;; wall's reach is exactly the difference between them, and probes (2) and (3) below MEASURE
      ;; that difference instead of asserting it.
-     [probes <- (wat.type/Vector :- [K])
-      limit  <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::PCache::GetResponse :- [K V] :wat::enum::Pure
+     [probes :- (wat.type/Vector :- [K])
+      limit  :- wat.type/i64])
+   (wat.core/defenum wat-tests.PCache/GetResponse :- [K V] wat.enum/Pure
      ;; `echo` returns the K-typed probes, `results` the V-typed durable, `limit` the concrete
      ;; field. All three are read APART by the assertion, so a wire that dropped any one of
      ;; them — or that shifted K and V — is caught, not silently tolerated.
-     :Ok              [echo    <- (wat.type/Vector :- [K])
-                       results <- (wat.type/Vector :- [V])
-                       limit   <- wat.type/i64]
+     :Ok              [echo    :- (wat.type/Vector :- [K])
+                       results :- (wat.type/Vector :- [V])
+                       limit   :- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
      ;; arc 278 Stone 2 — and the request-SHAPE refusal, unconditionally generated.
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(get [self <- (:wat-tests::PCache :- [K V])  req <- (:wat-tests::PCache::GetRequest :- [K])]
-     -> (:wat-tests::PCache::GetResponse :- [K V]) :max-request-bytes 1024)])
+  [(get [self :- (wat-tests/PCache :- [K V])  req :- (wat-tests.PCache/GetRequest :- [K])]
+     :- (wat-tests.PCache/GetResponse :- [K V]) :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────
 ;; The handler is fully GENERIC: it echoes the K-typed probes it was handed and returns the
 ;; V-typed durable vector. It never constructs a K or a V — it cannot, and does not need to.
-(:wat::service::defservice :wat-tests::pcache-svc :- [K V]
-  :satisfies (:wat-tests::PCache :- [K V])
-  :durable   [fills <- (wat.type/Vector :- [V])]
+(wat.service/defservice wat-tests/pcache-svc :- [K V]
+  :satisfies (wat-tests/PCache :- [K V])
+  :durable   [fills :- (wat.type/Vector :- [V])]
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat-tests::PCache::GetResponse.Ok
-         {:echo (:wat-tests::PCache::GetRequest/probes req)
-         :results (:wat-tests::pcache-svc::Record/fills (:wat-tests::pcache-svc::State/durable s))
-         :limit (:wat-tests::PCache::GetRequest/limit req)})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat-tests.PCache/GetResponse.Ok
+         {:echo (wat-tests.PCache.GetRequest/probes req)
+         :results (wat-tests.pcache-svc.Record/fills (wat-tests.pcache-svc.State/durable s))
+         :limit (wat-tests.PCache.GetRequest/limit req)})}))])
 
 ;; ── the gate: stand it up, dial it, run the three probes ────────────────────────────────────
 ;; K is pinned to String and V to i64 at the `/start` + call sites — two DIFFERENT concrete types.
@@ -112,74 +112,74 @@
 ;; two-level type-arg nest, `(Address' :- [(PCache::Op :- [String i64]) (PCache::Reply :- [String i64])])` — is the
 ;; honest fix AND a second assertion in its own right: the whole parametric protocol has to be
 ;; spellable by hand, at concrete args, for a caller to hold one.
-(:wat::core::defn :wat-tests::pcache::dial
-  [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])]
-  -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [wat.type/String wat.type/i64]) (:wat-tests::PCache::Reply :- [wat.type/String wat.type/i64])])
-  (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause cz}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause cz}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cz}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause cz}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]))
+(wat.core/defn wat-tests.pcache/dial
+  [a :- (wat.kernel/Address :- [(wat-tests.PCache/Op :- [wat.type/String wat.type/i64]) (wat-tests.PCache/Reply :- [wat.type/String wat.type/i64])])]
+  :- (wat.kernel/Peer :- [(wat-tests.PCache/Op :- [wat.type/String wat.type/i64]) (wat-tests.PCache/Reply :- [wat.type/String wat.type/i64])])
+  (wat.core/match (wat.kernel/connect a)
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause cz}
+      (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause cz}
+      (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))] [wat.kernel/ConnectOutcome.WrongPeer {:cause cz}
+      (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))]
+    [wat.kernel/ConnectOutcome.Failed {:cause cz}
+      (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))]))
 
-(:wat::core::defn :wat-tests::pcache::label
-  [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [wat.type/String wat.type/i64])])]
-  -> wat.type/String
-  (:wat::core::match r
-    [:wat::kernel::RecvOutcome.Message {:msg __recv}
-      (:wat::core::match __recv
-        [:wat-tests::PCache::GetResponse.Ok {:echo echo :results results :limit limit}
+(wat.core/defn wat-tests.pcache/label
+  [r :- (wat.kernel/RecvOutcome :- [(wat-tests.PCache/GetResponse :- [wat.type/String wat.type/i64])])]
+  :- wat.type/String
+  (wat.core/match r
+    [wat.kernel/RecvOutcome.Message {:msg __recv}
+      (wat.core/match __recv
+        [wat-tests.PCache/GetResponse.Ok {:echo echo :results results :limit limit}
           ;; READ THE VALUES APART — the K-typed vector rendered VERBATIM (its actual Strings,
           ;; not a length or a tag), the V-typed i64s summed, the concrete i64 field echoed. A
           ;; wire that carried tags but dropped payload, or that shifted K and V, cannot produce
           ;; this string. `edn::write` rather than `nth`+concat on the K side is deliberate: it
           ;; renders whatever actually arrived, which is what makes probe (3)'s answer legible
           ;; instead of a crash.
-          (:wat::string::concat (:wat::edn::write echo)
-            (:wat::string::concat "|"
-              (:wat::string::concat
-                (:wat::i64::to-string
-                  (:wat::i64::+ (:wat::core::nth results 0)
-                                      (:wat::core::nth results 1)))
-                (:wat::string::concat "|"
-                  (:wat::i64::to-string limit)))))]
+          (wat.string/concat (wat.edn/write echo)
+            (wat.string/concat "|"
+              (wat.string/concat
+                (wat.i64/to-string
+                  (wat.i64/+ (wat.core/nth results 0)
+                                      (wat.core/nth results 1)))
+                (wat.string/concat "|"
+                  (wat.i64/to-string limit)))))]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::PCache::GetResponse.RequestTooLarge {:bytes bytes :cap cap} "TooLarge"]
-        [:wat-tests::PCache::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::string::concat "Malformed"
-            (:wat::string::concat (:wat::edn::write mpath)
-              (:wat::string::concat "/" (:wat::string::concat mexpected
-                (:wat::string::concat "/" mgot)))))])]
-    [:wat::kernel::RecvOutcome.Lost {:cause __cause}
-      (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [wat-tests.PCache/GetResponse.RequestTooLarge {:bytes bytes :cap cap} "TooLarge"]
+        [wat-tests.PCache/GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.string/concat "Malformed"
+            (wat.string/concat (wat.edn/write mpath)
+              (wat.string/concat "/" (wat.string/concat mexpected
+                (wat.string/concat "/" mgot)))))])]
+    [wat.kernel/RecvOutcome.Lost {:cause __cause}
+      (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))]
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :wat-tests::pcache::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
-  (:wat::core::let
-    [h (:wat-tests::pcache-svc/start :locus locus
-         :record (:wat-tests::pcache-svc::Record
+(wat.core/defn wat-tests.pcache/run :- [T] [locus :- (wat.spawn/Locus :- [T])] :- wat.type/String
+  (wat.core/let
+    [h (wat-tests.pcache-svc/start :locus locus
+         :record (wat-tests.pcache-svc/Record
                    :fills (wat.type/Vector :- [wat.type/i64] 11 22)))
-     c (:wat-tests::pcache::dial (:wat-tests::pcache-svc::Handle/addr h))
+     c (wat-tests.pcache/dial (wat-tests.pcache-svc.Handle/addr h))
      ;; (1) THE ROUND TRIP — a well-formed parametric request, real K-typed Strings out,
      ;;     real V-typed i64s back.
-     good (:wat-tests::pcache::label
-            (:wat-tests::pcache-svc/get c
-              (:wat-tests::PCache::GetRequest
+     good (wat-tests.pcache/label
+            (wat-tests.pcache-svc/get c
+              (wat-tests.PCache/GetRequest
                 :probes (wat.type/Vector :- [wat.type/String] "alpha" "beta")
                 :limit  7)))
      ;; (2) THE CONCRETE FIELD IS STILL ENFORCED — a wrong-typed `limit` under the correct tag
      ;;     is REFUSED by the request-shape wall, on both tiers. This is what stops the
      ;;     type-param opacity below from being indistinguishable from "the wall gave up on
      ;;     parametric messages": the wall is live, it walked past `probes` and bit on `limit`.
-     bad  (:wat-tests::pcache::label
-            (:wat-tests::pcache-svc/get c
-              (:wat::edn::read
+     bad  (wat-tests.pcache/label
+            (wat-tests.pcache-svc/get c
+              (wat.edn/read
                 "#wat-tests.PCache/GetRequest {:probes [\"alpha\" \"beta\"] :limit \"seven\"}")))
      ;; (3) THE TYPE-PARAM POSITION IS OPAQUE — and this is the honest, measured limit of the
      ;;     guarantee, not a claim in a comment. `probes` is declared `(Vector :- [K])`; here it
@@ -191,20 +191,20 @@
      ;;     that verbatim (`[1 2]`). Read that token as the guarantee's boundary line, written
      ;;     down where it cannot be forgotten: the boundary enforces every CONCRETE field, and a
      ;;     type-param position it cannot enforce it does not pretend to.
-     opaque (:wat-tests::pcache::label
-              (:wat-tests::pcache-svc/get c
-                (:wat::edn::read
+     opaque (wat-tests.pcache/label
+              (wat-tests.pcache-svc/get c
+                (wat.edn/read
                   "#wat-tests.PCache/GetRequest {:probes [1 2] :limit 7}")))
-     _    (:wat-tests::pcache-svc/stop h)]
-    (:wat::string::concat good
-      (:wat::string::concat " | " (:wat::string::concat bad
-        (:wat::string::concat " | " opaque))))))
+     _    (wat-tests.pcache-svc/stop h)]
+    (wat.string/concat good
+      (wat.string/concat " | " (wat.string/concat bad
+        (wat.string/concat " | " opaque))))))
 
 ;; ── thread tier ─────────────────────────────────────────────────────────────────────────────
-(:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-thread
+(wat.test/deftest wat-tests.service/parametric-messages-round-trip-on-thread
 
-  (:wat::test::assert-eq
-    (:wat-tests::pcache::run (:wat::spawn::thread))
+  (wat.test/assert-eq
+    (wat-tests.pcache/run (wat.spawn/thread))
     "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
@@ -215,8 +215,8 @@
 ;; instead of arriving as a verbatim in-process value. `probes <- (Vector :- [K])` is decoded there
 ;; too — the same type-param position the sanitization wall faces — so this test is what proves
 ;; the codec carries a parametric payload, not just that the thread tier never had to.
-(:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-process
+(wat.test/deftest wat-tests.service/parametric-messages-round-trip-on-process
 
-  (:wat::test::assert-eq
-    (:wat-tests::pcache::run (:wat::spawn::process))
+  (wat.test/assert-eq
+    (wat-tests.pcache/run (wat.spawn/process))
     "[\"alpha\" \"beta\"]|33|7 | Malformed[\"limit\"]/wat.type/i64/String | [1 2]|33|7"))

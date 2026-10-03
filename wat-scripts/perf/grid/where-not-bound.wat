@@ -4,44 +4,44 @@
 ;;
 ;; Twin of where-not-bound.clj.
 
-(:wat::core::defn :wnb::row-count [] -> wat.type/i64 2)
+(wat.core/defn wnb/row-count [] :- wat.type/i64 2)
 
-(:wat::core::defrecord :wnb::Station [loc <- wat.type/String])
-(:wat::core::defrecord :wnb::Reading [loc <- wat.type/String v <- wat.type/i64])
-(:wat::core::defrecord :wnb::Busy    [loc <- wat.type/String n <- wat.type/i64])
+(wat.core/defrecord wnb/Station [loc :- wat.type/String])
+(wat.core/defrecord wnb/Reading [loc :- wat.type/String v :- wat.type/i64])
+(wat.core/defrecord wnb/Busy    [loc :- wat.type/String n :- wat.type/i64])
 
-(:wat::rete::defrule :wnb::max-not-below
+(wat.rete/defrule wnb/max-not-below
   :when
-  [(:wnb::Station (?loc :- :loc))
-   (?m :- (:wat::rete::acc::max ?v) :from (:wnb::Reading (?loc :- :loc) (?v :- :v)))
-   (:wat::rete::not (:wnb::Reading (?loc :- :loc) (?v :- :v)
-                      (:wat::rete::i64::< ?v ?m)))]
+  [(wnb/Station (?loc :- :loc))
+   (?m :- (wat.rete.acc/max ?v) :from (wnb/Reading (?loc :- :loc) (?v :- :v)))
+   (wat.rete/not (wnb/Reading (?loc :- :loc) (?v :- :v)
+                      (wat.rete.i64/< ?v ?m)))]
   :then
-  [(:wnb::Busy :loc ?loc :n ?m)])
+  [(wnb/Busy :loc ?loc :n ?m)])
 
-(:wat::rete::defquery :wnb::q-Busy
+(wat.rete/defquery wnb/q-Busy
   :params []
-  :when [(?fact :- :wnb::Busy)])
+  :when [(?fact :- wnb/Busy)])
 
 
-(:wat::core::defn :wnb::fire [lo <- wat.type/i64  hi <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules
-    (:wat::core::match (:wat::rete::insert
-      (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:wnb::max-not-below)) (wat.type/PersistentVector :- [:wat::rete::Query] (:wnb::q-Busy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-      (:wnb::Station :loc "OSL")
-      (:wnb::Reading :loc "OSL" :v lo)
-      (:wnb::Reading :loc "OSL" :v hi)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn wnb/fire [lo :- wat.type/i64  hi :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules
+    (wat.core/match (wat.rete/insert
+      (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] (wnb/max-not-below)) (wat.type/PersistentVector :- [wat.rete/Query] (wnb/q-Busy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+      (wnb/Station :loc "OSL")
+      (wnb/Reading :loc "OSL" :v lo)
+      (wnb/Reading :loc "OSL" :v hi)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :wnb::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn wnb/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wnb::line 1 "max-not-below-mixed"
-    (:wat::core::length (:wat::rete::query (:wnb::fire 50 40) (:wnb::q-Busy))))
-  (:wnb::line 2 "max-not-below-tied"
-    (:wat::core::length (:wat::rete::query (:wnb::fire 50 50) (:wnb::q-Busy)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wnb/line 1 "max-not-below-mixed"
+    (wat.core/length (wat.rete/query (wnb/fire 50 40) (wnb/q-Busy))))
+  (wnb/line 2 "max-not-below-tied"
+    (wat.core/length (wat.rete/query (wnb/fire 50 50) (wnb/q-Busy)))))

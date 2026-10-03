@@ -6,17 +6,17 @@
 ;; (exposing `:geo::Box/size`) structurally satisfies `:geo::Sized`, so `(needs-sized (Box 5))` checks.
 
 ;; surface with a single METHOD member (no fields)
-(:wat::core::defsurface :geo::Sized
+(wat.core/defsurface geo/Sized
   :nature wat.type/Struct
-  :features [(size [self <- :geo::Sized] -> wat.type/i64)])
+  :features [(size [self :- geo/Sized] :- wat.type/i64)])
 
 ;; a record that backs `size` with a method (a defn :geo::Box/size)
-(:wat::core::defrecord :geo::Box [w <- wat.type/i64])
-(:wat::core::defn :geo::Box/size [self <- :geo::Box] -> wat.type/i64
-  (:geo::Box/w self))
+(wat.core/defrecord geo/Box [w :- wat.type/i64])
+(wat.core/defn geo.Box/size [self :- geo/Box] :- wat.type/i64
+  (geo.Box/w self))
 
 ;; a consumer requiring :geo::Sized — a :geo::Box must be ACCEPTED here (it exposes size)
-(:wat::core::defn :geo::needs-sized [s <- :geo::Sized] -> wat.type/nil nil)
+(wat.core/defn geo/needs-sized [s :- geo/Sized] :- wat.type/nil nil)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:geo::needs-sized (:geo::Box :w 5)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (geo/needs-sized (geo/Box :w 5)))

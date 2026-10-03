@@ -22,104 +22,104 @@
 ;; `:user::main`, printing one line per assertion so the transcript is the proof.
 
 ;; ── row 7's fixture: a real rule using the brief's exact nested expression ─────────
-(:wat::core::defrecord :g278get::PV [v <- (wat.type/PersistentVector :- [wat.type/i64])])
-(:wat::core::defrecord :g278get::Hit [n <- wat.type/i64])
+(wat.core/defrecord g278get/PV [v :- (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defrecord g278get/Hit [n :- wat.type/i64])
 
 ;; Hit(1) :- PV(v) AND (PersistentVector/get v 0 :undefined -1) > 5.
 ;; Facts below: [7 8 9] (get 0 = 7, hits), [1 2 3] (get 0 = 1, no hit), []
 ;; (out-of-range at index 0 — the fallback -1 fires, -1 > 5 is false, no hit, and
 ;; critically the whole `fire-rules` call does NOT abort the way a raising `first`
 ;; would — that is exactly the totality the brief's ruling buys).
-(:wat::rete::defrule :g278get::big-at-0
+(wat.rete/defrule g278get/big-at-0
   :when
-  [(:g278get::PV (?v :- :v))
-   (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::get ?v 0 :undefined -1) 5))]
+  [(g278get/PV (?v :- :v))
+   (wat.rete/where (wat.rete.i64/> (wat.rete.vector/get ?v 0 :undefined -1) 5))]
   :then
-  [(:g278get::Hit 1)])
+  [(g278get/Hit 1)])
 
-(:wat::rete::defquery :g278get::q-Hit
+(wat.rete/defquery g278get/q-Hit
   :params []
-  :when [(?fact :- :g278get::Hit)])
+  :when [(?fact :- g278get/Hit)])
 
 
-(:wat::core::defn :g278get::row7 [] -> wat.type/nil
-  (:wat::core::let
-    [s0    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :g278get) (wat.type/PersistentVector :- [:wat::rete::Query] (:g278get::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1    (:wat::core::match (:wat::rete::insert s0 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64] 7 8 9))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s2    (:wat::core::match (:wat::rete::insert s1 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s3    (:wat::core::match (:wat::rete::insert s2 (:g278get::PV (wat.type/PersistentVector :- [wat.type/i64]))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (:wat::rete::fire-rules$oracle s3) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::kernel::println
-      (:wat::string::concat "row7 seam-composes Hit-count (expect 1) = "
-        (:wat::core::str (:wat::core::length (:wat::rete::query fired (:g278get::q-Hit))))))))
+(wat.core/defn g278get/row7 [] :- wat.type/nil
+  (wat.core/let
+    [s0    (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :g278get) (wat.type/PersistentVector :- [wat.rete/Query] (g278get/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s1    (wat.core/match (wat.rete/insert s0 (g278get/PV (wat.type/PersistentVector :- [wat.type/i64] 7 8 9))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (wat.core/match (wat.rete/insert s1 (g278get/PV (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s3    (wat.core/match (wat.rete/insert s2 (g278get/PV (wat.type/PersistentVector :- [wat.type/i64]))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (wat.rete/fire-rules$oracle s3) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.kernel/println
+      (wat.string/concat "row7 seam-composes Hit-count (expect 1) = "
+        (wat.core/str (wat.core/length (wat.rete/query fired (g278get/q-Hit))))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [pv       (wat.type/PersistentVector :- [wat.type/i64] 7 8 9)
      empty-pv (wat.type/PersistentVector :- [wat.type/i64])
      vec      (wat.type/Vector :- [wat.type/i64] 7 8 9)
      lst      (wat.type/List :- [wat.type/i64] 7 8 9)
-     h        (:wat::holon::to-holon "some-atom")
-     other    (:wat::holon::to-holon "an-entirely-different-atom")
-     zero     (:wat::holon::Blend h h 1.0 -1.0)]
-    (:wat::core::do
+     h        (wat.holon/to-holon "some-atom")
+     other    (wat.holon/to-holon "an-entirely-different-atom")
+     zero     (wat.holon/Blend h h 1.0 -1.0)]
+    (wat.core/do
       ;; ── row 2 — in-range returns the element, fallback NOT taken ──────────────
-      (:wat::kernel::println
-        (:wat::string::concat "row2 in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::vector::get pv 1 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row2 in-range (expect 8) = "
+          (wat.core/str (wat.rete.vector/get pv 1 :undefined -1))))
 
       ;; ── row 3 — out-of-range takes the fallback ───────────────────────────────
-      (:wat::kernel::println
-        (:wat::string::concat "row3 out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row3 out-of-range (expect -1) = "
+          (wat.core/str (wat.rete.vector/get pv 9 :undefined -1))))
 
       ;; ── row 4 — NON-VACUITY: the SAME out-of-range expression, two DIFFERENT
       ;; fallback values. Rows 2/3/5 all pass if the arm returns a constant; only
       ;; this pair proves it returns the caller's own value.
-      (:wat::kernel::println
-        (:wat::string::concat "row4 run-a :undefined -1 (expect -1) = "
-          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined -1))))
-      (:wat::kernel::println
-        (:wat::string::concat "row4 run-b :undefined 42 (expect 42) = "
-          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined 42))))
+      (wat.kernel/println
+        (wat.string/concat "row4 run-a :undefined -1 (expect -1) = "
+          (wat.core/str (wat.rete.vector/get pv 9 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row4 run-b :undefined 42 (expect 42) = "
+          (wat.core/str (wat.rete.vector/get pv 9 :undefined 42))))
 
       ;; ── row 5 — empty container ────────────────────────────────────────────────
-      (:wat::kernel::println
-        (:wat::string::concat "row5 empty-container (expect -1) = "
-          (:wat::core::str (:wat::rete::vector::get empty-pv 0 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row5 empty-container (expect -1) = "
+          (wat.core/str (wat.rete.vector/get empty-pv 0 :undefined -1))))
 
       ;; ── row 6 — all three containers behave identically ───────────────────────
-      (:wat::kernel::println
-        (:wat::string::concat "row6 Vector/get in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::vec::get vec 1 :undefined -1))))
-      (:wat::kernel::println
-        (:wat::string::concat "row6 List/get in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::linkedlist::get lst 1 :undefined -1))))
-      (:wat::kernel::println
-        (:wat::string::concat "row6 Vector/get out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::vec::get vec 9 :undefined -1))))
-      (:wat::kernel::println
-        (:wat::string::concat "row6 List/get out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::linkedlist::get lst 9 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row6 Vector/get in-range (expect 8) = "
+          (wat.core/str (wat.rete.vec/get vec 1 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row6 List/get in-range (expect 8) = "
+          (wat.core/str (wat.rete.linkedlist/get lst 1 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row6 Vector/get out-of-range (expect -1) = "
+          (wat.core/str (wat.rete.vec/get vec 9 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row6 List/get out-of-range (expect -1) = "
+          (wat.core/str (wat.rete.linkedlist/get lst 9 :undefined -1))))
 
       ;; ── row 7 — the seam still composes (real defrule, above) ─────────────────
-      (:g278get::row7)
+      (g278get/row7)
 
       ;; ── row 8 — i64/f64/holon fallbacks UNREGRESSED (this strike edits the
       ;; SHARED `Fallback` arm all four families run through) ────────────────────
-      (:wat::kernel::println
-        (:wat::string::concat "row8 i64::/ 1 0 :undefined -1 (expect -1) = "
-          (:wat::core::str (:wat::rete::i64::/ 1 0 :undefined -1))))
-      (:wat::kernel::println
-        (:wat::string::concat "row8 f64::/ 0.0 0.0 :undefined -1.0 (expect -1) = "
-          (:wat::core::str (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0))))
-      (:wat::kernel::println
-        (:wat::string::concat "row8 holon::cosine degenerate :undefined -1.0 (expect -1) = "
-          (:wat::core::str (:wat::rete::holon::cosine zero other :undefined -1.0))))
+      (wat.kernel/println
+        (wat.string/concat "row8 i64::/ 1 0 :undefined -1 (expect -1) = "
+          (wat.core/str (wat.rete.i64// 1 0 :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row8 f64::/ 0.0 0.0 :undefined -1.0 (expect -1) = "
+          (wat.core/str (wat.rete.f64// 0.0 0.0 :undefined -1.0))))
+      (wat.kernel/println
+        (wat.string/concat "row8 holon::cosine degenerate :undefined -1.0 (expect -1) = "
+          (wat.core/str (wat.rete.holon/cosine zero other :undefined -1.0))))
 
       ;; ── row 9 — `first` unregressed (STOP-2: its three rows were untouched) ───
-      (:wat::kernel::println
-        (:wat::string::concat "row9 PersistentVector/first empty :undefined -1 (expect -1) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/first empty-pv :undefined -1))))
+      (wat.kernel/println
+        (wat.string/concat "row9 PersistentVector/first empty :undefined -1 (expect -1) = "
+          (wat.core/str (wat.rete.core.PersistentVector/first empty-pv :undefined -1))))
 
       nil)))

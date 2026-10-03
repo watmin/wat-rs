@@ -2,9 +2,9 @@
 ;; An edit whose claim is EXACTLY AS LONG as the source text at its offset and simply WRONG.
 ;; A bounds check cannot catch this; only comparing the claim against the source can.
 ;;   src = "hello world"; at offset 6 the source holds "world"; the edit claims "xxxxx".
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [src   "hello world"
      edits (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
              (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] 6 "xxxxx" "there"))]
-    (:wat::kernel::println (:wat::fix::fix-text-apply src edits))))
+    (wat.kernel/println (wat.fix/fix-text-apply src edits))))

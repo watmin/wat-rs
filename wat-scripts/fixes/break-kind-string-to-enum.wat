@@ -22,147 +22,147 @@
 ;;   printf '["wat-scripts/fmt/rules/defn.wat" …]\n' \
 ;;     | cargo wat ./wat-scripts/fixes/break-kind-string-to-enum.wat
 
-(:wat::core::defn :user::empty-edits []
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/empty-edits []
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::one-edit
-  [off <- wat.type/i64  old <- wat.type/String  new <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/one-edit
+  [off :- wat.type/i64  old :- wat.type/String  new :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
-(:wat::core::defn :user::start-off
-  [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn user/start-off
+  [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n)
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n)
     ""))
 
-(:wat::core::defn :user::kind-target [s <- wat.type/String] -> wat.type/String
-  (:wat::core::if (:wat::core::= s "block")
+(wat.core/defn user/kind-target [s :- wat.type/String] :- wat.type/String
+  (wat.core/if (wat.core/= s "block")
     "(:wat::fmt::BreakKind::Block)"
-    (:wat::core::if (:wat::core::= s "align")
+    (wat.core/if (wat.core/= s "align")
       "(:wat::fmt::BreakKind::Align)"
       "")))
 
-(:wat::core::defn :user::break-ctor-edits
-  [ch    <- (wat.type/Vector :- [wat.type/AST])
-   i     <- wat.type/i64
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::i64::>= (:wat::i64::+ i 1) (:wat::core::length ch))
-    (:user::empty-edits)
-    (:wat::core::let
-      [a (:wat::core::nth ch i)
-       b (:wat::core::nth ch (:wat::i64::+ i 1))
-       rest (:user::break-ctor-edits ch (:wat::i64::+ i 1) lines)]
-      (:wat::core::if
-        (:wat::core::if (:wat::core::= (:user::kw-name a) ":kind")
-          (:wat::core::= (:wat::core::ast-kind b) "string")
+(wat.core/defn user/break-ctor-edits
+  [ch    :- (wat.type/Vector :- [wat.type/AST])
+   i     :- wat.type/i64
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.i64/>= (wat.i64/+ i 1) (wat.core/length ch))
+    (user/empty-edits)
+    (wat.core/let
+      [a (wat.core/nth ch i)
+       b (wat.core/nth ch (wat.i64/+ i 1))
+       rest (user/break-ctor-edits ch (wat.i64/+ i 1) lines)]
+      (wat.core/if
+        (wat.core/if (wat.core/= (user/kw-name a) ":kind")
+          (wat.core/= (wat.core/ast-kind b) "string")
           false)
-        (:wat::core::let [tgt (:user::kind-target (:wat::core::ast-name b))]
-          (:wat::core::if (:wat::string::empty? tgt)
+        (wat.core/let [tgt (user/kind-target (wat.core/ast-name b))]
+          (wat.core/if (wat.string/empty? tgt)
             rest
-            (:wat::core::concat
-              (:user::one-edit (:user::start-off b lines) (:wat::core::ast->source b) tgt)
+            (wat.core/concat
+              (user/one-edit (user/start-off b lines) (wat.core/ast->source b) tgt)
               rest)))
         rest))))
 
-(:wat::core::defn :user::node-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
-        (:user::empty-edits)
-        (:wat::core::let
-          [here (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::fmt::Break")
-                   (:user::break-ctor-edits ch 0 lines)
-                   (:user::empty-edits))]
-          (:wat::core::concat here (:user::seq-edits ch lines)))))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::seq-edits (:wat::core::ast->children node) lines)
-      (:user::empty-edits))))
+(wat.core/defn user/node-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
+        (user/empty-edits)
+        (wat.core/let
+          [here (wat.core/if (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::fmt::Break")
+                   (user/break-ctor-edits ch 0 lines)
+                   (user/empty-edits))]
+          (wat.core/concat here (user/seq-edits ch lines)))))
+    (wat.core/if (wat.fix/structural? node)
+      (user/seq-edits (wat.core/ast->children node) lines)
+      (user/empty-edits))))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     it  <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
-    (:user::empty-edits)
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     it  :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it lines)))
+    (user/empty-edits)
     items))
 
-(:wat::core::defn :user::comment-edits
-  [comments <- (wat.type/PersistentVector :- [:wat::fmt::Comment])
-   lines    <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     c   <- :wat::fmt::Comment]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::let [t (:wat::fmt::Comment/text c)]
-        (:wat::core::if (:wat::string::contains? t "\"block\"")
-          (:wat::core::concat acc
-            (:user::one-edit
-              (:wat::core::+
-                (:wat::fix::fix-text-line-start (:wat::fmt::Comment/line c) lines)
-                (:wat::core::- (:wat::fmt::Comment/col c) 1))
+(wat.core/defn user/comment-edits
+  [comments :- (wat.type/PersistentVector :- [wat.fmt/Comment])
+   lines    :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     c   :- wat.fmt/Comment]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/let [t (wat.fmt.Comment/text c)]
+        (wat.core/if (wat.string/contains? t "\"block\"")
+          (wat.core/concat acc
+            (user/one-edit
+              (wat.core/+
+                (wat.fix/fix-text-line-start (wat.fmt.Comment/line c) lines)
+                (wat.core/- (wat.fmt.Comment/col c) 1))
               t
               ";; Break names a kind (BreakKind); the emitter computes the rest."))
           acc)))
-    (:user::empty-edits)
+    (user/empty-edits)
     comments))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::match (:wat::core::read-string-with-comments src)
-    [:wat::core::ReadWithCommentsOutcome.Forms {:forms forms :comments comments}
-      (:wat::core::let
-        [lines (:wat::string::split src "\n")
-         kids  (:wat::core::ast->children forms)
-         eds   (:wat::core::concat
-                 (:user::seq-edits kids lines)
-                 (:user::comment-edits comments lines))
-         rev   (:wat::core::reverse (:wat::core::sort eds))]
-        (:wat::fix::fix-text-apply src rev))]
-    [:wat::core::ReadWithCommentsOutcome.Malformed {:cause cause}
-      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/match (wat.core/read-string-with-comments src)
+    [wat.core/ReadWithCommentsOutcome.Forms {:forms forms :comments comments}
+      (wat.core/let
+        [lines (wat.string/split src "\n")
+         kids  (wat.core/ast->children forms)
+         eds   (wat.core/concat
+                 (user/seq-edits kids lines)
+                 (user/comment-edits comments lines))
+         rev   (wat.core/reverse (wat.core/sort eds))]
+        (wat.fix/fix-text-apply src rev))]
+    [wat.core/ReadWithCommentsOutcome.Malformed {:cause cause}
+      (wat.kernel/assertion-failed! :message (wat.core.Error/message cause))]))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])
-   n     <- wat.type/i64]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
-    (:wat::kernel::println
-      (:wat::string::interpolate "CHANGED={n}" :n (:wat::i64::to-string n)))
-    (:wat::core::let
-      [path   (:wat::core::first paths)
-       before (:wat::io::read-file path)
-       after  (:user::migrate before)
-       hit?   (:wat::core::not (:wat::core::= before after))]
-      (:wat::core::do
-        (:wat::core::if hit? (:wat::io::write-file path after) nil)
-        (:wat::kernel::println
-          (:wat::string::concat
-            (:wat::core::if hit? "[changed] " "[unchanged] ")
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])
+   n     :- wat.type/i64]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
+    (wat.kernel/println
+      (wat.string/interpolate "CHANGED={n}" :n (wat.i64/to-string n)))
+    (wat.core/let
+      [path   (wat.core/first paths)
+       before (wat.io/read-file path)
+       after  (user/migrate before)
+       hit?   (wat.core/not (wat.core/= before after))]
+      (wat.core/do
+        (wat.core/if hit? (wat.io/write-file path after) nil)
+        (wat.kernel/println
+          (wat.string/concat
+            (wat.core/if hit? "[changed] " "[unchanged] ")
             path))
-        (:user::apply-each (:wat::core::rest paths)
-          (:wat::core::if hit? (:wat::i64::+ n 1) n))))))
+        (user/apply-each (wat.core/rest paths)
+          (wat.core/if hit? (wat.i64/+ n 1) n))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v d} d]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v d} d]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])
     0))

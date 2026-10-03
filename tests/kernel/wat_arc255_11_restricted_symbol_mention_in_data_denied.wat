@@ -6,9 +6,9 @@
 ;; type-checked CLEAN, and handing the quoted form to `(:wat::eval-ast! ...)` ran the
 ;; restricted fn. The walker now reads both spellings.
 
-(:wat::core::defn :my::kernel::restricted-fn
-  {:restricted-to [:my::kernel::]}
-  [x <- wat.type/i64] -> wat.type/i64 x)
+(wat.core/defn my.kernel/restricted-fn
+  {:restricted-to [my.kernel]}
+  [x :- wat.type/i64] :- wat.type/i64 x)
 
-(:wat::core::defn :user::app::caller [] -> wat.type/AST
-  (:wat::core::quote (my.kernel/restricted-fn 7)))
+(wat.core/defn user.app/caller [] :- wat.type/AST
+  (wat.core/quote (my.kernel/restricted-fn 7)))

@@ -25,38 +25,38 @@
 ;;
 ;; Run: target/release/wat wat-scripts/scratch-pad/probe-inline-constraint-bypasses-law-a.wat
 
-(:wat::core::defrecord :probe::Reading [location <- wat.type/String  value <- wat.type/i64])
-(:wat::core::defrecord :probe::Flagged [location <- wat.type/String])
+(wat.core/defrecord probe/Reading [location :- wat.type/String  value :- wat.type/i64])
+(wat.core/defrecord probe/Flagged [location :- wat.type/String])
 
 ;; CONTROL — the same predicate through the FENCED surface. Rete-spelled, law-A clean.
-(:wat::rete::defrule :probe::via-where
+(wat.rete/defrule probe/via-where
   :when
-  [(:probe::Reading (?loc :- :location) (?v :- :value))
-   (:wat::rete::where (:wat::rete::i64::> ?v 10))]
+  [(probe/Reading (?loc :- :location) (?v :- :value))
+   (wat.rete/where (wat.rete.i64/> ?v 10))]
   :then
-  [(:probe::Flagged :location ?loc)])
+  [(probe/Flagged :location ?loc)])
 
 ;; SUBJECT — the same predicate as an inline constraint NESTED in the pattern, core-spelled
 ;; generic `>`. It compiles. Law A does not govern the whole LHS.
-(:wat::rete::defrule :probe::via-inline-constraint
+(wat.rete/defrule probe/via-inline-constraint
   :when
-  [(:probe::Reading (?loc :- :location) (?v :- :value) (:wat::rete::i64::> :value 10))]
+  [(probe/Reading (?loc :- :location) (?v :- :value) (wat.rete.i64/> :value 10))]
   :then
-  [(:probe::Flagged :location ?loc)])
+  [(probe/Flagged :location ?loc)])
 
-(:wat::rete::defquery :probe::q-Flagged
+(wat.rete/defquery probe/q-Flagged
   :params []
-  :when [(?fact :- :probe::Flagged)])
+  :when [(?fact :- probe/Flagged)])
 
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :probe)
-     session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q-Flagged))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     session (:wat::core::match (:wat::rete::insert session (:probe::Reading :location "Oslo"   :value 42)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     session (:wat::core::match (:wat::rete::insert session (:probe::Reading :location "Bergen" :value 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     flagged (:wat::rete::query fired (:probe::q-Flagged))]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :probe)
+     session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (probe/q-Flagged))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     session (wat.core/match (wat.rete/insert session (probe/Reading :location "Oslo"   :value 42)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     session (wat.core/match (wat.rete/insert session (probe/Reading :location "Bergen" :value 3)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired   (wat.core/match (wat.rete/fire-rules session) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     flagged (wat.rete/query fired (probe/q-Flagged))]
     ;; :rule-count 2 = BOTH compiled (the top-level form (a) never reached this point).
     ;; :flagged-count 1 = only Oslo; Bergen (value 3) was filtered, so the constraint discriminated.
     ;;
@@ -64,7 +64,7 @@
     ;; control rule live, `flagged-count` is 1 whether the SUBJECT fired or not. It measures "the
     ;; hole exists", never "what a cross-type compare does". The Rust probe uses a distinct fixture
     ;; per question for exactly this reason.
-    (:wat::kernel::println
+    (wat.kernel/println
       (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64]
-        :rule-count    (:wat::core::length rules)
-        :flagged-count (:wat::core::length flagged)))))
+        :rule-count    (wat.core/length rules)
+        :flagged-count (wat.core/length flagged)))))

@@ -17,9 +17,9 @@
 ;; does not, so the row count IS the truth value — the one place in these fuzzers where a count is
 ;; the right instrument rather than a blind one.
 
-(:wat::core::defrecord :wat-tests::rete::nest::A [k <- wat.type/i64])
-(:wat::core::defrecord :wat-tests::rete::nest::B [k <- wat.type/i64])
-(:wat::core::defrecord :wat-tests::rete::nest::C [k <- wat.type/i64])
+(wat.core/defrecord wat-tests.rete.nest/A [k :- wat.type/i64])
+(wat.core/defrecord wat-tests.rete.nest/B [k :- wat.type/i64])
+(wat.core/defrecord wat-tests.rete.nest/C [k :- wat.type/i64])
 
 ;; ── the shapes ───────────────────────────────────────────────────────────────
 ;; Chosen so each is a DIFFERENT composition, not a different spelling of one:
@@ -27,122 +27,122 @@
 ;;   4 not(not)   5 not(and(·,not))  6 or(·,and(·,not))  7 and(not,not)
 ;; 5 and 6 nest a `:not` INSIDE another combinator, which is the arrangement flat families cannot
 ;; reach at all: a negation whose truth is consumed by an enclosing boolean rather than by the rule.
-(:wat::core::defn :wat-tests::rete::nest::shape [i <- wat.type/i64] -> wat.type/AST
-  (:wat::core::cond
-    ((:wat::core::= i 0) (:wat::core::quasiquote
-      (:wat::rete::not (:wat::rete::and (:wat-tests::rete::nest::A) (:wat-tests::rete::nest::B)))))
-    ((:wat::core::= i 1) (:wat::core::quasiquote
-      (:wat::rete::not (:wat::rete::or (:wat-tests::rete::nest::A) (:wat-tests::rete::nest::B)))))
-    ((:wat::core::= i 2) (:wat::core::quasiquote
-      (:wat::rete::or (:wat::rete::and (:wat-tests::rete::nest::A) (:wat-tests::rete::nest::B))
-                      (:wat-tests::rete::nest::C))))
-    ((:wat::core::= i 3) (:wat::core::quasiquote
-      (:wat::rete::and (:wat::rete::or (:wat-tests::rete::nest::A) (:wat-tests::rete::nest::B))
-                       (:wat-tests::rete::nest::C))))
-    ((:wat::core::= i 4) (:wat::core::quasiquote
-      (:wat::rete::not (:wat::rete::not (:wat-tests::rete::nest::A)))))
-    ((:wat::core::= i 5) (:wat::core::quasiquote
-      (:wat::rete::not (:wat::rete::and (:wat-tests::rete::nest::A)
-                                        (:wat::rete::not (:wat-tests::rete::nest::B))))))
-    ((:wat::core::= i 6) (:wat::core::quasiquote
-      (:wat::rete::or (:wat-tests::rete::nest::A)
-                      (:wat::rete::and (:wat-tests::rete::nest::B)
-                                       (:wat::rete::not (:wat-tests::rete::nest::C))))))
-    (:else (:wat::core::quasiquote
-      (:wat::rete::and (:wat::rete::not (:wat-tests::rete::nest::A))
-                       (:wat::rete::not (:wat-tests::rete::nest::B)))))))
+(wat.core/defn wat-tests.rete.nest/shape [i :- wat.type/i64] :- wat.type/AST
+  (wat.core/cond
+    ((wat.core/= i 0) (wat.core/quasiquote
+      (wat.rete/not (wat.rete/and (wat-tests.rete.nest/A) (wat-tests.rete.nest/B)))))
+    ((wat.core/= i 1) (wat.core/quasiquote
+      (wat.rete/not (wat.rete/or (wat-tests.rete.nest/A) (wat-tests.rete.nest/B)))))
+    ((wat.core/= i 2) (wat.core/quasiquote
+      (wat.rete/or (wat.rete/and (wat-tests.rete.nest/A) (wat-tests.rete.nest/B))
+                      (wat-tests.rete.nest/C))))
+    ((wat.core/= i 3) (wat.core/quasiquote
+      (wat.rete/and (wat.rete/or (wat-tests.rete.nest/A) (wat-tests.rete.nest/B))
+                       (wat-tests.rete.nest/C))))
+    ((wat.core/= i 4) (wat.core/quasiquote
+      (wat.rete/not (wat.rete/not (wat-tests.rete.nest/A)))))
+    ((wat.core/= i 5) (wat.core/quasiquote
+      (wat.rete/not (wat.rete/and (wat-tests.rete.nest/A)
+                                        (wat.rete/not (wat-tests.rete.nest/B))))))
+    ((wat.core/= i 6) (wat.core/quasiquote
+      (wat.rete/or (wat-tests.rete.nest/A)
+                      (wat.rete/and (wat-tests.rete.nest/B)
+                                       (wat.rete/not (wat-tests.rete.nest/C))))))
+    (:else (wat.core/quasiquote
+      (wat.rete/and (wat.rete/not (wat-tests.rete.nest/A))
+                       (wat.rete/not (wat-tests.rete.nest/B)))))))
 
-(:wat::core::defn :wat-tests::rete::nest::n-shapes [] -> wat.type/i64 8)
+(wat.core/defn wat-tests.rete.nest/n-shapes [] :- wat.type/i64 8)
 
 ;; ── the worlds ───────────────────────────────────────────────────────────────
 ;; `world` is a 3-bit presence mask: bit0 A, bit1 B, bit2 C. All 8, so the truth table is complete.
-(:wat::core::defn :wat-tests::rete::nest::has [world <- wat.type/i64  bit <- wat.type/i64]
-  -> wat.type/bool
-  (:wat::core::= 1 (:wat::i64::rem (:wat::i64::quot world bit) 2)))
+(wat.core/defn wat-tests.rete.nest/has [world :- wat.type/i64  bit :- wat.type/i64]
+  :- wat.type/bool
+  (wat.core/= 1 (wat.i64/rem (wat.i64/quot world bit) 2)))
 
-(:wat::core::defn :wat-tests::rete::nest::seed
-  [world <- wat.type/i64  q <- :wat::rete::Query] -> :wat::rete::Session
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]) (wat.type/PersistentVector :- [:wat::rete::Query] q)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1 (:wat::core::if (:wat-tests::rete::nest::has world 1)
-          (:wat::core::match (:wat::rete::insert s0 (:wat-tests::rete::nest::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
-     s2 (:wat::core::if (:wat-tests::rete::nest::has world 2)
-          (:wat::core::match (:wat::rete::insert s1 (:wat-tests::rete::nest::B :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s1)]
-    (:wat::core::if (:wat-tests::rete::nest::has world 4)
-      (:wat::core::match (:wat::rete::insert s2 (:wat-tests::rete::nest::C :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s2)))
+(wat.core/defn wat-tests.rete.nest/seed
+  [world :- wat.type/i64  q :- wat.rete/Query] :- wat.rete/Session
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule]) (wat.type/PersistentVector :- [wat.rete/Query] q)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s1 (wat.core/if (wat-tests.rete.nest/has world 1)
+          (wat.core/match (wat.rete/insert s0 (wat-tests.rete.nest/A :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s0)
+     s2 (wat.core/if (wat-tests.rete.nest/has world 2)
+          (wat.core/match (wat.rete/insert s1 (wat-tests.rete.nest/B :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s1)]
+    (wat.core/if (wat-tests.rete.nest/has world 4)
+      (wat.core/match (wat.rete/insert s2 (wat-tests.rete.nest/C :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) s2)))
 
 ;; ── the case, and the readout ────────────────────────────────────────────────
-(:wat::core::defrecord :wat-tests::rete::nest::Case
-  [shape <- wat.type/i64   ;; which composition
-   world <- wat.type/i64]) ;; 3-bit presence mask over A, B, C
+(wat.core/defrecord wat-tests.rete.nest/Case
+  [shape :- wat.type/i64   ;; which composition
+   world :- wat.type/i64]) ;; 3-bit presence mask over A, B, C
 
 ;; A query whose ONLY condition is the combinator: it activates or it does not, so the row count is
 ;; the truth value. Built fresh per case because the shape is the query.
-(:wat::core::defn :wat-tests::rete::nest::query-for [shape <- wat.type/i64] -> :wat::rete::Query
-  (:wat::rete::Query :name "q" :params (wat.type/PersistentVector :- [wat.type/String])
-    :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat-tests::rete::nest::shape shape))))
+(wat.core/defn wat-tests.rete.nest/query-for [shape :- wat.type/i64] :- wat.rete/Query
+  (wat.rete/Query :name "q" :params (wat.type/PersistentVector :- [wat.type/String])
+    :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat-tests.rete.nest/shape shape))))
 
-(:wat::core::defn :wat-tests::rete::nest::rows
-  [c <- :wat-tests::rete::nest::Case  oracle? <- wat.type/bool] -> wat.type/i64
-  (:wat::core::let [q  (:wat-tests::rete::nest::query-for (:wat-tests::rete::nest::Case/shape c))
-                    st (:wat-tests::rete::nest::seed (:wat-tests::rete::nest::Case/world c) q)]
-    (:wat::core::length
-      (:wat::rete::query
-        (:wat::core::if oracle?
-          (:wat::core::match (:wat::rete::fire-rules$oracle st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-          (:wat::core::match (:wat::rete::fire-rules st) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn wat-tests.rete.nest/rows
+  [c :- wat-tests.rete.nest/Case  oracle? :- wat.type/bool] :- wat.type/i64
+  (wat.core/let [q  (wat-tests.rete.nest/query-for (wat-tests.rete.nest.Case/shape c))
+                    st (wat-tests.rete.nest/seed (wat-tests.rete.nest.Case/world c) q)]
+    (wat.core/length
+      (wat.rete/query
+        (wat.core/if oracle?
+          (wat.core/match (wat.rete/fire-rules$oracle st) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+          (wat.core/match (wat.rete/fire-rules st) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
         q))))
 
-(:wat::core::defn :wat-tests::rete::nest::prop [c <- :wat-tests::rete::nest::Case] -> wat.type/bool
-  (:wat::core::= (:wat-tests::rete::nest::rows c false)
-                 (:wat-tests::rete::nest::rows c true)))
+(wat.core/defn wat-tests.rete.nest/prop [c :- wat-tests.rete.nest/Case] :- wat.type/bool
+  (wat.core/= (wat-tests.rete.nest/rows c false)
+                 (wat-tests.rete.nest/rows c true)))
 
-(:wat::core::defn :wat-tests::rete::nest::space []
-  -> (:wat::gen::Gen :- [:wat-tests::rete::nest::Case])
-  (:wat::gen::record :wat-tests::rete::nest::Case
-    (:wat::gen::ints 0 (:wat-tests::rete::nest::n-shapes))
-    (:wat::gen::ints 0 8)))
+(wat.core/defn wat-tests.rete.nest/space []
+  :- (wat.gen/Gen :- [wat-tests.rete.nest/Case])
+  (wat.gen/record wat-tests.rete.nest/Case
+    (wat.gen/ints 0 (wat-tests.rete.nest/n-shapes))
+    (wat.gen/ints 0 8)))
 
 ;; ── the gates ────────────────────────────────────────────────────────────────
-(:wat::test::time-limit "60s")
-(:wat::test::deftest :wat-tests::rete::nest::test-native-matches-oracle-on-nested-combinators
-  (:wat::core::match (:wat::gen::check (:wat-tests::rete::nest::space) :wat-tests::rete::nest::prop)
-    [:wat::gen::CheckOutcome.Checked {:points cases :violations bad :first-failure _first}
-      (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> cases 0))]
-        (:wat::test::assert-eq bad 0))]
-    [:wat::gen::CheckOutcome.EmptySpace {} (:wat::test::assert-true false)]))
+(wat.test/time-limit "60s")
+(wat.test/deftest wat-tests.rete.nest/test-native-matches-oracle-on-nested-combinators
+  (wat.core/match (wat.gen/check (wat-tests.rete.nest/space) wat-tests.rete.nest/prop)
+    [wat.gen/CheckOutcome.Checked {:points cases :violations bad :first-failure _first}
+      (wat.core/let [_ (wat.test/assert-true (wat.core/> cases 0))]
+        (wat.test/assert-eq bad 0))]
+    [wat.gen/CheckOutcome.EmptySpace {} (wat.test/assert-true false)]))
 
 ;; NON-VACUITY, and for a truth table it has a sharp form: EVERY shape must CHANGE ITS MIND across
 ;; the worlds. A shape that answers the same in all 8 is either a tautology, a contradiction, or a
 ;; composition the engine collapsed — and all three make its 8 cases agree with the oracle for a
 ;; reason that has nothing to do with nesting. This is the check that would catch, say, a `:not` of
 ;; an `:and` being silently treated as an `:and` of `:not`s only in the cases where they coincide.
-(:wat::core::defn :wat-tests::rete::nest::varies [shape <- wat.type/i64] -> wat.type/bool
-  (:wat::core::let
-    [rows (:wat::core::mapv
-            (:wat::core::fn [w <- wat.type/i64] -> wat.type/i64
-              (:wat-tests::rete::nest::rows
-                (:wat-tests::rete::nest::Case :shape shape :world w) false))
-            (:wat::core::range 0 8))
-     lo (:wat::core::foldl
-          (:wat::core::fn [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
-            (:wat::core::if (:wat::core::< a b) a b))
+(wat.core/defn wat-tests.rete.nest/varies [shape :- wat.type/i64] :- wat.type/bool
+  (wat.core/let
+    [rows (wat.core/mapv
+            (wat.core/fn [w :- wat.type/i64] :- wat.type/i64
+              (wat-tests.rete.nest/rows
+                (wat-tests.rete.nest/Case :shape shape :world w) false))
+            (wat.core/range 0 8))
+     lo (wat.core/foldl
+          (wat.core/fn [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/i64
+            (wat.core/if (wat.core/< a b) a b))
           99 rows)
-     hi (:wat::core::foldl
-          (:wat::core::fn [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
-            (:wat::core::if (:wat::core::> a b) a b))
+     hi (wat.core/foldl
+          (wat.core/fn [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/i64
+            (wat.core/if (wat.core/> a b) a b))
           -1 rows)]
-    (:wat::core::not (:wat::core::= lo hi))))
+    (wat.core/not (wat.core/= lo hi))))
 
-(:wat::test::time-limit "60s")
-(:wat::test::deftest :wat-tests::rete::nest::test-every-shape-changes-its-mind
-  (:wat::core::let
-    [bad (:wat::core::foldl
-           (:wat::core::fn [acc <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
-             (:wat::core::if (:wat-tests::rete::nest::varies i)
+(wat.test/time-limit "60s")
+(wat.test/deftest wat-tests.rete.nest/test-every-shape-changes-its-mind
+  (wat.core/let
+    [bad (wat.core/foldl
+           (wat.core/fn [acc :- wat.type/i64  i :- wat.type/i64] :- wat.type/i64
+             (wat.core/if (wat-tests.rete.nest/varies i)
                acc
-               (:wat::i64::+ acc 1)))
+               (wat.i64/+ acc 1)))
            0
-           (:wat::core::range 0 (:wat-tests::rete::nest::n-shapes)))]
+           (wat.core/range 0 (wat-tests.rete.nest/n-shapes)))]
     ;; Every one of the 8 compositions must be sensitive to the world it runs in.
-    (:wat::test::assert-eq bad 0)))
+    (wat.test/assert-eq bad 0)))

@@ -7,11 +7,11 @@
 ;; Usage:
 ;;   cargo wat ./wat-scripts/intrinsic-metadata.wat
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match
-    (:wat::runtime::metadata-of :wat::intrinsic::examples)  
-    [:wat::core::Option.None {}
-      (:wat::kernel::eprintln
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match
+    (wat.runtime/metadata-of wat.intrinsic/examples)  
+    [wat.core/Option.None {}
+      (wat.kernel/eprintln
         "intrinsic-metadata: no metadata for :wat::intrinsic::examples")]
-    [:wat::core::Option.Some {:value meta}
-      (:wat::kernel::pprintln meta)]))
+    [wat.core/Option.Some {:value meta}
+      (wat.kernel/pprintln meta)]))

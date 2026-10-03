@@ -3,10 +3,10 @@
 ;; (tests/reflection/probe_arc255_reflection_parity.rs /
 ;; probe_arc255_reflection_parity_user_form.wat). Checking whether its
 ;; "not yet built" ignore reason still holds for a bare user `defn`.
-(:wat::core::defn :my::f [x <- wat.type/i64] -> wat.type/i64 x)
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [m (:wat::runtime::metadata-of :my::f)]
-    (:wat::core::match m
-      [:wat::core::Option.Some {:value _} (:wat::kernel::println "SOME (user defn carries baseline)")]
-      [:wat::core::Option.None {} (:wat::kernel::println "NONE (ignore reason still true)")])))
+(wat.core/defn my/f [x :- wat.type/i64] :- wat.type/i64 x)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [m (wat.runtime/metadata-of my/f)]
+    (wat.core/match m
+      [wat.core/Option.Some {:value _} (wat.kernel/println "SOME (user defn carries baseline)")]
+      [wat.core/Option.None {} (wat.kernel/println "NONE (ignore reason still true)")])))

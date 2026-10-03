@@ -2,8 +2,8 @@
 ;; `'`, `~@`, `\c`, `#holon`) NOR string literals, for G6: Written count == Named count. Every
 ;; nameable node here is a Symbol or Keyword, so the predicate's only-validated case (see the
 ;; report: symbol/keyword are exact, string is NOT) applies cleanly.
-(:wat::core::defn :user::add
-  [x <- wat.type/i64
-   y <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::i64::+ x y))
+(wat.core/defn user/add
+  [x :- wat.type/i64
+   y :- wat.type/i64]
+  :- wat.type/i64
+  (wat.i64/+ x y))

@@ -10,16 +10,16 @@
 ;; pulling only ONE cell must not force the late `boom(99)` — via `NextOutcome::Item`'s single
 ;; force, not via how it used to spell the pull.
 
-(:wat::core::defn :my::compute [] -> wat.type/i64
-  (:wat::core::let
-    [boom (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-            (:wat::core::if (:wat::core::= x 99)
+(wat.core/defn my/compute [] :- wat.type/i64
+  (wat.core/let
+    [boom (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+            (wat.core/if (wat.core/= x 99)
 
-              (:wat::i64::/ x 0)
+              (wat.i64// x 0)
               x))
-     mapped (:wat::core::map boom (wat.type/Vector :- [wat.type/i64] 1 2 99))]
-    (:wat::core::match (:wat::stream::next mapped)
-      [:wat::stream::NextOutcome.Item {:value value :rest _rest} value]
-      [:wat::stream::NextOutcome.Exhausted {}
-        (:wat::kernel::assertion-failed! :message "expected at least one mapped element")])))
+     mapped (wat.core/map boom (wat.type/Vector :- [wat.type/i64] 1 2 99))]
+    (wat.core/match (wat.stream/next mapped)
+      [wat.stream/NextOutcome.Item {:value value :rest _rest} value]
+      [wat.stream/NextOutcome.Exhausted {}
+        (wat.kernel/assertion-failed! :message "expected at least one mapped element")])))
 

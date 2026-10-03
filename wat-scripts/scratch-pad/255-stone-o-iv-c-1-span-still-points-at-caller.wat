@@ -15,18 +15,18 @@
 ;;
 ;; Run with `./target/release/wat <this file> <case>`, case in {span-a, span-b}.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [argv (:wat::runtime::argv)
-     case (:wat::core::Option/expect (:wat::core::get argv 2) "usage: <this file> <case>")]
-    (:wat::core::cond
-      ((:wat::core::= case "span-a")
-       (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::holon::OnlineSubspace/dim (wat.type/Vector :- [wat.type/Value] 42)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [argv (wat.runtime/argv)
+     case (wat.core.Option/expect (wat.core/get argv 2) "usage: <this file> <case>")]
+    (wat.core/cond
+      ((wat.core/= case "span-a")
+       (wat.kernel/println (wat.edn/write
+         (wat.core/apply wat.holon.OnlineSubspace/dim (wat.type/Vector :- [wat.type/Value] 42)))))
 
-      ((:wat::core::= case "span-b")
-       (:wat::kernel::println (:wat::edn::write
-         (:wat::core::apply :wat::holon::OnlineSubspace/dim (wat.type/Vector :- [wat.type/Value] 42)))))
+      ((wat.core/= case "span-b")
+       (wat.kernel/println (wat.edn/write
+         (wat.core/apply wat.holon.OnlineSubspace/dim (wat.type/Vector :- [wat.type/Value] 42)))))
 
       (:else
-       (:wat::kernel::println (:wat::string::concat "unknown case: " case))))))
+       (wat.kernel/println (wat.string/concat "unknown case: " case))))))

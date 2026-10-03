@@ -4,4 +4,4 @@
 ;; with C4's arithmetic + eval + clj). startup now succeeds; the test
 ;; (`regression_cross_type_lt_coerces`) asserts Ok. Name/path kept unchanged.
 
-(:wat::core::defn :user::bad [] -> wat.type/bool (:wat::core::< 1 2.0))
+(wat.core/defn user/bad [] :- wat.type/bool (wat.core/< 1 2.0))

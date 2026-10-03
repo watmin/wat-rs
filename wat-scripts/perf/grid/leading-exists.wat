@@ -55,91 +55,91 @@
 ;;   echo '[200]' | cargo wat ./wat-scripts/perf/grid/leading-exists.wat
 ;;   => #grid/Result {:axis "leading-exists" :size [200] :derived [0 1 2 ...] :native-ns N}
 
-(:wat::core::defrecord :lx::Wind [loc <- wat.type/i64])
-(:wat::core::defrecord :lx::S1 [k <- wat.type/i64])
-(:wat::core::defrecord :lx::S2 [k <- wat.type/i64])
-(:wat::core::defrecord :lx::S3 [k <- wat.type/i64])
-(:wat::core::defrecord :lx::S4 [k <- wat.type/i64])
-(:wat::core::defrecord :lx::S5 [k <- wat.type/i64])
-(:wat::core::defrecord :lx::S6 [k <- wat.type/i64])
+(wat.core/defrecord lx/Wind [loc :- wat.type/i64])
+(wat.core/defrecord lx/S1 [k :- wat.type/i64])
+(wat.core/defrecord lx/S2 [k :- wat.type/i64])
+(wat.core/defrecord lx/S3 [k :- wat.type/i64])
+(wat.core/defrecord lx/S4 [k :- wat.type/i64])
+(wat.core/defrecord lx/S5 [k :- wat.type/i64])
+(wat.core/defrecord lx/S6 [k :- wat.type/i64])
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
 ;; THE WITNESS: a LEADING :exists, no parent condition, binding ?loc outward.
-(:wat::rete::defquery :lx::q-exists
+(wat.rete/defquery lx/q-exists
   :params []
-  :when [(:wat::rete::exists (:lx::Wind (?loc :- :loc)))])
+  :when [(wat.rete/exists (lx/Wind (?loc :- :loc)))])
 
 ;; The inert cascade — five rules carrying S1 to S6, forcing six fixpoint rounds.
 ;; Nothing here mentions Wind; that is the point.
-(:wat::core::defn :lx::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::rete::Rule :name "r2"
-      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S1 (?k :- :k))))
-      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S2 ?k))))
-    (:wat::rete::Rule :name "r3"
-      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S2 (?k :- :k))))
-      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S3 ?k))))
-    (:wat::rete::Rule :name "r4"
-      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S3 (?k :- :k))))
-      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S4 ?k))))
-    (:wat::rete::Rule :name "r5"
-      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S4 (?k :- :k))))
-      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S5 ?k))))
-    (:wat::rete::Rule :name "r6"
-      :lhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S5 (?k :- :k))))
-      :rhs (wat.type/PersistentVector :- [wat.type/AST] (:wat::core::quasiquote (:lx::S6 ?k))))))
+(wat.core/defn lx/build-rules [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.rete/Rule :name "r2"
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S1 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S2 ?k))))
+    (wat.rete/Rule :name "r3"
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S2 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S3 ?k))))
+    (wat.rete/Rule :name "r4"
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S3 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S4 ?k))))
+    (wat.rete/Rule :name "r5"
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S4 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S5 ?k))))
+    (wat.rete/Rule :name "r6"
+      :lhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S5 (?k :- :k))))
+      :rhs (wat.type/PersistentVector :- [wat.type/AST] (wat.core/quasiquote (lx/S6 ?k))))))
 
 ;; Seed: Wind(i) TWICE for each i in [0, items) — the duplicate is what makes the
 ;; distinct-inner-binding rule load-bearing — plus one S1 to start the cascade.
-(:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn lx/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::conj
-      (:wat::core::foldl
-        (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                        -> (wat.type/PersistentVector :- [wat.type/Record])
-          (:wat::core::conj
-            (:wat::core::conj acc (:lx::Wind i))
-            (:lx::Wind i)))
+    (wat.core/conj
+      (wat.core/foldl
+        (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                        :- (wat.type/PersistentVector :- [wat.type/Record])
+          (wat.core/conj
+            (wat.core/conj acc (lx/Wind i))
+            (lx/Wind i)))
         (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::range 0 items))
-      (:lx::S1 1))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+        (wat.core/range 0 items))
+      (lx/S1 1))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :lx::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn lx/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; THE ACCURACY WITNESS. Sorted distinct ?loc from the leading-:exists query.
 ;; Under the defect this vector was `rounds` times too long — length fails first.
-(:wat::core::defn :lx::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [locs (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-                           (:wat::core::map
-                             (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-                               (:wat::core::Option/expect (:wat::core::get p "?loc") "query: ?loc"))
-                             (:wat::rete::query fired (:lx::q-exists))))]
-    (:lx::vec->pvec (:wat::core::sort locs))))
+(wat.core/defn lx/derived-vector [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [locs (wat.core/into (wat.type/Vector :- [wat.type/i64])
+                           (wat.core/map
+                             (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+                               (wat.core.Option/expect (wat.core/get p "?loc") "query: ?loc"))
+                             (wat.rete/query fired (lx/q-exists))))]
+    (lx/vec->pvec (wat.core/sort locs))))
 
-(:wat::core::defn :lx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn lx/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
-                    rules   (:lx::build-rules)
-                    staged  (:lx::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:lx::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
-                    n0      (:wat::time::now)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    n1      (:wat::time::now)
-                    derived (:lx::derived-vector fired)
-                    nat-ns  (:lx::ns-between n0 n1)
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "leading-exists" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:lx::derived-vector ofired) :oracle-ns (:lx::ns-between o0 o1)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    items   (wat.core.Option/expect (wat.core/get params 0) "stdin: [items]")
+                    rules   (lx/build-rules)
+                    staged  (lx/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (lx/q-exists))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) items)
+                    n0      (wat.time/now)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    n1      (wat.time/now)
+                    derived (lx/derived-vector fired)
+                    nat-ns  (lx/ns-between n0 n1)
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "leading-exists" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (lx/derived-vector ofired) :oracle-ns (lx/ns-between o0 o1)))))

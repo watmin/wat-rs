@@ -39,27 +39,27 @@
 ;; Order matters: the QUALIFIED accessor first (":wat::service::Invocation/caller-id"), then the
 ;; bare kwarg keyword (":caller-id"). Reversed, the bare rename cannot reach the accessor (whose
 ;; keyword does not START with ":caller-id"), and the qualified rename would already have run.
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::fix::rename-keyword-prefix ":caller-id" ":conn-id"
-    (:wat::fix::rename-keyword-prefix ":wat::service::Invocation/caller-id" ":wat::service::Invocation/conn-id"
-      (:wat::fix::rename-keyword-prefix ":wat::service::CallCtx" ":wat::service::Invocation"
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.fix/rename-keyword-prefix ":caller-id" ":conn-id"
+    (wat.fix/rename-keyword-prefix ":wat::service::Invocation/caller-id" ":wat::service::Invocation/conn-id"
+      (wat.fix/rename-keyword-prefix ":wat::service::CallCtx" ":wat::service::Invocation"
         src))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[renamed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[renamed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

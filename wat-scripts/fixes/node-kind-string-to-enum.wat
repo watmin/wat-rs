@@ -25,243 +25,243 @@
 ;;   printf '["pathA" "pathB" …]\n' \
 ;;     | cargo wat ./wat-scripts/fixes/node-kind-string-to-enum.wat
 
-(:wat::core::defn :user::empty-edits []
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/empty-edits []
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::one-edit
-  [off <- wat.type/i64  old <- wat.type/String  new <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/one-edit
+  [off :- wat.type/i64  old :- wat.type/String  new :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
-(:wat::core::defn :user::start-off
-  [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn user/start-off
+  [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n)
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n)
     ""))
 
-(:wat::core::defn :user::sym-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "symbol")
-    (:wat::core::ast-name n)
+(wat.core/defn user/sym-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "symbol")
+    (wat.core/ast-name n)
     ""))
 
-(:wat::core::defn :user::variant-of [s <- wat.type/String] -> wat.type/String
-  (:wat::core::cond
-    ((:wat::core::= s "int") "IntLit")
-    ((:wat::core::= s "float") "FloatLit")
-    ((:wat::core::= s "rational") "RationalLit")
-    ((:wat::core::= s "bigint") "BigIntLit")
-    ((:wat::core::= s "char") "CharLit")
-    ((:wat::core::= s "bool") "BoolLit")
-    ((:wat::core::= s "string") "StringLit")
-    ((:wat::core::= s "nil") "NilLit")
-    ((:wat::core::= s "keyword") "Keyword")
-    ((:wat::core::= s "symbol") "Symbol")
-    ((:wat::core::= s "list") "List")
-    ((:wat::core::= s "vector") "Vector")
-    ((:wat::core::= s "set") "Set")
-    ((:wat::core::= s "map") "Map")
+(wat.core/defn user/variant-of [s :- wat.type/String] :- wat.type/String
+  (wat.core/cond
+    ((wat.core/= s "int") "IntLit")
+    ((wat.core/= s "float") "FloatLit")
+    ((wat.core/= s "rational") "RationalLit")
+    ((wat.core/= s "bigint") "BigIntLit")
+    ((wat.core/= s "char") "CharLit")
+    ((wat.core/= s "bool") "BoolLit")
+    ((wat.core/= s "string") "StringLit")
+    ((wat.core/= s "nil") "NilLit")
+    ((wat.core/= s "keyword") "Keyword")
+    ((wat.core/= s "symbol") "Symbol")
+    ((wat.core/= s "list") "List")
+    ((wat.core/= s "vector") "Vector")
+    ((wat.core/= s "set") "Set")
+    ((wat.core/= s "map") "Map")
     (:else "")))
 
-(:wat::core::defn :user::kind-binding?
-  [n <- wat.type/AST]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "list")
-    (:wat::core::let [ch (:wat::core::ast->children n)]
-      (:wat::core::if (:wat::i64::= (:wat::core::length ch) 3)
-        (:wat::core::if (:wat::core::= (:user::sym-name (:wat::core::nth ch 1)) "<-")
-          (:wat::core::= (:user::kw-name (:wat::core::nth ch 2)) ":kind")
+(wat.core/defn user/kind-binding?
+  [n :- wat.type/AST]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "list")
+    (wat.core/let [ch (wat.core/ast->children n)]
+      (wat.core/if (wat.i64/= (wat.core/length ch) 3)
+        (wat.core/if (wat.core/= (user/sym-name (wat.core/nth ch 1)) "<-")
+          (wat.core/= (user/kw-name (wat.core/nth ch 2)) ":kind")
           false)
         false))
     false))
 
-(:wat::core::defn :user::collect-kind-vars
-  [node <- wat.type/AST
-   acc  <- (wat.type/HashSet :- [wat.type/String])]
-  -> (wat.type/HashSet :- [wat.type/String])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/collect-kind-vars
+  [node :- wat.type/AST
+   acc  :- (wat.type/HashSet :- [wat.type/String])]
+  :- (wat.type/HashSet :- [wat.type/String])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         acc
-        (:wat::core::let
-          [here (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::grep::Node")
-                   (:wat::core::foldl
-                     (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/String]) c <- wat.type/AST]
-                       -> (wat.type/HashSet :- [wat.type/String])
-                       (:wat::core::if (:user::kind-binding? c)
-                         (:wat::core::conj s (:user::sym-name (:wat::core::first (:wat::core::ast->children c))))
+        (wat.core/let
+          [here (wat.core/if (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::grep::Node")
+                   (wat.core/foldl
+                     (wat.core/fn [s :- (wat.type/HashSet :- [wat.type/String]) c :- wat.type/AST]
+                       :- (wat.type/HashSet :- [wat.type/String])
+                       (wat.core/if (user/kind-binding? c)
+                         (wat.core/conj s (user/sym-name (wat.core/first (wat.core/ast->children c))))
                          s))
                      acc
                      ch)
                    acc)]
-          (:wat::core::foldl
-            (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/String]) c <- wat.type/AST]
-              -> (wat.type/HashSet :- [wat.type/String])
-              (:user::collect-kind-vars c s))
+          (wat.core/foldl
+            (wat.core/fn [s :- (wat.type/HashSet :- [wat.type/String]) c :- wat.type/AST]
+              :- (wat.type/HashSet :- [wat.type/String])
+              (user/collect-kind-vars c s))
             here
             ch))))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::foldl
-        (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/String]) c <- wat.type/AST]
-          -> (wat.type/HashSet :- [wat.type/String])
-          (:user::collect-kind-vars c s))
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/foldl
+        (wat.core/fn [s :- (wat.type/HashSet :- [wat.type/String]) c :- wat.type/AST]
+          :- (wat.type/HashSet :- [wat.type/String])
+          (user/collect-kind-vars c s))
         acc
-        (:wat::core::ast->children node))
+        (wat.core/ast->children node))
       acc)))
 
-(:wat::core::defn :user::enum-cmp-head [h <- wat.type/String] -> wat.type/String
-  (:wat::core::cond
-    ((:wat::core::= h ":wat::rete::string::=") ":wat::rete::core::enum::=")
-    ((:wat::core::= h ":wat::rete::string::not=") ":wat::rete::core::enum::not=")
+(wat.core/defn user/enum-cmp-head [h :- wat.type/String] :- wat.type/String
+  (wat.core/cond
+    ((wat.core/= h ":wat::rete::string::=") ":wat::rete::core::enum::=")
+    ((wat.core/= h ":wat::rete::string::not=") ":wat::rete::core::enum::not=")
     (:else "")))
 
-(:wat::core::defn :user::string-eq-edit
-  [node <- wat.type/AST
-   vars <- (wat.type/HashSet :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::i64::= (:wat::core::length ch) 3)
-        (:wat::core::let
-          [newh (:user::enum-cmp-head (:user::kw-name (:wat::core::first ch)))
-           v (:wat::core::nth ch 1)
-           s (:wat::core::nth ch 2)]
-          (:wat::core::if
-            (:wat::core::if (:wat::string::empty? newh) false
-              (:wat::core::if (:wat::core::contains? vars (:user::sym-name v))
-                (:wat::core::= (:wat::core::ast-kind s) "string")
+(wat.core/defn user/string-eq-edit
+  [node :- wat.type/AST
+   vars :- (wat.type/HashSet :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.i64/= (wat.core/length ch) 3)
+        (wat.core/let
+          [newh (user/enum-cmp-head (user/kw-name (wat.core/first ch)))
+           v (wat.core/nth ch 1)
+           s (wat.core/nth ch 2)]
+          (wat.core/if
+            (wat.core/if (wat.string/empty? newh) false
+              (wat.core/if (wat.core/contains? vars (user/sym-name v))
+                (wat.core/= (wat.core/ast-kind s) "string")
                 false))
-            (:wat::core::let [varn (:user::variant-of (:wat::core::ast-name s))]
-              (:wat::core::if (:wat::string::empty? varn)
-                (:user::empty-edits)
-                (:user::one-edit
-                  (:user::start-off node lines)
-                  (:wat::core::ast->source node)
-                  (:wat::string::concat
+            (wat.core/let [varn (user/variant-of (wat.core/ast-name s))]
+              (wat.core/if (wat.string/empty? varn)
+                (user/empty-edits)
+                (user/one-edit
+                  (user/start-off node lines)
+                  (wat.core/ast->source node)
+                  (wat.string/concat
                     "("
-                    (:wat::string::concat
+                    (wat.string/concat
                       newh
-                      (:wat::string::concat
+                      (wat.string/concat
                         " "
-                        (:wat::string::concat
-                          (:wat::core::ast->source v)
-                          (:wat::string::concat
+                        (wat.string/concat
+                          (wat.core/ast->source v)
+                          (wat.string/concat
                             " (:wat::grep::NodeKind::"
-                            (:wat::string::concat varn "))")))))))))
-            (:user::empty-edits)))
-        (:user::empty-edits)))
-    (:user::empty-edits)))
+                            (wat.string/concat varn "))")))))))))
+            (user/empty-edits)))
+        (user/empty-edits)))
+    (user/empty-edits)))
 
-(:wat::core::defn :user::ctor-kind-edit
-  [ch    <- (wat.type/Vector :- [wat.type/AST])
-   i     <- wat.type/i64
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::i64::>= (:wat::i64::+ i 1) (:wat::core::length ch))
-    (:user::empty-edits)
-    (:wat::core::let
-      [a (:wat::core::nth ch i)
-       b (:wat::core::nth ch (:wat::i64::+ i 1))
-       rest (:user::ctor-kind-edit ch (:wat::i64::+ i 1) lines)]
-      (:wat::core::if
-        (:wat::core::if (:wat::core::= (:user::kw-name a) ":kind")
-          (:wat::core::= (:wat::core::ast-kind b) "string")
+(wat.core/defn user/ctor-kind-edit
+  [ch    :- (wat.type/Vector :- [wat.type/AST])
+   i     :- wat.type/i64
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.i64/>= (wat.i64/+ i 1) (wat.core/length ch))
+    (user/empty-edits)
+    (wat.core/let
+      [a (wat.core/nth ch i)
+       b (wat.core/nth ch (wat.i64/+ i 1))
+       rest (user/ctor-kind-edit ch (wat.i64/+ i 1) lines)]
+      (wat.core/if
+        (wat.core/if (wat.core/= (user/kw-name a) ":kind")
+          (wat.core/= (wat.core/ast-kind b) "string")
           false)
-        (:wat::core::let [varn (:user::variant-of (:wat::core::ast-name b))]
-          (:wat::core::if (:wat::string::empty? varn)
+        (wat.core/let [varn (user/variant-of (wat.core/ast-name b))]
+          (wat.core/if (wat.string/empty? varn)
             rest
-            (:wat::core::concat
-              (:user::one-edit
-                (:user::start-off b lines)
-                (:wat::core::ast->source b)
-                (:wat::string::concat "(:wat::grep::NodeKind::" (:wat::string::concat varn ")")))
+            (wat.core/concat
+              (user/one-edit
+                (user/start-off b lines)
+                (wat.core/ast->source b)
+                (wat.string/concat "(:wat::grep::NodeKind::" (wat.string/concat varn ")")))
               rest)))
         rest))))
 
-(:wat::core::defn :user::node-edits
-  [node  <- wat.type/AST
-   vars  <- (wat.type/HashSet :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
-        (:user::empty-edits)
-        (:wat::core::let
-          [here (:wat::core::concat
-                  (:user::string-eq-edit node vars lines)
-                  (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::grep::Node")
-                    (:user::ctor-kind-edit ch 0 lines)
-                    (:user::empty-edits)))]
-          (:wat::core::concat here (:user::seq-edits ch vars lines)))))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::seq-edits (:wat::core::ast->children node) vars lines)
-      (:user::empty-edits))))
+(wat.core/defn user/node-edits
+  [node  :- wat.type/AST
+   vars  :- (wat.type/HashSet :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
+        (user/empty-edits)
+        (wat.core/let
+          [here (wat.core/concat
+                  (user/string-eq-edit node vars lines)
+                  (wat.core/if (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::grep::Node")
+                    (user/ctor-kind-edit ch 0 lines)
+                    (user/empty-edits)))]
+          (wat.core/concat here (user/seq-edits ch vars lines)))))
+    (wat.core/if (wat.fix/structural? node)
+      (user/seq-edits (wat.core/ast->children node) vars lines)
+      (user/empty-edits))))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   vars  <- (wat.type/HashSet :- [wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     it  <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it vars lines)))
-    (:user::empty-edits)
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   vars  :- (wat.type/HashSet :- [wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     it  :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it vars lines)))
+    (user/empty-edits)
     items))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::match (:wat::core::read-string src)
-    [:wat::core::ReadOutcome.Forms {:forms forms}
-      (:wat::core::let
-        [lines (:wat::string::split src "\n")
-         kids  (:wat::core::ast->children forms)
-         vars  (:wat::core::foldl
-                 (:wat::core::fn [s <- (wat.type/HashSet :- [wat.type/String]) n <- wat.type/AST]
-                   -> (wat.type/HashSet :- [wat.type/String])
-                   (:user::collect-kind-vars n s))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/match (wat.core/read-string src)
+    [wat.core/ReadOutcome.Forms {:forms forms}
+      (wat.core/let
+        [lines (wat.string/split src "\n")
+         kids  (wat.core/ast->children forms)
+         vars  (wat.core/foldl
+                 (wat.core/fn [s :- (wat.type/HashSet :- [wat.type/String]) n :- wat.type/AST]
+                   :- (wat.type/HashSet :- [wat.type/String])
+                   (user/collect-kind-vars n s))
                  (wat.type/HashSet :- [wat.type/String])
                  kids)
-         eds   (:user::seq-edits kids vars lines)
-         rev   (:wat::core::reverse (:wat::core::sort eds))]
-        (:wat::fix::fix-text-apply src rev))]
-    [:wat::core::ReadOutcome.Malformed {:cause cause}
-      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message cause))]))
+         eds   (user/seq-edits kids vars lines)
+         rev   (wat.core/reverse (wat.core/sort eds))]
+        (wat.fix/fix-text-apply src rev))]
+    [wat.core/ReadOutcome.Malformed {:cause cause}
+      (wat.kernel/assertion-failed! :message (wat.core.Error/message cause))]))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])
-   n     <- wat.type/i64]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
-    (:wat::kernel::println
-      (:wat::string::interpolate "CHANGED={n}" :n (:wat::i64::to-string n)))
-    (:wat::core::let
-      [path   (:wat::core::first paths)
-       before (:wat::io::read-file path)
-       after  (:user::migrate before)
-       hit?   (:wat::core::not (:wat::core::= before after))]
-      (:wat::core::do
-        (:wat::core::if hit? (:wat::io::write-file path after) nil)
-        (:wat::kernel::println
-          (:wat::string::concat
-            (:wat::core::if hit? "[changed] " "[unchanged] ")
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])
+   n     :- wat.type/i64]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
+    (wat.kernel/println
+      (wat.string/interpolate "CHANGED={n}" :n (wat.i64/to-string n)))
+    (wat.core/let
+      [path   (wat.core/first paths)
+       before (wat.io/read-file path)
+       after  (user/migrate before)
+       hit?   (wat.core/not (wat.core/= before after))]
+      (wat.core/do
+        (wat.core/if hit? (wat.io/write-file path after) nil)
+        (wat.kernel/println
+          (wat.string/concat
+            (wat.core/if hit? "[changed] " "[unchanged] ")
             path))
-        (:user::apply-each (:wat::core::rest paths)
-          (:wat::core::if hit? (:wat::i64::+ n 1) n))))))
+        (user/apply-each (wat.core/rest paths)
+          (wat.core/if hit? (wat.i64/+ n 1) n))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v d} d]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v d} d]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])
     0))

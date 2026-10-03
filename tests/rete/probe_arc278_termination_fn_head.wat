@@ -15,45 +15,45 @@
 ;;      was already guarded.
 ;;   2. The total fallback spelling `(:wat::rete::core::i64::+ a b :undefined 0)`. The bare
 ;;      `:wat::core::i64::+` is refused by the same fence as "not total".
-(:wat::core::defrecord :fm::N [k <- wat.type/i64])
+(wat.core/defrecord fm/N [k :- wat.type/i64])
 
 ;; The body constructs from a COMPUTED value. Note `(:fm::N :k …)` is kwargs SUGAR — by the time
 ;; this is a stored fn body the macro has rewritten it to `:wat::core::kwargs-construct`, which is
 ;; exactly the head the analysis has to know about.
-(:wat::rete::core::defn :fm::bump
-  [n <- :fm::N]
-  -> :fm::N
-  (:fm::N :k (:wat::rete::i64::+ (:fm::N/k n) 1 :undefined 0)))
+(wat.rete.core/defn fm/bump
+  [n :- fm/N]
+  :- fm/N
+  (fm/N :k (wat.rete.i64/+ (fm.N/k n) 1 :undefined 0)))
 
-(:wat::rete::defrule :fm::grow
-  :when [(?n :- :fm::N)]
-  :then [(:fm::bump ?n)])
+(wat.rete/defrule fm/grow
+  :when [(?n :- fm/N)]
+  :then [(fm/bump ?n)])
 
-(:wat::rete::defquery :fm::q :params [] :when [(?fact :- :fm::N)])
+(wat.rete/defquery fm/q :params [] :when [(?fact :- fm/N)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
+(wat.core/defn user/main [] :- wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
   ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
-  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:fm::grow))
-                (wat.type/PersistentVector :- [:wat::rete::Query] (:fm::q)))
-    [:wat::rete::CompileOutcome.Compiled {:session __session}
+  (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] (fm/grow))
+                (wat.type/PersistentVector :- [wat.rete/Query] (fm/q)))
+    [wat.rete/CompileOutcome.Compiled {:session __session}
       ;; No println before compile-all: an earlier version of this fixture announced "compiled" FIRST,
   ;; which prints whether or not the compile then fails, and cost real time reading a verdict that
   ;; was never a verdict.
-  (:wat::kernel::println
-    (:wat::i64::to-string
-      (:wat::core::length
-        (:wat::rete::query
-          (:wat::core::match (:wat::rete::fire-rules
-            (:wat::core::match (:wat::rete::insert
+  (wat.kernel/println
+    (wat.i64/to-string
+      (wat.core/length
+        (wat.rete/query
+          (wat.core/match (wat.rete/fire-rules
+            (wat.core/match (wat.rete/insert
               __session
-              (:fm::N :k 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-          (:fm::q)))))]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
-      (:wat::core::do
-        (:wat::kernel::println "ARM MayNotTerminate")
-        (:wat::kernel::println rule)
-        (:wat::kernel::println fact-type))]))
+              (fm/N :k 0)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+          (fm/q)))))]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
+      (wat.core/do
+        (wat.kernel/println "ARM MayNotTerminate")
+        (wat.kernel/println rule)
+        (wat.kernel/println fact-type))]))
 

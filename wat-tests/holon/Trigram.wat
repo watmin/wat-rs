@@ -8,38 +8,38 @@
 ;; → foldl + map-with-index + Permute + Bind.
 
 
-(:wat::test::deftest :wat-tests::holon::Trigram::test-window-participant-above-floor
+(wat.test/deftest wat-tests.holon.Trigram/test-window-participant-above-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
-     d (:wat::holon::to-holon "d")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
+     d (wat.holon/to-holon "d")
      window-1
-      (:wat::holon::Sequential (wat.type/Vector :- [:wat::holon::HolonAST] a b c))
+      (wat.holon/Sequential (wat.type/Vector :- [wat.holon/HolonAST] a b c))
      ;; Trigram returns (:wat::core::Result :- [HolonAST CapacityExceeded]). 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
      full
-      (:wat::core::match
-        (:wat::holon::Trigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c d))
+      (wat.core/match
+        (wat.holon/Trigram (wat.type/Vector :- [wat.holon/HolonAST] a b c d))
         
-        [:wat::core::Result.Ok {:value h} h]
-        [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq (:wat::holon::presence? window-1 full) true)))
+        [wat.core/Result.Ok {:value h} h]
+        [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq (wat.holon/presence? window-1 full) true)))
 
-(:wat::test::deftest :wat-tests::holon::Trigram::test-outsider-below-floor
+(wat.test/deftest wat-tests.holon.Trigram/test-outsider-below-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "a")
-     b (:wat::holon::to-holon "b")
-     c (:wat::holon::to-holon "c")
-     d (:wat::holon::to-holon "d")
-     z (:wat::holon::to-holon "unrelated-z")
+  (wat.core/let
+    [a (wat.holon/to-holon "a")
+     b (wat.holon/to-holon "b")
+     c (wat.holon/to-holon "c")
+     d (wat.holon/to-holon "d")
+     z (wat.holon/to-holon "unrelated-z")
      full
-      (:wat::core::match
-        (:wat::holon::Trigram (wat.type/Vector :- [:wat::holon::HolonAST] a b c d))
+      (wat.core/match
+        (wat.holon/Trigram (wat.type/Vector :- [wat.holon/HolonAST] a b c d))
         
-        [:wat::core::Result.Ok {:value h} h]
-        [:wat::core::Result.Err {:error _} a])]
-    (:wat::test::assert-eq (:wat::holon::presence? z full) false)))
+        [wat.core/Result.Ok {:value h} h]
+        [wat.core/Result.Err {:error _} a])]
+    (wat.test/assert-eq (wat.holon/presence? z full) false)))

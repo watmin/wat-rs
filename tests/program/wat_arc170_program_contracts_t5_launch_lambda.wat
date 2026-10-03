@@ -7,28 +7,28 @@
 ;; UNCHANGED from the old form; only the DRIVER flipped to the peer wire (spawn-process API →
 ;; spawn-program' / send' / recv'). Returns the recv'd i64 directly (== 42) so the test measures
 ;; the value that genuinely crossed the wire. Closest model: t18_echo_doubled.wat (SAME family).
-(:wat::core::defn :my::launch [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [n    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                _out (:wat::kernel::println (:wat::i64::* n 2))]
+(wat.core/defn my/launch [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [n    (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                _out (wat.kernel/println (wat.i64/* n 2))]
                nil))))
-     _ (:wat::core::match (:wat::kernel::send p 21)
-         [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.HandleClosed {} nil]
+     _ (wat.core/match (wat.kernel/send p 21)
+         [wat.kernel/SendOutcome.Sent {} nil]
+         [wat.kernel/SendOutcome.HandleClosed {} nil]
          ;; arc 278 #73 — uniform, precondition is the recv' right below: a stop that
          ;; interrupted this write is still in force when the read parks, so the read
          ;; returns Stopped and the caller is told once, by the arm below.
-         [:wat::kernel::SendOutcome.Stopped {} nil]
-         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m} m]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "launch: child closed before sending its value")])))
+         [wat.kernel/SendOutcome.Stopped {} nil]
+         [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m} m]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "launch: stop requested before child sent its value — child was ALIVE, channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "launch: child closed before sending its value")])))

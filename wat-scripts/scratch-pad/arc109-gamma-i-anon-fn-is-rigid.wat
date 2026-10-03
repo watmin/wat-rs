@@ -7,11 +7,11 @@
 ;; Stone 251.7 (`src/runtime.rs:3499`) unions every free bare type-var in the fn SIGNATURE into
 ;; `Function.type_params`, so the `<T>` on the name is already nearly vestigial. Measured: this
 ;; checks clean AND instantiates at two distinct types.
-(:wat::core::defn :user::id [x <- :T] -> :T x)
+(wat.core/defn user/id [x :- T] :- T x)
 
-(:wat::core::defn :user::rung-1-two-instantiations [] -> wat.type/nil
-  (:wat::core::let [_  (:user::id 1)
-                    __ (:user::id "s")]
+(wat.core/defn user/rung-1-two-instantiations [] :- wat.type/nil
+  (wat.core/let [_  (user/id 1)
+                    __ (user/id "s")]
     nil))
 
 ;; ── RUNG 2 — the SAME fn, anonymous, is RIGID ─────────────────────────────────────────────────
@@ -38,9 +38,9 @@
 ;; ── RUNG 4 — the CONTROL that must keep passing ───────────────────────────────────────────────
 ;; An anonymous fn with CONCRETE types, handed to a generic HOF, already works. γ-i must not
 ;; disturb it — if this ever goes red, the change reached further than its own surface.
-(:wat::core::defn :user::app :- [T] [f <- [T :-> T] x <- :T] -> :T (:wat::core::apply f [x]))
+(wat.core/defn user/app :- [T] [f :- [T :-> T] x :- T] :- T (wat.core/apply f [x]))
 
-(:wat::core::defn :user::rung-4-control [] -> wat.type/nil
-  (:wat::core::let [_  (:user::app (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) 1)
-                    __ (:user::app (:wat::core::fn [s <- wat.type/String] -> wat.type/String s) "s")]
+(wat.core/defn user/rung-4-control [] :- wat.type/nil
+  (wat.core/let [_  (user/app (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x) 1)
+                    __ (user/app (wat.core/fn [s :- wat.type/String] :- wat.type/String s) "s")]
     nil))

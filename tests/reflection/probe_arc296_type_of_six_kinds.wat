@@ -12,71 +12,71 @@
 ;;   Builtin / Builtin / Builtin / Marker / :probe::Rec
 ;;     (Vector, i64, HashMap-from-string, Marker children)
 
-(:wat::core::defrecord :probe::Rec [alpha <- wat.type/i64])
-(:wat::core::derive :probe::Rec :probe::Marker)
+(wat.core/defrecord probe/Rec [alpha :- wat.type/i64])
+(wat.core/derive probe/Rec probe/Marker)
 
-(:wat::core::defenum :probe::Box :wat::enum::Pure
-  :Full [payload <- wat.type/i64]
-  :Pair [left <- wat.type/i64  right <- wat.type/String]
+(wat.core/defenum probe/Box wat.enum/Pure
+  :Full [payload :- wat.type/i64]
+  :Pair [left :- wat.type/i64  right :- wat.type/String]
   :Empty [])
 
-(:wat::core::newtype :probe::Count wat.type/i64)
+(wat.core/newtype probe/Count wat.type/i64)
 
-(:wat::core::typealias :probe::Alias wat.type/i64)
+(wat.core/typealias probe/Alias wat.type/i64)
 
-(:wat::core::typeunion :probe::Num [wat.type/i64 wat.type/f64])
+(wat.core/typeunion probe/Num [wat.type/i64 wat.type/f64])
 
-(:wat::core::defsurface :probe::Surf
+(wat.core/defsurface probe/Surf
   :nature wat.type/Record
-  :features [message <- wat.type/String])
+  :features [message :- wat.type/String])
 
-(:wat::core::defn :user::print-kind [info <- :wat::runtime::TypeInfo] -> wat.type/nil
-  (:wat::core::match (:wat::runtime::TypeInfo/kind info)
-    [:wat::runtime::TypeKind.Aggregate {} (:wat::kernel::println "Aggregate")]
-    [:wat::runtime::TypeKind.Enum {} (:wat::kernel::println "Enum")]
-    [:wat::runtime::TypeKind.Newtype {} (:wat::kernel::println "Newtype")]
-    [:wat::runtime::TypeKind.Alias {} (:wat::kernel::println "Alias")]
-    [:wat::runtime::TypeKind.Union {} (:wat::kernel::println "Union")]
-    [:wat::runtime::TypeKind.Surface {} (:wat::kernel::println "Surface")]
-    [:wat::runtime::TypeKind.Builtin {} (:wat::kernel::println "Builtin")]
-    [:wat::runtime::TypeKind.Marker {} (:wat::kernel::println "Marker")]))
+(wat.core/defn user/print-kind [info :- wat.runtime/TypeInfo] :- wat.type/nil
+  (wat.core/match (wat.runtime.TypeInfo/kind info)
+    [wat.runtime/TypeKind.Aggregate {} (wat.kernel/println "Aggregate")]
+    [wat.runtime/TypeKind.Enum {} (wat.kernel/println "Enum")]
+    [wat.runtime/TypeKind.Newtype {} (wat.kernel/println "Newtype")]
+    [wat.runtime/TypeKind.Alias {} (wat.kernel/println "Alias")]
+    [wat.runtime/TypeKind.Union {} (wat.kernel/println "Union")]
+    [wat.runtime/TypeKind.Surface {} (wat.kernel/println "Surface")]
+    [wat.runtime/TypeKind.Builtin {} (wat.kernel/println "Builtin")]
+    [wat.runtime/TypeKind.Marker {} (wat.kernel/println "Marker")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::print-kind (:wat::runtime::type-of :probe::Rec))
-  (:user::print-kind (:wat::runtime::type-of :probe::Box))
-  (:user::print-kind (:wat::runtime::type-of :probe::Count))
-  (:user::print-kind (:wat::runtime::type-of :probe::Alias))
-  (:user::print-kind (:wat::runtime::type-of :probe::Num))
-  (:user::print-kind (:wat::runtime::type-of :probe::Surf))
-  (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Box))
-    [:wat::runtime::TypeBody.Enum {:purity _ :variants vs}
-      (:wat::core::let
-        [pair (:wat::core::nth vs 1)
-         fs   (:wat::runtime::TypeVariant/fields pair)]
-        (:wat::kernel::println
-          (:wat::core::str (:wat::runtime::TypeField/name (:wat::core::first fs))))
-        (:wat::kernel::println
-          (:wat::core::str (:wat::runtime::TypeField/name (:wat::core::second fs)))))]
-    [_ (:wat::kernel::println "not-enum")])
-  (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Rec))
-    [:wat::runtime::TypeBody.Aggregate {:nature n :fields _}
-      (:wat::core::match n
-        [:wat::runtime::TypeNature.Struct {} (:wat::kernel::println "Struct")]
-        [:wat::runtime::TypeNature.Record {} (:wat::kernel::println "Record")]
-        [:wat::runtime::TypeNature.HolonRecord {} (:wat::kernel::println "HolonRecord")]
-        [:wat::runtime::TypeNature.Peer {} (:wat::kernel::println "Peer")])]
-    [_ (:wat::kernel::println "not-aggregate")])
-  (:wat::kernel::println
-    (:wat::core::str (:wat::core::first (:wat::runtime::field-names-of :probe::Rec))))
-  (:wat::kernel::println
-    (:wat::core::first (:wat::runtime::TypeInfo/type-params
-                         (:wat::runtime::type-of :wat::core::Option))))
-  (:user::print-kind (:wat::runtime::type-of wat.type/Vector))
-  (:user::print-kind (:wat::runtime::type-of wat.type/i64))
-  (:user::print-kind (:wat::runtime::type-of (:wat::keyword::from-string "wat::type::HashMap")))
-  (:user::print-kind (:wat::runtime::type-of :probe::Marker))
-  (:wat::core::match (:wat::runtime::TypeInfo/body (:wat::runtime::type-of :probe::Marker))
-    [:wat::runtime::TypeBody.Marker {:children cs}
-      (:wat::kernel::println
-        (:wat::string::concat ":" (:wat::keyword::to-string (:wat::core::first cs))))]
-    [_ (:wat::kernel::println "not-marker")]))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/print-kind (wat.runtime/type-of probe/Rec))
+  (user/print-kind (wat.runtime/type-of probe/Box))
+  (user/print-kind (wat.runtime/type-of probe/Count))
+  (user/print-kind (wat.runtime/type-of probe/Alias))
+  (user/print-kind (wat.runtime/type-of probe/Num))
+  (user/print-kind (wat.runtime/type-of probe/Surf))
+  (wat.core/match (wat.runtime.TypeInfo/body (wat.runtime/type-of probe/Box))
+    [wat.runtime/TypeBody.Enum {:purity _ :variants vs}
+      (wat.core/let
+        [pair (wat.core/nth vs 1)
+         fs   (wat.runtime.TypeVariant/fields pair)]
+        (wat.kernel/println
+          (wat.core/str (wat.runtime.TypeField/name (wat.core/first fs))))
+        (wat.kernel/println
+          (wat.core/str (wat.runtime.TypeField/name (wat.core/second fs)))))]
+    [_ (wat.kernel/println "not-enum")])
+  (wat.core/match (wat.runtime.TypeInfo/body (wat.runtime/type-of probe/Rec))
+    [wat.runtime/TypeBody.Aggregate {:nature n :fields _}
+      (wat.core/match n
+        [wat.runtime/TypeNature.Struct {} (wat.kernel/println "Struct")]
+        [wat.runtime/TypeNature.Record {} (wat.kernel/println "Record")]
+        [wat.runtime/TypeNature.HolonRecord {} (wat.kernel/println "HolonRecord")]
+        [wat.runtime/TypeNature.Peer {} (wat.kernel/println "Peer")])]
+    [_ (wat.kernel/println "not-aggregate")])
+  (wat.kernel/println
+    (wat.core/str (wat.core/first (wat.runtime/field-names-of probe/Rec))))
+  (wat.kernel/println
+    (wat.core/first (wat.runtime.TypeInfo/type-params
+                         (wat.runtime/type-of wat.core/Option))))
+  (user/print-kind (wat.runtime/type-of wat.type/Vector))
+  (user/print-kind (wat.runtime/type-of wat.type/i64))
+  (user/print-kind (wat.runtime/type-of (wat.keyword/from-string "wat::type::HashMap")))
+  (user/print-kind (wat.runtime/type-of probe/Marker))
+  (wat.core/match (wat.runtime.TypeInfo/body (wat.runtime/type-of probe/Marker))
+    [wat.runtime/TypeBody.Marker {:children cs}
+      (wat.kernel/println
+        (wat.string/concat ":" (wat.keyword/to-string (wat.core/first cs))))]
+    [_ (wat.kernel/println "not-marker")]))

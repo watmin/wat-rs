@@ -5,80 +5,80 @@
 ;; Scratch, per CLAUDE.md convention — durable, loadable, type-checked by
 ;; every_wat_scripts_file_loads.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; interpose — sep between adjacent elements, no trailing sep, over Vector/List/PV/Stream.
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::interpose 0 (wat.type/Vector :- [wat.type/i64] 1 2 3)))))
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::interpose 0 (wat.type/List :- [wat.type/i64] 1 2 3)))))
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::interpose 0 (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/interpose 0 (wat.type/Vector :- [wat.type/i64] 1 2 3)))))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/interpose 0 (wat.type/List :- [wat.type/i64] 1 2 3)))))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/interpose 0 (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))
     ;; interpose over a single-element and an empty input (edge cases: no sep at all).
-    (:wat::kernel::println
-      (:wat::string::join "," (:wat::core::into [] (:wat::core::interpose 0 (wat.type/Vector :- [wat.type/i64] 1)))))
-    (:wat::kernel::println
-      (:wat::string::join "," (:wat::core::into [] (:wat::core::interpose 0 (wat.type/Vector :- [wat.type/i64])))))
+    (wat.kernel/println
+      (wat.string/join "," (wat.core/into [] (wat.core/interpose 0 (wat.type/Vector :- [wat.type/i64] 1)))))
+    (wat.kernel/println
+      (wat.string/join "," (wat.core/into [] (wat.core/interpose 0 (wat.type/Vector :- [wat.type/i64])))))
 
     ;; keep — over List/PersistentVector (Vector+Stream already covered by the shape-probe).
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::keep
-          (:wat::core::fn [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
-            (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Option.Some {:value x}) :wat::core::Option.None))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/keep
+          (wat.core/fn [x :- wat.type/i64] :- (wat.core/Option :- [wat.type/i64])
+            (wat.core/if (wat.core/= 0 (wat.core/mod x 2)) (wat.core/Option.Some {:value x}) wat.core/Option.None))
           (wat.type/List :- [wat.type/i64] 1 2 3 4 5 6)))))
 
     ;; keep-indexed — f : [i64 T :-> (Option :- [U])]; keep values at even indices.
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::keep-indexed
-          (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
-            (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Option.Some {:value x}) :wat::core::Option.None))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/keep-indexed
+          (wat.core/fn [i :- wat.type/i64 x :- wat.type/i64] :- (wat.core/Option :- [wat.type/i64])
+            (wat.core/if (wat.core/= 0 (wat.core/mod i 2)) (wat.core/Option.Some {:value x}) wat.core/Option.None))
           (wat.type/Vector :- [wat.type/i64] 10 11 12 13 14 15)))))
 
     ;; map-indexed — f : [i64 T :-> U]; pair index with value via a string.
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::map-indexed
-          (:wat::core::fn [i <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ i x))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/map-indexed
+          (wat.core/fn [i :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64 (wat.core/+ i x))
           (wat.type/Vector :- [wat.type/i64] 100 100 100 100)))))
 
     ;; dedupe — drop CONSECUTIVE duplicates only (1 2 1 3, not 1 2 3).
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::dedupe (wat.type/Vector :- [wat.type/i64] 1 1 2 2 1 1 3)))))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/dedupe (wat.type/Vector :- [wat.type/i64] 1 1 2 2 1 1 3)))))
 
     ;; distinct — drop ALL duplicates, keep first occurrence (1 2 3, not 1 2 1 3).
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::distinct (wat.type/Vector :- [wat.type/i64] 1 2 1 3 2 1)))))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into [] (wat.core/distinct (wat.type/Vector :- [wat.type/i64] 1 2 1 3 2 1)))))
 
     ;; reduce — Stream arms (via a `map` stage so coll is (Stream :- [T])). Arc 255 Stone 1c-f,
     ;; 2026-09-03: `reduce` is now a `defalias` for `foldl`, 3-arity only — the 2-arity
     ;; seed-from-first arm that used to be exercised here is retired with the defclause it lived
     ;; in. Both calls below are augmented to the 3-arity form (explicit init) so the Stream-walk
     ;; coverage this probe was built to exercise (foldl consuming a lazy `map` stage) survives.
-    (:wat::kernel::println
-      (:wat::i64::to-string (:wat::core::reduce
-        (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ acc x))
+    (wat.kernel/println
+      (wat.i64/to-string (wat.core/reduce
+        (wat.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64 (wat.core/+ acc x))
         0
-        (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
+        (wat.core/map (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x)
           (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)))))
-    (:wat::kernel::println
-      (:wat::i64::to-string (:wat::core::reduce
-        (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64 (:wat::core::+ acc x))
+    (wat.kernel/println
+      (wat.i64/to-string (wat.core/reduce
+        (wat.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64 (wat.core/+ acc x))
         0
-        (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
+        (wat.core/map (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x)
           (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)))))
 
     ;; stream->pvec — the drain, via a lazy stage into a PersistentVector, then Vector for print.
-    (:wat::kernel::println
-      (:wat::string::join ","
-        (:wat::core::into []
-          (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-            (:wat::core::keep (:wat::core::fn [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
-                                 (:wat::core::Option.Some {:value x}))
+    (wat.kernel/println
+      (wat.string/join ","
+        (wat.core/into []
+          (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+            (wat.core/keep (wat.core/fn [x :- wat.type/i64] :- (wat.core/Option :- [wat.type/i64])
+                                 (wat.core/Option.Some {:value x}))
               (wat.type/Vector :- [wat.type/i64] 7 8 9))))))))

@@ -2,5 +2,5 @@
 ;; has a portable form, ThreadAddressWire). It is a pure Record field, the same
 ;; as the Wire twin. Pre-stone this file was `.wat.bad` and froze as
 ;; ImpureFieldInPureAggregate.
-(:wat::core::defrecord :probe::HoldsShared
-  [addr <- (:wat::kernel::Address :- [wat.type/i64 wat.type/i64 :wat::kernel::Transport.Shared])])
+(wat.core/defrecord probe/HoldsShared
+  [addr :- (wat.kernel/Address :- [wat.type/i64 wat.type/i64 wat.kernel/Transport.Shared])])

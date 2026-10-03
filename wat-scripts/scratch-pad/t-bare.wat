@@ -1,1 +1,1 @@
-(:wat::kernel::println "hi from top level")
+(wat.kernel/println "hi from top level")

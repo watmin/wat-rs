@@ -1,1 +1,1 @@
-(:wat::core::fn [] -> wat.type/Record (:app::Env :token 7))
+(wat.core/fn [] :- wat.type/Record (app/Env :token 7))

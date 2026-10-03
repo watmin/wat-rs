@@ -26,34 +26,34 @@
 ;;     | ./target/release/wat --grep ./wat-scripts/scratch-pad/277-layout-shape-probe.wat
 
 ;; The head of a form: the child at index 0 that carries a name. DERIVED — rule 2 joins it.
-(:wat::core::defrecord :ls::Head
-  [form <- wat.type/i64
-   name <- wat.type/String
-   line <- wat.type/i64
-   col  <- wat.type/i64])
+(wat.core/defrecord ls/Head
+  [form :- wat.type/i64
+   name :- wat.type/String
+   line :- wat.type/i64
+   col  :- wat.type/i64])
 
-(:wat::rete::defrule :ls::head-of
-  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h :- :id) (?n :- :name))
-         (:wat::grep::Span  (?h :- :id) (?l :- :line) (?c :- :col))]
-  :then [(:ls::Head :form ?p :name ?n :line ?l :col ?c)])
+(wat.rete/defrule ls/head-of
+  :when [(wat.grep/Node  (?h :- :id) (?p :- :parent) (?i :- :index) (wat.rete.i64/= ?i 0))
+         (wat.grep/Named (?h :- :id) (?n :- :name))
+         (wat.grep/Span  (?h :- :id) (?l :- :line) (?c :- :col))]
+  :then [(ls/Head :form ?p :name ?n :line ?l :col ?c)])
 
 ;; ★ THE CAPABILITY UNDER TEST: join a DERIVED head fact with a SIBLING child and subtract lines.
-(:wat::rete::defrule :ls::child-offset
-  :when [(:ls::Head         (?p :- :form) (?n :- :name) (?hl :- :line))
-         (:wat::grep::Node  (?c :- :id) (?p :- :parent) (?i :- :index) (?ck :- :kind))
-         (:wat::grep::Span  (?c :- :id) (?cl :- :line) (?cc :- :col) (?cel :- :end-line) (?cec :- :end-col))
-         (:wat::grep::Source (?f :- :file))]
-  :then [(:wat::grep::Match
+(wat.rete/defrule ls/child-offset
+  :when [(ls/Head         (?p :- :form) (?n :- :name) (?hl :- :line))
+         (wat.grep/Node  (?c :- :id) (?p :- :parent) (?i :- :index) (?ck :- :kind))
+         (wat.grep/Span  (?c :- :id) (?cl :- :line) (?cc :- :col) (?cel :- :end-line) (?cec :- :end-col))
+         (wat.grep/Source (?f :- :file))]
+  :then [(wat.grep/Match
            :file ?f :line ?cl :col ?cc :end-line ?cel :end-col ?cec
            :rule "layout"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "head"  :value ?n)
-                       (:wat::grep::Capture :name "idx"   :value (:wat::rete::i64::to-string ?i))
-                       (:wat::grep::Capture :name "dline" :value (:wat::rete::i64::to-string
-                                                                   (:wat::rete::i64::- ?cl ?hl :undefined 0)))
-                       (:wat::grep::Capture :name "col"   :value (:wat::rete::i64::to-string ?cc))
-                       (:wat::grep::Capture :name "kind"  :value (:wat::rete::core::variant-name ?ck))))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "head"  :value ?n)
+                       (wat.grep/Capture :name "idx"   :value (wat.rete.i64/to-string ?i))
+                       (wat.grep/Capture :name "dline" :value (wat.rete.i64/to-string
+                                                                   (wat.rete.i64/- ?cl ?hl :undefined 0)))
+                       (wat.grep/Capture :name "col"   :value (wat.rete.i64/to-string ?cc))
+                       (wat.grep/Capture :name "kind"  :value (wat.rete.core/variant-name ?ck))))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :ls))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :ls))

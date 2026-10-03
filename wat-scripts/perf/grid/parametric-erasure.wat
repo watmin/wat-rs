@@ -61,61 +61,61 @@
 
 ;; ★ THE PARAMETRIC RECORD — the constructor of the erasure seam. Copied in form from
 ;; tests/rete/probe_arc278_d7_parametric_erasure_differential.wat:34.
-(:wat::core::defrecord :pe::Box :- [T] [k <- wat.type/i64  v <- :T])
+(wat.core/defrecord pe/Box :- [T] [k :- wat.type/i64  v :- T])
 
 ;; A RECORD-valued filler: a second, independent way for one `Box` instance to fail
 ;; `pack_i64_row` (Aggregate, not `Value::i64`) — so the axis is not pinned to `String`.
-(:wat::core::defrecord :pe::Tag [n <- wat.type/i64])
+(wat.core/defrecord pe/Tag [n :- wat.type/i64])
 
 ;; The NON-parametric, uniformly-packable neighbour. A live control, not decoration.
-(:wat::core::defrecord :pe::Plain [k <- wat.type/i64])
+(wat.core/defrecord pe/Plain [k :- wat.type/i64])
 
-(:wat::core::defrecord :pe::Hit      [k <- wat.type/i64])
-(:wat::core::defrecord :pe::PlainHit [k <- wat.type/i64])
-(:wat::core::defrecord :pe::Pair     [k <- wat.type/i64])
+(wat.core/defrecord pe/Hit      [k :- wat.type/i64])
+(wat.core/defrecord pe/PlainHit [k :- wat.type/i64])
+(wat.core/defrecord pe/Pair     [k :- wat.type/i64])
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
-(:wat::rete::defrule :pe::r-box
-  :when  [(:pe::Box (?k :- :k) (?v :- :v))]
-  :then  [(:pe::Hit ?k)])
+(wat.rete/defrule pe/r-box
+  :when  [(pe/Box (?k :- :k) (?v :- :v))]
+  :then  [(pe/Hit ?k)])
 
-(:wat::rete::defrule :pe::r-plain
-  :when  [(:pe::Plain (?k :- :k))]
-  :then  [(:pe::PlainHit ?k)])
+(wat.rete/defrule pe/r-plain
+  :when  [(pe/Plain (?k :- :k))]
+  :then  [(pe/PlainHit ?k)])
 
 ;; ★ The JOIN arm — Box's alpha delta consumed as SLOT INDICES into `wm.alpha[aid]`.
-(:wat::rete::defrule :pe::r-pair
-  :when  [(:pe::Box (?k :- :k) (?v :- :v))
-          (:pe::Plain (?k :- :k))]
-  :then  [(:pe::Pair ?k)])
+(wat.rete/defrule pe/r-pair
+  :when  [(pe/Box (?k :- :k) (?v :- :v))
+          (pe/Plain (?k :- :k))]
+  :then  [(pe/Pair ?k)])
 
-(:wat::rete::defquery :pe::q-hit   :params [] :when [(?fact :- :pe::Hit)])
-(:wat::rete::defquery :pe::q-plain :params [] :when [(?fact :- :pe::PlainHit)])
-(:wat::rete::defquery :pe::q-pair  :params [] :when [(?fact :- :pe::Pair)])
+(wat.rete/defquery pe/q-hit   :params [] :when [(?fact :- pe/Hit)])
+(wat.rete/defquery pe/q-plain :params [] :when [(?fact :- pe/PlainHit)])
+(wat.rete/defquery pe/q-pair  :params [] :when [(?fact :- pe/Pair)])
 
 ;; encode tag k — canonical single-i64 witness (Hit=0, PlainHit=1, Pair=2). `items` is far below
 ;; 1,000,000 at every size this axis is run at, so the encoding is injective here.
-(:wat::core::defn :pe::encode [tag <- wat.type/i64  k <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ (:wat::i64::* tag 1000000) k))
+(wat.core/defn pe/encode [tag :- wat.type/i64  k :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ (wat.i64/* tag 1000000) k))
 
 ;; i64-mod a b — non-negative modulo via truncating division (min-finding.wat uses the same
 ;; idiom; there is no native i64::mod). a >= 0 and b > 0 at every call here.
-(:wat::core::defn :pe::i64-mod [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::- a (:wat::i64::* (:wat::i64::/ a b) b)))
+(wat.core/defn pe/i64-mod [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/i64
+  (wat.i64/- a (wat.i64/* (wat.i64// a b) b)))
 
 ;; A `PersistentVector`'s element type is INVARIANT and inferred from its first element, so each
 ;; `Box` INSTANTIATION must be upcast to `Record` before they can share one bag — that upcast is
 ;; all `:pe::as-record` does.
-(:wat::core::defn :pe::as-record [r <- wat.type/Record] -> wat.type/Record r)
+(wat.core/defn pe/as-record [r :- wat.type/Record] :- wat.type/Record r)
 
 ;; box-for i — ONE class, THREE erasures, cycling by (i mod 3):
 ;;   0 -> Box[i64]     packable
@@ -123,73 +123,73 @@
 ;;   2 -> Box[Tag]     NOT packable, and a DIFFERENT erasure from the String one
 ;; The cycle puts a packable instance before an erased one AND after it, so neither interleaving
 ;; is privileged — the occupancy batch runs after the fact loop and order must not matter.
-(:wat::core::defn :pe::box-for [i <- wat.type/i64] -> wat.type/Record
-  (:wat::core::cond
-    ((:wat::core::= (:pe::i64-mod i 3) 0) (:pe::as-record (:pe::Box :k i :v i)))
-    ((:wat::core::= (:pe::i64-mod i 3) 1) (:pe::as-record (:pe::Box :k i :v (:wat::i64::to-string i))))
-    (:else                                (:pe::as-record (:pe::Box :k i :v (:pe::Tag :n i))))))
+(wat.core/defn pe/box-for [i :- wat.type/i64] :- wat.type/Record
+  (wat.core/cond
+    ((wat.core/= (pe/i64-mod i 3) 0) (pe/as-record (pe/Box :k i :v i)))
+    ((wat.core/= (pe/i64-mod i 3) 1) (pe/as-record (pe/Box :k i :v (wat.i64/to-string i))))
+    (:else                                (pe/as-record (pe/Box :k i :v (pe/Tag :n i))))))
 
 ;; seed session items — stage Box(i, <erasure>) and Plain(i) for i in [0, items), in ONE batch
 ;; `insert-all` (the verb a user should write, so the axis writes it too).
-(:wat::core::defn :pe::seed
-  [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn pe/seed
+  [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj
-          (:wat::core::conj acc (:pe::box-for i))
-          (:pe::as-record (:pe::Plain :k i))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj
+          (wat.core/conj acc (pe/box-for i))
+          (pe/as-record (pe/Plain :k i))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :pe::hit-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 0 (:pe::Hit/k f))))
-      (:wat::rete::query fired (:pe::q-hit)))))
+(wat.core/defn pe/hit-codes [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/into (wat.type/Vector :- [wat.type/i64])
+    (wat.core/map (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (pe/encode 0 (pe.Hit/k f))))
+      (wat.rete/query fired (pe/q-hit)))))
 
-(:wat::core::defn :pe::plain-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 1 (:pe::PlainHit/k f))))
-      (:wat::rete::query fired (:pe::q-plain)))))
+(wat.core/defn pe/plain-codes [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/into (wat.type/Vector :- [wat.type/i64])
+    (wat.core/map (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (pe/encode 1 (pe.PlainHit/k f))))
+      (wat.rete/query fired (pe/q-plain)))))
 
-(:wat::core::defn :pe::pair-codes [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-    (:wat::core::map (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:pe::encode 2 (:pe::Pair/k f))))
-      (:wat::rete::query fired (:pe::q-pair)))))
+(wat.core/defn pe/pair-codes [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/into (wat.type/Vector :- [wat.type/i64])
+    (wat.core/map (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (pe/encode 2 (pe.Pair/k f))))
+      (wat.rete/query fired (pe/q-pair)))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]).
-(:wat::core::defn :pe::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn pe/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived fact (Hit, PlainHit, Pair), canonically encoded and
 ;; sorted ascending. THE accuracy witness: the full set, not a count.
-(:wat::core::defn :pe::derived-vector [fired <- :wat::rete::Session]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [h   (:pe::hit-codes fired)
-                    hp  (:wat::core::into h (:pe::plain-codes fired))
-                    all (:wat::core::into hp (:pe::pair-codes fired))]
-    (:pe::vec->pvec (:wat::core::sort all))))
+(wat.core/defn pe/derived-vector [fired :- wat.rete/Session]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [h   (pe/hit-codes fired)
+                    hp  (wat.core/into h (pe/plain-codes fired))
+                    all (wat.core/into hp (pe/pair-codes fired))]
+    (pe/vec->pvec (wat.core/sort all))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. asym-join.wat).
-(:wat::core::defn :pe::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn pe/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
-                    staged  (:pe::seed (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:pe::r-box) (:pe::r-plain) (:pe::r-pair)) (wat.type/PersistentVector :- [:wat::rete::Query] (:pe::q-hit) (:pe::q-plain) (:pe::q-pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    items   (wat.core.Option/expect (wat.core/get params 0) "stdin: [items]")
+                    staged  (pe/seed (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] (pe/r-box) (pe/r-plain) (pe/r-pair)) (wat.type/PersistentVector :- [wat.rete/Query] (pe/q-hit) (pe/q-plain) (pe/q-pair))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
-                    n0      (:wat::time::now)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    n1      (:wat::time::now)
-                    derived (:pe::derived-vector fired)
-                    nat-ns  (:pe::ns-between n0 n1)
+                    n0      (wat.time/now)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    n1      (wat.time/now)
+                    derived (pe/derived-vector fired)
+                    nat-ns  (pe/ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "parametric-erasure" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:pe::derived-vector ofired) :oracle-ns (:pe::ns-between o0 o1)))))
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "parametric-erasure" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (pe/derived-vector ofired) :oracle-ns (pe/ns-between o0 o1)))))

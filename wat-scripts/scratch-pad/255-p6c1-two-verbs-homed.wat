@@ -6,21 +6,21 @@
 ;;
 ;;   ./target/release/wat wat-scripts/scratch-pad/255-p6c1-two-verbs-homed.wat   # EXIT=0
 
-(:wat::core::defstruct :probe::P6c1Subject [amount <- wat.type/i64])
+(wat.core/defstruct probe/P6c1Subject [amount :- wat.type/i64])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; cpu-count: nullary (SUBSET-shape context tail — span only), returns a positive i64.
-    (:wat::test::assert-eq (:wat::i64::> (:wat::program::cpu-count) 0) true)
+    (wat.test/assert-eq (wat.i64/> (wat.program/cpu-count) 0) true)
 
     ;; form::matches?: ORDER-shape context tail (span, env, sym). A matching subject.
-    (:wat::test::assert-eq
-      (:wat::form::matches? (:probe::P6c1Subject :amount 3)
-        (:probe::P6c1Subject (= ?a :amount) (= ?a 3)))
+    (wat.test/assert-eq
+      (wat.form/matches? (probe/P6c1Subject :amount 3)
+        (probe/P6c1Subject (= ?a :amount) (= ?a 3)))
       true)
 
     ;; and a non-matching subject — false, not an error (Clara semantics preserved).
-    (:wat::test::assert-eq
-      (:wat::form::matches? (:probe::P6c1Subject :amount 3)
-        (:probe::P6c1Subject (= ?a :amount) (= ?a 4)))
+    (wat.test/assert-eq
+      (wat.form/matches? (probe/P6c1Subject :amount 3)
+        (probe/P6c1Subject (= ?a :amount) (= ?a 4)))
       false)))

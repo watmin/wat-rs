@@ -17,27 +17,27 @@
 ;; Over-generation upstream is free — every distinct namespaced keyword in the corpus can be
 ;; offered, because the ask is the filter. That is the whole point: no predicate to be wrong about.
 
-(:wat::core::defn :user::pair-for [bare <- wat.type/String] -> wat.type/String
-  (:wat::core::match
-    (:wat::runtime::variant-parent-of (:wat::keyword::from-string bare))
-    [:wat::core::Option.Some {:value parent}
-      (:wat::core::let
-        [p (:wat::keyword::to-string parent)
-         start (:wat::i64::+ (:wat::string::length p) 2)
-         leaf (:wat::string::subs bare start (:wat::string::length bare))]
-        (:wat::string::concat ":" bare " :" p "." leaf))]
-    [:wat::core::Option.None {} ""]))
+(wat.core/defn user/pair-for [bare :- wat.type/String] :- wat.type/String
+  (wat.core/match
+    (wat.runtime/variant-parent-of (wat.keyword/from-string bare))
+    [wat.core/Option.Some {:value parent}
+      (wat.core/let
+        [p (wat.keyword/to-string parent)
+         start (wat.i64/+ (wat.string/length p) 2)
+         leaf (wat.string/subs bare start (wat.string/length bare))]
+        (wat.string/concat ":" bare " :" p "." leaf))]
+    [wat.core/Option.None {} ""]))
 
-(:wat::core::defn :user::emit-each [names <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? names)
+(wat.core/defn user/emit-each [names :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? names)
     nil
-    (:wat::core::let [line (:user::pair-for (:wat::core::first names))]
-      (:wat::core::do
-        (:wat::core::if (:wat::core::= line "") nil (:wat::kernel::println line))
-        (:user::emit-each (:wat::core::rest names))))))
+    (wat.core/let [line (user/pair-for (wat.core/first names))]
+      (wat.core/do
+        (wat.core/if (wat.core/= line "") nil (wat.kernel/println line))
+        (user/emit-each (wat.core/rest names))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match (:wat::kernel::readln)
-    [:wat::kernel::ReadlnOutcome.Datum {:v names} (:user::emit-each names)]
-    [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-    [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")]))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match (wat.kernel/readln)
+    [wat.kernel/ReadlnOutcome.Datum {:v names} (user/emit-each names)]
+    [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+    [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")]))

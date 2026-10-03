@@ -25,77 +25,77 @@
 ;;
 ;; A bad caller, malicious or dumb, cannot crash anything. (Landed as a regression-proof
 ;; deftest in wat-tests/service-request-malformed.wat, both tiers.)
-(:wat::core::defsurface :dos::Bag :nature :wat::kernel::Peer
+(wat.core/defsurface dos/Bag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :dos::Bag::PutRequest [items <- (wat.type/Vector :- [wat.type/String])])
-   (:wat::core::defenum :dos::Bag::PutResponse :wat::enum::Pure
-     :Ok              [n <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord dos.Bag/PutRequest [items :- (wat.type/Vector :- [wat.type/String])])
+   (wat.core/defenum dos.Bag/PutResponse wat.enum/Pure
+     :Ok              [n :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :dos::Bag  req <- :dos::Bag::PutRequest]
-     -> :dos::Bag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- dos/Bag  req :- dos.Bag/PutRequest]
+     :- dos.Bag/PutResponse :max-request-bytes 4096)])
 
-(:wat::service::defservice :dos::bag-svc
-  :satisfies :dos::Bag
-  :durable   [n <- wat.type/i64]
+(wat.service/defservice dos/bag-svc
+  :satisfies dos/Bag
+  :durable   [n :- wat.type/i64]
   :ephemeral []
   :impls
   [(put [s ctx req]
      ;; uses the field AT ITS DECLARED TYPE — correct against the declaration
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:dos::Bag::PutResponse.Ok
-         {:n (:wat::string::length
-           (:wat::core::nth (:dos::Bag::PutRequest/items req) 0))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (dos.Bag/PutResponse.Ok
+         {:n (wat.string/length
+           (wat.core/nth (dos.Bag.PutRequest/items req) 0))})}))])
 
-(:wat::core::defn :dos::try
-  [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- wat.type/String
-   req <- :dos::Bag::PutRequest] -> wat.type/nil
-  (:wat::core::match (:dos::Bag/put c req)
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:dos::Bag::PutResponse.Ok {:n n}
-          (:wat::kernel::println (:wat::string::concat label " => Ok"))]
-        [:dos::Bag::PutResponse.RequestTooLarge {:bytes b :cap cap}
-          (:wat::kernel::println (:wat::string::concat label " => TooLarge"))]
+(wat.core/defn dos/try
+  [c :- (wat.kernel/Peer :- [dos.Bag/Op dos.Bag/Reply])  label :- wat.type/String
+   req :- dos.Bag/PutRequest] :- wat.type/nil
+  (wat.core/match (dos.Bag/put c req)
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [dos.Bag/PutResponse.Ok {:n n}
+          (wat.kernel/println (wat.string/concat label " => Ok"))]
+        [dos.Bag/PutResponse.RequestTooLarge {:bytes b :cap cap}
+          (wat.kernel/println (wat.string/concat label " => TooLarge"))]
         ;; the codemod's default body for this arm is `assertion-failed!` (a terminal caller that
         ;; builds its own typed request cannot be malformed, so an unexpected refusal must be
         ;; loud). THIS probe is the one place that deliberately sends a malformed frame, so the
         ;; refusal is the expected observation and is printed with its full coordinate.
-        [:dos::Bag::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::println
-            (:wat::string::concat label
-              (:wat::string::concat " => MALFORMED at "
-                (:wat::string::concat (:wat::edn::write mpath)
-                  (:wat::string::concat " expected="
-                    (:wat::string::concat mexpected
-                      (:wat::string::concat " got=" mgot)))))))])]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::println (:wat::string::concat label " => LOST (peer gone)"))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::println (:wat::string::concat label " => Stopped"))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::println (:wat::string::concat label " => Closed"))]))
+        [dos.Bag/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/println
+            (wat.string/concat label
+              (wat.string/concat " => MALFORMED at "
+                (wat.string/concat (wat.edn/write mpath)
+                  (wat.string/concat " expected="
+                    (wat.string/concat mexpected
+                      (wat.string/concat " got=" mgot)))))))])]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/println (wat.string/concat label " => LOST (peer gone)"))]
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/println (wat.string/concat label " => Stopped"))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/println (wat.string/concat label " => Closed"))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [h (:dos::bag-svc/start :locus (:wat::spawn::process) :record (:dos::bag-svc::Record :n 0))
-     good (:dos::Bag::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
-     bad  (:wat::edn::read "#dos.Bag/PutRequest {:items [1 2 3]}")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [h (dos.bag-svc/start :locus (wat.spawn/process) :record (dos.bag-svc/Record :n 0))
+     good (dos.Bag/PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
+     bad  (wat.edn/read "#dos.Bag/PutRequest {:items [1 2 3]}")
      ;; ATTACKER connection
-     a (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])
-     _ (:dos::try a "attacker good " good)
-     _ (:dos::try a "attacker BAD  " bad)
+     a (wat.core/match (wat.kernel/connect (dos.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])
+     _ (dos/try a "attacker good " good)
+     _ (dos/try a "attacker BAD  " bad)
      ;; a SECOND, INNOCENT client connects AFTER the bad frame
-     b (:wat::core::match (:wat::kernel::connect (:dos::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — service is GONE")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — service is GONE")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — service is GONE")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "victim: connect FAILED — service is GONE")])
+     b (wat.core/match (wat.kernel/connect (dos.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "victim: connect REFUSED — service is GONE")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "victim: connect REJECTED — service is GONE")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "victim: connect REJECTED — service is GONE")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "victim: connect FAILED — service is GONE")])
      ;; The victim's call is a BINDING, not the let's tail expression. That is not cosmetic and it
      ;; is not about this stone: a service Handle bound in a `let` is dropped before the let's TAIL
      ;; body evaluates, so a request issued from tail position comes back `Closed` — the service is
@@ -103,5 +103,5 @@
      ;; moving its victim call to tail position, so it is a pre-existing drop-order artifact of the
      ;; probe's own shape, NOT a failure of the wall. Kept out of the way here so the observation
      ;; below reads what it is actually measuring.
-     _ (:dos::try b "victim   good " good)]
+     _ (dos/try b "victim   good " good)]
     nil))

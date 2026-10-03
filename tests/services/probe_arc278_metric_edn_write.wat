@@ -9,16 +9,16 @@
 ;; If this type-checks + runs, journal''s serialize step is `(:wat::edn::write metric)`; the .rs
 ;; asserts the produced string carries the Metric tag + its field values.
 
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
     [tags (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     m    (:wat::telemetry::Metric
+     m    (wat.telemetry/Metric
             :namespace     "probe-ns"
-            :uuid          (:wat::uuid::nil)
+            :uuid          (wat.uuid/nil)
             :tags          tags
             :time-ns       123
             :start-time-ns 100
             :name          :requests
-            :value         (:wat::telemetry::Numeric.I64 {:val 7})
-            :unit          :wat::telemetry::Unit.Count)]
-    (:wat::edn::write m)))
+            :value         (wat.telemetry/Numeric.I64 {:val 7})
+            :unit          wat.telemetry/Unit.Count)]
+    (wat.edn/write m)))

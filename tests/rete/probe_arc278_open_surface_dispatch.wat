@@ -26,45 +26,45 @@
 ;; can't live in a fixture that must load; see
 ;; `probe_arc278_open_surface_dispatch_ambiguous.wat.bad` for that witness.
 
-(:wat::core::defsurface :probe::Reason :nature wat.type/Record :features [])
+(wat.core/defsurface probe/Reason :nature wat.type/Record :features [])
 
-(:wat::core::defrecord :probe::SqliteReason [code  <- wat.type/i64  sql <- wat.type/String])
-(:wat::core::defrecord :probe::RedisReason  [errno <- wat.type/i64  cmd <- wat.type/String])
-(:wat::core::defrecord :probe::MongoReason  [nsp   <- wat.type/String])   ;; no clause knows this class
-(:wat::core::extend-type :probe::SqliteReason :probe::Reason)
-(:wat::core::extend-type :probe::RedisReason :probe::Reason)
-(:wat::core::extend-type :probe::MongoReason :probe::Reason)
+(wat.core/defrecord probe/SqliteReason [code  :- wat.type/i64  sql :- wat.type/String])
+(wat.core/defrecord probe/RedisReason  [errno :- wat.type/i64  cmd :- wat.type/String])
+(wat.core/defrecord probe/MongoReason  [nsp   :- wat.type/String])   ;; no clause knows this class
+(wat.core/extend-type probe/SqliteReason probe/Reason)
+(wat.core/extend-type probe/RedisReason probe/Reason)
+(wat.core/extend-type probe/MongoReason probe/Reason)
 
 ;; Two concrete-satisfier clauses, SAME return type — the sound narrowing shape.
-(:wat::core::defclause :probe::describe
-  ([r <- :probe::SqliteReason] -> wat.type/String
-    (:wat::string::concat "sqlite " (:wat::i64::to-string (:probe::SqliteReason/code r))))
-  ([r <- :probe::RedisReason]  -> wat.type/String
-    (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r)))))
+(wat.core/defclause probe/describe
+  ([r :- probe/SqliteReason] :- wat.type/String
+    (wat.string/concat "sqlite " (wat.i64/to-string (probe.SqliteReason/code r))))
+  ([r :- probe/RedisReason]  :- wat.type/String
+    (wat.string/concat "redis "  (wat.i64/to-string (probe.RedisReason/errno r)))))
 
 ;; UP: concrete records flow into a Reason-typed slot (the extend-type above) —
 ;; this is how the value arrives OPEN-surface-typed, as it would out of an
 ;; agnostic contract field.
-(:wat::core::defn :probe::as-reason-s [r <- :probe::SqliteReason] -> :probe::Reason r)
-(:wat::core::defn :probe::as-reason-r [r <- :probe::RedisReason]  -> :probe::Reason r)
-(:wat::core::defn :probe::as-reason-m [r <- :probe::MongoReason]  -> :probe::Reason r)
+(wat.core/defn probe/as-reason-s [r :- probe/SqliteReason] :- probe/Reason r)
+(wat.core/defn probe/as-reason-r [r :- probe/RedisReason]  :- probe/Reason r)
+(wat.core/defn probe/as-reason-m [r :- probe/MongoReason]  :- probe/Reason r)
 
 ;; (a) + (b) — open-surface arg dispatches to the concrete clause matching the
 ;; value's REAL class; both concrete classes reachable through the same
 ;; open-surface-typed call site.
-(:wat::test::deftest :user::open_surface_dispatch 
-  (:wat::core::let
-    [sqlite-reason (:probe::as-reason-s (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))
-     redis-reason  (:probe::as-reason-r (:probe::RedisReason  :errno 99   :cmd "SET k v"))
-     d-sqlite      (:probe::describe sqlite-reason)
-     d-redis       (:probe::describe redis-reason)]
-    (:wat::test::assert-eq d-sqlite "sqlite 2067")
-    (:wat::test::assert-eq d-redis  "redis 99")))
+(wat.test/deftest user/open_surface_dispatch 
+  (wat.core/let
+    [sqlite-reason (probe/as-reason-s (probe/SqliteReason :code 2067 :sql "INSERT INTO users ..."))
+     redis-reason  (probe/as-reason-r (probe/RedisReason  :errno 99   :cmd "SET k v"))
+     d-sqlite      (probe/describe sqlite-reason)
+     d-redis       (probe/describe redis-reason)]
+    (wat.test/assert-eq d-sqlite "sqlite 2067")
+    (wat.test/assert-eq d-redis  "redis 99")))
 
 ;; (c) — an open-surface value whose real class (Mongo) has NO clause: the
 ;; checker still accepts the call (the two narrowing clauses above still
 ;; agree on :wat::core::String), but the runtime dispatcher raises
 ;; NoMatchingClause. Left as a plain defn (not a deftest') so the Rust probe
 ;; can call it directly and assert on the RuntimeError shape.
-(:wat::core::defn :user::describe-unknown [] -> wat.type/String
-  (:probe::describe (:probe::as-reason-m (:probe::MongoReason :nsp "app.users"))))
+(wat.core/defn user/describe-unknown [] :- wat.type/String
+  (probe/describe (probe/as-reason-m (probe/MongoReason :nsp "app.users"))))

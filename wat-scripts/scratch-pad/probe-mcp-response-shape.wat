@@ -20,31 +20,31 @@
 ;;   PASS: bare keys at every level, nested record inlined, vector of records as a JSON array.
 ;;   FAIL: any `#tag`/`body` envelope, or a `:`-prefixed key, anywhere in the output.
 
-(:wat::core::defrecord :probe::Content
-  [type <- wat.type/String
-   text <- wat.type/String])
+(wat.core/defrecord probe/Content
+  [type :- wat.type/String
+   text :- wat.type/String])
 
-(:wat::core::defrecord :probe::Result
-  [content <- (wat.type/Vector :- [:probe::Content])
-   isError <- wat.type/bool])
+(wat.core/defrecord probe/Result
+  [content :- (wat.type/Vector :- [probe/Content])
+   isError :- wat.type/bool])
 
-(:wat::core::defrecord :probe::Response
-  [jsonrpc <- wat.type/String
-   id      <- wat.type/i64
-   result  <- :probe::Result])
+(wat.core/defrecord probe/Response
+  [jsonrpc :- wat.type/String
+   id      :- wat.type/i64
+   result  :- probe/Result])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [reply (:probe::Response
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [reply (probe/Response
              :jsonrpc "2.0"
              :id      1
-             :result  (:probe::Result
-                        :content (:wat::core::conj
-                                   (wat.type/Vector :- [:probe::Content])
-                                   (:probe::Content :type "text" :text "42"))
+             :result  (probe/Result
+                        :content (wat.core/conj
+                                   (wat.type/Vector :- [probe/Content])
+                                   (probe/Content :type "text" :text "42"))
                         :isError false))]
-    (:wat::core::do
+    (wat.core/do
       ;; the sentinel form — expected to carry #tag/body, shown for contrast
-      (:wat::kernel::println (:wat::edn::write-json reply))
+      (wat.kernel/println (wat.edn/write-json reply))
       ;; the MCP candidate
-      (:wat::kernel::println (:wat::edn::write-json-natural reply)))))
+      (wat.kernel/println (wat.edn/write-json-natural reply)))))

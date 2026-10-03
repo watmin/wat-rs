@@ -2,8 +2,8 @@
 ;; like Postgres IMMUTABLE — it is a fn carrying an extra guarantee, never a separate callable
 ;; namespace. Declare a clean rete-defn and call it directly, outside any `where`/rule context.
 
-(:wat::rete::core::defn :probe88::big? [n <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::> n 100))
+(wat.rete.core/defn probe88/big? [n :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/> n 100))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe88::big? 150)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe88/big? 150)))

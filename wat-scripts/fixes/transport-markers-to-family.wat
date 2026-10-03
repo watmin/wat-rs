@@ -41,110 +41,110 @@
 ;;   printf '["wat/spawn.wat" "wat/service.wat" …]\n' \
 ;;     | ./target/release/wat ./wat-scripts/fixes/transport-markers-to-family.wat
 
-(:wat::core::defn :user::no-edits [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/no-edits [] :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::one-edit
-  [off <- wat.type/i64 old <- wat.type/String new <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/one-edit
+  [off :- wat.type/i64 old :- wat.type/String new :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; declares? — a top-level `(:wat::core::defstruct <nm> [])` form whose name is exactly `nm`.
-(:wat::core::defn :user::declares?
-  [form <- wat.type/AST nm <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? form ":wat::core::defstruct")
-    (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
-        (:wat::core::= (:wat::fix::kw-name (:wat::core::Option/expect (:wat::core::get ch 1) "defstruct name")) nm)
+(wat.core/defn user/declares?
+  [form :- wat.type/AST nm :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? form ":wat::core::defstruct")
+    (wat.core/let [ch (wat.core/ast->children form)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 3)
+        (wat.core/= (wat.fix/kw-name (wat.core.Option/expect (wat.core/get ch 1) "defstruct name")) nm)
         false))
     false))
 
 ;; decl-edits — the declaration rewrite over the top-level forms. Each edit's old text is the
 ;; rule's BELIEF (the exact declaration text), checked by `fix-text-apply` before it splices.
-(:wat::core::defn :user::decl-edits
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? forms)
-    (:user::no-edits)
-    (:wat::core::let [h    (:wat::core::first forms)
-                      tl   (:wat::core::rest forms)
-                      here (:wat::core::if (:user::declares? h ":wat::kernel::Shared")
-                             (:user::one-edit (:wat::fix::node-start-offset h lines)
+(wat.core/defn user/decl-edits
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? forms)
+    (user/no-edits)
+    (wat.core/let [h    (wat.core/first forms)
+                      tl   (wat.core/rest forms)
+                      here (wat.core/if (user/declares? h ":wat::kernel::Shared")
+                             (user/one-edit (wat.fix/node-start-offset h lines)
                                "(:wat::core::defstruct :wat::kernel::Shared [])\n" "")
-                             (:wat::core::if (:user::declares? h ":wat::kernel::Wire")
-                               (:user::one-edit (:wat::fix::node-start-offset h lines)
+                             (wat.core/if (user/declares? h ":wat::kernel::Wire")
+                               (user/one-edit (wat.fix/node-start-offset h lines)
                                  "(:wat::core::defstruct :wat::kernel::Wire [])"
                                  "(:wat::core::defenum :wat::kernel::Transport :wat::enum::Pure\n  :Shared []\n  :Wire [])")
-                               (:user::no-edits)))]
-      (:wat::core::concat here (:user::decl-edits tl lines)))))
+                               (user/no-edits)))]
+      (wat.core/concat here (user/decl-edits tl lines)))))
 
 ;; string-edits — every STRING leaf whose whole content equals `old`: one edit replacing the
 ;; quoted literal. The span of a string leaf covers its quotes; its ast-name does not.
-(:wat::core::defn :user::string-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   old   <- wat.type/String
-   new   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
-    (:user::no-edits)
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)
-                      here (:wat::core::if (:wat::fix::structural? h)
-                             (:user::string-edits (:wat::core::ast->children h) old new lines)
-                             (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "string")
-                                                (:wat::core::= (:wat::core::ast-name h) old)
+(wat.core/defn user/string-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   old   :- wat.type/String
+   new   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
+    (user/no-edits)
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)
+                      here (wat.core/if (wat.fix/structural? h)
+                             (user/string-edits (wat.core/ast->children h) old new lines)
+                             (wat.core/if (wat.core/if (wat.core/= (wat.core/ast-kind h) "string")
+                                                (wat.core/= (wat.core/ast-name h) old)
                                                 false)
-                               (:user::one-edit (:wat::fix::node-start-offset h lines)
-                                 (:wat::string::concat "\"" old "\"")
-                                 (:wat::string::concat "\"" new "\""))
-                               (:user::no-edits)))]
-      (:wat::core::concat here (:user::string-edits tl old new lines)))))
+                               (user/one-edit (wat.fix/node-start-offset h lines)
+                                 (wat.string/concat "\"" old "\"")
+                                 (wat.string/concat "\"" new "\""))
+                               (user/no-edits)))]
+      (wat.core/concat here (user/string-edits tl old new lines)))))
 
 ;; forms-of — the top-level forms of `src` (a malformed file RAISES; never a silent skip).
-(:wat::core::defn :user::forms-of
-  [src <- wat.type/String] -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::ast->children
-    (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))
+(wat.core/defn user/forms-of
+  [src :- wat.type/String] :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/ast->children
+    (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])))
 
 ;; pass 1 — the declaration rewrite.
-(:wat::core::defn :user::rewrite-decls
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let [lines (:wat::string::split src "\n")]
-    (:wat::fix::fix-text-apply src
-      (:wat::core::reverse (:user::decl-edits (:user::forms-of src) lines)))))
+(wat.core/defn user/rewrite-decls
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let [lines (wat.string/split src "\n")]
+    (wat.fix/fix-text-apply src
+      (wat.core/reverse (user/decl-edits (user/forms-of src) lines)))))
 
 ;; pass 2 — ONE string-leaf row per pass (each pass re-reads, so its edits come out in one
 ;; ascending walk and `reverse` applies them high-offset-first).
-(:wat::core::defn :user::rewrite-strings
-  [old <- wat.type/String new <- wat.type/String src <- wat.type/String] -> wat.type/String
-  (:wat::core::let [lines (:wat::string::split src "\n")]
-    (:wat::fix::fix-text-apply src
-      (:wat::core::reverse (:user::string-edits (:user::forms-of src) old new lines)))))
+(wat.core/defn user/rewrite-strings
+  [old :- wat.type/String new :- wat.type/String src :- wat.type/String] :- wat.type/String
+  (wat.core/let [lines (wat.string/split src "\n")]
+    (wat.fix/fix-text-apply src
+      (wat.core/reverse (user/string-edits (user/forms-of src) old new lines)))))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [strung (:user::rewrite-strings ":wat::kernel::Wire" ":wat::kernel::Transport.Wire"
-              (:user::rewrite-strings ":wat::kernel::Shared" ":wat::kernel::Transport.Shared"
-                (:user::rewrite-decls src)))]
-    (:wat::fix::rename-keyword-exact ":wat::kernel::Shared" ":wat::kernel::Transport.Shared"
-      (:wat::fix::rename-keyword-exact ":wat::kernel::Wire" ":wat::kernel::Transport.Wire"
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [strung (user/rewrite-strings ":wat::kernel::Wire" ":wat::kernel::Transport.Wire"
+              (user/rewrite-strings ":wat::kernel::Shared" ":wat::kernel::Transport.Shared"
+                (user/rewrite-decls src)))]
+    (wat.fix/rename-keyword-exact ":wat::kernel::Shared" ":wat::kernel::Transport.Shared"
+      (wat.fix/rename-keyword-exact ":wat::kernel::Wire" ":wat::kernel::Transport.Wire"
         strung))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[transport-family] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[transport-family] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

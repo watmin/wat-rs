@@ -10,56 +10,56 @@
 ;; stack frame and this SIGSEGVs (SIGABRT under `cargo test`, whose guard page is intact) long
 ;; before 150000; measured directly against the pinned binary before this arm existed.
 
-(:wat::core::defn :probe::countdown-and [n <- wat.type/i64] -> wat.type/bool
-  (:wat::core::if (:wat::i64::<= n 0)
+(wat.core/defn probe/countdown-and [n :- wat.type/i64] :- wat.type/bool
+  (wat.core/if (wat.i64/<= n 0)
     true
-    (:wat::core::and true (:probe::countdown-and (:wat::i64::- n 1)))))
+    (wat.core/and true (probe/countdown-and (wat.i64/- n 1)))))
 
-(:wat::core::defn :user::and-tail-tco-survives-depth [] -> wat.type/bool
-  (:probe::countdown-and 150000))
+(wat.core/defn user/and-tail-tco-survives-depth [] :- wat.type/bool
+  (probe/countdown-and 150000))
 
-(:wat::core::defn :probe::countdown-or [n <- wat.type/i64] -> wat.type/bool
-  (:wat::core::if (:wat::i64::<= n 0)
+(wat.core/defn probe/countdown-or [n :- wat.type/i64] :- wat.type/bool
+  (wat.core/if (wat.i64/<= n 0)
     false
-    (:wat::core::or false (:probe::countdown-or (:wat::i64::- n 1)))))
+    (wat.core/or false (probe/countdown-or (wat.i64/- n 1)))))
 
-(:wat::core::defn :user::or-tail-tco-survives-depth [] -> wat.type/bool
-  (:probe::countdown-or 150000))
+(wat.core/defn user/or-tail-tco-survives-depth [] :- wat.type/bool
+  (probe/countdown-or 150000))
 
-(:wat::core::defn :probe::countdown-ann-form [n <- wat.type/i64] -> wat.type/i64
-  (:wat::core::if (:wat::i64::<= n 0)
+(wat.core/defn probe/countdown-ann-form [n :- wat.type/i64] :- wat.type/i64
+  (wat.core/if (wat.i64/<= n 0)
     0
-    (:wat::core::ann-form (:probe::countdown-ann-form (:wat::i64::- n 1)) wat.type/i64)))
+    (wat.core/ann-form (probe/countdown-ann-form (wat.i64/- n 1)) wat.type/i64)))
 
-(:wat::core::defn :user::ann-form-tail-tco-survives-depth [] -> wat.type/i64
-  (:probe::countdown-ann-form 150000))
+(wat.core/defn user/ann-form-tail-tco-survives-depth [] :- wat.type/i64
+  (probe/countdown-ann-form 150000))
 
 ;; ── control: `and`/`or` still short-circuit in tail position (STOP-3's gate) ────────────────
 ;; The identical operand, UNREACHED (first operand already false, so `and` short-circuits before
 ;; ever evaluating the tail-called second operand), never raises the division.
-(:wat::core::defn :user::and-tail-short-circuits [] -> wat.type/bool
-  (:wat::core::and false (:wat::i64::> (:wat::i64::/ 1 0) 0)))
+(wat.core/defn user/and-tail-short-circuits [] :- wat.type/bool
+  (wat.core/and false (wat.i64/> (wat.i64// 1 0) 0)))
 
 ;; The NON-VACUITY CONTROL: the identical operand, REACHED (first operand true), DOES raise —
 ;; proving the short-circuit test above isn't passing on a harmless operand.
-(:wat::core::defn :user::and-tail-control-raises [] -> wat.type/bool
-  (:wat::core::and true (:wat::i64::> (:wat::i64::/ 1 0) 0)))
+(wat.core/defn user/and-tail-control-raises [] :- wat.type/bool
+  (wat.core/and true (wat.i64/> (wat.i64// 1 0) 0)))
 
-(:wat::core::defn :user::or-tail-short-circuits [] -> wat.type/bool
-  (:wat::core::or true (:wat::i64::> (:wat::i64::/ 1 0) 0)))
+(wat.core/defn user/or-tail-short-circuits [] :- wat.type/bool
+  (wat.core/or true (wat.i64/> (wat.i64// 1 0) 0)))
 
-(:wat::core::defn :user::or-tail-control-raises [] -> wat.type/bool
-  (:wat::core::or false (:wat::i64::> (:wat::i64::/ 1 0) 0)))
+(wat.core/defn user/or-tail-control-raises [] :- wat.type/bool
+  (wat.core/or false (wat.i64/> (wat.i64// 1 0) 0)))
 
 ;; ── STOP-1 control: TCO must not change any answer ──────────────────────────────────────────
 ;; A non-tail-recursive `and`/`or`/`ann-form` at a normal, shallow call must still answer exactly
 ;; as before — TCO is a stack-frame optimization, not a semantic change.
-(:wat::core::defn :user::and-tail-shallow-answer [] -> wat.type/bool
-  (:wat::core::and true true false))
-(:wat::core::defn :user::or-tail-shallow-answer [] -> wat.type/bool
-  (:wat::core::or false false true))
-(:wat::core::defn :user::ann-form-tail-shallow-answer [] -> wat.type/i64
-  (:wat::core::ann-form (:wat::i64::+ 2 3) wat.type/i64))
+(wat.core/defn user/and-tail-shallow-answer [] :- wat.type/bool
+  (wat.core/and true true false))
+(wat.core/defn user/or-tail-shallow-answer [] :- wat.type/bool
+  (wat.core/or false false true))
+(wat.core/defn user/ann-form-tail-shallow-answer [] :- wat.type/i64
+  (wat.core/ann-form (wat.i64/+ 2 3) wat.type/i64))
 
 ;; ── the RULED weakening, PINNED (obligation #2 of the #59 brief) ───────────────────────────────
 ;; `eval_and_tail`/`eval_or_tail` cannot raise the runtime `TypeMismatch` on a non-bool LAST
@@ -76,12 +76,12 @@
 ;; Without `eval_and_tail`, `eval_tail` would fall through its catch-all to ordinary `eval`,
 ;; dispatch to the checked `eval_and`, and this would come back `Err` (a located `TypeMismatch`)
 ;; instead of `Ok(5)`.
-(:wat::core::defn :t::and-tail-skips-last-check [] -> (:wat::core::Result :- [wat.type/i64 :wat::core::EvalError])
-  (:wat::eval-ast!
-    (:wat::core::quote
-      (:wat::core::apply (:wat::core::fn [] -> wat.type/i64 (:wat::core::and true 5)) []))))
+(wat.core/defn t/and-tail-skips-last-check [] :- (wat.core/Result :- [wat.type/i64 wat.core/EvalError])
+  (wat/eval-ast!
+    (wat.core/quote
+      (wat.core/apply (wat.core/fn [] :- wat.type/i64 (wat.core/and true 5)) []))))
 
-(:wat::core::defn :t::or-tail-skips-last-check [] -> (:wat::core::Result :- [wat.type/i64 :wat::core::EvalError])
-  (:wat::eval-ast!
-    (:wat::core::quote
-      (:wat::core::apply (:wat::core::fn [] -> wat.type/i64 (:wat::core::or false 7)) []))))
+(wat.core/defn t/or-tail-skips-last-check [] :- (wat.core/Result :- [wat.type/i64 wat.core/EvalError])
+  (wat/eval-ast!
+    (wat.core/quote
+      (wat.core/apply (wat.core/fn [] :- wat.type/i64 (wat.core/or false 7)) []))))

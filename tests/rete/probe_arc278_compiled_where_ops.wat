@@ -10,20 +10,20 @@
 ;;
 ;; Kept deliberately minimal: this proves a MECHANISM is reachable, not a behaviour.
 
-(:wat::core::defrecord :p::Route
-  [status <- wat.type/i64
-   method <- wat.type/String])
+(wat.core/defrecord p/Route
+  [status :- wat.type/i64
+   method :- wat.type/String])
 
 ;; The record under test — one constructor, used by both entry points below so the probe is
 ;; comparing two readings of the SAME value, never two different constructions.
-(:wat::core::defn :p::the-record [] -> :p::Route
-  (:p::Route :status 200 :method "POST"))
+(wat.core/defn p/the-record [] :- p/Route
+  (p/Route :status 200 :method "POST"))
 
 ;; Half one: the field read the way the interpreter does it today — through the accessor form.
-(:wat::core::defn :p::status-via-accessor [] -> wat.type/i64
-  (:p::Route/status (:p::the-record)))
+(wat.core/defn p/status-via-accessor [] :- wat.type/i64
+  (p.Route/status (p/the-record)))
 
 ;; wat-scripts/tests fixtures load under the every_wat_scripts_file_loads gate; a :user::main keeps
 ;; this file a complete program rather than a fragment.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:p::status-via-accessor)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (p/status-via-accessor)))

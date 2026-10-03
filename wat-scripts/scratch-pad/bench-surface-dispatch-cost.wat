@@ -44,46 +44,46 @@
 ;; arms compute the same value. No recalibration inside the run.
 
 ;; COST PROBE — what does ONE surface dispatch cost vs a direct call?
-(:wat::core::defsurface :bench::Shaped :nature wat.type/Struct
-  :features [(val [self <- :bench::Shaped] -> wat.type/i64)])
+(wat.core/defsurface bench/Shaped :nature wat.type/Struct
+  :features [(val [self :- bench/Shaped] :- wat.type/i64)])
 
-(:wat::core::extend-type wat.type/Vector :bench::Shaped
-  (val [self] -> wat.type/i64 (:wat::core::length self)))
+(wat.core/extend-type wat.type/Vector bench/Shaped
+  (val [self] :- wat.type/i64 (wat.core/length self)))
 
-(:wat::core::defn :bench::direct [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::length v))
+(wat.core/defn bench/direct [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/length v))
 
-(:wat::core::defn :bench::dispatched [s <- :bench::Shaped] -> wat.type/i64
-  (:bench::Shaped/val s))
+(wat.core/defn bench/dispatched [s :- bench/Shaped] :- wat.type/i64
+  (bench.Shaped/val s))
 
-(:wat::core::defn :bench::loop-direct [n <- wat.type/i64 v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 _i <- wat.type/i64] -> wat.type/i64
-                       (:wat::i64::+ acc (:bench::direct v)))
-                     0 (:wat::core::range 0 n)))
+(wat.core/defn bench/loop-direct [n :- wat.type/i64 v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/foldl (wat.core/fn [acc :- wat.type/i64 _i :- wat.type/i64] :- wat.type/i64
+                       (wat.i64/+ acc (bench/direct v)))
+                     0 (wat.core/range 0 n)))
 
-(:wat::core::defn :bench::loop-disp [n <- wat.type/i64 v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::foldl (:wat::core::fn [acc <- wat.type/i64 _i <- wat.type/i64] -> wat.type/i64
-                       (:wat::i64::+ acc (:bench::dispatched v)))
-                     0 (:wat::core::range 0 n)))
+(wat.core/defn bench/loop-disp [n :- wat.type/i64 v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/foldl (wat.core/fn [acc :- wat.type/i64 _i :- wat.type/i64] :- wat.type/i64
+                       (wat.i64/+ acc (bench/dispatched v)))
+                     0 (wat.core/range 0 n)))
 
-(:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn bench/ns [t0 :- wat.time/Instant t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n  200000
      v  (wat.type/Vector :- [wat.type/i64] 1 2 3)
      ;; ── ORDER A: dispatched first, then direct ──
-     a0 (:wat::time::now) ra (:bench::loop-disp n v)   a1 (:wat::time::now)
-     b0 (:wat::time::now) rb (:bench::loop-direct n v) b1 (:wat::time::now)
+     a0 (wat.time/now) ra (bench/loop-disp n v)   a1 (wat.time/now)
+     b0 (wat.time/now) rb (bench/loop-direct n v) b1 (wat.time/now)
      ;; ── ORDER B: direct first, then dispatched (block-ordering control) ──
-     c0 (:wat::time::now) rc (:bench::loop-direct n v) c1 (:wat::time::now)
-     d0 (:wat::time::now) rd (:bench::loop-disp n v)   d1 (:wat::time::now)]
-    (:wat::kernel::println
-      (:wat::string::interpolate
+     c0 (wat.time/now) rc (bench/loop-direct n v) c1 (wat.time/now)
+     d0 (wat.time/now) rd (bench/loop-disp n v)   d1 (wat.time/now)]
+    (wat.kernel/println
+      (wat.string/interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: disp={ad}ms direct={bd}ms | B: direct={cd}ms disp={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
-        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ad (wat.i64// (bench/ns a0 a1) 1000000)
+        :bd (wat.i64// (bench/ns b0 b1) 1000000)
+        :cd (wat.i64// (bench/ns c0 c1) 1000000)
+        :dd (wat.i64// (bench/ns d0 d1) 1000000)))))

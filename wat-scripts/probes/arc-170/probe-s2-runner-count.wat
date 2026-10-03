@@ -11,42 +11,42 @@
 ;; value at the abstract protocol type; `:wat::spawn::Locus/runner-count` (255.19: a surface
 ;; method, was a defclause) dispatches on the concrete class at runtime. This is the exact S3
 ;; usage (the bracket holds a `(Locus :- [T])`).
-(:wat::core::defn :user::read-blind :- [T] [l <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
-  (:wat::spawn::Locus/runner-count l))
+(wat.core/defn user/read-blind :- [T] [l :- (wat.spawn/Locus :- [T])] :- wat.type/i64
+  (wat.spawn.Locus/runner-count l))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; explicit process pool of 8
-     p8    (:wat::spawn::process::runner-count 8)
-     n8    (:wat::spawn::ProcessOpts/runner-count p8)
+     p8    (wat.spawn.process/runner-count 8)
+     n8    (wat.spawn.ProcessOpts/runner-count p8)
      ;; default process pool = cpu-count
-     pdef  (:wat::spawn::process)
-     ndef  (:wat::spawn::ProcessOpts/runner-count pdef)
+     pdef  (wat.spawn/process)
+     ndef  (wat.spawn.ProcessOpts/runner-count pdef)
      ;; explicit thread pool of 4
-     t4    (:wat::spawn::thread::runner-count 4)
-     n4    (:wat::spawn::ThreadOpts/runner-count t4)
+     t4    (wat.spawn.thread/runner-count 4)
+     n4    (wat.spawn.ThreadOpts/runner-count t4)
      ;; sanity: a bare thread also defaults to cpu-count
-     _tdef (:wat::spawn::ThreadOpts/runner-count (:wat::spawn::thread))
+     _tdef (wat.spawn.ThreadOpts/runner-count (wat.spawn/thread))
      ;; THE READER (tier-blind) — read the count off an ABSTRACT :Locus. read-blind holds its
      ;; arg at the :Locus protocol type; the defclause dispatches on the concrete class at runtime.
-     lproc (:user::read-blind (:wat::spawn::process::runner-count 8))       ;; expect 8
-     lthr  (:user::read-blind (:wat::spawn::thread))                       ;; expect cpu-count
-     cpus  (:wat::program::cpu-count)]
-    (:wat::core::do
+     lproc (user/read-blind (wat.spawn.process/runner-count 8))       ;; expect 8
+     lthr  (user/read-blind (wat.spawn/thread))                       ;; expect cpu-count
+     cpus  (wat.program/cpu-count)]
+    (wat.core/do
       ;; explicit counts are pinned exactly; the two cpu-count defaults are asserted against
       ;; the SAME builtin the field is meant to default from (machine-dependent, never a digit).
-      (:wat::test::assert-eq n8 8)
-      (:wat::test::assert-eq ndef cpus)
-      (:wat::test::assert-eq n4 4)
-      (:wat::test::assert-eq lproc 8)
-      (:wat::test::assert-eq lthr cpus)
-      (:wat::kernel::println
-        (:wat::string::concat
-          (:wat::i64::to-string n8)
-          (:wat::string::concat " "
-            (:wat::string::concat (:wat::i64::to-string ndef)
-              (:wat::string::concat " "
-                (:wat::string::concat (:wat::i64::to-string n4)
-                  (:wat::string::concat " reader="
-                    (:wat::string::concat (:wat::i64::to-string lproc)
-                      (:wat::string::concat " " (:wat::i64::to-string lthr)))))))))))))
+      (wat.test/assert-eq n8 8)
+      (wat.test/assert-eq ndef cpus)
+      (wat.test/assert-eq n4 4)
+      (wat.test/assert-eq lproc 8)
+      (wat.test/assert-eq lthr cpus)
+      (wat.kernel/println
+        (wat.string/concat
+          (wat.i64/to-string n8)
+          (wat.string/concat " "
+            (wat.string/concat (wat.i64/to-string ndef)
+              (wat.string/concat " "
+                (wat.string/concat (wat.i64/to-string n4)
+                  (wat.string/concat " reader="
+                    (wat.string/concat (wat.i64/to-string lproc)
+                      (wat.string/concat " " (wat.i64/to-string lthr)))))))))))))

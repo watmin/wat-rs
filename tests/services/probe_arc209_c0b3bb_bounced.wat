@@ -2,54 +2,54 @@
 ;; A spawned (process) service: autobind a listener (no name — arc 272 capability handoff),
 ;; send the minted Address' to the owner over the self-peer (birth-seeds allow-set with
 ;; getppid() = the owner), then poll'-serve echo n+100.
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
-            (:wat::core::forms
-             (:wat::core::defn :user::serve
-               [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64])
-                l       <- (:wat::kernel::Listener :- [wat.type/i64 wat.type/i64])
-                clients <- (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])])]
-               -> wat.type/nil
-               (:wat::core::match (:wat::kernel::poll self l clients) 
-                 [:wat::spawn::ServiceEvent.Shutdown {} nil]
-                 [:wat::spawn::ServiceEvent.Connection {:peer peer}
-                   (:user::serve self l (:wat::core::conj clients peer))]
-                 [:wat::spawn::ServiceEvent.Message {:idx idx :msg n}
-                   (:wat::core::let [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth clients idx)
-                                          (:wat::core::+ n 100)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-                     (:user::serve self l clients))]
-                 [:wat::spawn::ServiceEvent.Closed {:idx idx}
-                   (:user::serve self l (:wat::seq::remove-at clients idx))]
-                 [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
-                   (:user::serve self l (:wat::seq::remove-at clients idx))]
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [svc  (wat.test/spawn-peer (wat.spawn/process)
+            (wat.core/forms
+             (wat.core/defn user/serve
+               [self    :- (wat.kernel/Peer :- [(wat.kernel/Address :- [wat.type/i64 wat.type/i64]) wat.type/i64])
+                l       :- (wat.kernel/Listener :- [wat.type/i64 wat.type/i64])
+                clients :- (wat.type/Vector :- [(wat.kernel/Peer :- [wat.type/i64 wat.type/i64])])]
+               :- wat.type/nil
+               (wat.core/match (wat.kernel/poll self l clients) 
+                 [wat.spawn/ServiceEvent.Shutdown {} nil]
+                 [wat.spawn/ServiceEvent.Connection {:peer peer}
+                   (user/serve self l (wat.core/conj clients peer))]
+                 [wat.spawn/ServiceEvent.Message {:idx idx :msg n}
+                   (wat.core/let [_ (wat.core/match (wat.kernel/send (wat.core/nth clients idx)
+                                          (wat.core/+ n 100)) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+                     (user/serve self l clients))]
+                 [wat.spawn/ServiceEvent.Closed {:idx idx}
+                   (user/serve self l (wat.seq/remove-at clients idx))]
+                 [wat.spawn/ServiceEvent.Lost {:idx idx :cause _cause}
+                   (user/serve self l (wat.seq/remove-at clients idx))]
                  ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
                  [_ nil]))
-             (:wat::core::defn :user::main [] -> wat.type/nil
-               (:wat::core::let
-                 [b    (:wat::kernel::listener (:wat::spawn::process) wat.type/i64 wat.type/i64)
-                  self (:wat::program::self-peer
-                          (:wat::kernel::Address :- [wat.type/i64 wat.type/i64]) wat.type/i64)
-                  _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-                 (:user::serve self (:wat::spawn::Bound/listener b)
-                   (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])]))))))
+             (wat.core/defn user/main [] :- wat.type/nil
+               (wat.core/let
+                 [b    (wat.kernel/listener (wat.spawn/process) wat.type/i64 wat.type/i64)
+                  self (wat.program/self-peer
+                          (wat.kernel/Address :- [wat.type/i64 wat.type/i64]) wat.type/i64)
+                  _    (wat.core/match (wat.kernel/send self (wat.spawn.Bound/address b)) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+                 (user/serve self (wat.spawn.Bound/listener b)
+                   (wat.type/Vector :- [(wat.kernel/Peer :- [wat.type/i64 wat.type/i64])]))))))
      ;; recv' the child's minted capability over the lineage channel.
-     addr (:wat::core::match (:wat::kernel::recv svc)
-            [:wat::kernel::RecvOutcome.Message {:msg m} m]
-            [:wat::kernel::RecvOutcome.Lost {:cause cause}
-              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome.Stopped {}
-              (:wat::kernel::assertion-failed! :message "recv': stopped before sending the capability — the peer was ALIVE")]
-            [:wat::kernel::RecvOutcome.Closed {}
-              (:wat::kernel::assertion-failed! :message "recv': svc closed before sending the capability")])
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
-     got  (:wat::core::match (:wat::kernel::recv c)
-            [:wat::kernel::RecvOutcome.Message {:msg m} m]
-            [:wat::kernel::RecvOutcome.Lost {:cause cause}
-              (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome.Stopped {}
-              (:wat::kernel::assertion-failed! :message "recv': stopped before replying — the peer was ALIVE")]
-            [:wat::kernel::RecvOutcome.Closed {}
-              (:wat::kernel::assertion-failed! :message "recv': c closed before replying")])]
+     addr (wat.core/match (wat.kernel/recv svc)
+            [wat.kernel/RecvOutcome.Message {:msg m} m]
+            [wat.kernel/RecvOutcome.Lost {:cause cause}
+              (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+            [wat.kernel/RecvOutcome.Stopped {}
+              (wat.kernel/assertion-failed! :message "recv': stopped before sending the capability — the peer was ALIVE")]
+            [wat.kernel/RecvOutcome.Closed {}
+              (wat.kernel/assertion-failed! :message "recv': svc closed before sending the capability")])
+     c    (wat.core/match (wat.kernel/connect addr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _    (wat.core/match (wat.kernel/send c 5) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])  ;; arc 278 #73 — the recv' below already faces the stop
+     got  (wat.core/match (wat.kernel/recv c)
+            [wat.kernel/RecvOutcome.Message {:msg m} m]
+            [wat.kernel/RecvOutcome.Lost {:cause cause}
+              (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+            [wat.kernel/RecvOutcome.Stopped {}
+              (wat.kernel/assertion-failed! :message "recv': stopped before replying — the peer was ALIVE")]
+            [wat.kernel/RecvOutcome.Closed {}
+              (wat.kernel/assertion-failed! :message "recv': c closed before replying")])]
     got))

@@ -16,170 +16,170 @@
 ;; macro's `:defs` (a `:usr::Other` record, deliberately never listed) makes the WHOLE page
 ;; `::Fatal` — never a silent skip.
 
-(:wat::core::defrecord :usr::Temp  [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot   [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Warn  [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Other [x <- wat.type/i64]) ;; deliberately NOT in :defs below
+(wat.core/defrecord usr/Temp  [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot   [c :- wat.type/i64])
+(wat.core/defrecord usr/Warn  [c :- wat.type/i64])
+(wat.core/defrecord usr/Other [x :- wat.type/i64]) ;; deliberately NOT in :defs below
 
-(:wat::query::sift-rules-defsvc
-  :name :usr::my-sift
-  :defs [(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-         (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
-         (:wat::core::defrecord :usr::Warn [c <- wat.type/i64])]
-  :rules [(:wat::rete::defrule :usr::hot-rule
-            :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-            :then [(:usr::Hot :c ?c)])
-          (:wat::rete::defrule :usr::warn-rule
-            :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-            :then [(:usr::Warn :c ?c)])])
+(wat.query/sift-rules-defsvc
+  :name usr/my-sift
+  :defs [(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+         (wat.core/defrecord usr/Hot  [c :- wat.type/i64])
+         (wat.core/defrecord usr/Warn [c :- wat.type/i64])]
+  :rules [(wat.rete/defrule usr/hot-rule
+            :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+            :then [(usr/Hot :c ?c)])
+          (wat.rete/defrule usr/warn-rule
+            :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+            :then [(usr/Warn :c ?c)])])
 
 ;; ── shared log-building helper form, inlined per :user:: fn (a plain top-level defn would not
 ;; cross a PROCESS fork's sift service child, so each entry point builds its own 240-log Vector) ──
 
 ;; ── THREAD locus — flood 240 Logs (30 hot / 210 cold), sift-rules, expect 60 deductions. ──
-(:wat::core::defn :user::sift-rules-thread [] -> wat.type/i64
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/sift-rules-thread [] :- wat.type/i64
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
+     journal (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     idxs  (:wat::core::range 0 240)
-     logs  (:wat::core::into (wat.type/Vector :- [:wat::telemetry::Log])
-             (:wat::core::map
-               (:wat::core::fn [i <- wat.type/i64] -> :wat::telemetry::Log
-                 (:wat::core::let
-                   [hot? (:wat::i64::< i 30)
-                    c    (:wat::core::if hot? 60 10)
-                    msg  (:wat::edn::write (:usr::Temp :c c))]
-                   (:wat::telemetry::Log :namespace "sift-rules-ns" :uuid (:wat::uuid::nil) :tags tags
-                     :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
-                     :level :wat::telemetry::Level.Info :message msg)))
+     idxs  (wat.core/range 0 240)
+     logs  (wat.core/into (wat.type/Vector :- [wat.telemetry/Log])
+             (wat.core/map
+               (wat.core/fn [i :- wat.type/i64] :- wat.telemetry/Log
+                 (wat.core/let
+                   [hot? (wat.i64/< i 30)
+                    c    (wat.core/if hot? 60 10)
+                    msg  (wat.edn/write (usr/Temp :c c))]
+                   (wat.telemetry/Log :namespace "sift-rules-ns" :uuid (wat.uuid/nil) :tags tags
+                     :time-ns (wat.i64/+ i 1) :emitted-from (wat.kernel/call-site)
+                     :level wat.telemetry/Level.Info :message msg)))
                idxs))
-     _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
-     sh    (:usr::my-sift'/start :locus (:wat::spawn::thread)
-             :record (:usr::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse.Deductions {:items items :cursor _cur} (:wat::core::length items)]
-      [:usr::my-sift::SiftRulesResponse.Fatal {:err _err} -1]
-      [:usr::my-sift::SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
-        (:wat::kernel::assertion-failed! :message "sift-rules: unexpected RequestTooLarge")]
-      [:usr::my-sift::SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     _wr   (wat.telemetry.Journal/write-logs journal (wat.telemetry.Journal/WriteLogsRequest logs))
+     sh    (usr.my-sift'/start :locus (wat.spawn/thread)
+             :record (usr.my-sift'/Record) :journal-addr jaddr)
+     svc   (wat.core/match (wat.kernel/connect (usr.my-sift'.Handle/addr sh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     resp  (usr.my-sift/sift-rules svc
+             (usr.my-sift/SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [usr.my-sift/SiftRulesResponse.Deductions {:items items :cursor _cur} (wat.core/length items)]
+      [usr.my-sift/SiftRulesResponse.Fatal {:err _err} -1]
+      [usr.my-sift/SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
+        (wat.kernel/assertion-failed! :message "sift-rules: unexpected RequestTooLarge")]
+      [usr.my-sift/SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))
 
 ;; ── PROCESS locus — the loci-agnostic proof. SAME scenario across a FORK: mem-store' + journal'
 ;; + my-sift' all on process, grant-before-dial at every hop (mirrors the arena's chain). ──
-(:wat::core::defn :user::sift-rules-process [] -> wat.type/i64
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                        (:wat::query::mem-store/grant msh
-                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/sift-rules-process [] :- wat.type/i64
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/process)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start
+             :locus (wat.spawn.process/post-spawn
+                      (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                        (wat.query.mem-store/grant msh
+                          (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
+     journal (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     idxs  (:wat::core::range 0 240)
-     logs  (:wat::core::into (wat.type/Vector :- [:wat::telemetry::Log])
-             (:wat::core::map
-               (:wat::core::fn [i <- wat.type/i64] -> :wat::telemetry::Log
-                 (:wat::core::let
-                   [hot? (:wat::i64::< i 30)
-                    c    (:wat::core::if hot? 60 10)
-                    msg  (:wat::edn::write (:usr::Temp :c c))]
-                   (:wat::telemetry::Log :namespace "sift-rules-ns" :uuid (:wat::uuid::nil) :tags tags
-                     :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
-                     :level :wat::telemetry::Level.Info :message msg)))
+     idxs  (wat.core/range 0 240)
+     logs  (wat.core/into (wat.type/Vector :- [wat.telemetry/Log])
+             (wat.core/map
+               (wat.core/fn [i :- wat.type/i64] :- wat.telemetry/Log
+                 (wat.core/let
+                   [hot? (wat.i64/< i 30)
+                    c    (wat.core/if hot? 60 10)
+                    msg  (wat.edn/write (usr/Temp :c c))]
+                   (wat.telemetry/Log :namespace "sift-rules-ns" :uuid (wat.uuid/nil) :tags tags
+                     :time-ns (wat.i64/+ i 1) :emitted-from (wat.kernel/call-site)
+                     :level wat.telemetry/Level.Info :message msg)))
                idxs))
-     _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
-     sh    (:usr::my-sift'/start
-             :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                        (:wat::telemetry::journal/grant jh
-                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:usr::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse.Deductions {:items items :cursor _cur} (:wat::core::length items)]
-      [:usr::my-sift::SiftRulesResponse.Fatal {:err _err} -1]
-      [:usr::my-sift::SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
-        (:wat::kernel::assertion-failed! :message "sift-rules: unexpected RequestTooLarge")]
-      [:usr::my-sift::SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-        (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     _wr   (wat.telemetry.Journal/write-logs journal (wat.telemetry.Journal/WriteLogsRequest logs))
+     sh    (usr.my-sift'/start
+             :locus (wat.spawn.process/post-spawn
+                      (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                        (wat.telemetry.journal/grant jh
+                          (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+             :record (usr.my-sift'/Record) :journal-addr jaddr)
+     svc   (wat.core/match (wat.kernel/connect (usr.my-sift'.Handle/addr sh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     resp  (usr.my-sift/sift-rules svc
+             (usr.my-sift/SiftRulesRequest :namespace "sift-rules-ns" :time-lo 0 :time-hi 100000 :limit 300 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [usr.my-sift/SiftRulesResponse.Deductions {:items items :cursor _cur} (wat.core/length items)]
+      [usr.my-sift/SiftRulesResponse.Fatal {:err _err} -1]
+      [usr.my-sift/SiftRulesResponse.RequestTooLarge {:bytes _bytes :cap _cap}
+        (wat.kernel/assertion-failed! :message "sift-rules: unexpected RequestTooLarge")]
+      [usr.my-sift/SiftRulesResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+        (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))
 
 ;; ── THREAD locus — fail-closed: one Log's message is `:usr::Other`, NOT among :defs. The WHOLE
 ;; page must come back ::Fatal (never a silent skip / partial result). ──
-(:wat::core::defn :user::sift-rules-fatal-thread [] -> wat.type/bool
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/sift-rules-fatal-thread [] :- wat.type/bool
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
+     journal (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     l1    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
-             :message (:wat::edn::write (:usr::Temp :c 60)))
-     l2    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
-             :message (:wat::edn::write (:usr::Other :x 1)))
-     _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2)))
-     sh    (:usr::my-sift'/start :locus (:wat::spawn::thread)
-             :record (:usr::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse.Fatal {:err _err} true]
-      [_ false])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     l1    (wat.telemetry/Log :namespace "sift-rules-fatal-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 1 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info
+             :message (wat.edn/write (usr/Temp :c 60)))
+     l2    (wat.telemetry/Log :namespace "sift-rules-fatal-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 2 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info
+             :message (wat.edn/write (usr/Other :x 1)))
+     _wr   (wat.telemetry.Journal/write-logs journal
+             (wat.telemetry.Journal/WriteLogsRequest (wat.type/Vector :- [wat.telemetry/Log] l1 l2)))
+     sh    (usr.my-sift'/start :locus (wat.spawn/thread)
+             :record (usr.my-sift'/Record) :journal-addr jaddr)
+     svc   (wat.core/match (wat.kernel/connect (usr.my-sift'.Handle/addr sh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     resp  (usr.my-sift/sift-rules svc
+             (usr.my-sift/SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [usr.my-sift/SiftRulesResponse.Fatal {:err _err} true]
+      [_ false])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))
 
 ;; ── PROCESS locus — same fail-closed guard, across a FORK. ──
-(:wat::core::defn :user::sift-rules-fatal-process [] -> wat.type/bool
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                        (:wat::query::mem-store/grant msh
-                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/sift-rules-fatal-process [] :- wat.type/bool
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/process)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start
+             :locus (wat.spawn.process/post-spawn
+                      (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                        (wat.query.mem-store/grant msh
+                          (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
+     journal (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     l1    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
-             :message (:wat::edn::write (:usr::Temp :c 60)))
-     l2    (:wat::telemetry::Log :namespace "sift-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
-             :message (:wat::edn::write (:usr::Other :x 1)))
-     _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2)))
-     sh    (:usr::my-sift'/start
-             :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                        (:wat::telemetry::journal/grant jh
-                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:usr::my-sift'::Record) :journal-addr jaddr)
-     svc   (:wat::core::match (:wat::kernel::connect (:usr::my-sift'::Handle/addr sh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     resp  (:usr::my-sift/sift-rules svc
-             (:usr::my-sift::SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:usr::my-sift::SiftRulesResponse.Fatal {:err _err} true]
-      [_ false])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     l1    (wat.telemetry/Log :namespace "sift-rules-fatal-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 1 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info
+             :message (wat.edn/write (usr/Temp :c 60)))
+     l2    (wat.telemetry/Log :namespace "sift-rules-fatal-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 2 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info
+             :message (wat.edn/write (usr/Other :x 1)))
+     _wr   (wat.telemetry.Journal/write-logs journal
+             (wat.telemetry.Journal/WriteLogsRequest (wat.type/Vector :- [wat.telemetry/Log] l1 l2)))
+     sh    (usr.my-sift'/start
+             :locus (wat.spawn.process/post-spawn
+                      (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                        (wat.telemetry.journal/grant jh
+                          (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+             :record (usr.my-sift'/Record) :journal-addr jaddr)
+     svc   (wat.core/match (wat.kernel/connect (usr.my-sift'.Handle/addr sh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     resp  (usr.my-sift/sift-rules svc
+             (usr.my-sift/SiftRulesRequest :namespace "sift-rules-fatal-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [usr.my-sift/SiftRulesResponse.Fatal {:err _err} true]
+      [_ false])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

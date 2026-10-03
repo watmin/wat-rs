@@ -1,33 +1,33 @@
 ;; C1 probe — does fn-forms, given a COMPUTED keyword ":probe::work$impl", ship the
 ;; ::Kwargs struct dep too? And what does field-names-of/field-types-of on
 ;; :probe::work::Kwargs return (canonical wat.type/ decomposable forms)?
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                                                :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
-  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
+  :messages [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+             (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure :Ok [reply :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                                                :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
+  :features [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :probe::work
-  [item <- wat.type/String
-   & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
-  -> wat.type/String
-  (:wat::core::match
-    (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-  [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
-  [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+(wat.core/defn probe/work
+  [item :- wat.type/String
+   & [echo :- (wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply])]]
+  :- wat.type/String
+  (wat.core/match
+    (probe.Echo/echo echo (probe.Echo/EchoRequest :msg item)) [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+  [probe.Echo/EchoResponse.Ok {:reply reply} reply]
+  [probe.Echo/EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
+    (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge")]
+  [probe.Echo/EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+    (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [impl-kw (:wat::keyword::from-string "probe::work$impl")
-     forms   (:wat::kernel::fn-forms impl-kw :user::bracket::work-fn)
-     n       (:wat::core::length forms)
-     _       (:wat::kernel::println n)
-     _       (:wat::kernel::println forms)
-     names   (:wat::runtime::field-names-of :probe::work::Kwargs)
-     types   (:wat::runtime::field-types-of :probe::work::Kwargs)
-     _       (:wat::kernel::println names)
-     _       (:wat::kernel::println types)]
-    (:wat::kernel::println "c1-fnforms-kwargs-impl: ok")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [impl-kw (wat.keyword/from-string "probe::work$impl")
+     forms   (wat.kernel/fn-forms impl-kw user.bracket/work-fn)
+     n       (wat.core/length forms)
+     _       (wat.kernel/println n)
+     _       (wat.kernel/println forms)
+     names   (wat.runtime/field-names-of probe.work/Kwargs)
+     types   (wat.runtime/field-types-of probe.work/Kwargs)
+     _       (wat.kernel/println names)
+     _       (wat.kernel/println types)]
+    (wat.kernel/println "c1-fnforms-kwargs-impl: ok")))

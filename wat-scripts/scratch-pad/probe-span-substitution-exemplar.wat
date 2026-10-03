@@ -15,13 +15,13 @@
 ;; That difference IS the exemplar every rider copies: a real span was in scope, a Rust one was
 ;; minted, and the user was pointed at the interpreter instead of their own program.
 
-(:wat::core::defn :probe::boom
-  [acc <- wat.type/i64
-   x   <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::kernel::assertion-failed! :message "boom inside the fold"))
+(wat.core/defn probe/boom
+  [acc :- wat.type/i64
+   x   :- wat.type/i64]
+  :- wat.type/i64
+  (wat.kernel/assertion-failed! :message "boom inside the fold"))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [r (:wat::core::foldl :probe::boom 0 (wat.type/Vector :- [wat.type/i64] 1 2 3))] ;; <<foldl-call>>
-    (:wat::kernel::println r)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [r (wat.core/foldl probe/boom 0 (wat.type/Vector :- [wat.type/i64] 1 2 3))] ;; <<foldl-call>>
+    (wat.kernel/println r)))

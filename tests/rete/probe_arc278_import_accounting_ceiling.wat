@@ -17,27 +17,27 @@
 ;; that cannot: it asks what the origin is WORTH. If `import_export` files
 ;; `thread_bytes()`-at-the-filing instead of the reading captured at the door, the ceiling sees ~0,
 ;; the import succeeds, and "IMPORTED" appears on stdout.
-(:wat::config::rete::set-max-session-bytes! 8192)
+(wat.config.rete/set-max-session-bytes! 8192)
 
-(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
+(wat.core/defrecord ia/Temp [c :- wat.type/i64])
+(wat.core/defrecord ia/Hit [c :- wat.type/i64])
 
-(:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
+(wat.rete/defquery ia/q-Hit :params [] :when [(?fact :- ia/Hit)])
 
-(:wat::rete::defrule :ia::cool
-  :when [(:ia::Temp (?c :- :c))
-         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
-  :then [(:ia::Hit ?c)])
+(wat.rete/defrule ia/cool
+  :when [(ia/Temp (?c :- :c))
+         (wat.rete/where (wat.rete.i64/< ?c 20))]
+  :then [(ia/Hit ?c)])
 
-(:wat::core::defn :ia::compiled [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all
-      (wat.type/PersistentVector :- [:wat::rete::Rule] (:ia::cool))
-      (wat.type/PersistentVector :- [:wat::rete::Query] (:ia::q-Hit)))
-    [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-      (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn ia/compiled [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all
+      (wat.type/PersistentVector :- [wat.rete/Rule] (ia/cool))
+      (wat.type/PersistentVector :- [wat.rete/Query] (ia/q-Hit)))
+    [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+      (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [e  (:wat::rete::export (:ia::compiled))
-                    s1 (:wat::rete::import e)]
-    (:wat::kernel::println "IMPORTED")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [e  (wat.rete/export (ia/compiled))
+                    s1 (wat.rete/import e)]
+    (wat.kernel/println "IMPORTED")))

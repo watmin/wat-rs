@@ -31,36 +31,36 @@
 ;;
 ;; Run: `target/release/wat wat-scripts/scratch-pad/255-stepvalue-watast-roundtrip-probe.wat`
 
-(:wat::core::defn :user::show [label <- wat.type/String form <- wat.type/AST] -> wat.type/nil
-  (:wat::core::match (:wat::eval-step! form)
-    [:wat::core::Result.Ok {:value step}
-      (:wat::core::match step
-        [:wat::eval::StepResult.AlreadyTerminal {:value v}
-          (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  AlreadyTerminal ->") (:wat::kernel::println v))]
-        [:wat::eval::StepResult.StepTerminal {:value v}
-          (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  StepTerminal ->") (:wat::kernel::println v))]
-        [:wat::eval::StepResult.StepNext {:form v}
-          (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  StepNext ->") (:wat::kernel::println v))])]
-    [:wat::core::Result.Err {:error e}
-      (:wat::core::do (:wat::kernel::println label) (:wat::kernel::println "  ERR ->") (:wat::kernel::println e))]))
+(wat.core/defn user/show [label :- wat.type/String form :- wat.type/AST] :- wat.type/nil
+  (wat.core/match (wat/eval-step! form)
+    [wat.core/Result.Ok {:value step}
+      (wat.core/match step
+        [wat.eval/StepResult.AlreadyTerminal {:value v}
+          (wat.core/do (wat.kernel/println label) (wat.kernel/println "  AlreadyTerminal ->") (wat.kernel/println v))]
+        [wat.eval/StepResult.StepTerminal {:value v}
+          (wat.core/do (wat.kernel/println label) (wat.kernel/println "  StepTerminal ->") (wat.kernel/println v))]
+        [wat.eval/StepResult.StepNext {:form v}
+          (wat.core/do (wat.kernel/println label) (wat.kernel/println "  StepNext ->") (wat.kernel/println v))])]
+    [wat.core/Result.Err {:error e}
+      (wat.core/do (wat.kernel/println label) (wat.kernel/println "  ERR ->") (wat.kernel/println e))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "== PART 1: AlreadyTerminal (input already a value-shape literal) ==")
-    (:wat::kernel::println "quote rational renders:")
-    (:wat::kernel::println (:wat::core::quote 1/2))
-    (:wat::kernel::println "quote bigint renders:")
-    (:wat::kernel::println (:wat::core::quote 123456789012345678901234567890N))
-    (:user::show "rational (AlreadyTerminal)" (:wat::core::quote 1/2))
-    (:user::show "bigint   (AlreadyTerminal)" (:wat::core::quote 123456789012345678901234567890N))
-    (:user::show "i64 CTL  (AlreadyTerminal)" (:wat::core::quote 42))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "== PART 1: AlreadyTerminal (input already a value-shape literal) ==")
+    (wat.kernel/println "quote rational renders:")
+    (wat.kernel/println (wat.core/quote 1/2))
+    (wat.kernel/println "quote bigint renders:")
+    (wat.kernel/println (wat.core/quote 123456789012345678901234567890N))
+    (user/show "rational (AlreadyTerminal)" (wat.core/quote 1/2))
+    (user/show "bigint   (AlreadyTerminal)" (wat.core/quote 123456789012345678901234567890N))
+    (user/show "i64 CTL  (AlreadyTerminal)" (wat.core/quote 42))
 
-    (:wat::kernel::println "")
-    (:wat::kernel::println "== PART 2: StepTerminal (a FIRED redex whose value is rational/bigint) ==")
-    (:user::show "rational redex (1/2 + 1/3)" (:wat::core::quote (:wat::core::+ 1/2 1/3)))
-    (:user::show "bigint redex   (2N * 3N)  " (:wat::core::quote (:wat::core::* 2N 3N)))
-    (:user::show "i64 CTL redex  (1 + 2)    " (:wat::core::quote (:wat::core::+ 1 2)))
+    (wat.kernel/println "")
+    (wat.kernel/println "== PART 2: StepTerminal (a FIRED redex whose value is rational/bigint) ==")
+    (user/show "rational redex (1/2 + 1/3)" (wat.core/quote (wat.core/+ 1/2 1/3)))
+    (user/show "bigint redex   (2N * 3N)  " (wat.core/quote (wat.core/* 2N 3N)))
+    (user/show "i64 CTL redex  (1 + 2)    " (wat.core/quote (wat.core/+ 1 2)))
 
-    (:wat::kernel::println "")
-    (:wat::kernel::println "== PART 3: a bare fn form is its own canonical value, unchanged ==")
-    (:user::show "fn literal" (:wat::core::quote (:wat::core::fn [x] x)))))
+    (wat.kernel/println "")
+    (wat.kernel/println "== PART 3: a bare fn form is its own canonical value, unchanged ==")
+    (user/show "fn literal" (wat.core/quote (wat.core/fn [x] x)))))

@@ -6,20 +6,20 @@
 ;; Direct FQDN-keyword call sites, not routed through a helper fn (mirrors
 ;; `255-p6c-w1-config-metadata.wat` / `255-stone-p2-intrinsic-untouched.wat`).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::core::match (:wat::runtime::metadata-of :wat::stream::empty)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::empty :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "stream::empty :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::stream::cons)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::cons :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "stream::cons :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::stream::next)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stream::next :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "stream::next :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::program::env)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "program::env :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "program::env :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::stdlib::sources)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "stdlib::sources :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "stdlib::sources :arity= NONE")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.core/match (wat.runtime/metadata-of wat.stream/empty)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "stream::empty :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "stream::empty :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.stream/cons)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "stream::cons :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "stream::cons :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.stream/next)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "stream::next :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "stream::next :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.program/env)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "program::env :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "program::env :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.stdlib/sources)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "stdlib::sources :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "stdlib::sources :arity= NONE")])))

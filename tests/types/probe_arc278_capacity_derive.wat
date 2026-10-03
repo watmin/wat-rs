@@ -19,19 +19,19 @@
 ;;      set (i64 value cost 20 + the `:c` key cost), no hand edits needed for tomorrow's schema.
 ;;   2. The real `:wat::telemetry::Log` floor is `>= 56` (the design doc's fixed-value-only sum:
 ;;      Uuid 36 + i64 20; the shipped derive additionally adds field-name-key + tag costs on top).
-(:wat::core::defrecord :probe::RecA
-  [a <- wat.type/i64  b <- wat.type/String])
-(:wat::core::defrecord :probe::RecB
-  [a <- wat.type/i64  b <- wat.type/String  c <- wat.type/i64])
+(wat.core/defrecord probe/RecA
+  [a :- wat.type/i64  b :- wat.type/String])
+(wat.core/defrecord probe/RecB
+  [a :- wat.type/i64  b :- wat.type/String  c :- wat.type/i64])
 
-(:wat::core::def :probe::floor-a (:wat::telemetry::framing-floor-of :probe::RecA))
-(:wat::core::def :probe::floor-b (:wat::telemetry::framing-floor-of :probe::RecB))
-(:wat::core::def :probe::floor-log (:wat::telemetry::framing-floor-of :wat::telemetry::Log))
+(wat.core/def probe/floor-a (wat.telemetry/framing-floor-of probe/RecA))
+(wat.core/def probe/floor-b (wat.telemetry/framing-floor-of probe/RecB))
+(wat.core/def probe/floor-log (wat.telemetry/framing-floor-of wat.telemetry/Log))
 
-(:wat::core::def :probe::assert-adaptive
-  (:wat::test::assert-true (:wat::core::> :probe::floor-b :probe::floor-a)))
-(:wat::core::def :probe::assert-log-floor
-  (:wat::test::assert-true (:wat::core::>= :probe::floor-log 56)))
+(wat.core/def probe/assert-adaptive
+  (wat.test/assert-true (wat.core/> probe/floor-b probe/floor-a)))
+(wat.core/def probe/assert-log-floor
+  (wat.test/assert-true (wat.core/>= probe/floor-log 56)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "arc278 capacity derive: adaptivity proven"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "arc278 capacity derive: adaptivity proven"))

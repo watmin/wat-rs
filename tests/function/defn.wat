@@ -2,72 +2,72 @@
 ;; All positive tests (1-7, 10) with uniquely-named compute functions.
 
 ;; T1: simple defn — add(2,3)=5
-(:wat::core::defn :my::add_t1
-  [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ x y))
+(wat.core/defn my/add_t1
+  [x :- wat.type/i64 y :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ x y))
 
-(:wat::core::defn :my::compute_t1 [] -> wat.type/i64 (:my::add_t1 2 3))
+(wat.core/defn my/compute_t1 [] :- wat.type/i64 (my/add_t1 2 3))
 
 ;; T2: recursive defn — fact(5)=120
-(:wat::core::defn :my::fact
-  [n <- wat.type/i64] -> wat.type/i64
-  (:wat::core::if (:wat::core::= n 0) 
+(wat.core/defn my/fact
+  [n :- wat.type/i64] :- wat.type/i64
+  (wat.core/if (wat.core/= n 0) 
     1
-    (:wat::i64::* n (:my::fact (:wat::i64::- n 1)))))
+    (wat.i64/* n (my/fact (wat.i64/- n 1)))))
 
-(:wat::core::defn :my::compute_t2 [] -> wat.type/i64 (:my::fact 5))
+(wat.core/defn my/compute_t2 [] :- wat.type/i64 (my/fact 5))
 
 ;; T3: defn at top-level position (structural check — just needs to freeze)
-(:wat::core::defn :user::double
-  [x <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::* x 2))
+(wat.core/defn user/double
+  [x :- wat.type/i64] :- wat.type/i64
+  (wat.i64/* x 2))
 
 ;; T4: defn inside top-level do
-(:wat::core::do
-  (:wat::core::defn :user::inc
-    [x <- wat.type/i64] -> wat.type/i64
-    (:wat::i64::+ x 1))
-  (:wat::core::defn :user::dec
-    [x <- wat.type/i64] -> wat.type/i64
-    (:wat::i64::- x 1)))
+(wat.core/do
+  (wat.core/defn user/inc
+    [x :- wat.type/i64] :- wat.type/i64
+    (wat.i64/+ x 1))
+  (wat.core/defn user/dec
+    [x :- wat.type/i64] :- wat.type/i64
+    (wat.i64/- x 1)))
 
-(:wat::core::defn :my::compute_t4 [] -> wat.type/i64 (:user::inc (:user::dec 10)))
+(wat.core/defn my/compute_t4 [] :- wat.type/i64 (user/inc (user/dec 10)))
 
 ;; T5: defn inside top-level let body
-(:wat::core::let
+(wat.core/let
   [offset 10]
-  (:wat::core::defn :user::add-offset
-    [x <- wat.type/i64] -> wat.type/i64
-    (:wat::i64::+ x offset)))
+  (wat.core/defn user/add-offset
+    [x :- wat.type/i64] :- wat.type/i64
+    (wat.i64/+ x offset)))
 
-(:wat::core::defn :my::compute_t5 [] -> wat.type/i64 (:user::add-offset 5))
+(wat.core/defn my/compute_t5 [] :- wat.type/i64 (user/add-offset 5))
 
 ;; T6: defn inside if branch — startup succeeds after Gap I-B
 ;; (the if-branch defns may or may not register; startup just must not fail)
-(:wat::core::if true
+(wat.core/if true
   
-  (:wat::core::defn :user::f_t6
-    [x <- wat.type/i64] -> wat.type/i64
+  (wat.core/defn user/f_t6
+    [x :- wat.type/i64] :- wat.type/i64
     x)
-  (:wat::core::defn :user::g_t6
-    [x <- wat.type/i64] -> wat.type/i64
+  (wat.core/defn user/g_t6
+    [x :- wat.type/i64] :- wat.type/i64
     x))
 
 ;; T7: zero-arg defn
-(:wat::core::defn :user::forty-two
-  [] -> wat.type/i64
+(wat.core/defn user/forty-two
+  [] :- wat.type/i64
   42)
 
-(:wat::core::defn :my::compute_t7 [] -> wat.type/i64 (:user::forty-two))
+(wat.core/defn my/compute_t7 [] :- wat.type/i64 (user/forty-two))
 
 ;; T10: reflection — lookup-define :my::add_t10 returns Some
-(:wat::core::defn :my::add_t10
-  [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ x y))
+(wat.core/defn my/add_t10
+  [x :- wat.type/i64 y :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ x y))
 
-(:wat::core::defn :my::compute_t10 [] -> wat.type/i64
-  (:wat::core::match
-              (:wat::runtime::lookup-define :my::add_t10)
+(wat.core/defn my/compute_t10 [] :- wat.type/i64
+  (wat.core/match
+              (wat.runtime/lookup-define my/add_t10)
               
-              [:wat::core::Option.Some {:value _} 1]
-              [:wat::core::Option.None {}    0]))
+              [wat.core/Option.Some {:value _} 1]
+              [wat.core/Option.None {}    0]))

@@ -7,13 +7,13 @@
 ;; MATCH the outcome and RETURN the Lost cause's `Failure/message` — which carries the crash reason
 ;; that travelled over the pipe — as a VALUE the .rs asserts.
 
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
-           (:wat::kernel::assertion-failed! :message "BOOM-SENTINEL-9173")))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::LociDiedError/message cause)]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
+           (wat.kernel/assertion-failed! :message "BOOM-SENTINEL-9173")))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause cause} (wat.kernel.LociDiedError/message cause)]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

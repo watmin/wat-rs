@@ -33,92 +33,92 @@
 ;; NOT enforce the declared type.
 
 ;; ── the surface: one op, one field, declared (Vector :- [String]) ──────────────────
-(:wat::core::defsurface :probe-wire::Bag :nature :wat::kernel::Peer
+(wat.core/defsurface probe-wire/Bag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe-wire::Bag::PutRequest
-     [items <- (wat.type/Vector :- [wat.type/String])])
-   (:wat::core::defenum :probe-wire::Bag::PutResponse :wat::enum::Pure
+  [(wat.core/defrecord probe-wire.Bag/PutRequest
+     [items :- (wat.type/Vector :- [wat.type/String])])
+   (wat.core/defenum probe-wire.Bag/PutResponse wat.enum/Pure
      ;; `seen` is the SERVER's own edn::write of the field it received — the tell.
-     :Ok              [seen <- wat.type/String]
+     :Ok              [seen :- wat.type/String]
      ;; ruling A — every serviceable op-Response carries the protocol-tier variant.
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :probe-wire::Bag  req <- :probe-wire::Bag::PutRequest]
-     -> :probe-wire::Bag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- probe-wire/Bag  req :- probe-wire.Bag/PutRequest]
+     :- probe-wire.Bag/PutResponse :max-request-bytes 4096)])
 
 ;; ── the service ──────────────────────────────────────────────────────────────
-(:wat::service::defservice :probe-wire::bag-svc
-  :satisfies :probe-wire::Bag
-  :durable   [n <- wat.type/i64]
+(wat.service/defservice probe-wire/bag-svc
+  :satisfies probe-wire/Bag
+  :durable   [n :- wat.type/i64]
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe-wire::Bag::PutResponse.Ok
-         {:seen (:wat::edn::write (:probe-wire::Bag::PutRequest/items req))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe-wire.Bag/PutResponse.Ok
+         {:seen (wat.edn/write (probe-wire.Bag.PutRequest/items req))})}))])
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
-(:wat::core::defn :probe-wire::round-trip
-  [c     <- (:wat::kernel::Peer :- [:probe-wire::Bag::Op :probe-wire::Bag::Reply])
-   label <- wat.type/String
-   req   <- :probe-wire::Bag::PutRequest]
-  -> wat.type/nil
-  (:wat::core::match (:probe-wire::Bag/put c req)
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:probe-wire::Bag::PutResponse.Ok {:seen seen}
-          (:wat::kernel::println
-            (:wat::string::concat label " => Ok, server saw items = " seen))]
-        [:probe-wire::Bag::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::println
-            (:wat::string::concat label " => RequestTooLarge"))]
-        [:probe-wire::Bag::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Lost: "
-          (:wat::kernel::LociDiedError/message cause)))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Stopped"))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::println
-        (:wat::string::concat label " => RecvOutcome::Closed"))]))
+(wat.core/defn probe-wire/round-trip
+  [c     :- (wat.kernel/Peer :- [probe-wire.Bag/Op probe-wire.Bag/Reply])
+   label :- wat.type/String
+   req   :- probe-wire.Bag/PutRequest]
+  :- wat.type/nil
+  (wat.core/match (probe-wire.Bag/put c req)
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [probe-wire.Bag/PutResponse.Ok {:seen seen}
+          (wat.kernel/println
+            (wat.string/concat label " => Ok, server saw items = " seen))]
+        [probe-wire.Bag/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+          (wat.kernel/println
+            (wat.string/concat label " => RequestTooLarge"))]
+        [probe-wire.Bag/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/println
+        (wat.string/concat label " => RecvOutcome::Lost: "
+          (wat.kernel.LociDiedError/message cause)))]
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/println
+        (wat.string/concat label " => RecvOutcome::Stopped"))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/println
+        (wat.string/concat label " => RecvOutcome::Closed"))]))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
-(:wat::core::defn :probe-wire::measure-tier :- [T]
-  [locus <- (:wat::spawn::Locus :- [T])
-   tier  <- wat.type/String]
-  -> wat.type/nil
-  (:wat::core::let
-    [h (:probe-wire::bag-svc/start :locus locus
-         :record (:probe-wire::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:probe-wire::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message f))])
+(wat.core/defn probe-wire/measure-tier :- [T]
+  [locus :- (wat.spawn/Locus :- [T])
+   tier  :- wat.type/String]
+  :- wat.type/nil
+  (wat.core/let
+    [h (probe-wire.bag-svc/start :locus locus
+         :record (probe-wire.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (probe-wire.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))] [wat.kernel/ConnectOutcome.WrongPeer {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message f))])
      ;; CONTROL — a well-typed request, built by the normal ctor.
-     good (:probe-wire::Bag::PutRequest
+     good (probe-wire.Bag/PutRequest
             :items (wat.type/Vector :- [wat.type/String] "a" "b"))
      ;; Show the exact wire form the ctor produces, so the hand-written EDN below
      ;; is provably the SAME tag with a wrong-typed body.
-     _ (:wat::kernel::println
-         (:wat::string::concat tier " control wire form = " (:wat::edn::write good)))
-     _ (:probe-wire::round-trip c (:wat::string::concat tier " control  ") good)
+     _ (wat.kernel/println
+         (wat.string/concat tier " control wire form = " (wat.edn/write good)))
+     _ (probe-wire/round-trip c (wat.string/concat tier " control  ") good)
      ;; THE PROBE — well-formed EDN, WRONG TYPE: i64s where (Vector :- [String]) is declared.
-     bad (:wat::edn::read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")
-     _ (:wat::kernel::println
-         (:wat::string::concat tier " mistyped wire form = " (:wat::edn::write bad)))
-     _ (:probe-wire::round-trip c (:wat::string::concat tier " MISTYPED ") bad)]
+     bad (wat.edn/read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")
+     _ (wat.kernel/println
+         (wat.string/concat tier " mistyped wire form = " (wat.edn/write bad)))
+     _ (probe-wire/round-trip c (wat.string/concat tier " MISTYPED ") bad)]
     nil))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:probe-wire::measure-tier (:wat::spawn::thread)  "[thread] ")
-    (:probe-wire::measure-tier (:wat::spawn::process) "[process]")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (probe-wire/measure-tier (wat.spawn/thread)  "[thread] ")
+    (probe-wire/measure-tier (wat.spawn/process) "[process]")))

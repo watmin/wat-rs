@@ -17,24 +17,24 @@
 ;; presumed pure, only its type ARGS checked. This file compiled clean for a month.
 ;;
 ;; Its control (`_control.wat`) is byte-identical but for the one field, and MUST load.
-(:wat::core::defsurface :probe::opq::Ctr :nature :wat::kernel::Peer
+(wat.core/defsurface probe.opq/Ctr :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::opq::Ctr::GetRequest [])
-   (:wat::core::defenum :probe::opq::Ctr::GetResponse :wat::enum::Pure
-     :Ok               [value <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String
-                        got <- wat.type/String])]
+  [(wat.core/defrecord probe.opq.Ctr/GetRequest [])
+   (wat.core/defenum probe.opq.Ctr/GetResponse wat.enum/Pure
+     :Ok               [value :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String
+                        got :- wat.type/String])]
   :features
-  [(get [self <- :probe::opq::Ctr  req <- :probe::opq::Ctr::GetRequest]
-     -> :probe::opq::Ctr::GetResponse :max-request-bytes 524288)])
+  [(get [self :- probe.opq/Ctr  req :- probe.opq.Ctr/GetRequest]
+     :- probe.opq.Ctr/GetResponse :max-request-bytes 524288)])
 
 ;; The same service, with the one offending field replaced by plain EDN.
-(:wat::service::defservice :probe::opq::ctr
-  :satisfies :probe::opq::Ctr
-  :durable   [capacity <- wat.type/i64]
+(wat.service/defservice probe.opq/ctr
+  :satisfies probe.opq/Ctr
+  :durable   [capacity :- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome.Reply {:state s :reply (:probe::opq::Ctr::GetResponse.Ok {:value 1})}))])
+     (wat.service/Outcome.Reply {:state s :reply (probe.opq.Ctr/GetResponse.Ok {:value 1})}))])

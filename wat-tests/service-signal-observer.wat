@@ -37,117 +37,117 @@
 ;; (Launched, the erasure A1 undoes).
 
 ;; ── the surface: one query op, `observe`, returning the durable counters ─────────────────────
-(:wat::core::defsurface :wat-tests::SignalObserver :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/SignalObserver :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::SignalObserver::ObserveRequest [])
-   (:wat::core::defenum :wat-tests::SignalObserver::ObserveResponse :wat::enum::Pure
-     :Ok               [requests <- wat.type/i64  sighup <- wat.type/bool  user1 <- wat.type/bool  user2 <- wat.type/bool]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.SignalObserver/ObserveRequest [])
+   (wat.core/defenum wat-tests.SignalObserver/ObserveResponse wat.enum/Pure
+     :Ok               [requests :- wat.type/i64  sighup :- wat.type/bool  user1 :- wat.type/bool  user2 :- wat.type/bool]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(observe [self <- :wat-tests::SignalObserver  req <- :wat-tests::SignalObserver::ObserveRequest] -> :wat-tests::SignalObserver::ObserveResponse :max-request-bytes 524288)])
+  [(observe [self :- wat-tests/SignalObserver  req :- wat-tests.SignalObserver/ObserveRequest] :- wat-tests.SignalObserver/ObserveResponse :max-request-bytes 524288)])
 
 ;; ── the service: measures as it serves. Every `observe` call re-reads the process-global flags
 ;; (a bitflip set by handlers wat's control never touches — ruling 4 / STOP-1: never patched,
 ;; never reset here) and folds the current reading into the durable record it replies with. ─────
-(:wat::service::defservice :wat-tests::signal-observer
-  :satisfies :wat-tests::SignalObserver
-  :durable [requests <- wat.type/i64  sighup <- wat.type/bool  user1 <- wat.type/bool  user2 <- wat.type/bool]
+(wat.service/defservice wat-tests/signal-observer
+  :satisfies wat-tests/SignalObserver
+  :durable [requests :- wat.type/i64  sighup :- wat.type/bool  user1 :- wat.type/bool  user2 :- wat.type/bool]
   :ephemeral []
   :impls
   [(observe [s ctx req]
-     (:wat::core::let
-       [d          (:wat-tests::signal-observer::State/durable s)
-        new-reqs   (:wat::i64::+ (:wat-tests::signal-observer::Record/requests d) 1)
-        new-sighup (:wat::kernel::sighup?)
-        new-user1  (:wat::kernel::sigusr1?)
-        new-user2  (:wat::kernel::sigusr2?)
-        rec        (:wat-tests::signal-observer::Record :requests new-reqs :sighup new-sighup :user1 new-user1 :user2 new-user2)]
-       (:wat::service::Outcome.Reply
-         {:state (:wat-tests::signal-observer::State :durable rec)
-         :reply (:wat-tests::SignalObserver::ObserveResponse.Ok {:requests new-reqs :sighup new-sighup :user1 new-user1 :user2 new-user2})})))])
+     (wat.core/let
+       [d          (wat-tests.signal-observer.State/durable s)
+        new-reqs   (wat.i64/+ (wat-tests.signal-observer.Record/requests d) 1)
+        new-sighup (wat.kernel/sighup?)
+        new-user1  (wat.kernel/sigusr1?)
+        new-user2  (wat.kernel/sigusr2?)
+        rec        (wat-tests.signal-observer/Record :requests new-reqs :sighup new-sighup :user1 new-user1 :user2 new-user2)]
+       (wat.service/Outcome.Reply
+         {:state (wat-tests.signal-observer/State :durable rec)
+         :reply (wat-tests.SignalObserver/ObserveResponse.Ok {:requests new-reqs :sighup new-sighup :user1 new-user1 :user2 new-user2})})))])
 
 ;; ── a helper: drive one `observe` round trip, facing every RecvOutcome arm. ──────────────────
-(:wat::core::defn :wat-tests::signal-observer::observe! [c <- :wat-tests::SignalObserver] -> :wat-tests::SignalObserver::ObserveResponse
-  (:wat::core::match (:wat-tests::SignalObserver/observe c (:wat-tests::SignalObserver::ObserveRequest))
-    [:wat::kernel::RecvOutcome.Message {:msg m} m]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-    [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-    [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "observe!: peer closed")]))
+(wat.core/defn wat-tests.signal-observer/observe! [c :- wat-tests/SignalObserver] :- wat-tests.SignalObserver/ObserveResponse
+  (wat.core/match (wat-tests.SignalObserver/observe c (wat-tests.SignalObserver/ObserveRequest))
+    [wat.kernel/RecvOutcome.Message {:msg m} m]
+    [wat.kernel/RecvOutcome.Lost {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+    [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "observe!: stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+    [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "observe!: peer closed")]))
 
 ;; ── the sequence: one process, all four handlers, three user signals discriminated ──────────
 ;; Every step is faced individually (RequestTooLarge/RequestMalformed each get their own
 ;; assertion-failed! naming which op saw the wire-breach) and folded into one (Vector bool),
 ;; compared structurally against the expected all-true vector — never a loose contains?.
-(:wat::test::deftest :wat-tests::service::signal-observer-measures-itself
+(wat.test/deftest wat-tests.service/signal-observer-measures-itself
 
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h    (:wat-tests::signal-observer/start :locus (:wat::spawn::process)
-              :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))
-       c    (:wat::core::match (:wat::kernel::connect (:wat-tests::signal-observer::Handle/addr h))
-              [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-              [:wat::kernel::ConnectOutcome.Closed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
-              [:wat::kernel::ConnectOutcome.Undialable {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]
-              [:wat::kernel::ConnectOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
-       proc (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-              [:wat::core::Option.Some {:value p} p]
-              [:wat::core::Option.None {} (:wat::kernel::assertion-failed! :message "signal-observer-measures-itself: expected a process locus")])
+  (wat.test/assert-eq
+    (wat.core/let
+      [h    (wat-tests.signal-observer/start :locus (wat.spawn/process)
+              :record (wat-tests.signal-observer/Record :requests 0 :sighup false :user1 false :user2 false))
+       c    (wat.core/match (wat.kernel/connect (wat-tests.signal-observer.Handle/addr h))
+              [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+              [wat.kernel/ConnectOutcome.Closed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))]
+              [wat.kernel/ConnectOutcome.Undialable {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))] [wat.kernel/ConnectOutcome.WrongPeer {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))]
+              [wat.kernel/ConnectOutcome.Failed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])
+       proc (wat.core/match (wat.kernel/peer-process (wat-tests.signal-observer.Handle/handle h))
+              [wat.core/Option.Some {:value p} p]
+              [wat.core/Option.None {} (wat.kernel/assertion-failed! :message "signal-observer-measures-itself: expected a process locus")])
 
        ;; ── sighup: a bitflip only, no wake — drive `observe` to see it. ─────────────────────
        sighup-delivered
-       (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal.Hangup)
-         [:wat::kernel::SignalOutcome.Delivered {} true]
-         [:wat::kernel::SignalOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
+       (wat.core/match (wat.kernel/signal proc wat.kernel/Signal.Hangup)
+         [wat.kernel/SignalOutcome.Delivered {} true]
+         [wat.kernel/SignalOutcome.Failed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])
        after-hangup
-       (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
+       (wat.core/match (wat-tests.signal-observer/observe! c)
+         [wat-tests.SignalObserver/ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (wat.type/Vector :- [wat.type/bool]
-             (:wat::core::= reqs 1) hup (:wat::core::not u1) (:wat::core::not u2))]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after sighup")]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed after sighup")])
+             (wat.core/= reqs 1) hup (wat.core/not u1) (wat.core/not u2))]
+         [wat-tests.SignalObserver/ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
+           (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge after sighup")]
+         [wat-tests.SignalObserver/ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (wat.kernel/assertion-failed! :message "unexpected RequestMalformed after sighup")])
 
        ;; ── user1 — independent of sighup, which must stay observed true. ───────────────────
        user1-delivered
-       (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal.User1)
-         [:wat::kernel::SignalOutcome.Delivered {} true]
-         [:wat::kernel::SignalOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
+       (wat.core/match (wat.kernel/signal proc wat.kernel/Signal.User1)
+         [wat.kernel/SignalOutcome.Delivered {} true]
+         [wat.kernel/SignalOutcome.Failed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])
        after-user1
-       (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
+       (wat.core/match (wat-tests.signal-observer/observe! c)
+         [wat-tests.SignalObserver/ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (wat.type/Vector :- [wat.type/bool]
-             (:wat::core::= reqs 2) hup u1 (:wat::core::not u2))]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after user1")]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed after user1")])
+             (wat.core/= reqs 2) hup u1 (wat.core/not u2))]
+         [wat-tests.SignalObserver/ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
+           (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge after user1")]
+         [wat-tests.SignalObserver/ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (wat.kernel/assertion-failed! :message "unexpected RequestMalformed after user1")])
 
        ;; ── user2 — independent of both sighup AND user1, which must stay observed true. ─────
        user2-delivered
-       (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal.User2)
-         [:wat::kernel::SignalOutcome.Delivered {} true]
-         [:wat::kernel::SignalOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])
+       (wat.core/match (wat.kernel/signal proc wat.kernel/Signal.User2)
+         [wat.kernel/SignalOutcome.Delivered {} true]
+         [wat.kernel/SignalOutcome.Failed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])
        after-user2
-       (:wat::core::match (:wat-tests::signal-observer::observe! c)
-         [:wat-tests::SignalObserver::ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
+       (wat.core/match (wat-tests.signal-observer/observe! c)
+         [wat-tests.SignalObserver/ObserveResponse.Ok {:requests reqs :sighup hup :user1 u1 :user2 u2}
            (wat.type/Vector :- [wat.type/bool]
-             (:wat::core::= reqs 3) hup u1 u2)]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge after user2")]
-         [:wat-tests::SignalObserver::ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-           (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed after user2")])
+             (wat.core/= reqs 3) hup u1 u2)]
+         [wat-tests.SignalObserver/ObserveResponse.RequestTooLarge {:bytes bytes :cap cap}
+           (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge after user2")]
+         [wat-tests.SignalObserver/ObserveResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+           (wat.kernel/assertion-failed! :message "unexpected RequestMalformed after user2")])
 
        ;; ── terminate: the child dies, no notification — there is no admin ask (ruled). ─────
        terminate-delivered
-       (:wat::core::match (:wat::kernel::signal proc :wat::kernel::Signal.Terminate)
-         [:wat::kernel::SignalOutcome.Delivered {} true]
-         [:wat::kernel::SignalOutcome.Failed {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
+       (wat.core/match (wat.kernel/signal proc wat.kernel/Signal.Terminate)
+         [wat.kernel/SignalOutcome.Delivered {} true]
+         [wat.kernel/SignalOutcome.Failed {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])]
 
-      (:wat::core::concat
+      (wat.core/concat
         (wat.type/Vector :- [wat.type/bool] sighup-delivered user1-delivered user2-delivered terminate-delivered)
-        (:wat::core::concat after-hangup (:wat::core::concat after-user1 after-user2))))
+        (wat.core/concat after-hangup (wat.core/concat after-user1 after-user2))))
     (wat.type/Vector :- [wat.type/bool]
       true true true true     ;; the four SignalOutcome::Delivered (sighup/user1/user2/terminate)
       true true true true     ;; after sighup:  requests=1, sighup,  !user1, !user2
@@ -155,12 +155,12 @@
       true true true true)))  ;; after user2:   requests=3, sighup,  user1,  user2
 
 ;; ── A1's other branch: a thread locus has no process to signal. ──────────────────────────────
-(:wat::test::deftest :wat-tests::service::signal-observer-thread-has-no-process
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::signal-observer/start :locus (:wat::spawn::thread)
-           :record (:wat-tests::signal-observer::Record :requests 0 :sighup false :user1 false :user2 false))]
-      (:wat::core::match (:wat::kernel::peer-process (:wat-tests::signal-observer::Handle/handle h))
-        [:wat::core::Option.Some {:value _p} false]
-        [:wat::core::Option.None {} true]))
+(wat.test/deftest wat-tests.service/signal-observer-thread-has-no-process
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.signal-observer/start :locus (wat.spawn/thread)
+           :record (wat-tests.signal-observer/Record :requests 0 :sighup false :user1 false :user2 false))]
+      (wat.core/match (wat.kernel/peer-process (wat-tests.signal-observer.Handle/handle h))
+        [wat.core/Option.Some {:value _p} false]
+        [wat.core/Option.None {} true]))
     true))

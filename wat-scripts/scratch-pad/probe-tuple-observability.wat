@@ -31,21 +31,21 @@
 ;;   it — which is why `Tuple` is one of the three rows appearing nowhere in the 1569-file corpus.
 ;;   It was never usable, since genesis.
 
-(:wat::core::defn :user::projection [] -> wat.type/String
-  (:wat::string::concat
-    (:wat::i64::to-string (:wat::core::first  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))
-    (:wat::string::concat
-      (:wat::string::concat "/" (:wat::i64::to-string (:wat::core::second (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512))))
-      (:wat::string::concat "/" (:wat::i64::to-string (:wat::core::third  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))))))
+(wat.core/defn user/projection [] :- wat.type/String
+  (wat.string/concat
+    (wat.i64/to-string (wat.core/first  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))
+    (wat.string/concat
+      (wat.string/concat "/" (wat.i64/to-string (wat.core/second (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512))))
+      (wat.string/concat "/" (wat.i64/to-string (wat.core/third  (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))))))
 
-(:wat::core::defn :user::measurement [] -> wat.type/String
-  (:wat::string::concat
-    (:wat::i64::to-string (:wat::core::length (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))
-    (:wat::string::concat "/" (:wat::core::bool::to-string
-      (:wat::core::contains? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512) 99)))))
+(wat.core/defn user/measurement [] :- wat.type/String
+  (wat.string/concat
+    (wat.i64/to-string (wat.core/length (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512)))
+    (wat.string/concat "/" (wat.core.bool/to-string
+      (wat.core/contains? (wat.type/Tuple :- [wat.type/i64 wat.type/i64 wat.type/i64] 7 99 512) 99)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
     (wat.type/PersistentMap :- [wat.type/String wat.type/String]
-      "first/second/third" (:user::projection)
-      "length/contains?"   (:user::measurement))))
+      "first/second/third" (user/projection)
+      "length/contains?"   (user/measurement))))

@@ -1,11 +1,11 @@
 ;; tests/reflection/wat_arc144_uniform_reflection_macro.wat
 ;; Co-located fixture for test macro_lookup_define_smoke.
 ;; Probe: lookup-define :my::id (a macro) returns Some.
-(:wat::core::defmacro :my::id [x <- wat.type/AST] -> wat.type/AST `~x)
+(wat.core/defmacro my/id [x :- wat.type/AST] :- wat.type/AST `~x)
 
-(:wat::core::defn :user::compute [] -> wat.type/bool
-  (:wat::core::match
-              (:wat::runtime::lookup-define :my::id)
+(wat.core/defn user/compute [] :- wat.type/bool
+  (wat.core/match
+              (wat.runtime/lookup-define my/id)
               
-              [:wat::core::Option.Some {:value _} true]
-              [:wat::core::Option.None {}    false]))
+              [wat.core/Option.Some {:value _} true]
+              [wat.core/Option.None {}    false]))

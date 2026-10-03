@@ -12,46 +12,46 @@
 
 ;; ─── Case 1: defmacro ref is order-free ─────────────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::defmacro-ref-is-order-free
+(wat.test/deftest wat-tests.deporder/defmacro-ref-is-order-free
   
   ;; File "a" calls (:t::m), which is defined in file "b" as a defmacro.
   ;; a loads before b. This must NOT be a violation because defmacros
   ;; are registered in the pre-expansion pass (order-free).
-  (:wat::core::let
-    [a  (:wat::source::File :path "a" :source "(:t::caller (:t::m))")
-     b  (:wat::source::File :path "b" :source "(:wat::core::defmacro :t::m [] 1)")
-     files (wat.type/Vector :- [:wat::source::File] a b)
-     viols (:wat::deporder::verify files)]
-    (:wat::test::assert-eq (:wat::core::length viols) 0)))
+  (wat.core/let
+    [a  (wat.source/File :path "a" :source "(:t::caller (:t::m))")
+     b  (wat.source/File :path "b" :source "(:wat::core::defmacro :t::m [] 1)")
+     files (wat.type/Vector :- [wat.source/File] a b)
+     viols (wat.deporder/verify files)]
+    (wat.test/assert-eq (wat.core/length viols) 0)))
 
 ;; ─── Case 2: eval-dep wrong order is a violation ─────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::eval-dep-wrong-order-is-violation
+(wat.test/deftest wat-tests.deporder/eval-dep-wrong-order-is-violation
   
   ;; File "a" calls (:t::f), which is defined in file "b" as a defn.
   ;; a loads before b (position 0 before position 1). This IS a violation.
-  (:wat::core::let
-    [a  (:wat::source::File :path "a" :source "(:t::caller (:t::f))")
-     b  (:wat::source::File :path "b" :source "(:wat::core::defn :t::f [] 1)")
-     files-bad  (wat.type/Vector :- [:wat::source::File] a b)
-     files-good (wat.type/Vector :- [:wat::source::File] b a)
-     viols-bad  (:wat::deporder::verify files-bad)
-     viols-good (:wat::deporder::verify files-good)]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::length viols-bad) 1)
-      (:wat::test::assert-eq (:wat::core::length viols-good) 0))))
+  (wat.core/let
+    [a  (wat.source/File :path "a" :source "(:t::caller (:t::f))")
+     b  (wat.source/File :path "b" :source "(:wat::core::defn :t::f [] 1)")
+     files-bad  (wat.type/Vector :- [wat.source/File] a b)
+     files-good (wat.type/Vector :- [wat.source/File] b a)
+     viols-bad  (wat.deporder/verify files-bad)
+     viols-good (wat.deporder/verify files-good)]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/length viols-bad) 1)
+      (wat.test/assert-eq (wat.core/length viols-good) 0))))
 
 ;; ─── Case 3: intrinsic ref ignored ───────────────────────────────────
 
-(:wat::test::deftest :wat-tests::deporder::intrinsic-ref-ignored
+(wat.test/deftest wat-tests.deporder/intrinsic-ref-ignored
   
   ;; A file referencing :wat::io::read-file (defined in no fixture)
   ;; must produce no violation (it resolves to an intrinsic / built-in).
-  (:wat::core::let
-    [f (:wat::source::File :path "f" :source "(:wat::io::read-file \"some-path\")")
-     files (wat.type/Vector :- [:wat::source::File] f)
-     viols (:wat::deporder::verify files)]
-    (:wat::test::assert-eq (:wat::core::length viols) 0)))
+  (wat.core/let
+    [f (wat.source/File :path "f" :source "(:wat::io::read-file \"some-path\")")
+     files (wat.type/Vector :- [wat.source/File] f)
+     viols (wat.deporder/verify files)]
+    (wat.test/assert-eq (wat.core/length viols) 0)))
 
 ;; ─── Case 4: the surface runs ────────────────────────────────────────
 
@@ -61,11 +61,11 @@
 ;; load). Explicit 30s headroom until the test is made load-insensitive (off wall-clock).
 ;; A long-standing problematic-but-good-intentioned test; arc 300 C1 (bigint, +85 stdlib
 ;; lines) consumed the last of its margin.
-(:wat::test::time-limit "30s")
-(:wat::test::deftest :wat-tests::deporder::verify-stdlib-runs
+(wat.test/time-limit "30s")
+(wat.test/deftest wat-tests.deporder/verify-stdlib-runs
   
   ;; (:wat::deporder::verify-stdlib) must evaluate without error and return
   ;; a Vector (its length may be zero or more — the enforcement test is 275.2).
-  (:wat::core::let
-    [viols (:wat::deporder::verify-stdlib)]
-    (:wat::test::assert-true (:wat::i64::>= (:wat::core::length viols) 0))))
+  (wat.core/let
+    [viols (wat.deporder/verify-stdlib)]
+    (wat.test/assert-true (wat.i64/>= (wat.core/length viols) 0))))

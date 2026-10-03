@@ -20,15 +20,15 @@
 ;; The reader parsing a form is not the reader blessing it, and a probe that
 ;; proves parseability proves nothing about legality. The strings below are the
 ;; corrected declarations, which is what this probe should have measured.
-(:wat::core::def :scratch::let-grammar
-  (:wat::core::read-string "(:wat::core::let [<binder> <expr> ...] <body>+)"))
-(:wat::core::def :scratch::match-grammar
-  (:wat::core::read-string "(:wat::core::match <scrutinee> (<pattern> <body>) ...)"))
-(:wat::core::def :scratch::fn-grammar
-  (:wat::core::read-string "(:wat::core::fn [<param> <- :T ...] -> :RetType <body>+)"))
+(wat.core/def scratch/let-grammar
+  (wat.core/read-string "(:wat::core::let [<binder> <expr> ...] <body>+)"))
+(wat.core/def scratch/match-grammar
+  (wat.core/read-string "(:wat::core::match <scrutinee> (<pattern> <body>) ...)"))
+(wat.core/def scratch/fn-grammar
+  (wat.core/read-string "(:wat::core::fn [<param> <- :T ...] -> :RetType <body>+)"))
 
-(:wat::core::def :user::main
-  (:wat::core::fn [] -> wat.type/nil
-    (:wat::kernel::println :scratch::let-grammar)
-    (:wat::kernel::println :scratch::match-grammar)
-    (:wat::kernel::println :scratch::fn-grammar)))
+(wat.core/def user/main
+  (wat.core/fn [] :- wat.type/nil
+    (wat.kernel/println scratch/let-grammar)
+    (wat.kernel/println scratch/match-grammar)
+    (wat.kernel/println scratch/fn-grammar)))

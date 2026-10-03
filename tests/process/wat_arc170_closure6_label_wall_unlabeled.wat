@@ -4,29 +4,29 @@
 ;; `ProcessOpts/label` stays its default `:None`. Proves argv is UNCHANGED from
 ;; before this field existed — `[exe]`, nothing appended — same protocol as the
 ;; labeled sibling (report the child's pid, then block on stdin for the harness).
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let
-               [_p (:wat::kernel::println (:wat::program::Env/process-id (:wat::program::env)))
-                outcome (:wat::kernel::readln)]
-               (:wat::core::match outcome
-                 [:wat::kernel::ReadlnOutcome.Datum {:v _d} nil]
-                 [:wat::kernel::ReadlnOutcome.Eof {} nil]
-                 [:wat::kernel::ReadlnOutcome.Stopped {} nil])))))
-     child-pid (:wat::core::match (:wat::kernel::recv p)
-                 [:wat::kernel::RecvOutcome.Message {:msg m} m]
-                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                 [:wat::kernel::RecvOutcome.Stopped {}
-                   (:wat::kernel::assertion-failed! :message "unlabeled child: stop requested before sending its pid — child was ALIVE, channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {}
-                   (:wat::kernel::assertion-failed! :message "unlabeled child closed before sending its pid")])
-     _ (:wat::kernel::println child-pid)
-     release-outcome (:wat::kernel::readln)]
-    (:wat::core::match release-outcome
-      [:wat::kernel::ReadlnOutcome.Datum {:v _d} nil]
-      [:wat::kernel::ReadlnOutcome.Eof {} nil]
-      [:wat::kernel::ReadlnOutcome.Stopped {} nil])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let
+               [_p (wat.kernel/println (wat.program.Env/process-id (wat.program/env)))
+                outcome (wat.kernel/readln)]
+               (wat.core/match outcome
+                 [wat.kernel/ReadlnOutcome.Datum {:v _d} nil]
+                 [wat.kernel/ReadlnOutcome.Eof {} nil]
+                 [wat.kernel/ReadlnOutcome.Stopped {} nil])))))
+     child-pid (wat.core/match (wat.kernel/recv p)
+                 [wat.kernel/RecvOutcome.Message {:msg m} m]
+                 [wat.kernel/RecvOutcome.Lost {:cause cause}
+                   (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+                 [wat.kernel/RecvOutcome.Stopped {}
+                   (wat.kernel/assertion-failed! :message "unlabeled child: stop requested before sending its pid — child was ALIVE, channel open")]
+                 [wat.kernel/RecvOutcome.Closed {}
+                   (wat.kernel/assertion-failed! :message "unlabeled child closed before sending its pid")])
+     _ (wat.kernel/println child-pid)
+     release-outcome (wat.kernel/readln)]
+    (wat.core/match release-outcome
+      [wat.kernel/ReadlnOutcome.Datum {:v _d} nil]
+      [wat.kernel/ReadlnOutcome.Eof {} nil]
+      [wat.kernel/ReadlnOutcome.Stopped {} nil])))

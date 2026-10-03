@@ -15,25 +15,25 @@
 ;; the Stone Q-2 tree — `diff` on the two captures is empty. See BRIEF-STONE-Q-2's row 3 for the
 ;; transcript. Re-run it as the acceptance instrument; do not rewrite it.
 
-(:wat::core::defn :probe::show
-  [tag <- wat.type/String r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
-  -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat tag ": " (:wat::edn::write r))))
+(wat.core/defn probe/show
+  [tag :- wat.type/String r :- (wat.core/Result :- [wat.type/Value wat.core/EvalError])]
+  :- wat.type/nil
+  (wat.kernel/println (wat.string/concat tag ": " (wat.edn/write r))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [_1 (:probe::show "i64-type"
-          (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 1 "x"))))
-     _2 (:probe::show "i64-overflow"
-          (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 9223372036854775807 1))))
-     _3 (:probe::show "div-zero"
-          (:wat::eval-ast! (:wat::core::quote (:wat::i64::/ 5 0))))
-     _4 (:probe::show "f64-type"
-          (:wat::eval-ast! (:wat::core::quote (:wat::f64::+ 1.0 "x"))))
-     _5 (:probe::show "rational-type"
-          (:wat::eval-ast! (:wat::core::quote (:wat::rational::+ (:wat::i64::to-rational 1) "x"))))
-     _6 (:probe::show "bigint-type"
-          (:wat::eval-ast! (:wat::core::quote (:wat::bigint::+ (:wat::i64::to-bigint 1) "x"))))
-     _7 (:probe::show "arity"
-          (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 1))))]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [_1 (probe/show "i64-type"
+          (wat/eval-ast! (wat.core/quote (wat.i64/+ 1 "x"))))
+     _2 (probe/show "i64-overflow"
+          (wat/eval-ast! (wat.core/quote (wat.i64/+ 9223372036854775807 1))))
+     _3 (probe/show "div-zero"
+          (wat/eval-ast! (wat.core/quote (wat.i64// 5 0))))
+     _4 (probe/show "f64-type"
+          (wat/eval-ast! (wat.core/quote (wat.f64/+ 1.0 "x"))))
+     _5 (probe/show "rational-type"
+          (wat/eval-ast! (wat.core/quote (wat.rational/+ (wat.i64/to-rational 1) "x"))))
+     _6 (probe/show "bigint-type"
+          (wat/eval-ast! (wat.core/quote (wat.bigint/+ (wat.i64/to-bigint 1) "x"))))
+     _7 (probe/show "arity"
+          (wat/eval-ast! (wat.core/quote (wat.i64/+ 1))))]
     nil))

@@ -23,109 +23,109 @@
 ;;       with no reference to `insert-all` — is read by hand against the source, not re-derived
 ;;       here.)
 
-(:wat::core::defrecord :nia::Reading [g <- wat.type/i64  v <- wat.type/i64])
-(:wat::core::defrecord :nia::Out     [g <- wat.type/i64])
+(wat.core/defrecord nia/Reading [g :- wat.type/i64  v :- wat.type/i64])
+(wat.core/defrecord nia/Out     [g :- wat.type/i64])
 
-(:wat::rete::defrule :nia::pass-rule
+(wat.rete/defrule nia/pass-rule
   :when
-  [(:nia::Reading (?g :- :g))]
+  [(nia/Reading (?g :- :g))]
   :then
-  [(:nia::Out ?g)])
+  [(nia/Out ?g)])
 
-(:wat::rete::defquery :nia::q-Out
+(wat.rete/defquery nia/q-Out
   :params []
-  :when [(?fact :- :nia::Out)])
+  :when [(?fact :- nia/Out)])
 
 
-(:wat::core::defn :nia::base [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :nia) (wat.type/PersistentVector :- [:wat::rete::Query] (:nia::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn nia/base [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :nia) (wat.type/PersistentVector :- [wat.rete/Query] (nia/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; The facts under test — N=5, satisfying assertion 3's N > 1 requirement.
-(:wat::core::defn :nia::the-facts [] -> (wat.type/PersistentVector :- [:nia::Reading])
-  (wat.type/PersistentVector :- [:nia::Reading]
-    (:nia::Reading :g 0 :v 0)
-    (:nia::Reading :g 1 :v 10)
-    (:nia::Reading :g 2 :v 20)
-    (:nia::Reading :g 3 :v 30)
-    (:nia::Reading :g 4 :v 40)))
+(wat.core/defn nia/the-facts [] :- (wat.type/PersistentVector :- [nia/Reading])
+  (wat.type/PersistentVector :- [nia/Reading]
+    (nia/Reading :g 0 :v 0)
+    (nia/Reading :g 1 :v 10)
+    (nia/Reading :g 2 :v 20)
+    (nia/Reading :g 3 :v 30)
+    (nia/Reading :g 4 :v 40)))
 
 ;; ── seeders — identical facts, different verb ────────────────────────────────
 
 ;; batch: ONE insert-all call (the public verb, delegating to insert-all$native).
-(:wat::core::defn :nia::seed-batch [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all (:nia::base) (:nia::the-facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn nia/seed-batch [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all (nia/base) (nia/the-facts)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; chained: N sequential 2-ary insert calls — the pre-existing streaming hot path.
 ;; `insert` is now a `defclause` (a dispatch table, not a plain `Function` value), so it
 ;; cannot be passed to `foldl` bare; wrap it so the 2-ary clause is called explicitly.
-(:wat::core::defn :nia::seed-chained [] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session f <- :nia::Reading] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert s f) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    (:nia::base)
-    (:nia::the-facts)))
+(wat.core/defn nia/seed-chained [] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session f :- nia/Reading] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert s f) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (nia/base)
+    (nia/the-facts)))
 
 ;; oracle: batch via insert-all$oracle (the wat reference / differential oracle).
-(:wat::core::defn :nia::seed-oracle [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all$oracle (:nia::base) (:nia::the-facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn nia/seed-oracle [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all$oracle (nia/base) (nia/the-facts)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; native: batch via insert-all$native DIRECTLY (bypassing the public delegate — isolates the prime).
-(:wat::core::defn :nia::seed-native [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all$native (:nia::base) (:nia::the-facts)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn nia/seed-native [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all$native (nia/base) (nia/the-facts)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; ── witnesses, read off a seeded Session ──────────────────────────────────────
 
-(:wat::core::defn :nia::staged-count [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts s))))
+(wat.core/defn nia/staged-count [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts s))))
 
-(:wat::core::defn :nia::fired-outs [s <- :wat::rete::Session] -> wat.type/PersistentVector
-  (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:nia::q-Out)))
+(wat.core/defn nia/fired-outs [s :- wat.rete/Session] :- wat.type/PersistentVector
+  (wat.rete/query (wat.core/match (wat.rete/fire-rules s) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (nia/q-Out)))
 
-(:wat::core::defn :nia::fired-count [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:nia::fired-outs s)))
+(wat.core/defn nia/fired-count [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (nia/fired-outs s)))
 
-(:wat::core::defn :nia::fired-sum [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [a <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
-      (:wat::core::let [o (:wat::core::Option/expect
-                            (:wat::core::get p "?fact")
+(wat.core/defn nia/fired-sum [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [a :- wat.type/i64  p :- wat.type/PersistentMap] :- wat.type/i64
+      (wat.core/let [o (wat.core.Option/expect
+                            (wat.core/get p "?fact")
                             "q-Out: ?fact")]
-        (:wat::i64::+ a (:nia::Out/g o))))
+        (wat.i64/+ a (nia.Out/g o))))
     0
-    (:nia::fired-outs s)))
+    (nia/fired-outs s)))
 
 ;; ── single-fact seeders (assertion 4 — the 2-ary hot path) ────────────────────
 
-(:wat::core::defn :nia::seed-single-public [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn nia/seed-single-public [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert (nia/base) (nia/Reading :g 7 :v 70)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :nia::seed-single-native [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert$native (:nia::base) (:nia::Reading :g 7 :v 70)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn nia/seed-single-native [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert$native (nia/base) (nia/Reading :g 7 :v 70)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; ── entries (0-arity, called by name from the .rs) ────────────────────────────
 
 ;; assertion 1 — EQUIVALENCE: insert-all(s,[f1..f5]) == 5 chained insert calls.
-(:wat::core::defn :user::batch-staged   [] -> wat.type/i64 (:nia::staged-count (:nia::seed-batch)))
-(:wat::core::defn :user::chained-staged [] -> wat.type/i64 (:nia::staged-count (:nia::seed-chained)))
-(:wat::core::defn :user::batch-fired    [] -> wat.type/i64 (:nia::fired-count (:nia::seed-batch)))
-(:wat::core::defn :user::chained-fired  [] -> wat.type/i64 (:nia::fired-count (:nia::seed-chained)))
-(:wat::core::defn :user::batch-sum      [] -> wat.type/i64 (:nia::fired-sum (:nia::seed-batch)))
-(:wat::core::defn :user::chained-sum    [] -> wat.type/i64 (:nia::fired-sum (:nia::seed-chained)))
+(wat.core/defn user/batch-staged   [] :- wat.type/i64 (nia/staged-count (nia/seed-batch)))
+(wat.core/defn user/chained-staged [] :- wat.type/i64 (nia/staged-count (nia/seed-chained)))
+(wat.core/defn user/batch-fired    [] :- wat.type/i64 (nia/fired-count (nia/seed-batch)))
+(wat.core/defn user/chained-fired  [] :- wat.type/i64 (nia/fired-count (nia/seed-chained)))
+(wat.core/defn user/batch-sum      [] :- wat.type/i64 (nia/fired-sum (nia/seed-batch)))
+(wat.core/defn user/chained-sum    [] :- wat.type/i64 (nia/fired-sum (nia/seed-chained)))
 
 ;; assertion 2 — THE ORACLE: insert-all$oracle == insert-all$native on the same input.
-(:wat::core::defn :user::oracle-staged  [] -> wat.type/i64 (:nia::staged-count (:nia::seed-oracle)))
-(:wat::core::defn :user::native-staged  [] -> wat.type/i64 (:nia::staged-count (:nia::seed-native)))
-(:wat::core::defn :user::oracle-fired   [] -> wat.type/i64 (:nia::fired-count (:nia::seed-oracle)))
-(:wat::core::defn :user::native-fired   [] -> wat.type/i64 (:nia::fired-count (:nia::seed-native)))
-(:wat::core::defn :user::oracle-sum     [] -> wat.type/i64 (:nia::fired-sum (:nia::seed-oracle)))
-(:wat::core::defn :user::native-sum     [] -> wat.type/i64 (:nia::fired-sum (:nia::seed-native)))
+(wat.core/defn user/oracle-staged  [] :- wat.type/i64 (nia/staged-count (nia/seed-oracle)))
+(wat.core/defn user/native-staged  [] :- wat.type/i64 (nia/staged-count (nia/seed-native)))
+(wat.core/defn user/oracle-fired   [] :- wat.type/i64 (nia/fired-count (nia/seed-oracle)))
+(wat.core/defn user/native-fired   [] :- wat.type/i64 (nia/fired-count (nia/seed-native)))
+(wat.core/defn user/oracle-sum     [] :- wat.type/i64 (nia/fired-sum (nia/seed-oracle)))
+(wat.core/defn user/native-sum     [] :- wat.type/i64 (nia/fired-sum (nia/seed-native)))
 
 ;; assertion 3 — NON-VACUITY: N (the fact count under test) and the resulting `facts` length.
-(:wat::core::defn :user::n-under-test    [] -> wat.type/i64 (:wat::core::length (:nia::the-facts)))
-(:wat::core::defn :user::batch-facts-len [] -> wat.type/i64 (:nia::staged-count (:nia::seed-batch)))
+(wat.core/defn user/n-under-test    [] :- wat.type/i64 (wat.core/length (nia/the-facts)))
+(wat.core/defn user/batch-facts-len [] :- wat.type/i64 (nia/staged-count (nia/seed-batch)))
 
 ;; assertion 4 — THE 2-ARY PATH IS UNTOUCHED: a single 2-ary insert call matches insert$native directly.
-(:wat::core::defn :user::single-public-staged [] -> wat.type/i64 (:nia::staged-count (:nia::seed-single-public)))
-(:wat::core::defn :user::single-native-staged [] -> wat.type/i64 (:nia::staged-count (:nia::seed-single-native)))
-(:wat::core::defn :user::single-public-fired  [] -> wat.type/i64 (:nia::fired-count (:nia::seed-single-public)))
-(:wat::core::defn :user::single-native-fired  [] -> wat.type/i64 (:nia::fired-count (:nia::seed-single-native)))
+(wat.core/defn user/single-public-staged [] :- wat.type/i64 (nia/staged-count (nia/seed-single-public)))
+(wat.core/defn user/single-native-staged [] :- wat.type/i64 (nia/staged-count (nia/seed-single-native)))
+(wat.core/defn user/single-public-fired  [] :- wat.type/i64 (nia/fired-count (nia/seed-single-public)))
+(wat.core/defn user/single-native-fired  [] :- wat.type/i64 (nia/fired-count (nia/seed-single-native)))

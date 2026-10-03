@@ -5,8 +5,8 @@
 ;; The two doors differ only in how the SAME data was lifted, which is a separate DEFERRED defect
 ;; (~/work/NOTE-holon-classifier-contract-is-unenforced-and-the-holon-tag-breaks-it.md). This
 ;; fixture does not care which door is right — only that the encoder REPORTS instead of dying.
-(:wat::core::defn :user::good [] -> wat.type/String
-  (:wat::edn::write (:wat::holon::to-holon (wat.type/Vector :- [wat.type/i64] 1 2 3))))
+(wat.core/defn user/good [] :- wat.type/String
+  (wat.edn/write (wat.holon/to-holon (wat.type/Vector :- [wat.type/i64] 1 2 3))))
 
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::edn::write #holon [1 2 3]))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.edn/write #holon [1 2 3]))

@@ -5,12 +5,12 @@
 ;; the wall could only locate this at the whole `(?b <- :nofield)` clause. `Bind` now carries
 ;; `field_kw` and the caret lands on `:nofield`.
 
-(:wat::core::defrecord :fsb::Src [k <- wat.type/i64])
-(:wat::core::defrecord :fsb::Hit [k <- wat.type/i64])
+(wat.core/defrecord fsb/Src [k :- wat.type/i64])
+(wat.core/defrecord fsb/Hit [k :- wat.type/i64])
 
-(:wat::rete::defrule :fsb::r
-  :when [(:fsb::Src (?k :- :k) (?b :- :nofield))]
-  :then [(:fsb::Hit :k ?k)])
+(wat.rete/defrule fsb/r
+  :when [(fsb/Src (?k :- :k) (?b :- :nofield))]
+  :then [(fsb/Hit :k ?k)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "the wall refuses before main runs"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "the wall refuses before main runs"))

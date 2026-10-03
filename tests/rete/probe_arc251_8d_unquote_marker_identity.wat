@@ -9,32 +9,32 @@
 ;; Converted, that is `(wat.core/quasiquote ((wat.core/unquote acc-hd) __acc__))`. These entries
 ;; write BOTH spellings of that exact template by hand, on an unconverted tree.
 
-(:wat::core::defn :user::qq-kw-unquote [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote ((:wat::core::unquote :foo::bar) __acc__))))
+(wat.core/defn user/qq-kw-unquote [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote ((wat.core/unquote foo/bar) __acc__))))
 
-(:wat::core::defn :user::qq-sym-unquote [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote ((wat.core/unquote :foo::bar) __acc__))))
+(wat.core/defn user/qq-sym-unquote [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote ((wat.core/unquote foo/bar) __acc__))))
 
-(:wat::core::defn :user::qq-kw-splice [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote (:head (:wat::core::unquote-splicing [1 2])))))
+(wat.core/defn user/qq-kw-splice [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote (:head (wat.core/unquote-splicing [1 2])))))
 
-(:wat::core::defn :user::qq-sym-splice [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote (:head (wat.core/unquote-splicing [1 2])))))
+(wat.core/defn user/qq-sym-splice [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote (:head (wat.core/unquote-splicing [1 2])))))
 
 ;; ⛔ THE NON-VACUITY OF THE TWO ABOVE — a form that is NOT one of the markers must stay
 ;; VERBATIM inside the template, in either spelling. If the cure had taught the walker to fire
 ;; on "anything symbol-headed", these two would come back evaluated.
-(:wat::core::defn :user::qq-kw-not-a-marker [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote ((:wat::core::unquotex :foo::bar) __acc__))))
+(wat.core/defn user/qq-kw-not-a-marker [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote ((wat.core/unquotex foo/bar) __acc__))))
 
-(:wat::core::defn :user::qq-sym-not-a-marker [] -> wat.type/String
-  (:wat::core::write-forms
-    (:wat::core::quasiquote ((wat.core/unquotex :foo::bar) __acc__))))
+(wat.core/defn user/qq-sym-not-a-marker [] :- wat.type/String
+  (wat.core/write-forms
+    (wat.core/quasiquote ((wat.core/unquotex foo/bar) __acc__))))
 
 ;; ── THE PROPERTY ROWS ────────────────────────────────────────────────────────────────────────
 ;;
@@ -44,15 +44,15 @@
 ;; inlined wat, and the lint's own rubric says restructure the CODE rather than rune it). So the
 ;; ABSOLUTE claim — "the marker FIRED" / "the near-miss did NOT" — is computed here, in wat,
 ;; where the form is a form and not a string in someone else's language.
-(:wat::core::defn :user::kw-unquote-fired [] -> wat.type/bool
-  (:wat::core::not (:wat::string::contains? (:user::qq-kw-unquote) "unquote")))
-(:wat::core::defn :user::sym-unquote-fired [] -> wat.type/bool
-  (:wat::core::not (:wat::string::contains? (:user::qq-sym-unquote) "unquote")))
-(:wat::core::defn :user::kw-splice-fired [] -> wat.type/bool
-  (:wat::core::not (:wat::string::contains? (:user::qq-kw-splice) "unquote")))
-(:wat::core::defn :user::sym-splice-fired [] -> wat.type/bool
-  (:wat::core::not (:wat::string::contains? (:user::qq-sym-splice) "unquote")))
-(:wat::core::defn :user::kw-not-a-marker-stayed-data [] -> wat.type/bool
-  (:wat::string::contains? (:user::qq-kw-not-a-marker) "unquotex"))
-(:wat::core::defn :user::sym-not-a-marker-stayed-data [] -> wat.type/bool
-  (:wat::string::contains? (:user::qq-sym-not-a-marker) "unquotex"))
+(wat.core/defn user/kw-unquote-fired [] :- wat.type/bool
+  (wat.core/not (wat.string/contains? (user/qq-kw-unquote) "unquote")))
+(wat.core/defn user/sym-unquote-fired [] :- wat.type/bool
+  (wat.core/not (wat.string/contains? (user/qq-sym-unquote) "unquote")))
+(wat.core/defn user/kw-splice-fired [] :- wat.type/bool
+  (wat.core/not (wat.string/contains? (user/qq-kw-splice) "unquote")))
+(wat.core/defn user/sym-splice-fired [] :- wat.type/bool
+  (wat.core/not (wat.string/contains? (user/qq-sym-splice) "unquote")))
+(wat.core/defn user/kw-not-a-marker-stayed-data [] :- wat.type/bool
+  (wat.string/contains? (user/qq-kw-not-a-marker) "unquotex"))
+(wat.core/defn user/sym-not-a-marker-stayed-data [] :- wat.type/bool
+  (wat.string/contains? (user/qq-sym-not-a-marker) "unquotex"))

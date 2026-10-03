@@ -22,19 +22,19 @@
 ;;
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral session tmp).
 
-(:wat::core::defn :user::probe-one
-  [label <- wat.type/String kw <- wat.type/String] -> wat.type/i64
-  (:wat::core::let [node (:wat::keyword::to-type-form-colon (:wat::core::keyword-node kw))]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::string::interpolate "{l} verbatim(ast->source) : {v}" :l label :v (:wat::core::ast->source node)))
-      (:wat::kernel::println (:wat::string::interpolate "{l} display  (write-forms) : {v}" :l label :v (:wat::core::write-forms node)))
+(wat.core/defn user/probe-one
+  [label :- wat.type/String kw :- wat.type/String] :- wat.type/i64
+  (wat.core/let [node (wat.keyword/to-type-form-colon (wat.core/keyword-node kw))]
+    (wat.core/do
+      (wat.kernel/println (wat.string/interpolate "{l} verbatim(ast->source) : {v}" :l label :v (wat.core/ast->source node)))
+      (wat.kernel/println (wat.string/interpolate "{l} display  (write-forms) : {v}" :l label :v (wat.core/write-forms node)))
       0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:user::probe-one "rung1-scalar  " ":wat::core::i64")
-    (:user::probe-one "rung1-parametr" ":wat::core::HashMap<wat::core::String,wat::core::i64>")
-    (:user::probe-one "rung2-bare-prm" ":i64")
-    (:user::probe-one "rung3-usertype" ":wat::holon::HolonAST")
-    (:user::probe-one "rung4-type-var" ":T")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (user/probe-one "rung1-scalar  " ":wat::core::i64")
+    (user/probe-one "rung1-parametr" ":wat::core::HashMap<wat::core::String,wat::core::i64>")
+    (user/probe-one "rung2-bare-prm" ":i64")
+    (user/probe-one "rung3-usertype" ":wat::holon::HolonAST")
+    (user/probe-one "rung4-type-var" ":T")
     nil))

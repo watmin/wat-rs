@@ -15,11 +15,11 @@
 ;; asserted value proves the macro-body `nth` call ran (expand-time) AND selected the right
 ;; child, not merely that the file loaded.
 
-(:wat::core::defmacro :wat-tests::core::core-nth-macro-body::second-child
-  [form <- wat.type/AST] -> wat.type/AST
-  `~(:wat::core::nth (:wat::core::ast->children form) 1))
+(wat.core/defmacro wat-tests.core.core-nth-macro-body/second-child
+  [form :- wat.type/AST] :- wat.type/AST
+  `~(wat.core/nth (wat.core/ast->children form) 1))
 
-(:wat::test::deftest :wat-tests::core::core-nth-macro-body::macro-body-can-call-nth
-  (:wat::test::assert-eq
-    (:wat-tests::core::core-nth-macro-body::second-child `(:tag 20 30))
+(wat.test/deftest wat-tests.core.core-nth-macro-body/macro-body-can-call-nth
+  (wat.test/assert-eq
+    (wat-tests.core.core-nth-macro-body/second-child `(:tag 20 30))
     20))

@@ -22,24 +22,24 @@
 ;; Run:  ./target/release/wat --check ./wat-scripts/scratch-pad/255-stone-d-both-bigint-rational-spellings.wat   # EXIT=0
 ;;       ./target/release/wat        ./wat-scripts/scratch-pad/255-stone-d-both-bigint-rational-spellings.wat   # EXIT=0 (12/12 assertions pass)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; ── bigint (6 ops: + - * / to-f64 to-rational) ─────────────────────────
-    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::bigint::+ (:wat::i64::to-bigint 1) (:wat::i64::to-bigint 2))) 3.0)
-    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::bigint::- (:wat::i64::to-bigint 5) (:wat::i64::to-bigint 3))) 2.0)
-    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::bigint::* (:wat::i64::to-bigint 3) (:wat::i64::to-bigint 4))) 12.0)
-    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::bigint::/ (:wat::i64::to-bigint 6) (:wat::i64::to-bigint 2))) 3.0)
-    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::i64::to-bigint 5)) 5.0)
-    (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::bigint::to-rational (:wat::i64::to-bigint 5))) 5.0)
+    (wat.test/assert-eq (wat.bigint/to-f64 (wat.bigint/+ (wat.i64/to-bigint 1) (wat.i64/to-bigint 2))) 3.0)
+    (wat.test/assert-eq (wat.bigint/to-f64 (wat.bigint/- (wat.i64/to-bigint 5) (wat.i64/to-bigint 3))) 2.0)
+    (wat.test/assert-eq (wat.bigint/to-f64 (wat.bigint/* (wat.i64/to-bigint 3) (wat.i64/to-bigint 4))) 12.0)
+    (wat.test/assert-eq (wat.bigint/to-f64 (wat.bigint// (wat.i64/to-bigint 6) (wat.i64/to-bigint 2))) 3.0)
+    (wat.test/assert-eq (wat.bigint/to-f64 (wat.i64/to-bigint 5)) 5.0)
+    (wat.test/assert-eq (wat.rational/to-f64 (wat.bigint/to-rational (wat.i64/to-bigint 5))) 5.0)
 
     ;; ── rational (7 ops: + - * / to-f64 numerator denominator) ─────────────
-    (:wat::core::let
-      [a (:wat::rational::/ (:wat::i64::to-rational 3) (:wat::i64::to-rational 8))
-       b (:wat::rational::/ (:wat::i64::to-rational 1) (:wat::i64::to-rational 4))]
-      (:wat::core::do
-        (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::rational::+ a b)) 0.625)
-        (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::rational::- a b)) 0.125)
-        (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::rational::* a b)) 0.09375)
-        (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::rational::/ a b)) 1.5)
-        (:wat::test::assert-eq (:wat::rational::numerator a) 3)
-        (:wat::test::assert-eq (:wat::rational::denominator a) 8)))))
+    (wat.core/let
+      [a (wat.rational// (wat.i64/to-rational 3) (wat.i64/to-rational 8))
+       b (wat.rational// (wat.i64/to-rational 1) (wat.i64/to-rational 4))]
+      (wat.core/do
+        (wat.test/assert-eq (wat.rational/to-f64 (wat.rational/+ a b)) 0.625)
+        (wat.test/assert-eq (wat.rational/to-f64 (wat.rational/- a b)) 0.125)
+        (wat.test/assert-eq (wat.rational/to-f64 (wat.rational/* a b)) 0.09375)
+        (wat.test/assert-eq (wat.rational/to-f64 (wat.rational// a b)) 1.5)
+        (wat.test/assert-eq (wat.rational/numerator a) 3)
+        (wat.test/assert-eq (wat.rational/denominator a) 8)))))

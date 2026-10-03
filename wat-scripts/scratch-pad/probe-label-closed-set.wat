@@ -16,14 +16,14 @@
 ;;                                    the back door, the very thing SHAPE 2 was chosen over.
 ;;   RED   (located type error)    => the set IS closed; delete this probe and the doc stands.
 
-(:wat::core::defrecord :probe::Rogue [tag <- wat.type/String])
+(wat.core/defrecord probe/Rogue [tag :- wat.type/String])
 
-(:wat::core::defn :probe::mint-rogue-label [] -> (:wat::spawn::Locus :- [:wat::kernel::Transport.Wire])
-  (:wat::spawn::Locus/with-label
-    (:wat::spawn::process)
-    (:probe::Rogue :tag "i-am-not-a-bracket-or-a-service")))
+(wat.core/defn probe/mint-rogue-label [] :- (wat.spawn/Locus :- [wat.kernel/Transport.Wire])
+  (wat.spawn.Locus/with-label
+    (wat.spawn/process)
+    (probe/Rogue :tag "i-am-not-a-bracket-or-a-service")))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:probe::mint-rogue-label)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (probe/mint-rogue-label)
     nil))

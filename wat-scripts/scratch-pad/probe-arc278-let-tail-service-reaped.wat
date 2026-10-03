@@ -27,44 +27,44 @@
 ;; the end of the BINDING LIST rather than the end of the LET FORM — is NOT grounded;
 ;; do not inherit it as fact.
 
-(:wat::core::defsurface :tl::Bag :nature :wat::kernel::Peer
+(wat.core/defsurface tl/Bag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :tl::Bag::PutRequest [n <- wat.type/i64])
-   (:wat::core::defenum :tl::Bag::PutResponse :wat::enum::Pure
-     :Ok               [n <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord tl.Bag/PutRequest [n :- wat.type/i64])
+   (wat.core/defenum tl.Bag/PutResponse wat.enum/Pure
+     :Ok               [n :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :tl::Bag  req <- :tl::Bag::PutRequest]
-     -> :tl::Bag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- tl/Bag  req :- tl.Bag/PutRequest]
+     :- tl.Bag/PutResponse :max-request-bytes 4096)])
 
-(:wat::service::defservice :tl::bag-svc
-  :satisfies :tl::Bag  :durable [n <- wat.type/i64]  :ephemeral []
+(wat.service/defservice tl/bag-svc
+  :satisfies tl/Bag  :durable [n :- wat.type/i64]  :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:tl::Bag::PutResponse.Ok {:n 1})}))])
+  [(put [s ctx req] (wat.service/Outcome.Reply {:state s :reply (tl.Bag/PutResponse.Ok {:n 1})}))])
 
-(:wat::core::defn :tl::try [c <- (:wat::kernel::Peer :- [:tl::Bag::Op :tl::Bag::Reply])
-                           label <- wat.type/String] -> wat.type/nil
-  (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::kernel::println (:wat::string::concat label " => Message (served)"))]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause}
-      (:wat::kernel::println (:wat::string::concat label " => LOST"))]
-    [:wat::kernel::RecvOutcome.Stopped {}
-      (:wat::kernel::println (:wat::string::concat label " => STOPPED"))]
-    [:wat::kernel::RecvOutcome.Closed {}
-      (:wat::kernel::println (:wat::string::concat label " => CLOSED"))]))
+(wat.core/defn tl/try [c :- (wat.kernel/Peer :- [tl.Bag/Op tl.Bag/Reply])
+                           label :- wat.type/String] :- wat.type/nil
+  (wat.core/match (tl.Bag/put c (tl.Bag/PutRequest :n 1))
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.kernel/println (wat.string/concat label " => Message (served)"))]
+    [wat.kernel/RecvOutcome.Lost {:cause cause}
+      (wat.kernel/println (wat.string/concat label " => LOST"))]
+    [wat.kernel/RecvOutcome.Stopped {}
+      (wat.kernel/println (wat.string/concat label " => STOPPED"))]
+    [wat.kernel/RecvOutcome.Closed {}
+      (wat.kernel/println (wat.string/concat label " => CLOSED"))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [h (:tl::bag-svc/start :locus (:wat::spawn::thread) :record (:tl::bag-svc::Record :n 0))
-     c (:wat::core::match (:wat::kernel::connect (:tl::bag-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause f}  (:wat::kernel::assertion-failed! :message "refused")]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause f} (:wat::kernel::assertion-failed! :message "rejected")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause f} (:wat::kernel::assertion-failed! :message "rejected")]
-         [:wat::kernel::ConnectOutcome.Failed {:cause f}   (:wat::kernel::assertion-failed! :message "failed")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [h (tl.bag-svc/start :locus (wat.spawn/thread) :record (tl.bag-svc/Record :n 0))
+     c (wat.core/match (wat.kernel/connect (tl.bag-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause f}  (wat.kernel/assertion-failed! :message "refused")]
+         [wat.kernel/ConnectOutcome.Undialable {:cause f} (wat.kernel/assertion-failed! :message "rejected")] [wat.kernel/ConnectOutcome.WrongPeer {:cause f} (wat.kernel/assertion-failed! :message "rejected")]
+         [wat.kernel/ConnectOutcome.Failed {:cause f}   (wat.kernel/assertion-failed! :message "failed")])
      ;; CONTROL — the same call from a BINDING slot: served.
-     _ (:tl::try c "from let-BINDING")]
+     _ (tl/try c "from let-BINDING")]
     ;; THE VIOLATION — the same call from the TAIL: closed.
-    (:tl::try c "from let-TAIL   ")))
+    (tl/try c "from let-TAIL   ")))

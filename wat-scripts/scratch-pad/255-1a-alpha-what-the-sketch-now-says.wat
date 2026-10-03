@@ -6,11 +6,11 @@
 ;;
 ;; The two negatives are the load-bearing rows: they are what distinguishes
 ;; "the new arm is placed correctly" from "the new arm swallowed everything".
-(:wat::core::def :user::main
-  (:wat::core::fn [] -> wat.type/nil
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::let))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::fn))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::match))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::if))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::quasiquote))
-    (:wat::kernel::println (:wat::runtime::signature-of-defn :wat::core::length))))
+(wat.core/def user/main
+  (wat.core/fn [] :- wat.type/nil
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/let))
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/fn))
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/match))
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/if))
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/quasiquote))
+    (wat.kernel/println (wat.runtime/signature-of-defn wat.core/length))))

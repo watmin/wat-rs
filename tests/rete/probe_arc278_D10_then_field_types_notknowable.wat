@@ -19,75 +19,75 @@
 ;;        RIGHT — included because the temptation is to treat "came from a derived fact" as
 ;;        unknowable and skip it, which would make the wall miss the case D10 was found in.
 
-(:wat::core::defrecord :dnk::In   [k <- wat.type/i64  s <- wat.type/String])
-(:wat::core::defrecord :dnk::Pair [a <- wat.type/String  b <- wat.type/String])
+(wat.core/defrecord dnk/In   [k :- wat.type/i64  s :- wat.type/String])
+(wat.core/defrecord dnk/Pair [a :- wat.type/String  b :- wat.type/String])
 
 ;; nk1 — `cond` in value position, filling an i64 field.
-(:wat::core::defrecord :dnk::Nk1 [n <- wat.type/i64])
-(:wat::rete::defrule :dnk::nk1
-  :when [(:dnk::In (?s :- :s))]
-  :then [(:dnk::Nk1 :n (:wat::rete::core::cond
-                         ((:wat::rete::string::= ?s "seed") 11)
+(wat.core/defrecord dnk/Nk1 [n :- wat.type/i64])
+(wat.rete/defrule dnk/nk1
+  :when [(dnk/In (?s :- :s))]
+  :then [(dnk/Nk1 :n (wat.rete.core/cond
+                         ((wat.rete.string/= ?s "seed") 11)
                          (:else 99)))])
 
 ;; nk2 — a RECORD-typed destination field, filled from a `?var` bound to one.
-(:wat::core::defrecord :dnk::Holder [p <- :dnk::Pair]) 
-(:wat::core::defrecord :dnk::Nk2    [p <- :dnk::Pair])
-(:wat::rete::defrule :dnk::nk2
-  :when [(:dnk::Holder (?p :- :p))]
-  :then [(:dnk::Nk2 :p ?p)])
+(wat.core/defrecord dnk/Holder [p :- dnk/Pair]) 
+(wat.core/defrecord dnk/Nk2    [p :- dnk/Pair])
+(wat.rete/defrule dnk/nk2
+  :when [(dnk/Holder (?p :- :p))]
+  :then [(dnk/Nk2 :p ?p)])
 
 ;; nk3 — a nested constructor as the value of a record-typed field.
-(:wat::core::defrecord :dnk::Nk3 [p <- :dnk::Pair])
-(:wat::rete::defrule :dnk::nk3
-  :when [(:dnk::In (?s :- :s))]
-  :then [(:dnk::Nk3 :p (:dnk::Pair :a ?s :b "nested"))])
+(wat.core/defrecord dnk/Nk3 [p :- dnk/Pair])
+(wat.rete/defrule dnk/nk3
+  :when [(dnk/In (?s :- :s))]
+  :then [(dnk/Nk3 :p (dnk/Pair :a ?s :b "nested"))])
 
 ;; nk4 — a two-stage derivation: nk4b's `?m` is bound from the fact nk4a derived.
-(:wat::core::defrecord :dnk::Nk4a [m <- wat.type/i64])
-(:wat::core::defrecord :dnk::Nk4b [m <- wat.type/i64])
-(:wat::rete::defrule :dnk::nk4a
-  :when [(:dnk::In (?k :- :k))]
-  :then [(:dnk::Nk4a :m ?k)])
-(:wat::rete::defrule :dnk::nk4b
-  :when [(:dnk::Nk4a (?m :- :m))]
-  :then [(:dnk::Nk4b :m ?m)])
+(wat.core/defrecord dnk/Nk4a [m :- wat.type/i64])
+(wat.core/defrecord dnk/Nk4b [m :- wat.type/i64])
+(wat.rete/defrule dnk/nk4a
+  :when [(dnk/In (?k :- :k))]
+  :then [(dnk/Nk4a :m ?k)])
+(wat.rete/defrule dnk/nk4b
+  :when [(dnk/Nk4a (?m :- :m))]
+  :then [(dnk/Nk4b :m ?m)])
 
-(:wat::rete::defquery :dnk::q1 :params [] :when [(?f :- :dnk::Nk1)])
-(:wat::rete::defquery :dnk::q2 :params [] :when [(?f :- :dnk::Nk2)])
-(:wat::rete::defquery :dnk::q3 :params [] :when [(?f :- :dnk::Nk3)])
-(:wat::rete::defquery :dnk::q4 :params [] :when [(?f :- :dnk::Nk4b)])
+(wat.rete/defquery dnk/q1 :params [] :when [(?f :- dnk/Nk1)])
+(wat.rete/defquery dnk/q2 :params [] :when [(?f :- dnk/Nk2)])
+(wat.rete/defquery dnk/q3 :params [] :when [(?f :- dnk/Nk3)])
+(wat.rete/defquery dnk/q4 :params [] :when [(?f :- dnk/Nk4b)])
 
-(:wat::core::defn :dnk::fired [] -> :wat::rete::Session
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :dnk)
-          (wat.type/PersistentVector :- [:wat::rete::Query] (:dnk::q1) (:dnk::q2) (:dnk::q3) (:dnk::q4)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:dnk::In :k 7 :s "seed"))
-          [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])
-     s2 (:wat::core::match (:wat::rete::insert s1 (:dnk::Holder :p (:dnk::Pair :a "held" :b "pair")))
-          [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])]
-    (:wat::core::match (:wat::rete::fire-rules s2)
-      [:wat::rete::FireOutcome.Fired {:value __f} __f]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")])))
+(wat.core/defn dnk/fired [] :- wat.rete/Session
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :dnk)
+          (wat.type/PersistentVector :- [wat.rete/Query] (dnk/q1) (dnk/q2) (dnk/q3) (dnk/q4)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+     s1 (wat.core/match (wat.rete/insert s0 (dnk/In :k 7 :s "seed"))
+          [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert: ceiling")])
+     s2 (wat.core/match (wat.rete/insert s1 (dnk/Holder :p (dnk/Pair :a "held" :b "pair")))
+          [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert: ceiling")])]
+    (wat.core/match (wat.rete/fire-rules s2)
+      [wat.rete/FireOutcome.Fired {:value __f} __f]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (wat.kernel/assertion-failed! :message "fire: ceiling")]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (wat.kernel/assertion-failed! :message "fire: round cap")])))
 
-(:wat::core::defn :dnk::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/PersistentMap
-  (:wat::core::first (:wat::rete::query s q)))
+(wat.core/defn dnk/one [s :- wat.rete/Session  q :- wat.rete/Query] :- wat.type/PersistentMap
+  (wat.core/first (wat.rete/query s q)))
 
 ;; VALUES, one line per not-knowable arm: "11", "held", "seed", "7".
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s  (:dnk::fired)
-     f1 (:wat::core::Option/expect (:wat::core::get (:dnk::one s (:dnk::q1)) "?f") "nk1")
-     f2 (:wat::core::Option/expect (:wat::core::get (:dnk::one s (:dnk::q2)) "?f") "nk2")
-     f3 (:wat::core::Option/expect (:wat::core::get (:dnk::one s (:dnk::q3)) "?f") "nk3")
-     f4 (:wat::core::Option/expect (:wat::core::get (:dnk::one s (:dnk::q4)) "?f") "nk4")]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:dnk::Nk1/n f1)))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:dnk::Pair/a (:dnk::Nk2/p f2))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:dnk::Pair/a (:dnk::Nk3/p f3))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:dnk::Nk4b/m f4))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s  (dnk/fired)
+     f1 (wat.core.Option/expect (wat.core/get (dnk/one s (dnk/q1)) "?f") "nk1")
+     f2 (wat.core.Option/expect (wat.core/get (dnk/one s (dnk/q2)) "?f") "nk2")
+     f3 (wat.core.Option/expect (wat.core/get (dnk/one s (dnk/q3)) "?f") "nk3")
+     f4 (wat.core.Option/expect (wat.core/get (dnk/one s (dnk/q4)) "?f") "nk4")]
+    (wat.core/do
+      (wat.kernel/println (wat.core/format "{v}" :v (dnk.Nk1/n f1)))
+      (wat.kernel/println (wat.core/format "{v}" :v (dnk.Pair/a (dnk.Nk2/p f2))))
+      (wat.kernel/println (wat.core/format "{v}" :v (dnk.Pair/a (dnk.Nk3/p f3))))
+      (wat.kernel/println (wat.core/format "{v}" :v (dnk.Nk4b/m f4))))))

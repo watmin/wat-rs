@@ -12,63 +12,63 @@
 ;;
 ;; EXPECTED: wide=3 (all three 9-field facts derive), narrow=3.
 
-(:wat::core::defrecord :d7w::Wide
-  [a <- wat.type/i64  b <- wat.type/i64  c <- wat.type/i64
-   d <- wat.type/i64  e <- wat.type/i64  f <- wat.type/i64
-   g <- wat.type/i64  h <- wat.type/i64  i <- wat.type/i64])
-(:wat::core::defrecord :d7w::Narrow [k <- wat.type/i64])
-(:wat::core::defrecord :d7w::WideHit   [k <- wat.type/i64])
-(:wat::core::defrecord :d7w::NarrowHit [k <- wat.type/i64])
+(wat.core/defrecord d7w/Wide
+  [a :- wat.type/i64  b :- wat.type/i64  c :- wat.type/i64
+   d :- wat.type/i64  e :- wat.type/i64  f :- wat.type/i64
+   g :- wat.type/i64  h :- wat.type/i64  i :- wat.type/i64])
+(wat.core/defrecord d7w/Narrow [k :- wat.type/i64])
+(wat.core/defrecord d7w/WideHit   [k :- wat.type/i64])
+(wat.core/defrecord d7w/NarrowHit [k :- wat.type/i64])
 
-(:wat::rete::defrule :d7w::rw
-  :when [(:d7w::Wide (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e)
+(wat.rete/defrule d7w/rw
+  :when [(d7w/Wide (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?e :- :e)
                      (?f :- :f) (?g :- :g) (?h :- :h) (?i :- :i))]
-  :then [(:d7w::WideHit ?a)])
+  :then [(d7w/WideHit ?a)])
 
-(:wat::rete::defrule :d7w::rn
-  :when [(:d7w::Narrow (?k :- :k))]
-  :then [(:d7w::NarrowHit ?k)])
+(wat.rete/defrule d7w/rn
+  :when [(d7w/Narrow (?k :- :k))]
+  :then [(d7w/NarrowHit ?k)])
 
-(:wat::rete::defquery :d7w::qw :params [] :when [(?fact :- :d7w::WideHit)])
-(:wat::rete::defquery :d7w::qn :params [] :when [(?fact :- :d7w::NarrowHit)])
+(wat.rete/defquery d7w/qw :params [] :when [(?fact :- d7w/WideHit)])
+(wat.rete/defquery d7w/qn :params [] :when [(?fact :- d7w/NarrowHit)])
 
-(:wat::core::defn :d7w::as-record [r <- wat.type/Record] -> wat.type/Record r)
+(wat.core/defn d7w/as-record [r :- wat.type/Record] :- wat.type/Record r)
 
-(:wat::core::defn :d7w::wide [k <- wat.type/i64] -> wat.type/Record
-  (:d7w::as-record (:d7w::Wide :a k :b 1 :c 2 :d 3 :e 4 :f 5 :g 6 :h 7 :i 8)))
+(wat.core/defn d7w/wide [k :- wat.type/i64] :- wat.type/Record
+  (d7w/as-record (d7w/Wide :a k :b 1 :c 2 :d 3 :e 4 :f 5 :g 6 :h 7 :i 8)))
 
-(:wat::core::defn :d7w::facts [] -> (wat.type/PersistentVector :- [wat.type/Record])
+(wat.core/defn d7w/facts [] :- (wat.type/PersistentVector :- [wat.type/Record])
   (wat.type/PersistentVector :- [wat.type/Record]
-    (:d7w::wide 0) (:d7w::wide 1) (:d7w::wide 2)
-    (:d7w::as-record (:d7w::Narrow :k 0))
-    (:d7w::as-record (:d7w::Narrow :k 1))
-    (:d7w::as-record (:d7w::Narrow :k 2))))
+    (d7w/wide 0) (d7w/wide 1) (d7w/wide 2)
+    (d7w/as-record (d7w/Narrow :k 0))
+    (d7w/as-record (d7w/Narrow :k 1))
+    (d7w/as-record (d7w/Narrow :k 2))))
 
-(:wat::core::defn :d7w::count
-  [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/i64
-  (:wat::core::length
-    (:wat::core::into (wat.type/Vector :- [wat.type/PersistentMap])
-      (:wat::rete::query s q))))
+(wat.core/defn d7w/count
+  [s :- wat.rete/Session  q :- wat.rete/Query] :- wat.type/i64
+  (wat.core/length
+    (wat.core/into (wat.type/Vector :- [wat.type/PersistentMap])
+      (wat.rete/query s q))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all
-           (wat.type/PersistentVector :- [:wat::rete::Rule] (:d7w::rw) (:d7w::rn))
-           (wat.type/PersistentVector :- [:wat::rete::Query] (:d7w::qw) (:d7w::qn)))
-           [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-           [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-             (:wat::kernel::assertion-failed! :message "compile")])
-     s1 (:wat::core::match (:wat::rete::insert-all s0 (:d7w::facts))
-           [:wat::rete::InsertOutcome.Inserted {:session __s} __s]
-           [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
-             (:wat::kernel::assertion-failed! :message "insert")])
-     fired (:wat::core::match (:wat::rete::fire-rules s1)
-           [:wat::rete::FireOutcome.Fired {:value __f} __f]
-           [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-             (:wat::kernel::assertion-failed! :message "ceiling")]
-           [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-             (:wat::kernel::assertion-failed! :message "cap")])]
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::string::concat "wide=" (:wat::i64::to-string (:d7w::count fired (:d7w::qw))))
-        (:wat::string::concat " narrow=" (:wat::i64::to-string (:d7w::count fired (:d7w::qn))))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all
+           (wat.type/PersistentVector :- [wat.rete/Rule] (d7w/rw) (d7w/rn))
+           (wat.type/PersistentVector :- [wat.rete/Query] (d7w/qw) (d7w/qn)))
+           [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+           [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+             (wat.kernel/assertion-failed! :message "compile")])
+     s1 (wat.core/match (wat.rete/insert-all s0 (d7w/facts))
+           [wat.rete/InsertOutcome.Inserted {:session __s} __s]
+           [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
+             (wat.kernel/assertion-failed! :message "insert")])
+     fired (wat.core/match (wat.rete/fire-rules s1)
+           [wat.rete/FireOutcome.Fired {:value __f} __f]
+           [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+             (wat.kernel/assertion-failed! :message "ceiling")]
+           [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+             (wat.kernel/assertion-failed! :message "cap")])]
+    (wat.kernel/println
+      (wat.string/concat
+        (wat.string/concat "wide=" (wat.i64/to-string (d7w/count fired (d7w/qw))))
+        (wat.string/concat " narrow=" (wat.i64/to-string (d7w/count fired (d7w/qn))))))))

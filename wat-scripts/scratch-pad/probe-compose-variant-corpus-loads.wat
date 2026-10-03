@@ -3,4 +3,4 @@
 ;; to load and type-check. Trivial body; the point is that `--check` on THIS file must
 ;; succeed, proving the corpus loads after `:wat::runtime::compose-variant` landed and the
 ;; thirteen `wat/service.wat` string-interpolate sites were rewritten to use it.
-(:wat::core::+ 1 1)
+(wat.core/+ 1 1)

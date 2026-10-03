@@ -19,30 +19,30 @@
 ;; to a node built by parsing the SAME source spelling `field-types-of` itself emits
 ;; (`:wat::core::read-string`), never by a length-only or string-rendered proxy (coordinator
 ;; correction, 255.76 weigh: "measuring strings is anti-wat").
-(:wat::core::defstruct :probe::Bag [kv <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])  n <- wat.type/i64])
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Kv::GetRequest [k <- wat.type/String])
-             (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [x <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                               :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
-  :features [(get [self <- :probe::Kv req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [names (:wat::runtime::field-names-of :probe::Bag)
-     types (:wat::runtime::field-types-of :probe::Bag)
-     t0    (:wat::core::nth types 0)
-     t1    (:wat::core::nth types 1)
+(wat.core/defstruct probe/Bag [kv :- (wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply])  n :- wat.type/i64])
+(wat.core/defsurface probe/Kv :nature wat.kernel/Peer
+  :messages [(wat.core/defrecord probe.Kv/GetRequest [k :- wat.type/String])
+             (wat.core/defenum probe.Kv/GetResponse wat.enum/Pure :Ok [x :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                               :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
+  :features [(get [self :- probe/Kv req :- probe.Kv/GetRequest] :- probe.Kv/GetResponse :max-request-bytes 524288)])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [names (wat.runtime/field-names-of probe/Bag)
+     types (wat.runtime/field-types-of probe/Bag)
+     t0    (wat.core/nth types 0)
+     t1    (wat.core/nth types 1)
      parsed
-       (:wat::core::match
-         (:wat::core::read-string "(wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply]) wat.type/i64")
-         [:wat::core::ReadOutcome.Forms {:forms fs} fs]
-         [:wat::core::ReadOutcome.Malformed {:cause c}
-           (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))])
-     expected-t0 (:wat::core::nth parsed 0)
-     expected-t1 (:wat::core::nth parsed 1)]
-    (:wat::core::do
-      (:wat::test::assert-eq names (wat.type/Vector :- [wat.type/keyword] :kv :n))
-      (:wat::test::assert-eq t0 expected-t0)
-      (:wat::test::assert-eq t1 expected-t1)
-      (:wat::kernel::println names)
-      (:wat::kernel::println types)
-      (:wat::kernel::println "fields-of: ok"))))
+       (wat.core/match
+         (wat.core/read-string "(wat.kernel/Peer :- [probe.Kv/Op probe.Kv/Reply]) wat.type/i64")
+         [wat.core/ReadOutcome.Forms {:forms fs} fs]
+         [wat.core/ReadOutcome.Malformed {:cause c}
+           (wat.kernel/assertion-failed! :message (wat.core.Error/message c))])
+     expected-t0 (wat.core/nth parsed 0)
+     expected-t1 (wat.core/nth parsed 1)]
+    (wat.core/do
+      (wat.test/assert-eq names (wat.type/Vector :- [wat.type/keyword] :kv :n))
+      (wat.test/assert-eq t0 expected-t0)
+      (wat.test/assert-eq t1 expected-t1)
+      (wat.kernel/println names)
+      (wat.kernel/println types)
+      (wat.kernel/println "fields-of: ok"))))

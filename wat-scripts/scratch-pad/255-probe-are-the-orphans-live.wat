@@ -3,9 +3,9 @@
 ;; MEASURED 2026-08-30: `+` `-` `*` `/` resolve (live, dispatched off the literal-arm path);
 ;; `when` does NOT — `unknown function: :wat::core::when`, a hand-list row for a verb that
 ;; does not exist. `reduce` measured separately below.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::core::+ 1 2))
-    (:wat::kernel::println (:wat::core::- 9 4))
-    (:wat::kernel::println (:wat::core::* 3 3))
-    (:wat::kernel::println (:wat::core::/ 8 2))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.core/+ 1 2))
+    (wat.kernel/println (wat.core/- 9 4))
+    (wat.kernel/println (wat.core/* 3 3))
+    (wat.kernel/println (wat.core// 8 2))))

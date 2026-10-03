@@ -9,9 +9,9 @@
 ;; BEHAVIOUR CHANGE to a shipped verb and is pinned here rather than left to be discovered.
 ;;
 ;; Expected: true true true false
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::runtime::is-type? :wat::type::Tuple))
-    (:wat::kernel::println (:wat::runtime::is-type? :wat::type::i64))
-    (:wat::kernel::println (:wat::runtime::is-type? wat.type/Tuple))
-    (:wat::kernel::println (:wat::runtime::is-type? :wat::type::Infer))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.runtime/is-type? wat.type/Tuple))
+    (wat.kernel/println (wat.runtime/is-type? wat.type/i64))
+    (wat.kernel/println (wat.runtime/is-type? wat.type/Tuple))
+    (wat.kernel/println (wat.runtime/is-type? wat.type/Infer))))

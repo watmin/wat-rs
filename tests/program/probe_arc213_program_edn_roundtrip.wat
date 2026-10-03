@@ -6,11 +6,11 @@
 ;; bridge under test) and re-parsed by every test in the file. Still exercises every
 ;; collection shape: Map `{...}`, Set `#{...}`, Vector `[...]`, List `(...)`, plus
 ;; `:keys` destructure and multiple keyword namespaces.
-(:wat::config::set-capacity-mode! :error)
-(:wat::core::defstruct :myapp::Pt [x <- wat.type/i64  y <- wat.type/i64])
-(:wat::core::defn :myapp::sum [p <- :myapp::Pt] -> wat.type/i64
-    (:wat::core::let [{:keys [x y]} p] (:wat::i64::+ x y)))
-(:wat::core::defn :myapp::tags [] -> wat.type/i64
-    (:wat::core::let [m {:a 1 :b 2}  s #{:x :y :z}]
+(wat.config/set-capacity-mode! :error)
+(wat.core/defstruct myapp/Pt [x :- wat.type/i64  y :- wat.type/i64])
+(wat.core/defn myapp/sum [p :- myapp/Pt] :- wat.type/i64
+    (wat.core/let [{:keys [x y]} p] (wat.i64/+ x y)))
+(wat.core/defn myapp/tags [] :- wat.type/i64
+    (wat.core/let [m {:a 1 :b 2}  s #{:x :y :z}]
         42))
-(:wat::core::defn :user::main [] -> wat.type/nil nil)
+(wat.core/defn user/main [] :- wat.type/nil nil)

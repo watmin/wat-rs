@@ -45,154 +45,154 @@
 ;; it is no answer at all. Confirmed by reading `eval_and`/`eval_or` in src/runtime.rs: both walk
 ;; `args` left-to-right and return on the deciding value without evaluating the rest.
 
-(:wat::core::defn :wsb::items [] -> wat.type/i64 210)   ;; 2*3*5*7 — CRT-clean, both sides
+(wat.core/defn wsb/items [] :- wat.type/i64 210)   ;; 2*3*5*7 — CRT-clean, both sides
 
-(:wat::core::defn :wsb::row-count [] -> wat.type/i64 15)
+(wat.core/defn wsb/row-count [] :- wat.type/i64 15)
 
 ;; a(i) = i mod 2 == 0        (half)
 ;; b(i) = i mod 3 == 0        (a third)
 ;; c(i) = i mod 5 == 0        (a fifth)
 ;; d(i) = i mod 7 == 0        (a seventh)
 ;; l(i) = i mod 7             (row 15's short-circuit denominator; l == 0 exactly when d)
-(:wat::core::defrecord :wsb::Req
-  [k <- wat.type/i64
-   a <- wat.type/bool
-   b <- wat.type/bool
-   c <- wat.type/bool
-   d <- wat.type/bool
-   l <- wat.type/i64])
+(wat.core/defrecord wsb/Req
+  [k :- wat.type/i64
+   a :- wat.type/bool
+   b :- wat.type/bool
+   c :- wat.type/bool
+   d :- wat.type/bool
+   l :- wat.type/i64])
 
-(:wat::core::defrecord :wsb::Hit [k <- wat.type/i64])
+(wat.core/defrecord wsb/Hit [k :- wat.type/i64])
 
 ;; row 14's user-defined pure fn — boolean-VALUED, itself built from `or`, then composed with an
 ;; inline `and`/`not` at the call site. edge?(k) := k < 30 or k >= 180 (the two 30-wide tails of
 ;; the 210-range) => 60 of 210 satisfy edge? on its own.
-(:wat::rete::core::defn :wsb::edge? [k <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::core::or
-    (:wat::rete::i64::< k 30)
-    (:wat::rete::i64::>= k 180)))
+(wat.rete.core/defn wsb/edge? [k :- wat.type/i64] :- wat.type/bool
+  (wat.rete.core/or
+    (wat.rete.i64/< k 30)
+    (wat.rete.i64/>= k 180)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
-(:wat::core::defn :wsb::conds [] -> wat.type/AST
-  (:wat::core::quasiquote (:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l))))
+(wat.core/defn wsb/conds [] :- wat.type/AST
+  (wat.core/quasiquote (wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l))))
 
-(:wat::core::defn :wsb::ins [] -> wat.type/AST
-  (:wat::core::quasiquote (:wsb::Hit ?k)))
+(wat.core/defn wsb/ins [] :- wat.type/AST
+  (wat.core/quasiquote (wsb/Hit ?k)))
 
 ;; ROW 1 — and/2. Hit :- Req(…) AND (a and b).  k mod 2==0 and k mod 3==0 => k mod 6==0 => 35/210.
-(:wat::rete::defrule :wsb::and2
+(wat.rete/defrule wsb/and2
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/and ?a ?b))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 2 — or/2. Hit :- Req(…) AND (a or b).  |a|+|b|-|a&b| = 105+70-35 => 140/210.
-(:wat::rete::defrule :wsb::or2
+(wat.rete/defrule wsb/or2
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/or ?a ?b))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 3 — not/1. Hit :- Req(…) AND (not c).  210 - 42 => 168/210.
-(:wat::rete::defrule :wsb::not1
+(wat.rete/defrule wsb/not1
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not ?c))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/not ?c))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 4 — and/3. (a and b and c).  k mod 30==0 => 7/210.
-(:wat::rete::defrule :wsb::and3
+(wat.rete/defrule wsb/and3
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/and ?a ?b ?c))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 5 — or/3. (a or b or c).  inclusion-exclusion => 154/210.
-(:wat::rete::defrule :wsb::or3
+(wat.rete/defrule wsb/or3
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::or ?a ?b ?c))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/or ?a ?b ?c))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 6 — and/4, the full conjunction. k mod 210==0 => only k=0 => 1/210. Deliberately extreme
 ;; (still a PROPER subset — 0 < 1 < 210) to exercise 4-ary `and`, the widest arity this corpus uses.
-(:wat::rete::defrule :wsb::and4
+(wat.rete/defrule wsb/and4
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::and ?a ?b ?c ?d))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/and ?a ?b ?c ?d))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 7 — NESTED, two levels: (and (or a b) (not c)).
 ;; |a∨b| = 140 (row 2). Restrict to c=false: of the 168 facts with c=false, exclude those with
 ;; a=false AND b=false (56 of them) => 168 - 56 = 112/210.
-(:wat::rete::defrule :wsb::nest-and-or-not
+(wat.rete/defrule wsb/nest-and-or-not
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::and (:wat::rete::core::or ?a ?b) (:wat::rete::core::not ?c)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/and (wat.rete.core/or ?a ?b) (wat.rete.core/not ?c)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 8 — NESTED, two levels: (or (and a b) (and c d)).
 ;; |a∧b|=35, |c∧d|=6, |a∧b∧c∧d|=1 (inclusion-exclusion on the two conjunctions) => 35+6-1=40/210.
-(:wat::rete::defrule :wsb::nest-or-and-and
+(wat.rete/defrule wsb/nest-or-and-and
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::or (:wat::rete::core::and ?a ?b) (:wat::rete::core::and ?c ?d)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/or (wat.rete.core/and ?a ?b) (wat.rete.core/and ?c ?d)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 9 — THREE LEVELS DEEP: (and (or (and a b) c) (not (and c d))).
 ;; Let X = (a∧b)∨c, Y = ¬(c∧d); count(X∧Y) enumerated over the 16 (a,b,c,d) truth combinations
 ;; weighted by CRT residue counts => 64/210 (worked by hand in the brief response, not re-derived
 ;; here — verify against this program's own `n=` if in doubt, per rule 2).
-(:wat::rete::defrule :wsb::nest3
+(wat.rete/defrule wsb/nest3
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::and
-                                   (:wat::rete::core::or (:wat::rete::core::and ?a ?b) ?c)
-                                   (:wat::rete::core::not (:wat::rete::core::and ?c ?d))))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/and
+                                   (wat.rete.core/or (wat.rete.core/and ?a ?b) ?c)
+                                   (wat.rete.core/not (wat.rete.core/and ?c ?d))))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 10 / ROW 11 — DE MORGAN PAIR #1: ¬(a∧b)  ≡  (¬a)∨(¬b). Both MUST derive the identical set.
 ;; 210 - |a∧b| = 210 - 35 = 175/210 on both rows.
-(:wat::rete::defrule :wsb::demorgan-nand-a
+(wat.rete/defrule wsb/demorgan-nand-a
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::and ?a ?b)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/not (wat.rete.core/and ?a ?b)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
-(:wat::rete::defrule :wsb::demorgan-nand-b
+(wat.rete/defrule wsb/demorgan-nand-b
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::or (:wat::rete::core::not ?a) (:wat::rete::core::not ?b)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/or (wat.rete.core/not ?a) (wat.rete.core/not ?b)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 12 / ROW 13 — DE MORGAN PAIR #2: ¬(a∨b)  ≡  (¬a)∧(¬b). Both MUST derive the identical set.
 ;; 210 - |a∨b| = 210 - 140 = 70/210 on both rows.
-(:wat::rete::defrule :wsb::demorgan-nor-a
+(wat.rete/defrule wsb/demorgan-nor-a
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::or ?a ?b)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where (wat.rete.core/not (wat.rete.core/or ?a ?b)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
-(:wat::rete::defrule :wsb::demorgan-nor-b
+(wat.rete/defrule wsb/demorgan-nor-b
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::and (:wat::rete::core::not ?a) (:wat::rete::core::not ?b)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/and (wat.rete.core/not ?a) (wat.rete.core/not ?b)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 14 — a BOOLEAN-VALUED USER FN composed with inline boolean operators at the call site.
 ;; Hit :- Req(…) AND (edge?(k) and not c).  edge? is 60/210 on its own; of those, 12 are divisible
 ;; by 5 (6 in each 30-wide tail) => 60 - 12 = 48/210.
-(:wat::rete::defrule :wsb::userfn
+(wat.rete/defrule wsb/userfn
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::and (:wsb::edge? ?k) (:wat::rete::core::not ?c)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/and (wsb/edge? ?k) (wat.rete.core/not ?c)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
 ;; ROW 15 — SHORT-CIRCUIT-SENSITIVE. Hit :- Req(…) AND (l != 0 and (100/l) > 20).
 ;;
@@ -204,76 +204,76 @@
 ;;
 ;; For the 180 facts with l != 0 (l in {1..6}), 100/l (truncating) is {100,50,33,25,20,16} for
 ;; l={1,2,3,4,5,6} respectively; > 20 holds for l in {1,2,3,4} => 4/7 of 210 => 120/210.
-(:wat::rete::defrule :wsb::shortcircuit-and
+(wat.rete/defrule wsb/shortcircuit-and
   :when
-  [(:wsb::Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (:wat::rete::where
-                                 (:wat::rete::core::and
-                                   (:wat::rete::i64::not= ?l 0)
-                                   (:wat::rete::i64::> (:wat::rete::i64::/ 100 ?l :undefined 0) 20)))]
+  [(wsb/Req (?k :- :k) (?a :- :a) (?b :- :b) (?c :- :c) (?d :- :d) (?l :- :l)) (wat.rete/where
+                                 (wat.rete.core/and
+                                   (wat.rete.i64/not= ?l 0)
+                                   (wat.rete.i64/> (wat.rete.i64// 100 ?l :undefined 0) 20)))]
   :then
-  [(:wsb::Hit ?k)])
+  [(wsb/Hit ?k)])
 
-(:wat::rete::defquery :wsb::q-Hit
+(wat.rete/defquery wsb/q-Hit
   :params []
-  :when [(?fact :- :wsb::Hit)])
+  :when [(?fact :- wsb/Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wsb::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1)  (:wsb::and2))
-      ((:wat::core::= row 2)  (:wsb::or2))
-      ((:wat::core::= row 3)  (:wsb::not1))
-      ((:wat::core::= row 4)  (:wsb::and3))
-      ((:wat::core::= row 5)  (:wsb::or3))
-      ((:wat::core::= row 6)  (:wsb::and4))
-      ((:wat::core::= row 7)  (:wsb::nest-and-or-not))
-      ((:wat::core::= row 8)  (:wsb::nest-or-and-and))
-      ((:wat::core::= row 9)  (:wsb::nest3))
-      ((:wat::core::= row 10) (:wsb::demorgan-nand-a))
-      ((:wat::core::= row 11) (:wsb::demorgan-nand-b))
-      ((:wat::core::= row 12) (:wsb::demorgan-nor-a))
-      ((:wat::core::= row 13) (:wsb::demorgan-nor-b))
-      ((:wat::core::= row 14) (:wsb::userfn))
-      ((:wat::core::= row 15) (:wsb::shortcircuit-and))
+(wat.core/defn wsb/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1)  (wsb/and2))
+      ((wat.core/= row 2)  (wsb/or2))
+      ((wat.core/= row 3)  (wsb/not1))
+      ((wat.core/= row 4)  (wsb/and3))
+      ((wat.core/= row 5)  (wsb/or3))
+      ((wat.core/= row 6)  (wsb/and4))
+      ((wat.core/= row 7)  (wsb/nest-and-or-not))
+      ((wat.core/= row 8)  (wsb/nest-or-and-and))
+      ((wat.core/= row 9)  (wsb/nest3))
+      ((wat.core/= row 10) (wsb/demorgan-nand-a))
+      ((wat.core/= row 11) (wsb/demorgan-nand-b))
+      ((wat.core/= row 12) (wsb/demorgan-nor-a))
+      ((wat.core/= row 13) (wsb/demorgan-nor-b))
+      ((wat.core/= row 14) (wsb/userfn))
+      ((wat.core/= row 15) (wsb/shortcircuit-and))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-boolean: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-boolean: unknown row " (wat.i64/to-string row)))))))
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
 ;; FORMULA over i, independently computable on the Clara side so nothing rots as a hand-kept table.
-(:wat::core::defn :wsb::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wsb/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::let [m7 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7))
-                          a  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 2) 2)))
-                          b  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
-                          c  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5)))
-                          d  (:wat::core::= 0 m7)]
-          (:wat::core::conj acc
-            (:wsb::Req :k i :a a :b b :c c :d d :l m7))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/let [m7 (wat.i64/- i (wat.i64/* (wat.i64// i 7) 7))
+                          a  (wat.core/= 0 (wat.i64/- i (wat.i64/* (wat.i64// i 2) 2)))
+                          b  (wat.core/= 0 (wat.i64/- i (wat.i64/* (wat.i64// i 3) 3)))
+                          c  (wat.core/= 0 (wat.i64/- i (wat.i64/* (wat.i64// i 5) 5)))
+                          d  (wat.core/= 0 m7)]
+          (wat.core/conj acc
+            (wsb/Req :k i :a a :b b :c c :d d :l m7))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
-(:wat::core::defn :wsb::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wsb::Hit/k f)))
-        (:wat::rete::query fired (:wsb::q-Hit))))))
+(wat.core/defn wsb/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wsb.Hit/k f)))
+        (wat.rete/query fired (wsb/q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wsb::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wsb/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
@@ -286,31 +286,31 @@
 ;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
-(:wat::core::defn :wsb::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wsb/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wsb::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wsb::build-rules row)
-                    rule    (:wat::core::first rules)
-                    staged  (:wsb::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wsb::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wsb::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wsb::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wsb::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wsb::render-ints derived))))))
+(wat.core/defn wsb/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wsb/build-rules row)
+                    rule    (wat.core/first rules)
+                    staged  (wsb/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wsb/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wsb/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wsb/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wsb/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wsb/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wsb::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wsb/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wsb::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wsb/row-count) 1))))

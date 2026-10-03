@@ -19,41 +19,41 @@
 ;; Every line of that diagram is one join on `:parent` and `:index`. The fact base already holds
 ;; both; nothing here is a new capability, only a question finally asked in the right language.
 
-(:wat::core::defrecord :ul::Unwrap    [id <- wat.type/i64  parent <- wat.type/i64])
-(:wat::core::defrecord :ul::ArgIsList [outer <- wat.type/i64  arg <- wat.type/i64])
+(wat.core/defrecord ul/Unwrap    [id :- wat.type/i64  parent :- wat.type/i64])
+(wat.core/defrecord ul/ArgIsList [outer :- wat.type/i64  arg :- wat.type/i64])
 
 ;; the unwrap head — a keyword in head position naming Option/expect
-(:wat::rete::defrule :ul::unwrap
-  :when [(:wat::grep::Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
-         (:wat::grep::Named (?id :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core.Option/expect"))]
-  :then [(:ul::Unwrap :id ?id :parent ?p)])
+(wat.rete/defrule ul/unwrap
+  :when [(wat.grep/Node  (?id :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind))
+         (wat.grep/Named (?id :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Keyword {})))
+         (wat.rete/where (wat.rete.i64/= ?i 0))
+         (wat.rete/where (wat.rete.string/= ?n "wat.core.Option/expect"))]
+  :then [(ul/Unwrap :id ?id :parent ?p)])
 
 ;; that unwrap's FIRST ARGUMENT, when the argument is itself a form
-(:wat::rete::defrule :ul::arg
-  :when [(:ul::Unwrap (?outer :- :parent))
-         (:wat::grep::Node (?arg :- :id) (?outer :- :parent) (?ai :- :index) (?ak :- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?ai 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?ak (:wat::grep::NodeKind.List {})))]
-  :then [(:ul::ArgIsList :outer ?outer :arg ?arg)])
+(wat.rete/defrule ul/arg
+  :when [(ul/Unwrap (?outer :- :parent))
+         (wat.grep/Node (?arg :- :id) (?outer :- :parent) (?ai :- :index) (?ak :- :kind))
+         (wat.rete/where (wat.rete.i64/= ?ai 1))
+         (wat.rete/where (wat.rete.core.enum/= ?ak (wat.grep/NodeKind.List {})))]
+  :then [(ul/ArgIsList :outer ?outer :arg ?arg)])
 
 ;; ...and that argument's own head is the lookup. Report at the OUTER form's span, because the
 ;; whole expression is the thing a reader wants to see, not one of its two verbs.
-(:wat::rete::defrule :ul::match
-  :when [(:ul::ArgIsList (?outer :- :outer) (?arg :- :arg))
-         (:wat::grep::Node  (?h :- :id) (?arg :- :parent) (?hi :- :index))
-         (:wat::grep::Named (?h :- :id) (?hn :- :name))
-         (:wat::grep::Span  (?outer :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))
-         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
-         (:wat::rete::where (:wat::rete::string::= ?hn "wat.core.HashMap/get"))]
-  :then [(:wat::grep::Match
+(wat.rete/defrule ul/match
+  :when [(ul/ArgIsList (?outer :- :outer) (?arg :- :arg))
+         (wat.grep/Node  (?h :- :id) (?arg :- :parent) (?hi :- :index))
+         (wat.grep/Named (?h :- :id) (?hn :- :name))
+         (wat.grep/Span  (?outer :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))
+         (wat.rete/where (wat.rete.i64/= ?hi 0))
+         (wat.rete/where (wat.rete.string/= ?hn "wat.core.HashMap/get"))]
+  :then [(wat.grep/Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "unwrap-of-a-map-lookup"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "inner" :value ?hn)))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "inner" :value ?hn)))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :ul))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :ul))

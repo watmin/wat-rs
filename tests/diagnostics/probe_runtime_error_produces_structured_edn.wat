@@ -12,29 +12,29 @@
 ;; with cause = LociDiedError::RuntimeError (NOT Panic; a runtime error is not a Rust
 ;; panic — same mapping wat_run_sandboxed's missing-main case grounds). The runtime
 ;; error text rides RuntimeError.message; we return it as a plain String for the driver.
-(:wat::core::defn :probe::runtime-err [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
+(wat.core/defn probe/runtime-err [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
              ;; Division by zero → RuntimeError::DivisionByZero.
-             (:wat::core::let [_ (:wat::i64::/ 1 0)] nil))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::match cause
+             (wat.core/let [_ (wat.i64// 1 0)] nil))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/match cause
           ;; TRUE variant: integer div-by-zero → LociDiedError::RuntimeError (a runtime
           ;; error is NOT a Rust panic); the error text rides RuntimeError.message. Return it.
-          [:wat::kernel::LociDiedError.RuntimeError {:message message} message]
+          [wat.kernel/LociDiedError.RuntimeError {:message message} message]
           ;; LociDiedError is the no-hidden-failures enum — every OTHER death is named
           ;; EXPLICITLY (no `_` lump; verbosity is the shield). A distinct WRONG:<variant>
           ;; sentinel makes a RED name exactly which non-RuntimeError death surfaced.
-          [:wat::kernel::LociDiedError.Panic {:message _pm :failure _pf} "WRONG:Panic"]
-          [:wat::kernel::LociDiedError.Disconnected {} "WRONG:Disconnected"]
-          [:wat::kernel::LociDiedError.Stopped {} "WRONG:Stopped"]
-          [:wat::kernel::LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
-          [:wat::kernel::LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
-          [:wat::kernel::LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
-          [:wat::kernel::LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+          [wat.kernel/LociDiedError.Panic {:message _pm :failure _pf} "WRONG:Panic"]
+          [wat.kernel/LociDiedError.Disconnected {} "WRONG:Disconnected"]
+          [wat.kernel/LociDiedError.Stopped {} "WRONG:Stopped"]
+          [wat.kernel/LociDiedError.StartupError {:error _m} "WRONG:StartupError"]
+          [wat.kernel/LociDiedError.EntryFormFailure {:message _m} "WRONG:EntryFormFailure"]
+          [wat.kernel/LociDiedError.MainSignature {:message _m} "WRONG:MainSignature"]
+          [wat.kernel/LociDiedError.BadReturn {:message _m} "WRONG:BadReturn"])]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

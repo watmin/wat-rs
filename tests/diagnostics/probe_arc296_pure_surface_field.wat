@@ -8,11 +8,11 @@
 ;; GREEN after arc 296 fix: Surface purity mirrors its nature's purity.
 ;; :probe::E has :nature :wat::core::Record → is_pure → the (Vector :- [E]) field is allowed.
 
-(:wat::core::defsurface :probe::E
+(wat.core/defsurface probe/E
   :nature wat.type/Record
-  :features [message <- wat.type/String
-             causes  <- (wat.type/Vector :- [:probe::E])])
+  :features [message :- wat.type/String
+             causes  :- (wat.type/Vector :- [probe/E])])
 
-(:wat::core::defrecord :probe::Boom
-  [message <- wat.type/String
-   causes  <- (wat.type/Vector :- [:probe::E])])
+(wat.core/defrecord probe/Boom
+  [message :- wat.type/String
+   causes  :- (wat.type/Vector :- [probe/E])])

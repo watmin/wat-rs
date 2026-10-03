@@ -10,17 +10,17 @@
 ;; (the ctor was macro-only) → `(:test::db::BR 7 8)` is unresolved. GREEN after decl-b.1.
 
 ;; A record via the RAW primitive — no macro, so any ctor MUST come from codegen.
-(:wat::core::recordtype :test::db::BR wat.type/Record [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/recordtype test.db/BR wat.type/Record [a :- wat.type/i64  b :- wat.type/i64])
 
 ;; Construct via the bare ctor (codegen'd) + read field a = 7.
-(:wat::core::defn :user::db-br-a [] -> wat.type/i64
-  (:test::db::BR/a (:test::db::BR' 7 8)))
+(wat.core/defn user/db-br-a [] :- wat.type/i64
+  (test.db.BR/a (test.db/BR' 7 8)))
 
 ;; Same for a holon record via the raw primitive.
-(:wat::core::recordtype :test::db::HR :wat::holon::Record [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/recordtype test.db/HR wat.holon/Record [a :- wat.type/i64  b :- wat.type/i64])
 
-(:wat::core::defn :user::db-hr-a [] -> wat.type/i64
-  (:test::db::HR/a (:test::db::HR' 7 8)))
+(wat.core/defn user/db-hr-a [] :- wat.type/i64
+  (test.db.HR/a (test.db/HR' 7 8)))
 
 ;; The holon record built via the RAW primitive must be a REAL holon record — it must
 ;; carry a hologram (cosine with itself = 1.0). At HEAD the register_aggregate_methods
@@ -28,6 +28,6 @@
 ;; decl-b.1 routes the fallback through aggregate-new (nature-dispatched) → hologram derived.
 ;; Arc 278 the cosine outcome wall — cosine now returns :wat::holon::CosineOutcome,
 ;; not a bare f64; the .rs side extracts the Similarity variant's field.
-(:wat::core::defn :user::db-hr-cos [] -> :wat::holon::CosineOutcome
-  (:wat::core::let [h (:test::db::HR' 7 8)]
-    (:wat::holon::cosine h h)))
+(wat.core/defn user/db-hr-cos [] :- wat.holon/CosineOutcome
+  (wat.core/let [h (test.db/HR' 7 8)]
+    (wat.holon/cosine h h)))

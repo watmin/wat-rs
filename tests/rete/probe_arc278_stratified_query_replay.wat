@@ -26,46 +26,46 @@
 ;;            single-stratum probe reddens; this one guards that the STRATIFIED reading
 ;;            of the same rule stays right too.
 
-(:wat::core::defrecord :sqr::Item [k <- wat.type/i64  name <- wat.type/String])
-(:wat::core::defrecord :sqr::Wind [loc <- wat.type/String])
-(:wat::core::defrecord :sqr::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :sqr::Ok   [k <- wat.type/i64])
+(wat.core/defrecord sqr/Item [k :- wat.type/i64  name :- wat.type/String])
+(wat.core/defrecord sqr/Wind [loc :- wat.type/String])
+(wat.core/defrecord sqr/Bad  [k :- wat.type/i64])
+(wat.core/defrecord sqr/Ok   [k :- wat.type/i64])
 
-(:wat::rete::defrule :sqr::mark-bad
-  :when [(:sqr::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
-  :then [(:sqr::Bad :k ?k)])
+(wat.rete/defrule sqr/mark-bad
+  :when [(sqr/Item (?k :- :k)) (wat.rete/where (wat.rete.i64/= ?k 2))]
+  :then [(sqr/Bad :k ?k)])
 
 ;; stratum 2 — negation over the DERIVED Bad, which is what forces stratification
-(:wat::rete::defrule :sqr::mark-ok
-  :when [(:sqr::Item (?k :- :k)) (:wat::rete::not (:sqr::Bad (?k :- :k)))]
-  :then [(:sqr::Ok :k ?k)])
+(wat.rete/defrule sqr/mark-ok
+  :when [(sqr/Item (?k :- :k)) (wat.rete/not (sqr/Bad (?k :- :k)))]
+  :then [(sqr/Ok :k ?k)])
 
-(:wat::rete::defquery :sqr::q-scan :params [] :when [(?fact :- :sqr::Ok)])
-(:wat::rete::defquery :sqr::q-join :params []
-  :when [(:sqr::Ok (?k :- :k)) (:sqr::Item (?k :- :k) (?n :- :name))])
-(:wat::rete::defquery :sqr::q-exists :params []
-  :when [(:wat::rete::exists (:sqr::Wind (?loc :- :loc)))])
+(wat.rete/defquery sqr/q-scan :params [] :when [(?fact :- sqr/Ok)])
+(wat.rete/defquery sqr/q-join :params []
+  :when [(sqr/Ok (?k :- :k)) (sqr/Item (?k :- :k) (?n :- :name))])
+(wat.rete/defquery sqr/q-exists :params []
+  :when [(wat.rete/exists (sqr/Wind (?loc :- :loc)))])
 
-(:wat::core::defn :sqr::staged [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
-    (:wat::core::match (:wat::rete::insert-all
-      (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :sqr)
-        (wat.type/PersistentVector :- [:wat::rete::Query] (:sqr::q-scan) (:sqr::q-join) (:sqr::q-exists))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-      (wat.type/PersistentVector :- [:sqr::Item] (:sqr::Item :k 1 :name "a") (:sqr::Item :k 2 :name "b")
-                                    (:sqr::Item :k 3 :name "c"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+(wat.core/defn sqr/staged [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
+    (wat.core/match (wat.rete/insert-all
+      (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :sqr)
+        (wat.type/PersistentVector :- [wat.rete/Query] (sqr/q-scan) (sqr/q-join) (sqr/q-exists))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+      (wat.type/PersistentVector :- [sqr/Item] (sqr/Item :k 1 :name "a") (sqr/Item :k 2 :name "b")
+                                    (sqr/Item :k 3 :name "c"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
     ;; two Winds sharing one loc => ONE distinct inner binding
-    (wat.type/PersistentVector :- [:sqr::Wind] (:sqr::Wind :loc "MCI") (:sqr::Wind :loc "MCI"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (wat.type/PersistentVector :- [sqr/Wind] (sqr/Wind :loc "MCI") (sqr/Wind :loc "MCI"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :sqr::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn sqr/counts [s :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64]
-    (:wat::core::length (:wat::rete::query s (:sqr::q-scan)))
-    (:wat::core::length (:wat::rete::query s (:sqr::q-join)))
-    (:wat::core::length (:wat::rete::query s (:sqr::q-exists)))))
+    (wat.core/length (wat.rete/query s (sqr/q-scan)))
+    (wat.core/length (wat.rete/query s (sqr/q-join)))
+    (wat.core/length (wat.rete/query s (sqr/q-exists)))))
 
 ;; [scan, join, exists] native, then the same under $oracle. Expect 2 2 1 twice.
-(:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::mapv
-    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-    (:wat::core::into
-      (:sqr::counts (:wat::core::match (:wat::rete::fire-rules (:sqr::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
-      (:sqr::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:sqr::staged)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))
+(wat.core/defn user/native-and-oracle [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/mapv
+    (wat.core/fn [n :- wat.type/i64] :- wat.type/i64 n)
+    (wat.core/into
+      (sqr/counts (wat.core/match (wat.rete/fire-rules (sqr/staged)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+      (sqr/counts (wat.core/match (wat.rete/fire-rules$oracle (sqr/staged)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

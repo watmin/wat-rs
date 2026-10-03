@@ -15,81 +15,81 @@
 
 ;; ─── Some happy path — i64 ────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-i64
+(wat.test/deftest wat-tests.core.option-expect/some-i64
   
-  (:wat::core::let
-    [opt (:wat::core::Option.Some {:value 42})
+  (wat.core/let
+    [opt (wat.core/Option.Some {:value 42})
      v
-      (:wat::core::Option/expect  
+      (wat.core.Option/expect  
         opt
         "should be Some")]
-    (:wat::test::assert-eq v 42)))
+    (wat.test/assert-eq v 42)))
 
 
 ;; ─── Some happy path — String ─────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-string
+(wat.test/deftest wat-tests.core.option-expect/some-string
   
-  (:wat::core::let
-    [opt (:wat::core::Option.Some {:value "hello"})
+  (wat.core/let
+    [opt (wat.core/Option.Some {:value "hello"})
      v
-      (:wat::core::Option/expect  
+      (wat.core.Option/expect  
         opt
         "should be Some")]
-    (:wat::test::assert-eq v "hello")))
+    (wat.test/assert-eq v "hello")))
 
 
 ;; ─── Some happy path — nested (:wat::core::Option :- [(:wat::core::Option :- [:wat::core::i64])]) ────────────────────
 
-(:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
+(wat.test/deftest wat-tests.core.option-expect/some-nested-option
   
-  (:wat::core::let
-    [opt (:wat::core::Option.Some {:value (:wat::core::Option.Some {:value 7})})
+  (wat.core/let
+    [opt (wat.core/Option.Some {:value (wat.core/Option.Some {:value 7})})
      inner
-      (:wat::core::Option/expect  
+      (wat.core.Option/expect  
         opt
         "outer should be Some")
      v
-      (:wat::core::Option/expect  
+      (wat.core.Option/expect  
         inner
         "inner should be Some")]
-    (:wat::test::assert-eq v 7)))
+    (wat.test/assert-eq v 7)))
 
 
 ;; ─── :None panics with the supplied message ──────────────────────────
 
 
-(:wat::test::deftest :wat-tests::core::option-expect::none-panics-with-message
+(wat.test/deftest wat-tests.core.option-expect/none-panics-with-message
   
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
            ;; Option/expect on :None panics; the crash reaches the parent's recv'
            ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
-           (:wat::core::do
-             (:wat::core::let
-               [opt :wat::core::Option.None
+           (wat.core/do
+             (wat.core/let
+               [opt wat.core/Option.None
                 _v
-                 (:wat::core::Option/expect
+                 (wat.core.Option/expect
                    opt
                    "broker disconnected")]
                nil)
-             (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.HandleClosed {} nil]
+             (wat.core/match (wat.kernel/send self 0)
+               [wat.kernel/SendOutcome.Sent {}   nil]
+               [wat.kernel/SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the :None expect above already panicked
                ;; before this line could even run.
-               [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "expected panic on :None expect, got clean completion")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::test::assert-eq
-          (:wat::kernel::LociDiedError/message cause)
+               [wat.kernel/SendOutcome.Stopped {} nil]
+               [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil]))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "expected panic on :None expect, got clean completion")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.test/assert-eq
+          (wat.kernel.LociDiedError/message cause)
           "broker disconnected")]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected panic on :None expect, got clean close")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected panic on :None expect, got clean close")])))

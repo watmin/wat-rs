@@ -1,8 +1,8 @@
-(:wat::core::defrecord :user::MyEnv [token <- wat.type/i64])
+(wat.core/defrecord user/MyEnv [token :- wat.type/i64])
 ;; zero-arg wrapper: the injected user-data record, built in-world (no inline ctor in the .rs).
-(:wat::core::defn :user::make-my-env [] -> :user::MyEnv
-  (:user::MyEnv :token 42))
+(wat.core/defn user/make-my-env [] :- user/MyEnv
+  (user/MyEnv :token 42))
 ;; main returns :nil (arc-170 wall); per the IPC triangle (recovery §13) it writes the
 ;; injected user-data as EDN to stdout, which the test captures + checks structurally.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:wat::program::Env/user-data (:wat::program::env))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (wat.program.Env/user-data (wat.program/env))))

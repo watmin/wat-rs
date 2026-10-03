@@ -4,40 +4,40 @@
 ;; No hand-written defsurface/extend-type for Dialable — it is BAKED (wat/capability.wat)
 ;; and AUTO-EMITTED per-service (wat/service.wat). EXPECT: freezes clean.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
-     :Ok              [reply <- wat.type/String]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure
+     :Ok              [reply :- wat.type/String]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::echo
-  :satisfies :probe::Echo  :durable []  :ephemeral []
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
+(wat.service/defservice probe/echo
+  :satisfies probe/Echo  :durable []  :ephemeral []
   :impls [(echo [s ctx req]
-            (:wat::service::Outcome.Reply {:state s
-              :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+            (wat.service/Outcome.Reply {:state s
+              :reply (probe.Echo/EchoResponse.Ok {:reply (probe.Echo.EchoRequest/msg req)})}))])
 
-(:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Kv :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- wat.type/String])
-   (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
-     :Ok              [v <- wat.type/String]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Kv/GetRequest  [k :- wat.type/String])
+   (wat.core/defenum probe.Kv/GetResponse wat.enum/Pure
+     :Ok              [v :- wat.type/String]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
-(:wat::service::defservice :probe::kv
-  :satisfies :probe::Kv  :durable []  :ephemeral []
+  [(get [self :- probe/Kv  req :- probe.Kv/GetRequest] :- probe.Kv/GetResponse :max-request-bytes 524288)])
+(wat.service/defservice probe/kv
+  :satisfies probe/Kv  :durable []  :ephemeral []
   :impls [(get [s ctx req]
-            (:wat::service::Outcome.Reply {:state s
-              :reply (:probe::Kv::GetResponse.Ok {:v (:probe::Kv::GetRequest/k req)})}))])
+            (wat.service/Outcome.Reply {:state s
+              :reply (probe.Kv/GetResponse.Ok {:v (probe.Kv.GetRequest/k req)})}))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     kvh (:probe::kv/start   :locus (:wat::spawn::process) :record (:probe::kv::Record))
-     ok  (:wat::core::ann-form (:wat::capability::Dialable/coord eh)
-           (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))]
-    (:wat::kernel::println "measured")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [eh  (probe.echo/start :locus (wat.spawn/process) :record (probe.echo/Record))
+     kvh (probe.kv/start   :locus (wat.spawn/process) :record (probe.kv/Record))
+     ok  (wat.core/ann-form (wat.capability.Dialable/coord eh)
+           (wat.kernel/Address :- [probe.Echo/Op probe.Echo/Reply]))]
+    (wat.kernel/println "measured")))

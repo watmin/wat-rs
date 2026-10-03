@@ -17,23 +17,23 @@
 ;; MANDATORY is a later stone).
 
 ;; ── Compound element type: a PersistentVector of Tuples ──────────────────────────────────────
-(:wat::core::defn :user::vector-of-tuples [] -> (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])])
+(wat.core/defn user/vector-of-tuples [] :- (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])])
   (wat.type/PersistentVector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)
     (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 3 4)))
 
 ;; ── Compound element type: a PersistentMap of String to PersistentVector ─────────────────────
-(:wat::core::defn :user::map-string-to-vector [] -> (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/i64])])
+(wat.core/defn user/map-string-to-vector [] :- (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/i64])])
   (wat.type/PersistentMap :- [wat.type/String (wat.type/PersistentVector :- [wat.type/i64])]
     "a" (wat.type/PersistentVector :- [wat.type/i64] 1 2)
     "b" (wat.type/PersistentVector :- [wat.type/i64] 3 4)))
 
 ;; ── `List` takes `:-` — value position, non-empty ────────────────────────────────────────────
-(:wat::core::defn :user::list-typed [] -> (wat.type/List :- [wat.type/i64])
+(wat.core/defn user/list-typed [] :- (wat.type/List :- [wat.type/i64])
   (wat.type/List :- [wat.type/i64] 1 2 3))
 
 ;; ── `List` takes `:-` — the empty bracketed list is a legitimate empty value ─────────────────
-(:wat::core::defn :user::list-typed-empty [] -> (wat.type/List :- [wat.type/i64])
+(wat.core/defn user/list-typed-empty [] :- (wat.type/List :- [wat.type/i64])
   (wat.type/List :- [wat.type/i64]))
 
 ;; `:user::list-bracketless-still-runs` (a bracket-less `(wat.type/List 1 2 3)`, the STOP-2
@@ -45,6 +45,6 @@
 ;; `.rs`.
 
 ;; ── `List` with a COMPOUND element type — both fixes together ────────────────────────────────
-(:wat::core::defn :user::list-of-tuples [] -> (wat.type/List :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])])
+(wat.core/defn user/list-of-tuples [] :- (wat.type/List :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])])
   (wat.type/List :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 1 2)))

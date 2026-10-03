@@ -30,133 +30,133 @@
 ;; engine that drops either filter cannot land the same 14-key set. 5↔6 must print
 ;; identical `n=` / sets — Clara 0.24.0 does.
 
-(:wat::core::defn :wjo::items [] -> wat.type/i64 40)
+(wat.core/defn wjo/items [] :- wat.type/i64 40)
 
-(:wat::core::defn :wjo::row-count [] -> wat.type/i64 6)
+(wat.core/defn wjo/row-count [] :- wat.type/i64 6)
 
-(:wat::core::defrecord :wjo::Left  [k <- wat.type/i64  n <- wat.type/i64])
-(:wat::core::defrecord :wjo::Right [k <- wat.type/i64  m <- wat.type/i64])
-(:wat::core::defrecord :wjo::Hit   [k <- wat.type/i64])
+(wat.core/defrecord wjo/Left  [k :- wat.type/i64  n :- wat.type/i64])
+(wat.core/defrecord wjo/Right [k :- wat.type/i64  m :- wat.type/i64])
+(wat.core/defrecord wjo/Hit   [k :- wat.type/i64])
 
 ;; ROW 1 — filter BETWEEN the two joins. n > 10 → k in 11..39 => 29/40.
-(:wat::rete::defrule :wjo::where-between
+(wat.rete/defrule wjo/where-between
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k :- :k))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 10))
+   (wjo/Right (?k :- :k))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
 ;; ROW 2 — joins first, then the same filter. Same set as row 1.
-(:wat::rete::defrule :wjo::join-then-where
+(wat.rete/defrule wjo/join-then-where
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k :- :k))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 10))
+   (wjo/Right (?k :- :k))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
 ;; ROW 3 — tighter mid-chain filter. n > 25 → k in 26..39 => 14/40.
-(:wat::rete::defrule :wjo::where-between-hi
+(wat.rete/defrule wjo/where-between-hi
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 25))
-   (:wjo::Right (?k :- :k))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 25))
+   (wjo/Right (?k :- :k))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
 ;; ROW 4 — same tight filter, joins first. Same set as row 3.
-(:wat::rete::defrule :wjo::join-then-where-hi
+(wat.rete/defrule wjo/join-then-where-hi
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 25))
-   (:wjo::Right (?k :- :k))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 25))
+   (wjo/Right (?k :- :k))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
 ;; ROW 5 — mid-chain AND trailing. n > 10 AND m < 25 → k in 11..24 => 14/40.
 ;; Independent predicates: drop the first filter → 25 keys; drop the second → 29.
-(:wat::rete::defrule :wjo::where-between-then-where
+(wat.rete/defrule wjo/where-between-then-where
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k :- :k) (?m :- :m) (:wat::rete::i64::< ?m 25))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 10))
+   (wjo/Right (?k :- :k) (?m :- :m) (wat.rete.i64/< ?m 25))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
 ;; ROW 6 — both filters after the join. Same set as row 5.
-(:wat::rete::defrule :wjo::join-then-two-where
+(wat.rete/defrule wjo/join-then-two-where
   :when
-  [(:wjo::Left (?k :- :k) (?n :- :n) (:wat::rete::i64::> ?n 10))
-   (:wjo::Right (?k :- :k) (?m :- :m) (:wat::rete::i64::< ?m 25))]
+  [(wjo/Left (?k :- :k) (?n :- :n) (wat.rete.i64/> ?n 10))
+   (wjo/Right (?k :- :k) (?m :- :m) (wat.rete.i64/< ?m 25))]
   :then
-  [(:wjo::Hit ?k)])
+  [(wjo/Hit ?k)])
 
-(:wat::rete::defquery :wjo::q-Hit
+(wat.rete/defquery wjo/q-Hit
   :params []
-  :when [(?fact :- :wjo::Hit)])
+  :when [(?fact :- wjo/Hit)])
 
 
-(:wat::core::defn :wjo::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1) (:wjo::where-between))
-      ((:wat::core::= row 2) (:wjo::join-then-where))
-      ((:wat::core::= row 3) (:wjo::where-between-hi))
-      ((:wat::core::= row 4) (:wjo::join-then-where-hi))
-      ((:wat::core::= row 5) (:wjo::where-between-then-where))
-      ((:wat::core::= row 6) (:wjo::join-then-two-where))
+(wat.core/defn wjo/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1) (wjo/where-between))
+      ((wat.core/= row 2) (wjo/join-then-where))
+      ((wat.core/= row 3) (wjo/where-between-hi))
+      ((wat.core/= row 4) (wjo/join-then-where-hi))
+      ((wat.core/= row 5) (wjo/where-between-then-where))
+      ((wat.core/= row 6) (wjo/join-then-two-where))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-join-order: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-join-order: unknown row " (wat.i64/to-string row)))))))
 
-(:wat::core::defn :wjo::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wjo/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj
-          (:wat::core::conj acc (:wjo::Left :k i :n i))
-          (:wjo::Right :k i :m i)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj
+          (wat.core/conj acc (wjo/Left :k i :n i))
+          (wjo/Right :k i :m i)))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :wjo::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wjo::Hit/k f)))
-        (:wat::rete::query fired (:wjo::q-Hit))))))
+(wat.core/defn wjo/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wjo.Hit/k f)))
+        (wat.rete/query fired (wjo/q-Hit))))))
 
-(:wat::core::defn :wjo::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wjo/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
-(:wat::core::defn :wjo::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wjo/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wjo::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wjo::build-rules row)
-                    rule    (:wat::core::first rules)
-                    staged  (:wjo::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wjo::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wjo::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wjo::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wjo::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wjo::render-ints derived))))))
+(wat.core/defn wjo/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wjo/build-rules row)
+                    rule    (wat.core/first rules)
+                    staged  (wjo/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wjo/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wjo/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wjo/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wjo/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wjo/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wjo::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wjo/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wjo::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wjo/row-count) 1))))

@@ -9,6 +9,6 @@
 ;; spelling of the unit value, parity with `nil`) is exactly what arc 179 retires, so keeping them
 ;; here as startup-ok fixtures would silently delete that regression coverage instead of inverting it.
 
-(:wat::core::defn :t::probe-nil-keyword [] -> wat.type/nil nil)
-(:wat::core::defn :t::nil-form-nil [] -> wat.type/nil nil)
-(:wat::core::defn :t::echo-keyword [k <- wat.type/keyword] -> wat.type/keyword k)
+(wat.core/defn t/probe-nil-keyword [] :- wat.type/nil nil)
+(wat.core/defn t/nil-form-nil [] :- wat.type/nil nil)
+(wat.core/defn t/echo-keyword [k :- wat.type/keyword] :- wat.type/keyword k)

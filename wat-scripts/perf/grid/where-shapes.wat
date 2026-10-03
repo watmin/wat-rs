@@ -59,75 +59,75 @@
 ;; USER IS ALLOWED TO WRITE (arithmetic, accessor, nested accessor, string, collection, map, user-fn,
 ;; multi-variable, boolean) rather than what our corpus happened to write.
 
-(:wat::core::defn :wsh::items [] -> wat.type/i64 200)   ;; the stream size, both sides
+(wat.core/defn wsh/items [] :- wat.type/i64 200)   ;; the stream size, both sides
 
 ;; row-count — the corpus size. Bumped by hand when a shape lands; `main` folds 1..row-count, so a
 ;; row that exists but is not counted never runs, and a counted row that does not exist is a located
 ;; failure from build-rules' :else. Neither can pass silently.
-(:wat::core::defn :wsh::row-count [] -> wat.type/i64 6)
+(wat.core/defn wsh/row-count [] :- wat.type/i64 6)
 
-(:wat::core::defrecord :wsh::Client [rep <- wat.type/i64])   ;; row 2's nested accessor target
+(wat.core/defrecord wsh/Client [rep :- wat.type/i64])   ;; row 2's nested accessor target
 
-(:wat::core::defrecord :wsh::Req
-  [k      <- wat.type/i64
-   client <- :wsh::Client
-   name   <- wat.type/String
-   tags   <- (wat.type/PersistentVector :- [wat.type/i64])
-   limit  <- wat.type/i64])                                 ;; the shared fact stream
+(wat.core/defrecord wsh/Req
+  [k      :- wat.type/i64
+   client :- wsh/Client
+   name   :- wat.type/String
+   tags   :- (wat.type/PersistentVector :- [wat.type/i64])
+   limit  :- wat.type/i64])                                 ;; the shared fact stream
 
-(:wat::core::defrecord :wsh::Hit [k <- wat.type/i64])   ;; the single production type
+(wat.core/defrecord wsh/Hit [k :- wat.type/i64])   ;; the single production type
 
 ;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
-(:wat::rete::core::defn :wsh::big? [k <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::>
-    (:wat::rete::i64::- k (:wat::rete::i64::* (:wat::rete::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
+(wat.rete.core/defn wsh/big? [k :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/>
+    (wat.rete.i64/- k (wat.rete.i64/* (wat.rete.i64// k 7 :undefined 0) 7 :undefined 0) :undefined 0)
     3))
 
 ;; ROW 1 — arithmetic. Hit(k) :- Req(…) AND (3 == k - (k/10)*10).  k mod 10 == 3 ⇒ 20 of 200.
 ;; The leading condition is the one every later row shares; only `where-c` varies per row.
-(:wat::rete::defrule :wsh::arith
+(wat.rete/defrule wsh/arith
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where
-                                (:wat::rete::i64::= 3
-                                  (:wat::rete::i64::- ?k
-                                    (:wat::rete::i64::* (:wat::rete::i64::/ ?k 10 :undefined 0) 10 :undefined 0)
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where
+                                (wat.rete.i64/= 3
+                                  (wat.rete.i64/- ?k
+                                    (wat.rete.i64/* (wat.rete.i64// ?k 10 :undefined 0) 10 :undefined 0)
                                     :undefined 0)))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
 ;; ROW 2 — record accessor. Hit(k) :- Req(…) AND (Client/rep ?c) > 0.
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
-(:wat::rete::defrule :wsh::accessor
+(wat.rete/defrule wsh/accessor
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wsh::Client/rep ?c) 0))]
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where (wat.rete.i64/> (wsh.Client/rep ?c) 0))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
 ;; ROW 3 — String verb. Hit(k) :- Req(…) AND (starts-with? ?n "ad").
 ;; name(k) = "ad"+k when k mod 3 == 0, else "zz"+k ⇒ 67 of 200.
-(:wat::rete::defrule :wsh::string
+(wat.rete/defrule wsh/string
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::string::starts-with? ?n "ad"))]
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where (wat.rete.string/starts-with? ?n "ad"))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
 ;; ROW 4 — collection verb. Hit(k) :- Req(…) AND (length ?t) > 1.
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
-(:wat::rete::defrule :wsh::collection
+(wat.rete/defrule wsh/collection
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) 1))]
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where (wat.rete.i64/> (wat.rete.vector/length ?t) 1))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
 ;; ROW 5 — user-defined pure fn. Hit(k) :- Req(…) AND (big? ?k).  k mod 7 > 3 ⇒ 84 of 200.
 ;; The predicate is a CALL, not an inline expression — the shape #49a's compiled executor cannot
 ;; model and must hand back to the interpreter. It carries the whole compiled-`where` question.
-(:wat::rete::defrule :wsh::userfn
+(wat.rete/defrule wsh/userfn
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wsh::big? ?k))]
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where (wsh/big? ?k))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
 ;; ROW 6 — CROSS-VARIABLE comparison. Hit(k) :- Req(…) AND ?k > ?l.
 ;;
@@ -140,15 +140,15 @@
 ;; limit(i) = (i mod 7) * 20, so the threshold VARIES per fact instead of being a hidden constant.
 ;; i > 20*(i mod 7) ⇒ 139 of 200 (28+26+23+20+17+14+11 across the seven residues) — deliberately
 ;; NOT a round number, because a count that is easy to guess can match by accident.
-(:wat::rete::defrule :wsh::cross-var
+(wat.rete/defrule wsh/cross-var
   :when
-  [(:wsh::Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (:wat::rete::where (:wat::rete::i64::> ?k ?l))]
+  [(wsh/Req (?k :- :k) (?c :- :client) (?n :- :name) (?t :- :tags) (?l :- :limit)) (wat.rete/where (wat.rete.i64/> ?k ?l))]
   :then
-  [(:wsh::Hit ?k)])
+  [(wsh/Hit ?k)])
 
-(:wat::rete::defquery :wsh::q-Hit
+(wat.rete/defquery wsh/q-Hit
   :params []
-  :when [(?fact :- :wsh::Hit)])
+  :when [(?fact :- wsh/Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH, and the extension point every future shape lands on.
@@ -160,17 +160,17 @@
 ;;
 ;; An unknown row is a located failure, never a silent fallback to row 1 — a default arm would let a
 ;; mis-set row-count report a green corpus for a shape nobody ran.
-(:wat::core::defn :wsh::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1) (:wsh::arith))
-      ((:wat::core::= row 2) (:wsh::accessor))
-      ((:wat::core::= row 3) (:wsh::string))
-      ((:wat::core::= row 4) (:wsh::collection))
-      ((:wat::core::= row 5) (:wsh::userfn))
-      ((:wat::core::= row 6) (:wsh::cross-var))
+(wat.core/defn wsh/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1) (wsh/arith))
+      ((wat.core/= row 2) (wsh/accessor))
+      ((wat.core/= row 3) (wsh/string))
+      ((wat.core/= row 4) (wsh/collection))
+      ((wat.core/= row 5) (wsh/userfn))
+      ((wat.core/= row 6) (wsh/cross-var))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-shapes: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-shapes: unknown row " (wat.i64/to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
 ;;
@@ -180,45 +180,45 @@
 ;;   name(i)  = "ad"+i if i mod 3 == 0 else "zz"+i — row 3
 ;;   tags(i)  = a vector of length (i mod 4)       — row 4
 ;;   limit(i) = (i mod 7) * 20                     — row 6's per-fact threshold
-(:wat::core::defn :wsh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wsh/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::let [rep      (:wat::i64::- (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5)) 2)
-                          is-ad    (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
-                          nm       (:wat::core::if is-ad
-                                      (:wat::string::concat "ad" (:wat::i64::to-string i))
-                                      (:wat::string::concat "zz" (:wat::i64::to-string i)))
-                          tags-len (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 4) 4))
-                          tags     (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-                                     (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 tags-len)))
-                          lim      (:wat::i64::* (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7)) 20)]
-          (:wat::core::conj acc
-            (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags :limit lim))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/let [rep      (wat.i64/- (wat.i64/- i (wat.i64/* (wat.i64// i 5) 5)) 2)
+                          is-ad    (wat.core/= 0 (wat.i64/- i (wat.i64/* (wat.i64// i 3) 3)))
+                          nm       (wat.core/if is-ad
+                                      (wat.string/concat "ad" (wat.i64/to-string i))
+                                      (wat.string/concat "zz" (wat.i64/to-string i)))
+                          tags-len (wat.i64/- i (wat.i64/* (wat.i64// i 4) 4))
+                          tags     (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+                                     (wat.core/into (wat.type/Vector :- [wat.type/i64]) (wat.core/range 0 tags-len)))
+                          lim      (wat.i64/* (wat.i64/- i (wat.i64/* (wat.i64// i 7) 7)) 20)]
+          (wat.core/conj acc
+            (wsh/Req :k i :client (wsh/Client :rep rep) :name nm :tags tags :limit lim))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
-(:wat::core::defn :wsh::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wsh::Hit/k f)))
-        (:wat::rete::query fired (:wsh::q-Hit))))))
+(wat.core/defn wsh/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wsh.Hit/k f)))
+        (wat.rete/query fired (wsh/q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer, because the two
 ;; sides must be BYTE-IDENTICAL for `diff` to be the whole verdict. wat's EDN printer tags every
 ;; PersistentVector as `#wat.core/PersistentVector [...]` (a real round-trip-identity decision) while
 ;; Clojure's `pr-str` emits a bare vector; rendering the ints ourselves sidesteps that entirely
 ;; instead of stripping the tag afterwards.
-(:wat::core::defn :wsh::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wsh/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
@@ -236,31 +236,31 @@
 ;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
-(:wat::core::defn :wsh::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wsh/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wsh::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wsh::build-rules row)
-                    rule    (:wat::core::first rules)
-                    staged  (:wsh::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wsh::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wsh::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wsh::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wsh::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wsh::render-ints derived))))))
+(wat.core/defn wsh/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wsh/build-rules row)
+                    rule    (wat.core/first rules)
+                    staged  (wsh/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wsh/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wsh/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wsh/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wsh/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wsh/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wsh::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wsh/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wsh::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wsh/row-count) 1))))

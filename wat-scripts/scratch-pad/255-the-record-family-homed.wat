@@ -41,14 +41,14 @@
 ;; `:wat::core::Fault` (wat/core.wat) into the pre-existing `:wat::core::Error` surface it
 ;; already, load-bearingly, satisfies (`runtime.rs`'s `fault_from_runtime_error` relies on
 ;; exactly this edge).
-(:wat::core::defrecord :probe255rf::FieldAtEx [sk <- wat.type/i64])
-(:wat::core::defrecord :probe255rf::ToMapEx [sk <- wat.type/i64])
-(:wat::core::defrecord :probe255rf::AssocEx [sk <- wat.type/i64])
-(:wat::core::defrecord :probe255rf::PtEx [sk <- wat.type/i64])
-(:wat::core::defrecord :probe255rf::CoordEx [sk <- wat.type/i64])
-(:wat::core::defstruct :probe255rf::StructFieldEx [sk <- wat.type/i64])
-(:wat::core::defstruct :probe255rf::StructNewEx [sk <- wat.type/i64])
-(:wat::core::defenum :probe255rf::VariantEx :wat::enum::Pure :V [sk <- wat.type/i64])
+(wat.core/defrecord probe255rf/FieldAtEx [sk :- wat.type/i64])
+(wat.core/defrecord probe255rf/ToMapEx [sk :- wat.type/i64])
+(wat.core/defrecord probe255rf/AssocEx [sk :- wat.type/i64])
+(wat.core/defrecord probe255rf/PtEx [sk :- wat.type/i64])
+(wat.core/defrecord probe255rf/CoordEx [sk :- wat.type/i64])
+(wat.core/defstruct probe255rf/StructFieldEx [sk :- wat.type/i64])
+(wat.core/defstruct probe255rf/StructNewEx [sk :- wat.type/i64])
+(wat.core/defenum probe255rf/VariantEx wat.enum/Pure :V [sk :- wat.type/i64])
 
 ;; ★ NO `:user::`/`:probe255rf::` wrapper fn for the metadata-of calls below — the
 ;; collection-readers probe's own note applies here too: `Record/assoc`/`Record/same-data?`/
@@ -61,99 +61,99 @@
 ;; just the three with schemes, so a reader cannot mistake the inlining for a per-verb special
 ;; case).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── section 1 — behaviour unchanged ──")
-    (:wat::kernel::println
-      (:wat::string::concat "Record/field-at              => "
-        (:wat::edn::write (:wat::record::field-at (:probe255rf::FieldAtEx :sk 7) 0))))
-    (:wat::kernel::println
-      (:wat::string::concat "to-record                    => "
-        (:wat::edn::write (:wat::record::field-at
-          (:wat::core::to-record (:wat::core::Fault/of "boom") :wat::core::Error) 0))))
-    (:wat::kernel::println
-      (:wat::string::concat "record->map                  => "
-        (:wat::edn::write (:wat::core::get (:wat::core::record->map (:probe255rf::ToMapEx :sk 3)) :sk))))
-    (:wat::kernel::println
-      (:wat::string::concat "Record/assoc                 => "
-        (:wat::edn::write (:wat::record::field-at
-          (:wat::core::assoc (:probe255rf::AssocEx :sk 1) :sk 9) 0))))
-    (:wat::kernel::println
-      (:wat::string::concat "Record/same-data?            => "
-        (:wat::edn::write (:wat::record::same-data? (:probe255rf::PtEx :sk 0) (:probe255rf::CoordEx :sk 0)))))
-    (:wat::kernel::println
-      (:wat::string::concat "struct-field                 => "
-        (:wat::edn::write (:wat::core::struct-field (:probe255rf::StructFieldEx :sk 5) 0))))
-    (:wat::kernel::println
-      (:wat::string::concat "struct-new + struct-field     => "
-        (:wat::edn::write (:wat::core::struct-field (:wat::core::struct-new :probe255rf::StructNewEx 4) 0))))
-    (:wat::kernel::println
-      (:wat::string::concat "variant (via = against sugar) => "
-        (:wat::edn::write (:wat::core::= (:wat::core::variant :probe255rf::VariantEx :V 6)
-                                          (:probe255rf::VariantEx.V {:sk 6})))))
-    (:wat::kernel::println "── section 2 — metadata-of :totality (all seven, this binary) ──")
-    (:wat::kernel::println
-      (:wat::string::concat "Record/field-at    :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::record::field-at)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "to-record          :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::to-record)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "record->map        :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::record->map)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "Record/assoc       :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::assoc)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "Record/same-data?  :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::record::same-data?)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "struct-field       :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::struct-field)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "struct-new         :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::struct-new)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "variant            :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::variant)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── section 1 — behaviour unchanged ──")
+    (wat.kernel/println
+      (wat.string/concat "Record/field-at              => "
+        (wat.edn/write (wat.record/field-at (probe255rf/FieldAtEx :sk 7) 0))))
+    (wat.kernel/println
+      (wat.string/concat "to-record                    => "
+        (wat.edn/write (wat.record/field-at
+          (wat.core/to-record (wat.core.Fault/of "boom") wat.core/Error) 0))))
+    (wat.kernel/println
+      (wat.string/concat "record->map                  => "
+        (wat.edn/write (wat.core/get (wat.core/record->map (probe255rf/ToMapEx :sk 3)) :sk))))
+    (wat.kernel/println
+      (wat.string/concat "Record/assoc                 => "
+        (wat.edn/write (wat.record/field-at
+          (wat.core/assoc (probe255rf/AssocEx :sk 1) :sk 9) 0))))
+    (wat.kernel/println
+      (wat.string/concat "Record/same-data?            => "
+        (wat.edn/write (wat.record/same-data? (probe255rf/PtEx :sk 0) (probe255rf/CoordEx :sk 0)))))
+    (wat.kernel/println
+      (wat.string/concat "struct-field                 => "
+        (wat.edn/write (wat.core/struct-field (probe255rf/StructFieldEx :sk 5) 0))))
+    (wat.kernel/println
+      (wat.string/concat "struct-new + struct-field     => "
+        (wat.edn/write (wat.core/struct-field (wat.core/struct-new probe255rf/StructNewEx 4) 0))))
+    (wat.kernel/println
+      (wat.string/concat "variant (via = against sugar) => "
+        (wat.edn/write (wat.core/= (wat.core/variant probe255rf/VariantEx :V 6)
+                                          (probe255rf/VariantEx.V {:sk 6})))))
+    (wat.kernel/println "── section 2 — metadata-of :totality (all seven, this binary) ──")
+    (wat.kernel/println
+      (wat.string/concat "Record/field-at    :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.record/field-at)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "to-record          :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/to-record)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "record->map        :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/record->map)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "Record/assoc       :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/assoc)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "Record/same-data?  :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.record/same-data?)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "struct-field       :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/struct-field)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "struct-new         :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/struct-new)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "variant            :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/variant)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
     nil))

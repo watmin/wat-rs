@@ -14,31 +14,31 @@
 ;; `expand_form` (via `resolve::boundary::Boundary::MakeRule`) to expand ONLY the body of a
 ;; `(:wat::rete::where …)` form, leaving the surrounding `:probe::Item` fact pattern untouched.
 ;; Now prints `hits=1` — cond composes correctly in a real `defrule`'s `where`.
-(:wat::core::defrecord :probe::Item [tier <- wat.type/keyword])
-(:wat::core::defrecord :probe::Hit [tier <- wat.type/keyword])
+(wat.core/defrecord probe/Item [tier :- wat.type/keyword])
+(wat.core/defrecord probe/Hit [tier :- wat.type/keyword])
 
-(:wat::rete::defrule :probe::score-rule
+(wat.rete/defrule probe/score-rule
   :when
-  [(:probe::Item (?tier :- :tier))
-   (:wat::rete::where
-     (:wat::rete::f64::>
-       (:wat::rete::core::cond
-         ((:wat::rete::core::keyword::= ?tier :gold)   0.5)
-         ((:wat::rete::core::keyword::= ?tier :silver) 0.7)
+  [(probe/Item (?tier :- :tier))
+   (wat.rete/where
+     (wat.rete.f64/>
+       (wat.rete.core/cond
+         ((wat.rete.core.keyword/= ?tier :gold)   0.5)
+         ((wat.rete.core.keyword/= ?tier :silver) 0.7)
          (:else                                        0.9))
        0.6))]
   :then
-  [(:probe::Hit :tier ?tier)])
+  [(probe/Hit :tier ?tier)])
 
-(:wat::rete::defquery :probe::q-Hit
+(wat.rete/defquery probe/q-Hit
   :params []
-  :when [(?fact :- :probe::Hit)])
+  :when [(?fact :- probe/Hit)])
 
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules  (wat.type/PersistentVector :- [:wat::rete::Rule] (:probe::score-rule))
-     staged (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:probe::Item :tier :silver)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired  (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     hits   (:wat::rete::query fired (:probe::q-Hit))]
-    (:wat::kernel::println (:wat::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules  (wat.type/PersistentVector :- [wat.rete/Rule] (probe/score-rule))
+     staged (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (probe/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (probe/Item :tier :silver)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired  (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     hits   (wat.rete/query fired (probe/q-Hit))]
+    (wat.kernel/println (wat.string/concat "hits=" (wat.core/str (wat.core/length hits))))))

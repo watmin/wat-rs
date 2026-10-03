@@ -6,34 +6,34 @@
 ;; :fetch/duration. A client then scans the store and returns the row count, which must be 3
 ;; (proving with-span opened+closed, timed fed Span/timed, and incr aggregated rather than fanned out).
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
      ;; the whole caller surface: a sink addr + a fresh span; no open/close by hand.
-     _ws   (:wat::telemetry::with-span span jaddr "probe-ns" tags
-             (:wat::core::do
-               (:wat::core::match (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
-                 [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-                 [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-                 [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-               (:wat::core::match (:wat::telemetry::Span/incr span (:wat::telemetry::Span::IncrRequest :name :requests))
-                 [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-                 [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-                 [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                 [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-               (:wat::telemetry::timed span :fetch 42)))
-     client (:wat::core::match (:wat::kernel::connect maddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     pk    (:wat::edn::write (:wat::telemetry::PartitionKey
-                               :namespace "probe-ns" :kind :wat::telemetry::Kind.Metric))
-     resp  (:wat::query::Store/scan client
-             (:wat::query::Store::ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 20 :cursor :wat::core::Option.None))]
-    (:wat::core::match resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::query::Store::ScanResponse.Success {:rows rows :cursor _cursor} (:wat::core::count rows)]
-      [_ -1])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     _ws   (wat.telemetry/with-span span jaddr "probe-ns" tags
+             (wat.core/do
+               (wat.core/match (wat.telemetry.Span/incr span (wat.telemetry.Span/IncrRequest :name :requests))
+                 [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+                 [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+                 [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+                 [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+               (wat.core/match (wat.telemetry.Span/incr span (wat.telemetry.Span/IncrRequest :name :requests))
+                 [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+                 [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+                 [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+                 [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+               (wat.telemetry/timed span :fetch 42)))
+     client (wat.core/match (wat.kernel/connect maddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     pk    (wat.edn/write (wat.telemetry/PartitionKey
+                               :namespace "probe-ns" :kind wat.telemetry/Kind.Metric))
+     resp  (wat.query.Store/scan client
+             (wat.query.Store/ScanRequest :pk pk :sk-lo "#" :sk-hi "#z" :limit 20 :cursor wat.core/Option.None))]
+    (wat.core/match resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.query.Store/ScanResponse.Success {:rows rows :cursor _cursor} (wat.core/count rows)]
+      [_ -1])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

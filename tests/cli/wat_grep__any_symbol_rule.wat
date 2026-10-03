@@ -2,14 +2,14 @@
 ;; control). The rule's content doesn't matter for those rows — G3/G4 assert on the `Unreadable`
 ;; fact + stderr + exit code, not on whether anything matched — so this fires on any symbol node,
 ;; which the balanced fixture (`wat_grep__balanced.wat`) has plenty of.
-(:wat::rete::defrule :ctrl::any-symbol
-  :when [(:wat::grep::Node   (?id :- :id) (?k :- :kind))
-         (:wat::grep::Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Symbol {})))]
-  :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
+(wat.rete/defrule ctrl/any-symbol
+  :when [(wat.grep/Node   (?id :- :id) (?k :- :kind))
+         (wat.grep/Span   (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))
+         (wat.rete/where (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Symbol {})))]
+  :then [(wat.grep/Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "ctrl::any-symbol"
-           :captures (:wat::rete::core::PersistentVector))])
+           :captures (wat.rete.core/PersistentVector))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :ctrl))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :ctrl))

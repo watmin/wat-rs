@@ -5,23 +5,23 @@
 ;; fence must still refuse it, naming the impure head, exactly as
 ;; `probe_arc278_then_user_forms_impure.wat` proves for a fn with NO construction in its body.
 
-(:wat::core::defrecord :cr::In    [n <- wat.type/i64])
-(:wat::core::defrecord :cr::Rate2 [count <- wat.type/i64])
+(wat.core/defrecord cr/In    [n :- wat.type/i64])
+(wat.core/defrecord cr/Rate2 [count :- wat.type/i64])
 
-(:wat::core::defn :cr::make-rate-bad
-  [n <- wat.type/i64]
-  -> :cr::Rate2
-  (:wat::core::if (:wat::core::record? (:wat::io::IOReader/open-file "x"))
-    (:cr::Rate2 :count n)
-    (:cr::Rate2 :count n)))
+(wat.core/defn cr/make-rate-bad
+  [n :- wat.type/i64]
+  :- cr/Rate2
+  (wat.core/if (wat.core/record? (wat.io.IOReader/open-file "x"))
+    (cr/Rate2 :count n)
+    (cr/Rate2 :count n)))
 
-(:wat::rete::defrule :cr::compute-bad
-  :when [(:cr::In (?n :- :n))]
-  :then [(:cr::make-rate-bad ?n)])
+(wat.rete/defrule cr/compute-bad
+  :when [(cr/In (?n :- :n))]
+  :then [(cr/make-rate-bad ?n)])
 
 ;; Compiling ALONE must panic (freeze-time-only, mirroring probe_arc278_then_user_forms_impure.wat).
-(:wat::core::defn :user::run-compile [] -> wat.type/i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :cr)
-     session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts session)))))
+(wat.core/defn user/run-compile [] :- wat.type/i64
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :cr)
+     session (wat.core/match (wat.rete/compile rules) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts session)))))

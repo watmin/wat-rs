@@ -3,7 +3,7 @@
 ;; Arc 294.a — a plain EDN VECTOR measures directly via :wat::holon::cosine.
 ;; RED at HEAD: type-check rejects (Vector :- [i64]) at parameter #1 of :wat::holon::cosine.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::pprintln (:wat::holon::cosine [1 2 3] [1 2 4]))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/pprintln (wat.holon/cosine [1 2 3] [1 2 4]))
     nil))

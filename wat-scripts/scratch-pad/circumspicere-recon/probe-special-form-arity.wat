@@ -3,11 +3,11 @@
 ;; (`src/intrinsic/mod.rs:410`) regardless of the form's actual documented shape?
 ;; `:wat::core::if` documents exactly 3 non-rest `@arg`s (cond/then/else) in
 ;; src/intrinsic/special/control_flow.rs — never variadic.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [m (:wat::runtime::metadata-of :wat::core::if)]
-    (:wat::core::match m
-      [:wat::core::Option.Some {:value hm}
-        (:wat::kernel::println
-          (:wat::string::concat "if arity=" (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "NONE")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [m (wat.runtime/metadata-of wat.core/if)]
+    (wat.core/match m
+      [wat.core/Option.Some {:value hm}
+        (wat.kernel/println
+          (wat.string/concat "if arity=" (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "NONE")])))

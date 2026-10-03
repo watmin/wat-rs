@@ -7,20 +7,20 @@
 ;; this RefusedInMacro's at expand time on the i64::mod head; after the fix
 ;; it expands + runs green.
 ;; CLAIM: (list-parity 1 2 3 4) == "even" (4 args); (list-parity 1 2 3) == "odd" (3 args).
-(:wat::core::defmacro :my::list-parity [& xs <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/AST
-  (:wat::core::if (:wat::core::= (:wat::i64::mod (:wat::core::length xs) 2) 0)
+(wat.core/defmacro my/list-parity [& xs :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/AST
+  (wat.core/if (wat.core/= (wat.i64/mod (wat.core/length xs) 2) 0)
 
     `"even"
     `"odd"))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [four-result (:my::list-parity 1 2 3 4)
-     three-result (:my::list-parity 1 2 3)]
-    (:wat::core::do
-      (:wat::test::assert-eq four-result "even")
-      (:wat::test::assert-eq three-result "odd")
-      (:wat::kernel::println four-result)
-      (:wat::kernel::println three-result)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [four-result (my/list-parity 1 2 3 4)
+     three-result (my/list-parity 1 2 3)]
+    (wat.core/do
+      (wat.test/assert-eq four-result "even")
+      (wat.test/assert-eq three-result "odd")
+      (wat.kernel/println four-result)
+      (wat.kernel/println three-result)
       nil)))

@@ -18,35 +18,35 @@
 ;; `matcher.rs`'s `enum_variant_ctor` already exists to be the one resolution, documented
 ;; "ONE COPY … hand-written at THREE independent sites". `typing.rs` is the fourth.
 
-(:wat::core::defenum :evt::G :wat::enum::Pure :Hi :Lo)
-(:wat::core::defrecord :evt::Req [k <- wat.type/i64  grade <- :evt::G])
-(:wat::core::defrecord :evt::Hit [k <- wat.type/i64])
+(wat.core/defenum evt/G wat.enum/Pure :Hi :Lo)
+(wat.core/defrecord evt/Req [k :- wat.type/i64  grade :- evt/G])
+(wat.core/defrecord evt/Hit [k :- wat.type/i64])
 
 ;; CONTROL — the variant EXISTS. Must match exactly the one Hi row.
-(:wat::rete::defrule :evt::good
-  :when [(:evt::Req (?k :- :k) (:wat::rete::core::enum::= :grade :evt::G::Hii))]
-  :then [(:evt::Hit :k ?k)])
+(wat.rete/defrule evt/good
+  :when [(evt/Req (?k :- :k) (wat.rete.core.enum/= :grade evt.G/Hii))]
+  :then [(evt/Hit :k ?k)])
 
-(:wat::rete::defquery :evt::q :params [] :when [(?f :- :evt::Hit)])
+(wat.rete/defquery evt/q :params [] :when [(?f :- evt/Hit)])
 
-(:wat::core::defn :evt::fire [] -> wat.type/i64
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :evt) (wat.type/PersistentVector :- [:wat::rete::Query] (:evt::q)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-            (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:evt::Req :k 1 :grade :evt::G.Hi) (:evt::Req :k 2 :grade :evt::G.Lo))
-          [:wat::rete::InsertOutcome.Inserted {:session __st} __st]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
-            (:wat::kernel::assertion-failed! :message "insert: ceiling")])]
-    (:wat::core::length (:wat::rete::query
-      (:wat::core::match (:wat::rete::fire-rules s1)
-        [:wat::rete::FireOutcome.Fired {:value __f} __f]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
-          (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-          (:wat::kernel::assertion-failed! :message "fire: round cap")])
-      (:evt::q)))))
+(wat.core/defn evt/fire [] :- wat.type/i64
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :evt) (wat.type/PersistentVector :- [wat.rete/Query] (evt/q)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+            (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+     s1 (wat.core/match (wat.rete/insert s0 (evt/Req :k 1 :grade evt/G.Hi) (evt/Req :k 2 :grade evt/G.Lo))
+          [wat.rete/InsertOutcome.Inserted {:session __st} __st]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
+            (wat.kernel/assertion-failed! :message "insert: ceiling")])]
+    (wat.core/length (wat.rete/query
+      (wat.core/match (wat.rete/fire-rules s1)
+        [wat.rete/FireOutcome.Fired {:value __f} __f]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
+          (wat.kernel/assertion-failed! :message "fire: ceiling")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+          (wat.kernel/assertion-failed! :message "fire: round cap")])
+      (evt/q)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:evt::fire)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (evt/fire)))

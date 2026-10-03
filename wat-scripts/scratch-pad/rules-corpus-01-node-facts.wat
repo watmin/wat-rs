@@ -30,20 +30,20 @@
 ;; attributes — every decision in fix.wat's chain (head-keyword?, arrow?, type-shaped-keyword?,
 ;; annotated-if?) reads kind, name, and position and nothing else.
 
-(:wat::core::defrecord :fixr::Node
-  [id     <- wat.type/i64
-   parent <- wat.type/i64
-   index  <- wat.type/i64
-   kind   <- wat.type/String])
+(wat.core/defrecord fixr/Node
+  [id     :- wat.type/i64
+   parent :- wat.type/i64
+   index  :- wat.type/i64
+   kind   :- wat.type/String])
 
-(:wat::core::defrecord :fixr::Named
-  [id   <- wat.type/i64
-   name <- wat.type/String])
+(wat.core/defrecord fixr/Named
+  [id   :- wat.type/i64
+   name :- wat.type/String])
 
 ;; ─── the classification VERDICTS (derived facts, one per decision) ───────────
-(:wat::core::defrecord :fixr::IsArrow    [id <- wat.type/i64])
-(:wat::core::defrecord :fixr::IsHeadKw   [id <- wat.type/i64])
-(:wat::core::defrecord :fixr::IsTypePos  [id <- wat.type/i64])
+(wat.core/defrecord fixr/IsArrow    [id :- wat.type/i64])
+(wat.core/defrecord fixr/IsHeadKw   [id :- wat.type/i64])
+(wat.core/defrecord fixr/IsTypePos  [id :- wat.type/i64])
 
 ;; ─── LAW A (#57): a `where` admits ONLY `:wat::rete::` primitives ────────────
 ;; Not `:wat::core::=`, even though it is pure AND deterministic AND total. The rete query
@@ -55,45 +55,45 @@
 ;;   (parse + type-check only) structurally cannot see. That is task #85's class, still live.
 
 ;; RULE A — the arrow. Joins Node x Named on id: a node with NO name never reaches this rule.
-(:wat::rete::defrule :fixr::arrow
-  :when [(:fixr::Node  (?id :- :id) (?k :- :kind) (:wat::rete::string::= ?k "symbol"))
-         (:fixr::Named (?id :- :id) (?n :- :name) (:wat::rete::string::= ?n "<-"))]
-  :then [(:fixr::IsArrow :id ?id)])
+(wat.rete/defrule fixr/arrow
+  :when [(fixr/Node  (?id :- :id) (?k :- :kind) (wat.rete.string/= ?k "symbol"))
+         (fixr/Named (?id :- :id) (?n :- :name) (wat.rete.string/= ?n "<-"))]
+  :then [(fixr/IsArrow :id ?id)])
 
 ;; RULE B — the ::-namespaced call head / reference keyword.
-(:wat::rete::defrule :fixr::head-kw
-  :when [(:fixr::Node  (?id :- :id) (?k :- :kind) (:wat::rete::string::= ?k "keyword"))
-         (:fixr::Named (?id :- :id) (?n :- :name) (:wat::rete::string::contains? ?n "::"))]
-  :then [(:fixr::IsHeadKw :id ?id)])
+(wat.rete/defrule fixr/head-kw
+  :when [(fixr/Node  (?id :- :id) (?k :- :kind) (wat.rete.string/= ?k "keyword"))
+         (fixr/Named (?id :- :id) (?n :- :name) (wat.rete.string/contains? ?n "::"))]
+  :then [(fixr/IsHeadKw :id ?id)])
 
 ;; RULE C — ★ THE ONE THAT REPLACES `prev-arrow?`.
 ;; "a node whose PREVIOUS SIBLING is an arrow is in type position" — expressed as a JOIN on
 ;; (same parent, index - 1), never as carried state. The arrow's own verdict (IsArrow) is the
 ;; join partner, so this rule stands on RULE A's conclusion — the forward chain.
-(:wat::rete::defrule :fixr::type-pos
-  :when [(:fixr::Node    (?id :- :id)  (?p :- :parent) (?i :- :index))
-         (:fixr::Node    (?aid :- :id) (?p :- :parent) (?ai :- :index))
-         (:fixr::IsArrow (?aid :- :id))
+(wat.rete/defrule fixr/type-pos
+  :when [(fixr/Node    (?id :- :id)  (?p :- :parent) (?i :- :index))
+         (fixr/Node    (?aid :- :id) (?p :- :parent) (?ai :- :index))
+         (fixr/IsArrow (?aid :- :id))
          ;; ★ TOTALITY IS STRUCTURAL: `i64::+` can overflow, so the rete spelling is 4-ary —
          ;; `(+ a b :undefined <fallback>)`. The literal keyword `:undefined` is mandatory and the
          ;; caller MUST name the value the undefined case yields. There is no jump-table opcode for
          ;; "raises", so a partial op simply has no form here (#80: every rete row must be TOTAL).
-         (:wat::rete::where (:wat::rete::i64::= ?i (:wat::rete::i64::+ ?ai 1 :undefined 0)))]
-  :then [(:fixr::IsTypePos :id ?id)])
+         (wat.rete/where (wat.rete.i64/= ?i (wat.rete.i64/+ ?ai 1 :undefined 0)))]
+  :then [(fixr/IsTypePos :id ?id)])
 
-(:wat::rete::defquery :fixr::q-IsArrow
+(wat.rete/defquery fixr/q-IsArrow
   :params []
-  :when [(?fact :- :fixr::IsArrow)])
+  :when [(?fact :- fixr/IsArrow)])
 
 
-(:wat::rete::defquery :fixr::q-IsHeadKw
+(wat.rete/defquery fixr/q-IsHeadKw
   :params []
-  :when [(?fact :- :fixr::IsHeadKw)])
+  :when [(?fact :- fixr/IsHeadKw)])
 
 
-(:wat::rete::defquery :fixr::q-IsTypePos
+(wat.rete/defquery fixr/q-IsTypePos
   :params []
-  :when [(?fact :- :fixr::IsTypePos)])
+  :when [(?fact :- fixr/IsTypePos)])
 
 
 ;; ─── the driver — built as a DIFFERENTIAL, because a bare pass proves nothing ─
@@ -111,40 +111,40 @@
 ;;   So IsHeadKw must read exactly 2 (ids 3 and 5). A 3 means the guard leaks; a 1 means the
 ;;   positive arm is broken and the "no leak" reading would have been vacuous.
 
-(:wat::core::defn :fixr::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all s
-    (wat.type/PersistentVector :- [:fixr::Node]
-      (:fixr::Node :id 1 :parent 0 :index 0 :kind "symbol")
-      (:fixr::Node :id 2 :parent 0 :index 1 :kind "symbol")
-      (:fixr::Node :id 3 :parent 0 :index 2 :kind "keyword")
-      (:fixr::Node :id 4 :parent 9 :index 0 :kind "keyword")
-      (:fixr::Node :id 5 :parent 9 :index 1 :kind "keyword"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn fixr/seed [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all s
+    (wat.type/PersistentVector :- [fixr/Node]
+      (fixr/Node :id 1 :parent 0 :index 0 :kind "symbol")
+      (fixr/Node :id 2 :parent 0 :index 1 :kind "symbol")
+      (fixr/Node :id 3 :parent 0 :index 2 :kind "keyword")
+      (fixr/Node :id 4 :parent 9 :index 0 :kind "keyword")
+      (fixr/Node :id 5 :parent 9 :index 1 :kind "keyword"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :fixr::seed-names [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all s
-    (wat.type/PersistentVector :- [:fixr::Named]
-      (:fixr::Named :id 1 :name "body")
-      (:fixr::Named :id 2 :name "<-")
-      (:fixr::Named :id 3 :name ":wat::WatAST")
+(wat.core/defn fixr/seed-names [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all s
+    (wat.type/PersistentVector :- [fixr/Named]
+      (fixr/Named :id 1 :name "body")
+      (fixr/Named :id 2 :name "<-")
+      (fixr/Named :id 3 :name ":wat::WatAST")
       ;; id 4 deliberately ABSENT — the unnameable head. This is the whole point.
-      (:fixr::Named :id 5 :name ":wat::core::foo"))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (fixr/Named :id 5 :name ":wat::core::foo"))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :fixr::show [label <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
+(wat.core/defn fixr/show [label :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println (wat.string/concat label (wat.core/str n))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules    (wat.type/PersistentVector :- [:wat::rete::Rule] (:fixr::arrow) (:fixr::head-kw) (:fixr::type-pos))
-     template (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:fixr::q-IsArrow) (:fixr::q-IsHeadKw) (:fixr::q-IsTypePos))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     fired    (:wat::core::match (:wat::rete::fire-rules (:fixr::seed-names (:fixr::seed template))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules    (wat.type/PersistentVector :- [wat.rete/Rule] (fixr/arrow) (fixr/head-kw) (fixr/type-pos))
+     template (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (fixr/q-IsArrow) (fixr/q-IsHeadKw) (fixr/q-IsTypePos))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     fired    (wat.core/match (wat.rete/fire-rules (fixr/seed-names (fixr/seed template))) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.core/do
       ;; ⚠ `query` reads accumulated PRODUCTION memory, so it can only see DERIVED facts —
       ;; querying a base type (Node/Named) returns 0 even when the seed landed. That is R18's
       ;; query-artifact, and it means the non-vacuity guard must be a DERIVED count, never a
       ;; base-fact count. IsArrow is that guard: it is 0 if the seed never landed.
-      (:fixr::show "IsArrow   (want 1; 0 => seed never landed, all below vacuous): "
-        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsArrow))))
-      (:fixr::show "IsHeadKw  (want 2 = ids 3,5; 3 => the Named guard LEAKS): "
-        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsHeadKw))))
-      (:fixr::show "IsTypePos (want 1 = id 3, the prev-sibling JOIN): "
-        (:wat::core::length (:wat::rete::query fired (:fixr::q-IsTypePos)))))))
+      (fixr/show "IsArrow   (want 1; 0 => seed never landed, all below vacuous): "
+        (wat.core/length (wat.rete/query fired (fixr/q-IsArrow))))
+      (fixr/show "IsHeadKw  (want 2 = ids 3,5; 3 => the Named guard LEAKS): "
+        (wat.core/length (wat.rete/query fired (fixr/q-IsHeadKw))))
+      (fixr/show "IsTypePos (want 1 = id 3, the prev-sibling JOIN): "
+        (wat.core/length (wat.rete/query fired (fixr/q-IsTypePos)))))))

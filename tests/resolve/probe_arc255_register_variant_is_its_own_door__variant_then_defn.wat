@@ -8,5 +8,5 @@
 ;; `defn` below types a DOTTED name, and H-1 refuses it OUTRIGHT as `DottedName`,
 ;; regardless of the enum already having registered its variant. Both orders now raise the
 ;; identical `DottedName`, not `DuplicateDefine`; see the sibling `.rs`'s module doc.
-(:wat::core::defenum :my::app::Foo :wat::enum::Pure :Bar)
-(:wat::core::defn :my::app::Foo.Bar [] -> wat.type/i64 1)
+(wat.core/defenum my.app/Foo wat.enum/Pure :Bar)
+(wat.core/defn my.app/Foo.Bar [] :- wat.type/i64 1)

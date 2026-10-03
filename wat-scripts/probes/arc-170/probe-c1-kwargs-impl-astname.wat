@@ -1,43 +1,43 @@
 ;; Ground truth #2 — query ast-name DIRECTLY on the kwargs $impl's own item-type
 ;; node (not the printed/mangled forms text) — is it colon-colon literal (like a
 ;; plain fn's literal param) or something else?
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
-  :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-             (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                                                :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
-  :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
+  :messages [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+             (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure :Ok [reply :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                                                :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
+  :features [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::core::defn :probe::work
-  [item <- wat.type/String
-   & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
-  -> wat.type/String
-  (:wat::core::match
-    (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item)) [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-  [:probe::Echo::EchoResponse.Ok {:reply reply} reply]
-  [:probe::Echo::EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge")]
-  [:probe::Echo::EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-    (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+(wat.core/defn probe/work
+  [item :- wat.type/String
+   & [echo :- (wat.kernel/Peer :- [probe.Echo/Op probe.Echo/Reply])]]
+  :- wat.type/String
+  (wat.core/match
+    (probe.Echo/echo echo (probe.Echo/EchoRequest :msg item)) [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+  [probe.Echo/EchoResponse.Ok {:reply reply} reply]
+  [probe.Echo/EchoResponse.RequestTooLarge {:bytes bytes :cap cap}
+    (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge")]
+  [probe.Echo/EchoResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+    (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [impl-kw   (:wat::keyword::from-string "probe::work$impl")
-     work-name (:wat::keyword::from-string "user::bracket::work-fn")
-     forms     (:wat::kernel::fn-forms impl-kw work-name)
-     nforms    (:wat::core::length forms)
-     def-node  (:wat::core::Option/expect (:wat::core::get forms (:wat::i64::- nforms 2)) "no define")
-     dn-ch     (:wat::core::ast->children def-node)
-     head0     (:wat::core::first dn-ch)
-     head0k    (:wat::core::ast-kind head0)
-     head0n    (:wat::core::ast-name head0)
-     argspec   (:wat::core::Option/expect (:wat::core::get dn-ch 2) "no argspec")
-     arg-ch    (:wat::core::ast->children argspec)
-     item-ty   (:wat::core::Option/expect (:wat::core::get arg-ch 2) "no item-ty")
-     item-nm   (:wat::core::ast-name item-ty)
-     ret-ty    (:wat::core::Option/expect (:wat::core::get dn-ch 4) "no ret-ty")
-     ret-nm    (:wat::core::ast-name ret-ty)]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::string::concat "head0-kind: " head0k))
-      (:wat::kernel::println (:wat::string::concat "head0-nm: " head0n))
-      (:wat::kernel::println (:wat::string::concat "item-nm: " item-nm))
-      (:wat::kernel::println (:wat::string::concat "ret-nm: " ret-nm)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [impl-kw   (wat.keyword/from-string "probe::work$impl")
+     work-name (wat.keyword/from-string "user::bracket::work-fn")
+     forms     (wat.kernel/fn-forms impl-kw work-name)
+     nforms    (wat.core/length forms)
+     def-node  (wat.core.Option/expect (wat.core/get forms (wat.i64/- nforms 2)) "no define")
+     dn-ch     (wat.core/ast->children def-node)
+     head0     (wat.core/first dn-ch)
+     head0k    (wat.core/ast-kind head0)
+     head0n    (wat.core/ast-name head0)
+     argspec   (wat.core.Option/expect (wat.core/get dn-ch 2) "no argspec")
+     arg-ch    (wat.core/ast->children argspec)
+     item-ty   (wat.core.Option/expect (wat.core/get arg-ch 2) "no item-ty")
+     item-nm   (wat.core/ast-name item-ty)
+     ret-ty    (wat.core.Option/expect (wat.core/get dn-ch 4) "no ret-ty")
+     ret-nm    (wat.core/ast-name ret-ty)]
+    (wat.core/do
+      (wat.kernel/println (wat.string/concat "head0-kind: " head0k))
+      (wat.kernel/println (wat.string/concat "head0-nm: " head0n))
+      (wat.kernel/println (wat.string/concat "item-nm: " item-nm))
+      (wat.kernel/println (wat.string/concat "ret-nm: " ret-nm)))))

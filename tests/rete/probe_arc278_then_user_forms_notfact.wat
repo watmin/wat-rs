@@ -6,19 +6,19 @@
 ;; this check has no axis to name; STOP-2's "an item head that is neither a fact-type keyword nor
 ;; a fn returning a fact type").
 
-(:wat::core::defrecord :tf::In [n <- wat.type/i64])
+(wat.core/defrecord tf/In [n :- wat.type/i64])
 
-(:wat::rete::core::defn :tf::compute-scalar
-  [n <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::rete::i64::+ n 1 :undefined 0))
+(wat.rete.core/defn tf/compute-scalar
+  [n :- wat.type/i64]
+  :- wat.type/i64
+  (wat.rete.i64/+ n 1 :undefined 0))
 
-(:wat::rete::defrule :tf::compute-bad
-  :when [(:tf::In (?n :- :n))]
-  :then [(:tf::compute-scalar ?n)])
+(wat.rete/defrule tf/compute-bad
+  :when [(tf/In (?n :- :n))]
+  :then [(tf/compute-scalar ?n)])
 
-(:wat::core::defn :user::run-compile [] -> wat.type/i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts session)))))
+(wat.core/defn user/run-compile [] :- wat.type/i64
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :tf)
+     session (wat.core/match (wat.rete/compile rules) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts session)))))

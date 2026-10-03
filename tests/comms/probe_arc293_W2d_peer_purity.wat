@@ -9,11 +9,11 @@
 ;; RED at HEAD: this loads cleanly (no purity check on Peer' producers yet).
 ;; GREEN after 2d: the :wat::program::self-peer purity gate fires, world fails to load.
 
-(:wat::core::defstruct :w2d::S [val <- wat.type/i64])
+(wat.core/defstruct w2d/S [val :- wat.type/i64])
 
 ;; Creates (Peer' :- [:w2d::S :wat::core::i64]) — struct type arg is impure.
 ;; After 2d: the :wat::program::self-peer producer checks is_pure_type(:w2d::S) → false → CHECK error.
-(:wat::core::defn :w2d::probe-impure-wire-peer [] -> wat.type/nil
-  (:wat::core::let
-    [_pair (:wat::program::self-peer :w2d::S wat.type/i64)]
+(wat.core/defn w2d/probe-impure-wire-peer [] :- wat.type/nil
+  (wat.core/let
+    [_pair (wat.program/self-peer w2d/S wat.type/i64)]
     nil))

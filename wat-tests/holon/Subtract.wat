@@ -8,19 +8,19 @@
 ;; for role-filler binding and residual encoding.
 
 
-(:wat::test::deftest :wat-tests::holon::Subtract::test-self-presence-above-floor
+(wat.test/deftest wat-tests.holon.Subtract/test-self-presence-above-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "alice")
-     b (:wat::holon::to-holon "bob")
-     diff (:wat::holon::Subtract a b)]
-    (:wat::test::assert-eq (:wat::holon::presence? a diff) true)))
+  (wat.core/let
+    [a (wat.holon/to-holon "alice")
+     b (wat.holon/to-holon "bob")
+     diff (wat.holon/Subtract a b)]
+    (wat.test/assert-eq (wat.holon/presence? a diff) true)))
 
-(:wat::test::deftest :wat-tests::holon::Subtract::test-unrelated-presence-below-floor
+(wat.test/deftest wat-tests.holon.Subtract/test-unrelated-presence-below-floor
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "alice")
-     b (:wat::holon::to-holon "bob")
-     c (:wat::holon::to-holon "charlie")
-     diff (:wat::holon::Subtract a b)]
-    (:wat::test::assert-eq (:wat::holon::presence? c diff) false)))
+  (wat.core/let
+    [a (wat.holon/to-holon "alice")
+     b (wat.holon/to-holon "bob")
+     c (wat.holon/to-holon "charlie")
+     diff (wat.holon/Subtract a b)]
+    (wat.test/assert-eq (wat.holon/presence? c diff) false)))

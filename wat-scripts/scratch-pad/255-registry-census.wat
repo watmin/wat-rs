@@ -14,48 +14,48 @@
 ;; `Category` have none — they are complete BY CONSTRUCTION, every row graded. The backlog is
 ;; exactly two axes, not five. (Measured: the checker refuses `Purity::Unreviewed` as a variant.)
 
-(:wat::core::defn :census::totality-unreviewed? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Unreviewed))
-(:wat::core::defn :census::totality-partial? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::= (:wat::intrinsic::Row/totality r) :wat::runtime::Totality.Partial))
-(:wat::core::defn :census::expand-unreviewed? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::= (:wat::intrinsic::Row/expand-time r) :wat::runtime::ExpandTime.Unreviewed))
-(:wat::core::defn :census::both-unreviewed? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::and (:census::totality-unreviewed? r) (:census::expand-unreviewed? r)))
-(:wat::core::defn :census::alias? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::match (:wat::intrinsic::Row/alias-of r)
-    [:wat::core::Option.Some {:value _} true] [:wat::core::Option.None {} false]))
-(:wat::core::defn :census::variadic? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::i64::= (:wat::intrinsic::Row/arity r) -1))
-(:wat::core::defn :census::no-syntax? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::string::empty? (:wat::intrinsic::Row/syntax r)))
-(:wat::core::defn :census::special-form? [r <- :wat::intrinsic::Row] -> wat.type/bool
-  (:wat::core::= (:wat::intrinsic::Row/kind r) :wat::runtime::Kind.SpecialForm))
+(wat.core/defn census/totality-unreviewed? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/= (wat.intrinsic.Row/totality r) wat.runtime/Totality.Unreviewed))
+(wat.core/defn census/totality-partial? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/= (wat.intrinsic.Row/totality r) wat.runtime/Totality.Partial))
+(wat.core/defn census/expand-unreviewed? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/= (wat.intrinsic.Row/expand-time r) wat.runtime/ExpandTime.Unreviewed))
+(wat.core/defn census/both-unreviewed? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/and (census/totality-unreviewed? r) (census/expand-unreviewed? r)))
+(wat.core/defn census/alias? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/match (wat.intrinsic.Row/alias-of r)
+    [wat.core/Option.Some {:value _} true] [wat.core/Option.None {} false]))
+(wat.core/defn census/variadic? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.i64/= (wat.intrinsic.Row/arity r) -1))
+(wat.core/defn census/no-syntax? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.string/empty? (wat.intrinsic.Row/syntax r)))
+(wat.core/defn census/special-form? [r :- wat.intrinsic/Row] :- wat.type/bool
+  (wat.core/= (wat.intrinsic.Row/kind r) wat.runtime/Kind.SpecialForm))
 
-(:wat::core::defn :census::count
-  [rows <- (wat.type/Vector :- [:wat::intrinsic::Row])
-   p    <- [:wat::intrinsic::Row :-> wat.type/bool]] -> wat.type/String
-  (:wat::i64::to-string
-    (:wat::core::length (:wat::core::into [] (:wat::core::filter p rows)))))
+(wat.core/defn census/count
+  [rows :- (wat.type/Vector :- [wat.intrinsic/Row])
+   p    :- [wat.intrinsic/Row :-> wat.type/bool]] :- wat.type/String
+  (wat.i64/to-string
+    (wat.core/length (wat.core/into [] (wat.core/filter p rows)))))
 
-(:wat::core::defn :census::line
-  [label <- wat.type/String
-   rows  <- (wat.type/Vector :- [:wat::intrinsic::Row])
-   p     <- [:wat::intrinsic::Row :-> wat.type/bool]] -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat label (:census::count rows p))))
+(wat.core/defn census/line
+  [label :- wat.type/String
+   rows  :- (wat.type/Vector :- [wat.intrinsic/Row])
+   p     :- [wat.intrinsic/Row :-> wat.type/bool]] :- wat.type/nil
+  (wat.kernel/println (wat.string/concat label (census/count rows p))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [rows (:wat::core::into [] (:wat::intrinsic::rows))]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::string::concat
-        "registry rows ................ " (:wat::i64::to-string (:wat::core::length rows))))
-      (:census::line "Kind::SpecialForm ............ " rows :census::special-form?)
-      (:census::line "alias rows ................... " rows :census::alias?)
-      (:census::line "arity Variadic (-1) .......... " rows :census::variadic?)
-      (:census::line "no @syntax ................... " rows :census::no-syntax?)
-      (:wat::kernel::println "")
-      (:wat::kernel::println "── the grading backlog — TWO axes have an Unreviewed pole, three do not ──")
-      (:census::line "totality  Partial (WORK LIST)  " rows :census::totality-partial?)
-      (:census::line "totality  Unreviewed ......... " rows :census::totality-unreviewed?)
-      (:census::line "expand    Unreviewed ......... " rows :census::expand-unreviewed?)
-      (:census::line "BOTH unreviewed (one pass) ... " rows :census::both-unreviewed?))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [rows (wat.core/into [] (wat.intrinsic/rows))]
+    (wat.core/do
+      (wat.kernel/println (wat.string/concat
+        "registry rows ................ " (wat.i64/to-string (wat.core/length rows))))
+      (census/line "Kind::SpecialForm ............ " rows census/special-form?)
+      (census/line "alias rows ................... " rows census/alias?)
+      (census/line "arity Variadic (-1) .......... " rows census/variadic?)
+      (census/line "no @syntax ................... " rows census/no-syntax?)
+      (wat.kernel/println "")
+      (wat.kernel/println "── the grading backlog — TWO axes have an Unreviewed pole, three do not ──")
+      (census/line "totality  Partial (WORK LIST)  " rows census/totality-partial?)
+      (census/line "totality  Unreviewed ......... " rows census/totality-unreviewed?)
+      (census/line "expand    Unreviewed ......... " rows census/expand-unreviewed?)
+      (census/line "BOTH unreviewed (one pass) ... " rows census/both-unreviewed?))))

@@ -1,14 +1,14 @@
 ;; tests/reflection/wat_arc201_holon_ast_accessors_first_compose.wat
 ;; Fixture for test bundle_first_composes_with_atom_value.
 ;; Probe: (first (ast->children …)) extracts the head keyword node value.
-(:wat::core::defn :user::add-two [a <- wat.type/i64 b <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ a b))
+(wat.core/defn user/add-two [a :- wat.type/i64 b :- wat.type/i64] :- wat.type/i64 (wat.i64/+ a b))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-              [sig-opt (:wat::runtime::signature-of-defn :user::add-two)
-               sig     (:wat::core::match sig-opt 
-                         [:wat::core::Option.Some {:value s} s]
-                         [:wat::core::Option.None {}     (:wat::kernel::assertion-failed! :message "signature-of-defn returned None")])
-               head    (:wat::core::first (:wat::core::ast->children sig))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+              [sig-opt (wat.runtime/signature-of-defn user/add-two)
+               sig     (wat.core/match sig-opt 
+                         [wat.core/Option.Some {:value s} s]
+                         [wat.core/Option.None {}     (wat.kernel/assertion-failed! :message "signature-of-defn returned None")])
+               head    (wat.core/first (wat.core/ast->children sig))
                rendered head]
-              (:wat::kernel::println rendered)))
+              (wat.kernel/println rendered)))

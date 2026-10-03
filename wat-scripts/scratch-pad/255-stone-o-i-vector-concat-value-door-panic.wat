@@ -14,33 +14,33 @@
 ;; AFTER Stone O-i: row 3 must PRINT and its outcome must be an ArityMismatch error,
 ;; identical in kind to row 1's (the AST-door control, same verb, same wrong arity).
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
-  -> wat.type/String
-  (:wat::core::match r
-    [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
-    [:wat::core::Result.Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
+(wat.core/defn probe/outcome [r :- (wat.core/Result :- [wat.type/Value wat.core/EvalError])]
+  :- wat.type/String
+  (wat.core/match r
+    [wat.core/Result.Ok {:value v}  (wat.string/concat "ok:" (wat.edn/write v))]
+    [wat.core/Result.Err {:error e} (wat.string/concat "err:" (wat.core.EvalError/message e))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; row 1 — THE CONTROL. The AST door, wrong arity (1 instead of 2): a clean ArityMismatch.
-     _01 (:wat::kernel::println
-           (:wat::string::concat "AST-door  wrong arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))))
+     _01 (wat.kernel/println
+           (wat.string/concat "AST-door  wrong arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote
+               (wat.core/into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)))))))
 
      ;; row 2 — the AST door with RIGHT arity, so row 3 cannot be blamed on the verb.
-     _02 (:wat::kernel::println
-           (:wat::string::concat "AST-door  right arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 4 5)))))))
+     _02 (wat.kernel/println
+           (wat.string/concat "AST-door  right arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote
+               (wat.core/into (wat.type/PersistentVector :- [wat.type/i64] 1 2 3) (wat.type/PersistentVector :- [wat.type/i64] 4 5)))))))
 
      ;; row 3 — THE FINDING. Same verb, same wrong arity, through apply's value door.
      ;; BEFORE Stone O-i: the process dies here and nothing below prints.
      ;; AFTER Stone O-i: prints an ArityMismatch, matching row 1's KIND (op/expected/got).
-     _03 (:wat::kernel::println
-           (:wat::string::concat "value-door wrong arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::core::apply :wat::core::into
+     _03 (wat.kernel/println
+           (wat.string/concat "value-door wrong arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote
+               (wat.core/apply wat.core/into
                  (wat.type/Vector :- [(wat.type/PersistentVector :- [wat.type/i64])]
                    (wat.type/PersistentVector :- [wat.type/i64] 1 2 3))))))))]
     nil))

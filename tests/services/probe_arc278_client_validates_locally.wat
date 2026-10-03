@@ -22,86 +22,86 @@
 ;; request on the SAME peer succeeding is the literal "the peer's receiver has nothing
 ;; pending" proof STOP-1 asks for: an actually-sent poison frame would have killed `c` outright.
 
-(:wat::core::defsurface :probe::Budget :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Budget :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Budget::PutRequest [payload <- wat.type/String])
-   (:wat::core::defenum :probe::Budget::PutResponse :wat::enum::Pure
-     :Ok              [ok <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Budget/PutRequest [payload :- wat.type/String])
+   (wat.core/defenum probe.Budget/PutResponse wat.enum/Pure
+     :Ok              [ok :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(put [self <- :probe::Budget  req <- :probe::Budget::PutRequest] -> :probe::Budget::PutResponse :max-request-bytes 100)])
+  [(put [self :- probe/Budget  req :- probe.Budget/PutRequest] :- probe.Budget/PutResponse :max-request-bytes 100)])
 
-(:wat::service::defservice :probe::budgetsvc
-  :satisfies :probe::Budget
+(wat.service/defservice probe/budgetsvc
+  :satisfies probe/Budget
   :max-frame-bytes 2048
   :durable   []
   :ephemeral []
   :impls
-  [(put [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Budget::PutResponse.Ok {:ok 7})}))])
+  [(put [s ctx req] (wat.service/Outcome.Reply {:state s :reply (probe.Budget/PutResponse.Ok {:ok 7})}))])
 
 ;; A String of exactly n*32 bytes (kept LOCAL — mirrors :probe::payload-of in the sibling FOO
 ;; fixture so this file has no cross-file dependency).
-(:wat::core::defn :probe::budget-payload-of [n <- wat.type/i64] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  _i <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+(wat.core/defn probe/budget-payload-of [n :- wat.type/i64] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  _i :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
-    (:wat::core::range 0 n)))
+    (wat.core/range 0 n)))
 
 ;; THE DISCRIMINATOR PROBE. Terminal caller throughout: every unexpected shape SURFACES via
 ;; `assertion-failed!` rather than swallowing it — this probe's only job is to catch a wrong
 ;; shape, never to hide one. Returns the follow-up's `ok` (7) when everything holds.
-(:wat::core::defn :user::over-budget-refused-locally-then-connection-survives [] -> wat.type/i64
-  (:wat::core::let
-    [poison  (:probe::budget-payload-of 100)   ;; 100*32 = 3200 bytes > FOO(2048) > cap(100)
-     h       (:probe::budgetsvc/start :locus (:wat::spawn::process) :record (:probe::budgetsvc::Record))
-     c       (:wat::core::match (:wat::kernel::connect (:probe::budgetsvc::Handle/addr h))
-                [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-                [:wat::kernel::ConnectOutcome.Closed {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-                [:wat::kernel::ConnectOutcome.Undialable {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))]
-                [:wat::kernel::ConnectOutcome.Failed {:cause cc} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cc))])
-     r1      (:probe::Budget/put c (:probe::Budget::PutRequest :payload poison))
+(wat.core/defn user/over-budget-refused-locally-then-connection-survives [] :- wat.type/i64
+  (wat.core/let
+    [poison  (probe/budget-payload-of 100)   ;; 100*32 = 3200 bytes > FOO(2048) > cap(100)
+     h       (probe.budgetsvc/start :locus (wat.spawn/process) :record (probe.budgetsvc/Record))
+     c       (wat.core/match (wat.kernel/connect (probe.budgetsvc.Handle/addr h))
+                [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+                [wat.kernel/ConnectOutcome.Closed {:cause cc} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cc))]
+                [wat.kernel/ConnectOutcome.Undialable {:cause cc} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cc))] [wat.kernel/ConnectOutcome.WrongPeer {:cause cc} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cc))]
+                [wat.kernel/ConnectOutcome.Failed {:cause cc} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cc))])
+     r1      (probe.Budget/put c (probe.Budget/PutRequest :payload poison))
      ;; r1 MUST be the fabricated-locally RequestTooLarge{100, >100} — never Ok (accepted),
      ;; never Lost/Closed (only reachable if the poison frame actually reached the wire and
      ;; FOO evicted `c` — THE DISCRIMINATOR's RED signal).
-     _check1 (:wat::core::match r1
-               [:wat::kernel::RecvOutcome.Message {:msg resp}
-                 (:wat::core::match resp
-                   [:probe::Budget::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-                     (:wat::core::if (:wat::core::= cap 100)
-                       (:wat::core::if (:wat::i64::> bytes cap)
+     _check1 (wat.core/match r1
+               [wat.kernel/RecvOutcome.Message {:msg resp}
+                 (wat.core/match resp
+                   [probe.Budget/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+                     (wat.core/if (wat.core/= cap 100)
+                       (wat.core/if (wat.i64/> bytes cap)
                          nil
-                         (:wat::kernel::assertion-failed! :message "RequestTooLarge.bytes must exceed cap"))
-                       (:wat::kernel::assertion-failed! :message "STOP-4: cap must name the SURFACE contract (100), never the service's FOO (2048)"))]
-                   [:probe::Budget::PutResponse.Ok {:ok _ok}
-                     (:wat::kernel::assertion-failed! :message "poison request must be refused, not accepted")]
-                   [:probe::Budget::PutResponse.RequestMalformed {:path _mpath :expected _mexpected :got _mgot}
-                     (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-               [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                 (:wat::kernel::assertion-failed! :message (:wat::string::concat
+                         (wat.kernel/assertion-failed! :message "RequestTooLarge.bytes must exceed cap"))
+                       (wat.kernel/assertion-failed! :message "STOP-4: cap must name the SURFACE contract (100), never the service's FOO (2048)"))]
+                   [probe.Budget/PutResponse.Ok {:ok _ok}
+                     (wat.kernel/assertion-failed! :message "poison request must be refused, not accepted")]
+                   [probe.Budget/PutResponse.RequestMalformed {:path _mpath :expected _mexpected :got _mgot}
+                     (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+               [wat.kernel/RecvOutcome.Lost {:cause cause}
+                 (wat.kernel/assertion-failed! :message (wat.string/concat
                      "DISCRIMINATOR: the poison request reached the wire (client did not refuse locally) — "
-                     (:wat::kernel::LociDiedError/message cause)))]
-               [:wat::kernel::RecvOutcome.Stopped {}
-                 (:wat::kernel::assertion-failed! :message "DISCRIMINATOR: stopped mid-read — the substrate was asked to stop; the peer was ALIVE")]
-               [:wat::kernel::RecvOutcome.Closed {}
-                 (:wat::kernel::assertion-failed! :message "DISCRIMINATOR: the poison request reached the wire and the connection was closed")])
+                     (wat.kernel.LociDiedError/message cause)))]
+               [wat.kernel/RecvOutcome.Stopped {}
+                 (wat.kernel/assertion-failed! :message "DISCRIMINATOR: stopped mid-read — the substrate was asked to stop; the peer was ALIVE")]
+               [wat.kernel/RecvOutcome.Closed {}
+                 (wat.kernel/assertion-failed! :message "DISCRIMINATOR: the poison request reached the wire and the connection was closed")])
      ;; THE DISCRIMINATOR: the SAME connection completes a normal in-budget request. An
      ;; actually-sent poison frame would have tripped FOO and evicted `c` — this succeeding
      ;; is the "the peer's receiver has nothing pending" proof.
-     r2      (:probe::Budget/put c (:probe::Budget::PutRequest :payload "hi"))]
-    (:wat::core::match r2
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::Budget::PutResponse.Ok {:ok ok} ok]
-          [:probe::Budget::PutResponse.RequestTooLarge {:bytes _bytes :cap _cap}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestTooLarge on an in-budget follow-up")]
-          [:probe::Budget::PutResponse.RequestMalformed {:path _mpath :expected _mexpected :got _mgot}
-            (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "DISCRIMINATOR: the connection did not survive — "
-            (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "DISCRIMINATOR: stopped before the follow-up replied — the peer was ALIVE")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "DISCRIMINATOR: the connection did not survive (closed)")])))
+     r2      (probe.Budget/put c (probe.Budget/PutRequest :payload "hi"))]
+    (wat.core/match r2
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.Budget/PutResponse.Ok {:ok ok} ok]
+          [probe.Budget/PutResponse.RequestTooLarge {:bytes _bytes :cap _cap}
+            (wat.kernel/assertion-failed! :message "unexpected RequestTooLarge on an in-budget follow-up")]
+          [probe.Budget/PutResponse.RequestMalformed {:path _mpath :expected _mexpected :got _mgot}
+            (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.string/concat "DISCRIMINATOR: the connection did not survive — "
+            (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "DISCRIMINATOR: stopped before the follow-up replied — the peer was ALIVE")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "DISCRIMINATOR: the connection did not survive (closed)")])))

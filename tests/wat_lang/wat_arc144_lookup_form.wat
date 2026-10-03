@@ -3,96 +3,96 @@
 ;; Named :t:: functions return bool (Some→true / None→false) or String.
 
 ;; Declarations needed for reflection tests.
-(:wat::core::defmacro :my::ident [x <- wat.type/AST] -> wat.type/AST `~x)
+(wat.core/defmacro my/ident [x :- wat.type/AST] :- wat.type/AST `~x)
 
-(:wat::core::defstruct :my::Bar
-  [open  <- wat.type/f64
-   close <- wat.type/f64])
+(wat.core/defstruct my/Bar
+  [open  :- wat.type/f64
+   close :- wat.type/f64])
 
-(:wat::core::defstruct :my::Point
-  [x <- wat.type/f64
-   y <- wat.type/f64])
+(wat.core/defstruct my/Point
+  [x :- wat.type/f64
+   y :- wat.type/f64])
 
-(:wat::core::defstruct :my::Tick
-  [price <- wat.type/f64])
+(wat.core/defstruct my/Tick
+  [price :- wat.type/f64])
 
-(:wat::core::defn :t::my-add [x <- wat.type/i64 y <- wat.type/i64] -> wat.type/i64
-  (:wat::core::+ x y))
+(wat.core/defn t/my-add [x :- wat.type/i64 y :- wat.type/i64] :- wat.type/i64
+  (wat.core/+ x y))
 
 ;; ─── Macro lookup ──────────────────────────────────────────────────────────
 
-(:wat::core::defn :t::test1-lookup-macro-render [] -> wat.type/String
-  (:wat::core::let [def-opt  (:wat::runtime::lookup-define :my::ident)
-                   rendered (:wat::edn::write def-opt)]
+(wat.core/defn t/test1-lookup-macro-render [] :- wat.type/String
+  (wat.core/let [def-opt  (wat.runtime/lookup-define my/ident)
+                   rendered (wat.edn/write def-opt)]
     rendered))
 
-(:wat::core::defn :t::test2-sig-macro [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::signature-of-defn :my::ident)
+(wat.core/defn t/test2-sig-macro [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/signature-of-defn my/ident)
     
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))
 
-(:wat::core::defn :t::test3-body-macro [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::body-of :my::ident)
+(wat.core/defn t/test3-body-macro [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/body-of my/ident)
     
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))
 
 ;; ─── Type lookup ───────────────────────────────────────────────────────────
 
-(:wat::core::defn :t::test4-lookup-struct-render [] -> wat.type/String
-  (:wat::core::let [def-opt  (:wat::runtime::lookup-define :my::Bar)
-                   rendered (:wat::edn::write def-opt)]
+(wat.core/defn t/test4-lookup-struct-render [] :- wat.type/String
+  (wat.core/let [def-opt  (wat.runtime/lookup-define my/Bar)
+                   rendered (wat.edn/write def-opt)]
     rendered))
 
-(:wat::core::defn :t::test5-sig-struct [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::signature-of-defn :my::Point)
+(wat.core/defn t/test5-sig-struct [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/signature-of-defn my/Point)
     
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))
 
-(:wat::core::defn :t::test6-body-struct-none [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::body-of :my::Tick)
+(wat.core/defn t/test6-body-struct-none [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/body-of my/Tick)
     
-    [:wat::core::Option.Some {:value _} false]
-    [:wat::core::Option.None {}    true]))
+    [wat.core/Option.Some {:value _} false]
+    [wat.core/Option.None {}    true]))
 
 ;; ─── Regression guards: UserFunction + Primitive ────────────────────────────
 
-(:wat::core::defn :t::test7-lookup-user-fn [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::lookup-define :t::my-add)
+(wat.core/defn t/test7-lookup-user-fn [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/lookup-define t/my-add)
     
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))
 
-(:wat::core::defn :t::test8-sig-foldl [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::foldl)
+(wat.core/defn t/test8-sig-foldl [] :- wat.type/bool
+  (wat.core/match
+    (wat.runtime/signature-of-defn wat.core/foldl)
     
-    [:wat::core::Option.Some {:value _} true]
-    [:wat::core::Option.None {}    false]))
+    [wat.core/Option.Some {:value _} true]
+    [wat.core/Option.None {}    false]))
 
 ;; ─── Unknown name returns None across all three ──────────────────────────────
 
-(:wat::core::defn :t::test9-all-none [] -> wat.type/bool
-  (:wat::core::let
-    [d-opt (:wat::runtime::lookup-define :no::such::thing)
-     s-opt (:wat::runtime::signature-of-defn :no::such::thing)
-     b-opt (:wat::runtime::body-of    :no::such::thing)]
-    (:wat::core::match d-opt
+(wat.core/defn t/test9-all-none [] :- wat.type/bool
+  (wat.core/let
+    [d-opt (wat.runtime/lookup-define no.such/thing)
+     s-opt (wat.runtime/signature-of-defn no.such/thing)
+     b-opt (wat.runtime/body-of    no.such/thing)]
+    (wat.core/match d-opt
       
-      [:wat::core::Option.Some {:value _} false]
-      [:wat::core::Option.None {}
-        (:wat::core::match s-opt
+      [wat.core/Option.Some {:value _} false]
+      [wat.core/Option.None {}
+        (wat.core/match s-opt
           
-          [:wat::core::Option.Some {:value _} false]
-          [:wat::core::Option.None {}
-            (:wat::core::match b-opt
+          [wat.core/Option.Some {:value _} false]
+          [wat.core/Option.None {}
+            (wat.core/match b-opt
               
-              [:wat::core::Option.Some {:value _} false]
-              [:wat::core::Option.None {}    true])])])))
+              [wat.core/Option.Some {:value _} false]
+              [wat.core/Option.None {}    true])])])))

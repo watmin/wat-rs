@@ -4,32 +4,32 @@
 ;; the response crosses the wire back. Returns the count (must be 2). Closes write-logs + query-logs
 ;; loci-parity holes in one shot.
 
-(:wat::core::defrecord :probe::Note [text <- wat.type/String])
+(wat.core/defrecord probe/Note [text :- wat.type/String])
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [sh    (:wat::query::mem-store/start :locus (:wat::spawn::process)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     saddr (:wat::query::mem-store::Handle/addr sh)
-     jh    (:wat::telemetry::journal/start
-             :locus (:wat::spawn::process::post-spawn
-                      (:wat::core::fn [pl <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                        (:wat::query::mem-store/grant sh
-                          (wat.type/Vector :- [wat.type/i64] (:wat::spawn::ProcessLaunch/pid pl)))))
-             :record (:wat::telemetry::journal::Record) :store-addr saddr)
-     journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [sh    (wat.query.mem-store/start :locus (wat.spawn/process)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     saddr (wat.query.mem-store.Handle/addr sh)
+     jh    (wat.telemetry.journal/start
+             :locus (wat.spawn.process/post-spawn
+                      (wat.core/fn [pl :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                        (wat.query.mem-store/grant sh
+                          (wat.type/Vector :- [wat.type/i64] (wat.spawn.ProcessLaunch/pid pl)))))
+             :record (wat.telemetry.journal/Record) :store-addr saddr)
+     journal (wat.core/match (wat.kernel/connect (wat.telemetry.journal.Handle/addr jh)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Info
-             :message (:wat::edn::write (:probe::Note :text "one")))
-     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
-             :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level.Warn
-             :message (:wat::edn::write (:probe::Note :text "two")))
-     _wr   (:wat::telemetry::Journal/write-logs journal
-             (:wat::telemetry::Journal::WriteLogsRequest (wat.type/Vector :- [:wat::telemetry::Log] l1 l2)))
-     bq    (:wat::telemetry::Journal/query-logs journal
-             (:wat::telemetry::Journal::QueryLogsRequest :namespace "probe-ns"
-               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor :wat::core::Option.None))]
-    (:wat::core::match bq [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::telemetry::Journal::QueryLogsResponse.Success {:logs ls :cursor _c} (:wat::core::count ls)]
-      [_ -1])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+     l1    (wat.telemetry/Log :namespace "probe-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 1000000000 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Info
+             :message (wat.edn/write (probe/Note :text "one")))
+     l2    (wat.telemetry/Log :namespace "probe-ns" :uuid (wat.uuid/nil) :tags tags
+             :time-ns 2000000000 :emitted-from (wat.kernel/call-site) :level wat.telemetry/Level.Warn
+             :message (wat.edn/write (probe/Note :text "two")))
+     _wr   (wat.telemetry.Journal/write-logs journal
+             (wat.telemetry.Journal/WriteLogsRequest (wat.type/Vector :- [wat.telemetry/Log] l1 l2)))
+     bq    (wat.telemetry.Journal/query-logs journal
+             (wat.telemetry.Journal/QueryLogsRequest :namespace "probe-ns"
+               :time-lo 0 :time-hi 3000000000 :limit 100 :cursor wat.core/Option.None))]
+    (wat.core/match bq [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.telemetry.Journal/QueryLogsResponse.Success {:logs ls :cursor _c} (wat.core/count ls)]
+      [_ -1])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

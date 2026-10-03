@@ -86,241 +86,241 @@
 ;; folded predicate — the cross-variable shape where-shapes.wat's row 6 isolated, now nested inside
 ;; a higher-order verb.
 
-(:wat::core::defn :wc::items [] -> wat.type/i64 200)   ;; the stream size, both sides
+(wat.core/defn wc/items [] :- wat.type/i64 200)   ;; the stream size, both sides
 
-(:wat::core::defn :wc::row-count [] -> wat.type/i64 10)
+(wat.core/defn wc/row-count [] :- wat.type/i64 10)
 
 ;; k(i)     = i
 ;; tags(i)  = a vector of length (i mod 6), element j = (i + 3j) mod 13     — row 1/2/3/5/6/7/8/9
 ;; bound(i) = i mod 8                                                       — the cross-var threshold
 ;; grid(i)  = a vector of (i mod 3) inner vectors; inner a has length
 ;;            (i+a) mod 4, element b = (i+a+b) mod 9                       — row 4/10, the NESTED field
-(:wat::core::defrecord :wc::Item
-  [k     <- wat.type/i64
-   tags  <- (wat.type/PersistentVector :- [wat.type/i64])
-   bound <- wat.type/i64
-   grid  <- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])])
+(wat.core/defrecord wc/Item
+  [k     :- wat.type/i64
+   tags  :- (wat.type/PersistentVector :- [wat.type/i64])
+   bound :- wat.type/i64
+   grid  :- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])])
 
-(:wat::core::defrecord :wc::Hit [k <- wat.type/i64])
+(wat.core/defrecord wc/Hit [k :- wat.type/i64])
 
 ;; row 7's user-defined pure fn over a WHOLE bound collection (not one element of it):
 ;; heavy?(v) := length(v) > 2 AND v contains 7.
-(:wat::rete::core::defn :wc::heavy? [v <- (wat.type/PersistentVector :- [wat.type/i64])] -> wat.type/bool
-  (:wat::rete::core::and
-    (:wat::rete::i64::> (:wat::rete::vector::length v) 2)
-    (:wat::rete::vector::contains? v 7)))
+(wat.rete.core/defn wc/heavy? [v :- (wat.type/PersistentVector :- [wat.type/i64])] :- wat.type/bool
+  (wat.rete.core/and
+    (wat.rete.i64/> (wat.rete.vector/length v) 2)
+    (wat.rete.vector/contains? v 7)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
-(:wat::core::defn :wc::conds [] -> wat.type/AST
-  (:wat::core::quasiquote (:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid))))
+(wat.core/defn wc/conds [] :- wat.type/AST
+  (wat.core/quasiquote (wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid))))
 
-(:wat::core::defn :wc::ins [] -> wat.type/AST
-  (:wat::core::quasiquote (:wc::Hit ?k)))
+(wat.core/defn wc/ins [] :- wat.type/AST
+  (wat.core/quasiquote (wc/Hit ?k)))
 
 ;; ROW 1 — LENGTH vs a BOUND i64 VAR (not a constant). length(tags) > bound.
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
-(:wat::rete::defrule :wc::length-bound
+(wat.rete/defrule wc/length-bound
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) ?b))]
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where (wat.rete.i64/> (wat.rete.vector/length ?t) ?b))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 2 — ELEMENT ACCESS at a CONSTANT index, feeding a comparison, TOTAL on a short/empty vector.
 ;; `nth` (STOP-1, see header) raises the purity fence; the surface's actual total, pure form is
 ;; `PersistentVector/get` (-> (Option :- [T])) destructured by `match` — a pattern, not a call, so the
 ;; fence never even sees `Some`/`None` as heads. get(tags,2) -> Some x, x>5; None (len<=2) -> false.
 ;; Simulated => 54/200.
-(:wat::rete::defrule :wc::get-const
+(wat.rete/defrule wc/get-const
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::i64::> (:wat::rete::vector::get ?t 2 :undefined 0) 5))]
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.i64/> (wat.rete.vector/get ?t 2 :undefined 0) 5))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
-(:wat::rete::defrule :wc::contains
+(wat.rete/defrule wc/contains
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wat::rete::vector::contains? ?t 6))]
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where (wat.rete.vector/contains? ?t 6))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 4 — NESTED COLLECTION, two levels in. grid is (Vector :- [(Vector :- [i64])]); reach the FIRST inner
 ;; vector (Option, None when grid is empty — i mod 3 == 0, 67 facts) and test ITS length.
 ;; get(grid,0) -> Some inner, length(inner)>1; None -> false. Simulated => 66/200.
-(:wat::rete::defrule :wc::nested
+(wat.rete/defrule wc/nested
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::core::and
-                                   (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
-                                   (:wat::rete::i64::>
-                                     (:wat::rete::vector::length
-                                       (:wat::rete::vector::get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.core/and
+                                   (wat.rete.i64/> (wat.rete.vector/length ?g) 0)
+                                   (wat.rete.i64/>
+                                     (wat.rete.vector/length
+                                       (wat.rete.vector/get ?g 0 :undefined (wat.rete.core/PersistentVector)))
                                      1)))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 5 — HIGHER-ORDER + CROSS-VAR. sum(tags) > bound, via `foldl` closing over a pure `fn`.
 ;; foldl's own arg-recursion makes this admissible: the fence classifies `foldl` conditionally pure
 ;; and then recurses into the closure body (plain `i64::+`) — see header. Simulated => 150/200.
-(:wat::rete::defrule :wc::fold-sum-bound
+(wat.rete/defrule wc/fold-sum-bound
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::i64::>
-                                   (:wat::rete::core::foldl
-                                     (:wat::rete::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
-                                       (:wat::rete::i64::+ acc x :undefined 0))
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.i64/>
+                                   (wat.rete.core/foldl
+                                     (wat.rete.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64
+                                       (wat.rete.i64/+ acc x :undefined 0))
                                      0 ?t)
                                    ?b))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 6 — ELEMENT ACCESS at a DYNAMIC (bound-var) index — the index itself is `?b`, not a literal.
 ;; get(tags,bound) -> Some x, x>3; None (bound out of range for this tags) -> false.
 ;; Simulated => 34/200.
-(:wat::rete::defrule :wc::get-dynamic
+(wat.rete/defrule wc/get-dynamic
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::i64::> (:wat::rete::vector::get ?t ?b :undefined 0) 3))]
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.i64/> (wat.rete.vector/get ?t ?b :undefined 0) 3))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 7 — a PURE FN taking the WHOLE bound collection and returning bool (`:wc::heavy?` above),
 ;; the shape a compiled executor cannot inline and must hand back to the interpreter (mirrors
 ;; where-shapes.wat row 5, but the argument is a collection, not a scalar). Simulated => 30/200.
-(:wat::rete::defrule :wc::userfn
+(wat.rete/defrule wc/userfn
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where (:wc::heavy? ?t))]
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where (wc/heavy? ?t))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 8 — HIGHER-ORDER, `every?` EMULATED (the verb itself does not exist — see header).
 ;; `(foldl and true tags)` — every tag is even. Seed `true` is the vacuous-truth answer, so the 34
 ;; facts with tags=[] land here WITHOUT raising (contrast `first`/2-arity `reduce`, header).
 ;; Simulated => 57/200 (includes all 34 empty-tags facts).
-(:wat::rete::defrule :wc::fold-every-even
+(wat.rete/defrule wc/fold-every-even
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::core::foldl
-                                   (:wat::rete::core::fn [acc <- wat.type/bool x <- wat.type/i64] -> wat.type/bool
-                                     (:wat::rete::core::and acc (:wat::rete::i64::= 0 (:wat::rete::i64::mod x 2 :undefined 0))))
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.core/foldl
+                                   (wat.rete.core/fn [acc :- wat.type/bool x :- wat.type/i64] :- wat.type/bool
+                                     (wat.rete.core/and acc (wat.rete.i64/= 0 (wat.rete.i64/mod x 2 :undefined 0))))
                                    true ?t))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 9 — HIGHER-ORDER, `some?` EMULATED. `(foldl or false tags)` — some tag equals 0. Seed
 ;; `false` is the vacuous-falsity answer, so the same 34 empty-tags facts land OUTSIDE this set
 ;; without raising. Simulated => 38/200.
-(:wat::rete::defrule :wc::fold-some-zero
+(wat.rete/defrule wc/fold-some-zero
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::core::foldl
-                                   (:wat::rete::core::fn [acc <- wat.type/bool x <- wat.type/i64] -> wat.type/bool
-                                     (:wat::rete::core::or acc (:wat::rete::i64::= x 0)))
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.core/foldl
+                                   (wat.rete.core/fn [acc :- wat.type/bool x :- wat.type/i64] :- wat.type/bool
+                                     (wat.rete.core/or acc (wat.rete.i64/= x 0)))
                                    false ?t))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
 ;; ROW 10 — NESTED + HIGHER-ORDER + CROSS-VAR, all three composed: reach the first inner vector
 ;; (two levels in, Option-safe), THEN fold its elements, THEN compare against the bound var.
 ;; get(grid,0) -> Some inner, sum(inner) > bound; None -> false. Simulated => 76/200.
-(:wat::rete::defrule :wc::nested-fold-bound
+(wat.rete/defrule wc/nested-fold-bound
   :when
-  [(:wc::Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (:wat::rete::where
-                                 (:wat::rete::core::and
-                                   (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
-                                   (:wat::rete::i64::>
-                                     (:wat::rete::core::foldl
-                                       (:wat::rete::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
-                                         (:wat::rete::i64::+ acc x :undefined 0))
-                                       0 (:wat::rete::vector::get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
+  [(wc/Item (?k :- :k) (?t :- :tags) (?b :- :bound) (?g :- :grid)) (wat.rete/where
+                                 (wat.rete.core/and
+                                   (wat.rete.i64/> (wat.rete.vector/length ?g) 0)
+                                   (wat.rete.i64/>
+                                     (wat.rete.core/foldl
+                                       (wat.rete.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64
+                                         (wat.rete.i64/+ acc x :undefined 0))
+                                       0 (wat.rete.vector/get ?g 0 :undefined (wat.rete.core/PersistentVector)))
                                      ?b)))]
   :then
-  [(:wc::Hit ?k)])
+  [(wc/Hit ?k)])
 
-(:wat::rete::defquery :wc::q-Hit
+(wat.rete/defquery wc/q-Hit
   :params []
-  :when [(?fact :- :wc::Hit)])
+  :when [(?fact :- wc/Hit)])
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wc::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1)  (:wc::length-bound))
-      ((:wat::core::= row 2)  (:wc::get-const))
-      ((:wat::core::= row 3)  (:wc::contains))
-      ((:wat::core::= row 4)  (:wc::nested))
-      ((:wat::core::= row 5)  (:wc::fold-sum-bound))
-      ((:wat::core::= row 6)  (:wc::get-dynamic))
-      ((:wat::core::= row 7)  (:wc::userfn))
-      ((:wat::core::= row 8)  (:wc::fold-every-even))
-      ((:wat::core::= row 9)  (:wc::fold-some-zero))
-      ((:wat::core::= row 10) (:wc::nested-fold-bound))
+(wat.core/defn wc/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1)  (wc/length-bound))
+      ((wat.core/= row 2)  (wc/get-const))
+      ((wat.core/= row 3)  (wc/contains))
+      ((wat.core/= row 4)  (wc/nested))
+      ((wat.core/= row 5)  (wc/fold-sum-bound))
+      ((wat.core/= row 6)  (wc/get-dynamic))
+      ((wat.core/= row 7)  (wc/userfn))
+      ((wat.core/= row 8)  (wc/fold-every-even))
+      ((wat.core/= row 9)  (wc/fold-some-zero))
+      ((wat.core/= row 10) (wc/nested-fold-bound))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-collection: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-collection: unknown row " (wat.i64/to-string row)))))))
 
 ;; build-tags i -> a (PersistentVector :- [i64]) of length (i mod 6), element j = (i + 3j) mod 13.
-(:wat::core::defn :wc::build-tags [i <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [len (:wat::i64::mod i 6)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  j <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/i64])
-        (:wat::core::conj acc
-          (:wat::i64::mod (:wat::i64::+ i (:wat::i64::* j 3)) 13)))
+(wat.core/defn wc/build-tags [i :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [len (wat.i64/mod i 6)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])  j :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/i64])
+        (wat.core/conj acc
+          (wat.i64/mod (wat.i64/+ i (wat.i64/* j 3)) 13)))
       (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::core::range 0 len))))
+      (wat.core/range 0 len))))
 
 ;; build-inner i a -> a (PersistentVector :- [i64]) of length ((i+a) mod 4), element b = (i+a+b) mod 9.
-(:wat::core::defn :wc::build-inner [i <- wat.type/i64  a <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [base (:wat::i64::+ i a)
-                    len  (:wat::i64::mod base 4)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/i64])  b <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/i64])
-        (:wat::core::conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
+(wat.core/defn wc/build-inner [i :- wat.type/i64  a :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [base (wat.i64/+ i a)
+                    len  (wat.i64/mod base 4)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/i64])  b :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/i64])
+        (wat.core/conj acc (wat.i64/mod (wat.i64/+ base b) 9)))
       (wat.type/PersistentVector :- [wat.type/i64])
-      (:wat::core::range 0 len))))
+      (wat.core/range 0 len))))
 
 ;; build-grid i -> a (PersistentVector :- [(PersistentVector :- [i64])]) of (i mod 3) inner vectors.
-(:wat::core::defn :wc::build-grid [i <- wat.type/i64] -> (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
-  (:wat::core::let [outer-len (:wat::i64::mod i 3)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])  a <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
-        (:wat::core::conj acc (:wc::build-inner i a)))
+(wat.core/defn wc/build-grid [i :- wat.type/i64] :- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
+  (wat.core/let [outer-len (wat.i64/mod i 3)]
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])  a :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
+        (wat.core/conj acc (wc/build-inner i a)))
       (wat.type/PersistentVector :- [(wat.type/PersistentVector :- [wat.type/i64])])
-      (:wat::core::range 0 outer-len))))
+      (wat.core/range 0 outer-len))))
 
 ;; seed session items — stage Item(i) for i in [0, items) via the BATCH verb (one rebuild). Every
 ;; field is a FORMULA over i, independently computable on the Clara side so nothing rots as a
 ;; hand-kept table.
-(:wat::core::defn :wc::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wc/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj acc
-          (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::i64::mod i 8) :grid (:wc::build-grid i))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj acc
+          (wc/Item :k i :tags (wc/build-tags i) :bound (wat.i64/mod i 8) :grid (wc/build-grid i))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
-(:wat::core::defn :wc::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wc::Hit/k f)))
-        (:wat::rete::query fired (:wc::q-Hit))))))
+(wat.core/defn wc/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wc.Hit/k f)))
+        (wat.rete/query fired (wc/q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wc::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wc/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
@@ -333,31 +333,31 @@
 ;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
-(:wat::core::defn :wc::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wc/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wc::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wc::build-rules row)
-                    rule    (:wat::core::first rules)
-                    staged  (:wc::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wc::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wc::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wc::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wc::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wc::render-ints derived))))))
+(wat.core/defn wc/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wc/build-rules row)
+                    rule    (wat.core/first rules)
+                    staged  (wc/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wc/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wc/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wc/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wc/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wc/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wc::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wc/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wc::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wc/row-count) 1))))

@@ -54,207 +54,207 @@
 ;;     | cargo wat ./wat-scripts/fixes/mandate-request-malformed.wat
 
 ;; ── small helpers ────────────────────────────────────────────────────────────
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n) ""))
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n) ""))
 
-(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn user/start-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+(wat.core/defn user/end-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-end-span n) lines))
 
 ;; col-of — the 1-indexed source column a node starts at. `(- col 1)` is exactly the node's
 ;; indentation when it starts its line, which is how every site in this corpus is written; the
 ;; inserted sibling therefore lands at the same indentation as the node it follows.
-(:wat::core::defn :user::col-of [n <- wat.type/AST] -> wat.type/i64
-  (:wat::core::Option/expect
-    (:wat::core::get (:wat::core::ast-span n) :col)
+(wat.core/defn user/col-of [n :- wat.type/AST] :- wat.type/i64
+  (wat.core.Option/expect
+    (wat.core/get (wat.core/ast-span n) :col)
     "col-of: :col"))
 
-(:wat::core::defn :user::spaces [n <- wat.type/i64] -> wat.type/String
-  (:wat::core::if (:wat::core::<= n 0)
+(wat.core/defn user/spaces [n :- wat.type/i64] :- wat.type/String
+  (wat.core/if (wat.core/<= n 0)
     ""
-    (:wat::string::concat " " (:user::spaces (:wat::core::- n 1)))))
+    (wat.string/concat " " (user/spaces (wat.core/- n 1)))))
 
-(:wat::core::defn :user::ends-with? [s <- wat.type/String  suf <- wat.type/String]
-  -> wat.type/bool
-  (:wat::core::let [ls (:wat::string::length s)
-                    lf (:wat::string::length suf)]
-    (:wat::core::if (:wat::core::< ls lf)
+(wat.core/defn user/ends-with? [s :- wat.type/String  suf :- wat.type/String]
+  :- wat.type/bool
+  (wat.core/let [ls (wat.string/length s)
+                    lf (wat.string/length suf)]
+    (wat.core/if (wat.core/< ls lf)
       false
-      (:wat::core::= (:wat::string::subs s (:wat::core::- ls lf) ls) suf))))
+      (wat.core/= (wat.string/subs s (wat.core/- ls lf) ls) suf))))
 
 ;; rtl->rm — `:T::RequestTooLarge` → `:T::RequestMalformed` (suffix swap; caller has already
 ;; established the suffix via ends-with?).
-(:wat::core::defn :user::rtl->rm [s <- wat.type/String] -> wat.type/String
-  (:wat::string::concat
-    (:wat::string::subs s 0
-      (:wat::core::- (:wat::string::length s)
-        (:wat::string::length "::RequestTooLarge")))
+(wat.core/defn user/rtl->rm [s :- wat.type/String] :- wat.type/String
+  (wat.string/concat
+    (wat.string/subs s 0
+      (wat.core/- (wat.string/length s)
+        (wat.string/length "::RequestTooLarge")))
     "::RequestMalformed"))
 
-(:wat::core::defn :user::no-edits []
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/no-edits []
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
 ;; find-kw-index — index of the first child that is EXACTLY the keyword `name`; -1 if absent.
-(:wat::core::defn :user::find-kw-index
-  [ch <- (wat.type/Vector :- [wat.type/AST])  name <- wat.type/String] -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
-      (:wat::core::if (:wat::core::>= acc 0)
+(wat.core/defn user/find-kw-index
+  [ch :- (wat.type/Vector :- [wat.type/AST])  name :- wat.type/String] :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/i64  i :- wat.type/i64] :- wat.type/i64
+      (wat.core/if (wat.core/>= acc 0)
         acc
-        (:wat::core::if
-          (:wat::core::= (:user::kw-name (:wat::core::Option/expect (:wat::core::get ch i) "fki")) name)
+        (wat.core/if
+          (wat.core/= (user/kw-name (wat.core.Option/expect (wat.core/get ch i) "fki")) name)
           i
           acc)))
-    (:wat::core::- 0 1)
-    (:wat::core::range 0 (:wat::core::length ch))))
+    (wat.core/- 0 1)
+    (wat.core/range 0 (wat.core/length ch))))
 
 ;; ── (a) the op-Response DECL ─────────────────────────────────────────────────
 ;; A `defenum` whose variant keywords include `:RequestTooLarge` (and not yet `:RequestMalformed`)
 ;; is a ruling-A op-Response. Insert the shape sibling right after the size variant's field vector.
-(:wat::core::defn :user::defenum-edits
-  [ch <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [irtl (:user::find-kw-index ch ":RequestTooLarge")
-     irm  (:user::find-kw-index ch ":RequestMalformed")]
-    (:wat::core::if
-      (:wat::core::if (:wat::core::>= irtl 0) (:wat::core::< irm 0) false)
-      (:wat::core::let
-        [kw (:wat::core::Option/expect (:wat::core::get ch irtl) "rtl kw")
-         fv (:wat::core::Option/expect (:wat::core::get ch (:wat::core::+ irtl 1)) "rtl fields")]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
+(wat.core/defn user/defenum-edits
+  [ch :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [irtl (user/find-kw-index ch ":RequestTooLarge")
+     irm  (user/find-kw-index ch ":RequestMalformed")]
+    (wat.core/if
+      (wat.core/if (wat.core/>= irtl 0) (wat.core/< irm 0) false)
+      (wat.core/let
+        [kw (wat.core.Option/expect (wat.core/get ch irtl) "rtl kw")
+         fv (wat.core.Option/expect (wat.core/get ch (wat.core/+ irtl 1)) "rtl fields")]
+        (wat.core/if (wat.core/= (wat.core/ast-kind fv) "vector")
           (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off fv lines) ""
-              (:wat::string::concat "\n"
-                (:wat::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
+            (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (user/end-off fv lines) ""
+              (wat.string/concat "\n"
+                (wat.string/concat (user/spaces (wat.core/- (user/col-of kw) 1))
                   ":RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String]"))))
-          (:user::no-edits)))
-      (:user::no-edits))))
+          (user/no-edits)))
+      (user/no-edits))))
 
 ;; ── (b) the CALLER match arm ─────────────────────────────────────────────────
 ;; arm-head-kw — for an arm node `((:T::Variant a b) BODY)`, the pattern's head keyword name
 ;; (""  when the arm is not that shape: a bare-keyword pattern, a `_` wildcard, a body-less arm).
-(:wat::core::defn :user::arm-head-kw [arm <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "list")
-    (:wat::core::let [ach (:wat::core::ast->children arm)]
-      (:wat::core::if (:wat::core::< (:wat::core::length ach) 2)
+(wat.core/defn user/arm-head-kw [arm :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind arm) "list")
+    (wat.core/let [ach (wat.core/ast->children arm)]
+      (wat.core/if (wat.core/< (wat.core/length ach) 2)
         ""
-        (:wat::core::let [pat (:wat::core::first ach)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind pat) "list")
-            (:wat::core::let [pch (:wat::core::ast->children pat)]
-              (:wat::core::if (:wat::core::empty? pch)
+        (wat.core/let [pat (wat.core/first ach)]
+          (wat.core/if (wat.core/= (wat.core/ast-kind pat) "list")
+            (wat.core/let [pch (wat.core/ast->children pat)]
+              (wat.core/if (wat.core/empty? pch)
                 ""
-                (:user::kw-name (:wat::core::first pch))))
+                (user/kw-name (wat.core/first pch))))
             ""))))
     ""))
 
 ;; rm-arm-body — BODY' for the synthesized `::RequestMalformed` arm, decided from the
 ;; `::RequestTooLarge` arm's own body (see the header's two families).
-(:wat::core::defn :user::rm-arm-body [arm <- wat.type/AST] -> wat.type/String
-  (:wat::core::let
-    [ach  (:wat::core::ast->children arm)
-     body (:wat::core::Option/expect (:wat::core::get ach 1) "rtl arm body")
-     bhd  (:wat::core::if (:wat::core::= (:wat::core::ast-kind body) "list")
-            (:wat::core::let [bch (:wat::core::ast->children body)]
-              (:wat::core::if (:wat::core::empty? bch) "" (:user::kw-name (:wat::core::first bch))))
+(wat.core/defn user/rm-arm-body [arm :- wat.type/AST] :- wat.type/String
+  (wat.core/let
+    [ach  (wat.core/ast->children arm)
+     body (wat.core.Option/expect (wat.core/get ach 1) "rtl arm body")
+     bhd  (wat.core/if (wat.core/= (wat.core/ast-kind body) "list")
+            (wat.core/let [bch (wat.core/ast->children body)]
+              (wat.core/if (wat.core/empty? bch) "" (user/kw-name (wat.core/first bch))))
             "")]
-    (:wat::core::if (:user::ends-with? bhd "::RequestTooLarge")
-      (:wat::string::concat "(" (:wat::string::concat (:user::rtl->rm bhd)
+    (wat.core/if (user/ends-with? bhd "::RequestTooLarge")
+      (wat.string/concat "(" (wat.string/concat (user/rtl->rm bhd)
         " mpath mexpected mgot)"))
       "(:wat::kernel::assertion-failed! \"unexpected RequestMalformed\" :wat::core::None :wat::core::None)")))
 
 ;; find-rtl-arm — index of the first arm whose pattern head ends in `::RequestTooLarge`; -1 if none.
 ;; has-rm-arm? — whether some arm already faces `::RequestMalformed` (the idempotency gate).
-(:wat::core::defn :user::find-arm-suffix
-  [ch <- (wat.type/Vector :- [wat.type/AST])  suf <- wat.type/String] -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/i64  i <- wat.type/i64] -> wat.type/i64
-      (:wat::core::if (:wat::core::>= acc 0)
+(wat.core/defn user/find-arm-suffix
+  [ch :- (wat.type/Vector :- [wat.type/AST])  suf :- wat.type/String] :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/i64  i :- wat.type/i64] :- wat.type/i64
+      (wat.core/if (wat.core/>= acc 0)
         acc
-        (:wat::core::if
-          (:user::ends-with? (:user::arm-head-kw (:wat::core::Option/expect (:wat::core::get ch i) "arm")) suf)
+        (wat.core/if
+          (user/ends-with? (user/arm-head-kw (wat.core.Option/expect (wat.core/get ch i) "arm")) suf)
           i
           acc)))
-    (:wat::core::- 0 1)
-    (:wat::core::range 0 (:wat::core::length ch))))
+    (wat.core/- 0 1)
+    (wat.core/range 0 (wat.core/length ch))))
 
-(:wat::core::defn :user::match-edits
-  [ch <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [irtl (:user::find-arm-suffix ch "::RequestTooLarge")
-     irm  (:user::find-arm-suffix ch "::RequestMalformed")]
-    (:wat::core::if
-      (:wat::core::if (:wat::core::>= irtl 0) (:wat::core::< irm 0) false)
-      (:wat::core::let
-        [arm  (:wat::core::Option/expect (:wat::core::get ch irtl) "rtl arm")
-         head (:user::arm-head-kw arm)
-         ind  (:wat::core::- (:user::col-of arm) 1)]
+(wat.core/defn user/match-edits
+  [ch :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [irtl (user/find-arm-suffix ch "::RequestTooLarge")
+     irm  (user/find-arm-suffix ch "::RequestMalformed")]
+    (wat.core/if
+      (wat.core/if (wat.core/>= irtl 0) (wat.core/< irm 0) false)
+      (wat.core/let
+        [arm  (wat.core.Option/expect (wat.core/get ch irtl) "rtl arm")
+         head (user/arm-head-kw arm)
+         ind  (wat.core/- (user/col-of arm) 1)]
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off arm lines) ""
-            (:wat::string::concat "\n"
-              (:wat::string::concat (:user::spaces ind)
-                (:wat::string::concat "((" (:wat::string::concat (:user::rtl->rm head)
-                  (:wat::string::concat " mpath mexpected mgot)\n"
-                    (:wat::string::concat (:user::spaces (:wat::core::+ ind 2))
-                      (:wat::string::concat (:user::rm-arm-body arm) ")"))))))))))
-      (:user::no-edits))))
+          (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (user/end-off arm lines) ""
+            (wat.string/concat "\n"
+              (wat.string/concat (user/spaces ind)
+                (wat.string/concat "((" (wat.string/concat (user/rtl->rm head)
+                  (wat.string/concat " mpath mexpected mgot)\n"
+                    (wat.string/concat (user/spaces (wat.core/+ ind 2))
+                      (wat.string/concat (user/rm-arm-body arm) ")"))))))))))
+      (user/no-edits))))
 
 ;; ── walk ─────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::node-edits
-  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
-        (:user::no-edits)
-        (:wat::core::let
-          [hname (:user::kw-name (:wat::core::first ch))
-           this  (:wat::core::if (:wat::core::= hname ":wat::core::defenum")
-                   (:user::defenum-edits ch lines)
-                   (:wat::core::if (:wat::core::= hname ":wat::core::match")
-                     (:user::match-edits ch lines)
-                     (:user::no-edits)))]
-          (:wat::core::concat this (:user::seq-edits ch lines)))))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::seq-edits (:wat::core::ast->children node) lines)
-      (:user::no-edits))))
+(wat.core/defn user/node-edits
+  [node :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
+        (user/no-edits)
+        (wat.core/let
+          [hname (user/kw-name (wat.core/first ch))
+           this  (wat.core/if (wat.core/= hname ":wat::core::defenum")
+                   (user/defenum-edits ch lines)
+                   (wat.core/if (wat.core/= hname ":wat::core::match")
+                     (user/match-edits ch lines)
+                     (user/no-edits)))]
+          (wat.core/concat this (user/seq-edits ch lines)))))
+    (wat.core/if (wat.fix/structural? node)
+      (user/seq-edits (wat.core/ast->children node) lines)
+      (user/no-edits))))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-                     it  <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
-    (:user::no-edits)
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+                     it  :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it lines)))
+    (user/no-edits)
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
-     eds   (:user::seq-edits forms lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     forms (wat.core/ast->children (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))
+     eds   (user/seq-edits forms lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[mandate-request-malformed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[mandate-request-malformed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

@@ -5,8 +5,8 @@
 ;; String via format!(). S7 makes `reason` a structural enum, so the EDN :reason becomes
 ;; #wat.kernel/ArgTypeMismatch {:arg-type "…" :clause-return-type "…"} instead of a String.
 ;; startup MUST fail (check error).
-(:wat::core::defclause :my::bad
-  ([x <- wat.type/i64] -> wat.type/i64
-    :ensure (:wat::core::fn [result <- wat.type/String] -> wat.type/bool
-              (:wat::i64::> 1 0))
+(wat.core/defclause my/bad
+  ([x :- wat.type/i64] :- wat.type/i64
+    :ensure (wat.core/fn [result :- wat.type/String] :- wat.type/bool
+              (wat.i64/> 1 0))
     x))

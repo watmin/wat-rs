@@ -4,7 +4,7 @@
 (wat.core/defrecord my.Journal/Req [k :- wat.type/i64])
 (wat.core/defn user/clj [req :- my.Journal/Req] :- my.Journal/Req
   req)
-(:wat::core::defn :user::colon [req <- :my::Journal::Req] -> :my::Journal::Req
+(wat.core/defn user/colon [req :- my.Journal/Req] :- my.Journal/Req
   req)
 (wat.core/defn user/member [] :- wat.type/i64
-  (wat.core.Option/expect (:wat::core::Option.Some {:value 7}) "missing"))
+  (wat.core.Option/expect (wat.core/Option.Some {:value 7}) "missing"))

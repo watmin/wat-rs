@@ -1,9 +1,9 @@
 ;; uuid_edn_write_reader_literal.wat — edn::write produces #uuid "..." (44 chars).
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [u        (:wat::uuid::v4)
-     edn-form (:wat::edn::write u)
-     len      (:wat::string::length edn-form)]
-    (:wat::core::if (:wat::core::= len 44) 
-      (:wat::kernel::println "EDN-LEN-OK")
-      (:wat::kernel::println "EDN-LEN-FAIL"))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [u        (wat.uuid/v4)
+     edn-form (wat.edn/write u)
+     len      (wat.string/length edn-form)]
+    (wat.core/if (wat.core/= len 44) 
+      (wat.kernel/println "EDN-LEN-OK")
+      (wat.kernel/println "EDN-LEN-FAIL"))))

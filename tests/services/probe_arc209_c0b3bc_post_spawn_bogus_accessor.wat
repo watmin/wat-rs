@@ -1,23 +1,23 @@
 ;; Proof 3 (NEGATIVE): the hook's record accessors type-check at parse time.
 ;; ProcessLaunch has no field `bogus-field` — startup must fail naming it.
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [bound (:wat::kernel::listener (:wat::spawn::thread) wat.type/i64 wat.type/i64)
-     addr  (:wat::spawn::Bound/address bound)
-     tx    (:wat::core::match (:wat::kernel::connect addr)
-             [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-             [:wat::kernel::ConnectOutcome.Closed {:cause _c}
-               (:wat::kernel::assertion-failed! :message "connect': refused binding the hook channel")]
-             [:wat::kernel::ConnectOutcome.Undialable {:cause _c}
-               (:wat::kernel::assertion-failed! :message "connect': rejected binding the hook channel")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause _c}
-               (:wat::kernel::assertion-failed! :message "connect': rejected binding the hook channel")]
-             [:wat::kernel::ConnectOutcome.Failed {:cause _c}
-               (:wat::kernel::assertion-failed! :message "connect': failed binding the hook channel")])
-     _proc (:wat::test::spawn-peer
-             (:wat::spawn::process::post-spawn
-               (:wat::core::fn [launch <- :wat::spawn::ProcessLaunch] -> wat.type/nil
-                 (:wat::core::let [_ (:wat::core::match (:wat::kernel::send tx (:wat::spawn::ProcessLaunch/bogus-field launch)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [bound (wat.kernel/listener (wat.spawn/thread) wat.type/i64 wat.type/i64)
+     addr  (wat.spawn.Bound/address bound)
+     tx    (wat.core/match (wat.kernel/connect addr)
+             [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+             [wat.kernel/ConnectOutcome.Closed {:cause _c}
+               (wat.kernel/assertion-failed! :message "connect': refused binding the hook channel")]
+             [wat.kernel/ConnectOutcome.Undialable {:cause _c}
+               (wat.kernel/assertion-failed! :message "connect': rejected binding the hook channel")] [wat.kernel/ConnectOutcome.WrongPeer {:cause _c}
+               (wat.kernel/assertion-failed! :message "connect': rejected binding the hook channel")]
+             [wat.kernel/ConnectOutcome.Failed {:cause _c}
+               (wat.kernel/assertion-failed! :message "connect': failed binding the hook channel")])
+     _proc (wat.test/spawn-peer
+             (wat.spawn.process/post-spawn
+               (wat.core/fn [launch :- wat.spawn/ProcessLaunch] :- wat.type/nil
+                 (wat.core/let [_ (wat.core/match (wat.kernel/send tx (wat.spawn.ProcessLaunch/bogus-field launch)) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
                    nil)))
-             (:wat::core::forms
-               (:wat::core::defn :user::main [] -> wat.type/nil (:wat::kernel::println "spawned child"))))]
+             (wat.core/forms
+               (wat.core/defn user/main [] :- wat.type/nil (wat.kernel/println "spawned child"))))]
     0))

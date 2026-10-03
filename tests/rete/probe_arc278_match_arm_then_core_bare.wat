@@ -19,46 +19,46 @@
 ;; NOT `.wat.bad`: that convention is "expected to fail to LOAD" and this file now loads clean — the
 ;; freeze wall is exactly what stopped lying. The refusal has moved to `compile-all`, at run time.
 
-(:wat::core::defenum :mac::E :wat::enum::Pure :A :B)
+(wat.core/defenum mac/E wat.enum/Pure :A :B)
 
-(:wat::core::defrecord :mac::In  [k <- wat.type/i64  v <- :mac::E])
-(:wat::core::defrecord :mac::Out [k <- wat.type/i64  ok <- wat.type/bool])
+(wat.core/defrecord mac/In  [k :- wat.type/i64  v :- mac/E])
+(wat.core/defrecord mac/Out [k :- wat.type/i64  ok :- wat.type/bool])
 
-(:wat::rete::defrule :mac::r
-  :when [(:mac::In (?k :- :k) (?v :- :v))]
-  :then [(:mac::Out :k ?k :ok (:wat::core::match ?v [:mac::E.A {} true] [:mac::E.B {} false]))])
+(wat.rete/defrule mac/r
+  :when [(mac/In (?k :- :k) (?v :- :v))]
+  :then [(mac/Out :k ?k :ok (wat.core/match ?v [mac/E.A {} true] [mac/E.B {} false]))])
 
-(:wat::rete::defquery :mac::by-ok
+(wat.rete/defquery mac/by-ok
   :params [?ok]
-  :when [(:mac::Out (?ok :- :ok) (?k :- :k))])
+  :when [(mac/Out (?ok :- :ok) (?k :- :k))])
 
-(:wat::core::defn :mac::world [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules
-    (:wat::core::match (:wat::rete::insert
-      (:wat::core::match (:wat::rete::compile-all
-                           (wat.type/PersistentVector :- [:wat::rete::Rule] (:mac::r))
-                           (wat.type/PersistentVector :- [:wat::rete::Query] (:mac::by-ok)))
-        [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-        [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-          (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-      (:mac::In :k 1 :v :mac::E.A)
-      (:mac::In :k 2 :v :mac::E.B)
-      (:mac::In :k 3 :v :mac::E.A))
-      [:wat::rete::InsertOutcome.Inserted {:session __st} __st]
-      [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
-        (:wat::kernel::assertion-failed! :message "insert: ceiling")])
+(wat.core/defn mac/world [] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules
+    (wat.core/match (wat.rete/insert
+      (wat.core/match (wat.rete/compile-all
+                           (wat.type/PersistentVector :- [wat.rete/Rule] (mac/r))
+                           (wat.type/PersistentVector :- [wat.rete/Query] (mac/by-ok)))
+        [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+        [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+          (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+      (mac/In :k 1 :v mac/E.A)
+      (mac/In :k 2 :v mac/E.B)
+      (mac/In :k 3 :v mac/E.A))
+      [wat.rete/InsertOutcome.Inserted {:session __st} __st]
+      [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
+        (wat.kernel/assertion-failed! :message "insert: ceiling")])
     )
-    [:wat::rete::FireOutcome.Fired {:value __f} __f]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
-      (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-      (:wat::kernel::assertion-failed! :message "fire: round cap")]))
+    [wat.rete/FireOutcome.Fired {:value __f} __f]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
+      (wat.kernel/assertion-failed! :message "fire: ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+      (wat.kernel/assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [w (:mac::world)]
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::string::concat "true=" (:wat::i64::to-string
-          (:wat::core::length (:wat::rete::query w (:mac::by-ok) :?ok true))))
-        (:wat::string::concat " false=" (:wat::i64::to-string
-          (:wat::core::length (:wat::rete::query w (:mac::by-ok) :?ok false))))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [w (mac/world)]
+    (wat.kernel/println
+      (wat.string/concat
+        (wat.string/concat "true=" (wat.i64/to-string
+          (wat.core/length (wat.rete/query w (mac/by-ok) :?ok true))))
+        (wat.string/concat " false=" (wat.i64/to-string
+          (wat.core/length (wat.rete/query w (mac/by-ok) :?ok false))))))))

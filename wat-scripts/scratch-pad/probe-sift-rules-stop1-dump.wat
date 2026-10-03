@@ -13,48 +13,48 @@
 ;; compile time. So the armed check cannot see them; minting `EchoResponse` here is table-driven
 ;; correctness (matching the surrounding convention), not something the check independently
 ;; confirms for this file.
-(:wat::core::defmacro :probe::just-surface2
-  [def-form <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::defsurface :probe::Bare2 :nature :wat::kernel::Peer
+(wat.core/defmacro probe/just-surface2
+  [def-form :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/defsurface probe/Bare2 :nature wat.kernel/Peer
      :messages
      [~def-form
-      (:wat::core::defrecord :probe::Bare2::EchoRequest [c <- wat.type/i64])
-      (:wat::core::defenum :probe::Bare2::EchoResponse :wat::enum::Pure
-        :Ok               [c <- wat.type/i64]
-        :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-        :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+      (wat.core/defrecord probe.Bare2/EchoRequest [c :- wat.type/i64])
+      (wat.core/defenum probe.Bare2/EchoResponse wat.enum/Pure
+        :Ok               [c :- wat.type/i64]
+        :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+        :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
      :features
-     [(echo [self <- :probe::Bare2 req <- :probe::Bare2::EchoRequest] -> :probe::Bare2::EchoResponse :max-request-bytes 524288)]))
+     [(echo [self :- probe/Bare2 req :- probe.Bare2/EchoRequest] :- probe.Bare2/EchoResponse :max-request-bytes 524288)]))
 
-(:wat::core::defmacro :probe::wrapped-surface
-  [def-form <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::do
-     (:wat::core::defsurface :probe::Wrapped :nature :wat::kernel::Peer
+(wat.core/defmacro probe/wrapped-surface
+  [def-form :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/do
+     (wat.core/defsurface probe/Wrapped :nature wat.kernel/Peer
        :messages
        [~def-form
-        (:wat::core::defrecord :probe::Wrapped::EchoRequest [c <- wat.type/i64])
-        (:wat::core::defenum :probe::Wrapped::EchoResponse :wat::enum::Pure
-          :Ok               [c <- wat.type/i64]
-          :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-          :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+        (wat.core/defrecord probe.Wrapped/EchoRequest [c :- wat.type/i64])
+        (wat.core/defenum probe.Wrapped/EchoResponse wat.enum/Pure
+          :Ok               [c :- wat.type/i64]
+          :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+          :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
        :features
-       [(echo [self <- :probe::Wrapped req <- :probe::Wrapped::EchoRequest] -> :probe::Wrapped::EchoResponse :max-request-bytes 524288)])
-     (:wat::service::defservice :probe::wrappedsvc
-       :satisfies :probe::Wrapped
+       [(echo [self :- probe/Wrapped req :- probe.Wrapped/EchoRequest] :- probe.Wrapped/EchoResponse :max-request-bytes 524288)])
+     (wat.service/defservice probe/wrappedsvc
+       :satisfies probe/Wrapped
        :durable []
        :impls
-       [(echo [s req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Wrapped::EchoResponse::Ok {:c (:probe::Wrapped::EchoRequest/c req)})}))])))
+       [(echo [s req] (wat.service/Outcome.Reply {:state s :reply (probe.Wrapped.EchoResponse/Ok {:c (probe.Wrapped.EchoRequest/c req)})}))])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [bare-form    (:wat::core::quote (:probe::just-surface2 (:wat::core::defrecord :probe::M1 [x <- wat.type/i64])))
-     wrapped-form (:wat::core::quote (:probe::wrapped-surface (:wat::core::defrecord :probe::M2 [x <- wat.type/i64])))
-     bare-exp     (:wat::core::macroexpand bare-form)
-     wrapped-exp  (:wat::core::macroexpand wrapped-form)]
-    (:wat::core::do
-      (:wat::kernel::println "==== BARE (defsurface-only) EXPANSION ====")
-      (:wat::kernel::println (:wat::core::ast->source bare-exp))
-      (:wat::kernel::println "==== WRAPPED (do [defsurface defservice]) EXPANSION ====")
-      (:wat::kernel::println (:wat::core::ast->source wrapped-exp)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [bare-form    (wat.core/quote (probe/just-surface2 (wat.core/defrecord probe/M1 [x :- wat.type/i64])))
+     wrapped-form (wat.core/quote (probe/wrapped-surface (wat.core/defrecord probe/M2 [x :- wat.type/i64])))
+     bare-exp     (wat.core/macroexpand bare-form)
+     wrapped-exp  (wat.core/macroexpand wrapped-form)]
+    (wat.core/do
+      (wat.kernel/println "==== BARE (defsurface-only) EXPANSION ====")
+      (wat.kernel/println (wat.core/ast->source bare-exp))
+      (wat.kernel/println "==== WRAPPED (do [defsurface defservice]) EXPANSION ====")
+      (wat.kernel/println (wat.core/ast->source wrapped-exp)))))

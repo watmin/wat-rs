@@ -4,32 +4,32 @@
 ;; Spec is the oracle. Native is the user path. They must agree. Clara
 ;; where-join-order rows 5–6 are this chain (Test → HashJoin → Test).
 
-(:wat::core::defrecord :tw::Temp [c <- wat.type/i64 loc <- wat.type/String])
-(:wat::core::defrecord :tw::Wind [kph <- wat.type/i64 loc <- wat.type/String])
-(:wat::core::defrecord :tw::ColdWindy [loc <- wat.type/String])
+(wat.core/defrecord tw/Temp [c :- wat.type/i64 loc :- wat.type/String])
+(wat.core/defrecord tw/Wind [kph :- wat.type/i64 loc :- wat.type/String])
+(wat.core/defrecord tw/ColdWindy [loc :- wat.type/String])
 
-(:wat::rete::defrule :tw::cold-and-windy
-  :when [(:tw::Temp (?loc :- :loc) (?c :- :c) (:wat::rete::i64::< ?c 20))
-         (:tw::Wind (?loc :- :loc) (?k :- :kph) (:wat::rete::i64::> ?k 30))]
-  :then [(:tw::ColdWindy :loc ?loc)])
+(wat.rete/defrule tw/cold-and-windy
+  :when [(tw/Temp (?loc :- :loc) (?c :- :c) (wat.rete.i64/< ?c 20))
+         (tw/Wind (?loc :- :loc) (?k :- :kph) (wat.rete.i64/> ?k 30))]
+  :then [(tw/ColdWindy :loc ?loc)])
 
-(:wat::rete::defquery :tw::q-ColdWindy
+(wat.rete/defquery tw/q-ColdWindy
   :params []
-  :when [(?fact :- :tw::ColdWindy)])
+  :when [(?fact :- tw/ColdWindy)])
 
 
-(:wat::core::defn :user::stage [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :tw) (wat.type/PersistentVector :- [:wat::rete::Query] (:tw::q-ColdWindy))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-    (:tw::Temp :c 5 :loc "oslo")
-    (:tw::Wind :kph 40 :loc "oslo")
-    (:tw::Temp :c 22 :loc "rome")
-    (:tw::Wind :kph 35 :loc "rome")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn user/stage [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :tw) (wat.type/PersistentVector :- [wat.rete/Query] (tw/q-ColdWindy))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+    (tw/Temp :c 5 :loc "oslo")
+    (tw/Wind :kph 40 :loc "oslo")
+    (tw/Temp :c 22 :loc "rome")
+    (tw/Wind :kph 35 :loc "rome")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::native-count [] -> wat.type/i64
-  (:wat::core::length
-    (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules (:user::stage)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:tw::q-ColdWindy))))
+(wat.core/defn user/native-count [] :- wat.type/i64
+  (wat.core/length
+    (wat.rete/query (wat.core/match (wat.rete/fire-rules (user/stage)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (tw/q-ColdWindy))))
 
-(:wat::core::defn :user::spec-count [] -> wat.type/i64
-  (:wat::core::length
-    (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules$oracle (:user::stage)) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:tw::q-ColdWindy))))
+(wat.core/defn user/spec-count [] :- wat.type/i64
+  (wat.core/length
+    (wat.rete/query (wat.core/match (wat.rete/fire-rules$oracle (user/stage)) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (tw/q-ColdWindy))))

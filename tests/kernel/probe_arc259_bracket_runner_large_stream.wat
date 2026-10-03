@@ -1,28 +1,28 @@
 ;; Co-located fixture for probe_arc259_bracket_runner.rs — runner_handles_a_large_stream.
 ;; 300-item stream: TCO proof (work-fn x*2; driver sends 1..=300; sum 2*(1+...+300)=90300).
 
-(:wat::core::defn :user::drive
-    [peer <- (:wat::kernel::Thread :- [wat.type/i64 wat.type/i64])
-     n    <- wat.type/i64
-     acc  <- wat.type/i64] -> wat.type/i64
-   (:wat::core::if (:wat::core::= n 0)
+(wat.core/defn user/drive
+    [peer :- (wat.kernel/Thread :- [wat.type/i64 wat.type/i64])
+     n    :- wat.type/i64
+     acc  :- wat.type/i64] :- wat.type/i64
+   (wat.core/if (wat.core/= n 0)
      acc
-     (:wat::core::let [_   (:wat::core::match (:wat::kernel::send peer n) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil] [:wat::kernel::SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget stream item; outcome ignored uniformly regardless of cause
-                       res (:wat::core::match (:wat::kernel::recv peer)
-                             [:wat::kernel::RecvOutcome.Message {:msg m} m]
-                             [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                               (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                             [:wat::kernel::RecvOutcome.Stopped {}
-                               (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-                             [:wat::kernel::RecvOutcome.Closed {}
-                               (:wat::kernel::assertion-failed! :message "recv': peer closed mid-stream")])]
-       (:user::drive peer (:wat::core::- n 1) (:wat::core::+ acc res)))))
+     (wat.core/let [_   (wat.core/match (wat.kernel/send peer n) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil] [wat.kernel/SendOutcome.Stopped {} nil]) ;; arc 278 #73 — fire-and-forget stream item; outcome ignored uniformly regardless of cause
+                       res (wat.core/match (wat.kernel/recv peer)
+                             [wat.kernel/RecvOutcome.Message {:msg m} m]
+                             [wat.kernel/RecvOutcome.Lost {:cause cause}
+                               (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+                             [wat.kernel/RecvOutcome.Stopped {}
+                               (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+                             [wat.kernel/RecvOutcome.Closed {}
+                               (wat.kernel/assertion-failed! :message "recv': peer closed mid-stream")])]
+       (user/drive peer (wat.core/- n 1) (wat.core/+ acc res)))))
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-   (:wat::core::let
-     [peer (:wat::test::spawn-peer (:wat::spawn::thread)
-                     (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
-                       (:wat::bracket::runner-loop self
-                         (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::core::* x 2)))))]
-     (:user::drive peer 300 0)))
+(wat.core/defn user/compute [] :- wat.type/i64
+   (wat.core/let
+     [peer (wat.test/spawn-peer (wat.spawn/thread)
+                     (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
+                       (wat.bracket/runner-loop self
+                         (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.core/* x 2)))))]
+     (user/drive peer 300 0)))
 

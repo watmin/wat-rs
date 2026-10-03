@@ -5,9 +5,9 @@
 ;; which is the actual call every `(into (PersistentVector) stream)` / rete.wat site makes.
 ;; PASS = prints 200000 without a SIGSEGV. Scratch, per CLAUDE.md.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n   200000
-     s   (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x) (:wat::core::range 0 n))
-     out (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) s)]
-    (:wat::kernel::println (:wat::core::length out))))
+     s   (wat.core/map (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x) (wat.core/range 0 n))
+     out (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) s)]
+    (wat.kernel/println (wat.core/length out))))

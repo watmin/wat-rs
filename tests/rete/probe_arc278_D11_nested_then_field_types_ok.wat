@@ -31,73 +31,73 @@
 ;; the fence forbids. Reported, not routed around: no attempt made to rephrase okF via
 ;; `:wat::rete::core::variant-name` or a `:when`-bound match, since either would test the FENCE,
 ;; not D11.
-(:wat::core::defenum :d11o::E :wat::enum::Pure :A :B)
+(wat.core/defenum d11o/E wat.enum/Pure :A :B)
 
-(:wat::core::defrecord :d11o::In    [k <- wat.type/i64  s <- wat.type/String  v <- :d11o::E])
-(:wat::core::defrecord :d11o::Inner [n <- wat.type/i64])
-(:wat::core::defrecord :d11o::One   [n <- wat.type/i64])
-(:wat::core::defrecord :d11o::Mid   [i <- :d11o::Inner])
+(wat.core/defrecord d11o/In    [k :- wat.type/i64  s :- wat.type/String  v :- d11o/E])
+(wat.core/defrecord d11o/Inner [n :- wat.type/i64])
+(wat.core/defrecord d11o/One   [n :- wat.type/i64])
+(wat.core/defrecord d11o/Mid   [i :- d11o/Inner])
 
-(:wat::core::defrecord :d11o::OutA [i <- :d11o::Inner])
-(:wat::core::defrecord :d11o::OutB [i <- :d11o::Inner])
-(:wat::core::defrecord :d11o::OutC [i <- :d11o::Inner])
-(:wat::core::defrecord :d11o::OutD [o <- :d11o::One])
-(:wat::core::defrecord :d11o::OutE [m <- :d11o::Mid])
+(wat.core/defrecord d11o/OutA [i :- d11o/Inner])
+(wat.core/defrecord d11o/OutB [i :- d11o/Inner])
+(wat.core/defrecord d11o/OutC [i :- d11o/Inner])
+(wat.core/defrecord d11o/OutD [o :- d11o/One])
+(wat.core/defrecord d11o/OutE [m :- d11o/Mid])
 
-(:wat::rete::defrule :d11o::okA
-  :when [(:d11o::In (?k :- :k))]
-  :then [(:d11o::OutA :i (:d11o::Inner :n ?k))])
+(wat.rete/defrule d11o/okA
+  :when [(d11o/In (?k :- :k))]
+  :then [(d11o/OutA :i (d11o/Inner :n ?k))])
 
-(:wat::rete::defrule :d11o::okB
-  :when [(:d11o::In (?k :- :k))]
-  :then [(:d11o::OutB :i (:d11o::Inner :n 42))])
+(wat.rete/defrule d11o/okB
+  :when [(d11o/In (?k :- :k))]
+  :then [(d11o/OutB :i (d11o/Inner :n 42))])
 
-(:wat::rete::defrule :d11o::okC
-  :when [(:d11o::In (?k :- :k))]
-  :then [(:d11o::OutC :i (:d11o::Inner :n (:wat::rete::i64::+ ?k 1 :undefined 0)))])
+(wat.rete/defrule d11o/okC
+  :when [(d11o/In (?k :- :k))]
+  :then [(d11o/OutC :i (d11o/Inner :n (wat.rete.i64/+ ?k 1 :undefined 0)))])
 
-(:wat::rete::defrule :d11o::okD
-  :when [(:d11o::In (?k :- :k))]
-  :then [(:d11o::OutD :o (:d11o::One ?k))])
+(wat.rete/defrule d11o/okD
+  :when [(d11o/In (?k :- :k))]
+  :then [(d11o/OutD :o (d11o/One ?k))])
 
-(:wat::rete::defrule :d11o::okE
-  :when [(:d11o::In (?k :- :k))]
-  :then [(:d11o::OutE :m (:d11o::Mid :i (:d11o::Inner :n ?k)))])
+(wat.rete/defrule d11o/okE
+  :when [(d11o/In (?k :- :k))]
+  :then [(d11o/OutE :m (d11o/Mid :i (d11o/Inner :n ?k)))])
 
-(:wat::rete::defquery :d11o::qa :params [] :when [(?f :- :d11o::OutA)])
-(:wat::rete::defquery :d11o::qb :params [] :when [(?f :- :d11o::OutB)])
-(:wat::rete::defquery :d11o::qc :params [] :when [(?f :- :d11o::OutC)])
-(:wat::rete::defquery :d11o::qd :params [] :when [(?f :- :d11o::OutD)])
-(:wat::rete::defquery :d11o::qe :params [] :when [(?f :- :d11o::OutE)])
+(wat.rete/defquery d11o/qa :params [] :when [(?f :- d11o/OutA)])
+(wat.rete/defquery d11o/qb :params [] :when [(?f :- d11o/OutB)])
+(wat.rete/defquery d11o/qc :params [] :when [(?f :- d11o/OutC)])
+(wat.rete/defquery d11o/qd :params [] :when [(?f :- d11o/OutD)])
+(wat.rete/defquery d11o/qe :params [] :when [(?f :- d11o/OutE)])
 
-(:wat::core::defn :d11o::fired [] -> :wat::rete::Session
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d11o)
-          (wat.type/PersistentVector :- [:wat::rete::Query] (:d11o::qa) (:d11o::qb) (:d11o::qc) (:d11o::qd) (:d11o::qe)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:d11o::In :k 7 :s "seed" :v :d11o::E.A))
-          [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (:wat::kernel::assertion-failed! :message "insert: ceiling")])]
-    (:wat::core::match (:wat::rete::fire-rules s1)
-      [:wat::rete::FireOutcome.Fired {:value __f} __f]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (:wat::kernel::assertion-failed! :message "fire: round cap")])))
+(wat.core/defn d11o/fired [] :- wat.rete/Session
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :d11o)
+          (wat.type/PersistentVector :- [wat.rete/Query] (d11o/qa) (d11o/qb) (d11o/qc) (d11o/qd) (d11o/qe)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+     s1 (wat.core/match (wat.rete/insert s0 (d11o/In :k 7 :s "seed" :v d11o/E.A))
+          [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c} (wat.kernel/assertion-failed! :message "insert: ceiling")])]
+    (wat.core/match (wat.rete/fire-rules s1)
+      [wat.rete/FireOutcome.Fired {:value __f} __f]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __a :used __b :rounds __c} (wat.kernel/assertion-failed! :message "fire: ceiling")]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap __a :still-deriving __b} (wat.kernel/assertion-failed! :message "fire: round cap")])))
 
-(:wat::core::defn :d11o::one [s <- :wat::rete::Session  q <- :wat::rete::Query] -> wat.type/PersistentMap
-  (:wat::core::first (:wat::rete::query s q)))
+(wat.core/defn d11o/one [s :- wat.rete/Session  q :- wat.rete/Query] :- wat.type/PersistentMap
+  (wat.core/first (wat.rete/query s q)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [s  (:d11o::fired)
-     fa (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qa)) "?f") "okA")
-     fb (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qb)) "?f") "okB")
-     fc (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qc)) "?f") "okC")
-     fd (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qd)) "?f") "okD")
-     fe (:wat::core::Option/expect (:wat::core::get (:d11o::one s (:d11o::qe)) "?f") "okE")]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::OutA/i fa))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::OutB/i fb))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::OutC/i fc))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::One/n (:d11o::OutD/o fd))))
-      (:wat::kernel::println (:wat::core::format "{v}" :v (:d11o::Inner/n (:d11o::Mid/i (:d11o::OutE/m fe))))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [s  (d11o/fired)
+     fa (wat.core.Option/expect (wat.core/get (d11o/one s (d11o/qa)) "?f") "okA")
+     fb (wat.core.Option/expect (wat.core/get (d11o/one s (d11o/qb)) "?f") "okB")
+     fc (wat.core.Option/expect (wat.core/get (d11o/one s (d11o/qc)) "?f") "okC")
+     fd (wat.core.Option/expect (wat.core/get (d11o/one s (d11o/qd)) "?f") "okD")
+     fe (wat.core.Option/expect (wat.core/get (d11o/one s (d11o/qe)) "?f") "okE")]
+    (wat.core/do
+      (wat.kernel/println (wat.core/format "{v}" :v (d11o.Inner/n (d11o.OutA/i fa))))
+      (wat.kernel/println (wat.core/format "{v}" :v (d11o.Inner/n (d11o.OutB/i fb))))
+      (wat.kernel/println (wat.core/format "{v}" :v (d11o.Inner/n (d11o.OutC/i fc))))
+      (wat.kernel/println (wat.core/format "{v}" :v (d11o.One/n (d11o.OutD/o fd))))
+      (wat.kernel/println (wat.core/format "{v}" :v (d11o.Inner/n (d11o.Mid/i (d11o.OutE/m fe))))))))

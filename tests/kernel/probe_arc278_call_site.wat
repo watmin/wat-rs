@@ -12,21 +12,21 @@
 ;; GREEN after: startup succeeds; the returned Frame's file/line/symbol are all Some and
 ;; describe the caller (this file, a positive line, and the "probe::here" symbol).
 
-(:wat::core::defn :probe::here [] -> :wat::kernel::Frame
-  (:wat::kernel::call-site))
+(wat.core/defn probe/here [] :- wat.kernel/Frame
+  (wat.kernel/call-site))
 
-(:wat::test::deftest :user::call-site-returns-caller-frame 
-  (:wat::core::let
+(wat.test/deftest user/call-site-returns-caller-frame 
+  (wat.core/let
     ;; Arc 109 — Frame's fields are concrete (non-Option): bare String / i64 /
     ;; String, read directly.
-    [frame     (:probe::here)
-     file      (:wat::kernel::Frame/file frame)
-     line      (:wat::kernel::Frame/line frame)
-     symbol    (:wat::kernel::Frame/symbol frame)
-     file-ok   (:wat::string::contains? file "probe_arc278_call_site")
-     line-ok   (:wat::core::> line 0)
-     symbol-ok (:wat::string::contains? symbol "probe::here")]
-    (:wat::core::do
-      (:wat::test::assert-true file-ok)
-      (:wat::test::assert-true line-ok)
-      (:wat::test::assert-true symbol-ok))))
+    [frame     (probe/here)
+     file      (wat.kernel.Frame/file frame)
+     line      (wat.kernel.Frame/line frame)
+     symbol    (wat.kernel.Frame/symbol frame)
+     file-ok   (wat.string/contains? file "probe_arc278_call_site")
+     line-ok   (wat.core/> line 0)
+     symbol-ok (wat.string/contains? symbol "probe::here")]
+    (wat.core/do
+      (wat.test/assert-true file-ok)
+      (wat.test/assert-true line-ok)
+      (wat.test/assert-true symbol-ok))))

@@ -1,10 +1,10 @@
 ;; Nested cond whose ALIGNED width exceeds 120. Built first (STOP-2).
 ;; Widest test and widest body sit on DIFFERENT clauses: each clause fits
 ;; alone; padding the short tests toward the wide one would not.
-(:wat::core::defn :fix::cond-overflow
-  [k <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::cond
-    ((:wat::core::= k "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") "a")
-    ((:wat::core::= k "short") "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+(wat.core/defn fix/cond-overflow
+  [k :- wat.type/String]
+  :- wat.type/String
+  (wat.core/cond
+    ((wat.core/= k "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") "a")
+    ((wat.core/= k "short") "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
     (:else "c")))

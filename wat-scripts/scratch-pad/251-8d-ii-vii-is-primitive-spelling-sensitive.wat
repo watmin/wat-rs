@@ -15,33 +15,33 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defrecord :p7::R [x <- wat.type/i64])
+(wat.core/defrecord p7/R [x :- wat.type/i64])
 
-(:wat::core::defn :p7::show [label <- wat.type/String  v <- wat.type/bool] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat label " = " (:wat::core::bool::to-string v))))
+(wat.core/defn p7/show [label :- wat.type/String  v :- wat.type/bool] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat label " = " (wat.core.bool/to-string v))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; ── a rete-namespaced structural guard ──
-    (:p7::show "A rete-cond   KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::rete::core::cond (true 1) (:else 2)))))
-    (:p7::show "B rete-cond   SYMBOL " (:wat::rete::primitive? (:wat::core::quote (wat.rete.core/cond (true 1) (:else 2)))))
+    (p7/show "A rete-cond   KEYWORD" (wat.rete/primitive? (wat.core/quote (wat.rete.core/cond (true 1) (:else 2)))))
+    (p7/show "B rete-cond   SYMBOL " (wat.rete/primitive? (wat.core/quote (wat.rete.core/cond (true 1) (:else 2)))))
     ;; ── a rete-namespaced primitive op ──
-    (:p7::show "C rete-i64+   KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::rete::i64::+ 1 2))))
-    (:p7::show "D rete-i64+   SYMBOL " (:wat::rete::primitive? (:wat::core::quote (wat.rete.i64/+ 1 2))))
+    (p7/show "C rete-i64+   KEYWORD" (wat.rete/primitive? (wat.core/quote (wat.rete.i64/+ 1 2))))
+    (p7/show "D rete-i64+   SYMBOL " (wat.rete/primitive? (wat.core/quote (wat.rete.i64/+ 1 2))))
     ;; ── core-spelled COMPUTATION: law A must refuse BOTH ──
-    (:p7::show "E core-i64+   KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::i64::+ 1 2))))
-    (:p7::show "F core-i64+   SYMBOL " (:wat::rete::primitive? (:wat::core::quote (wat.i64/+ 1 2))))
+    (p7/show "E core-i64+   KEYWORD" (wat.rete/primitive? (wat.core/quote (wat.i64/+ 1 2))))
+    (p7/show "F core-i64+   SYMBOL " (wat.rete/primitive? (wat.core/quote (wat.i64/+ 1 2))))
     ;; ── core-spelled STRUCTURAL GUARD: law A must refuse BOTH ──
-    (:p7::show "G core-cond   KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::core::cond (true 1) (:else 2)))))
-    (:p7::show "H core-cond   SYMBOL " (:wat::rete::primitive? (:wat::core::quote (wat.core/cond (true 1) (:else 2)))))
+    (p7/show "G core-cond   KEYWORD" (wat.rete/primitive? (wat.core/quote (wat.core/cond (true 1) (:else 2)))))
+    (p7/show "H core-cond   SYMBOL " (wat.rete/primitive? (wat.core/quote (wat.core/cond (true 1) (:else 2)))))
     ;; ── the DECLARATION-DERIVED construction door, post-lowering (the type is argument 0) ──
-    (:p7::show "I kwargs-ctor KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:wat::core::kwargs-construct :p7::R :x 1))))
-    (:p7::show "J kwargs-ctor SYM-HEAD" (:wat::rete::primitive? (:wat::core::quote (wat.core/kwargs-construct :p7::R :x 1))))
-    (:p7::show "K kwargs-ctor SYM-TYPE" (:wat::rete::primitive? (:wat::core::quote (:wat::core::kwargs-construct p7/R :x 1))))
+    (p7/show "I kwargs-ctor KEYWORD" (wat.rete/primitive? (wat.core/quote (wat.core/kwargs-construct p7/R :x 1))))
+    (p7/show "J kwargs-ctor SYM-HEAD" (wat.rete/primitive? (wat.core/quote (wat.core/kwargs-construct p7/R :x 1))))
+    (p7/show "K kwargs-ctor SYM-TYPE" (wat.rete/primitive? (wat.core/quote (wat.core/kwargs-construct p7/R :x 1))))
     ;; ── the same door, PRE-lowering (the type is the head) ──
-    (:p7::show "L surface-ctor KEYWORD" (:wat::rete::primitive? (:wat::core::quote (:p7::R :x 1))))
-    (:p7::show "M surface-ctor SYMBOL " (:wat::rete::primitive? (:wat::core::quote (p7/R :x 1))))
+    (p7/show "L surface-ctor KEYWORD" (wat.rete/primitive? (wat.core/quote (p7/R :x 1))))
+    (p7/show "M surface-ctor SYMBOL " (wat.rete/primitive? (wat.core/quote (p7/R :x 1))))
     ;; ── TIGHTNESS CONTROL: the verb alone must NOT be enough ──
-    (:p7::show "N kwargs-undeclared   " (:wat::rete::primitive? (:wat::core::quote (:wat::core::kwargs-construct :p7::NotAType :x 1))))
-    (:wat::kernel::println "")))
+    (p7/show "N kwargs-undeclared   " (wat.rete/primitive? (wat.core/quote (wat.core/kwargs-construct p7/NotAType :x 1))))
+    (wat.kernel/println "")))

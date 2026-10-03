@@ -1,103 +1,103 @@
 ;; tests/rete/probe_arc278_4c_retraction.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). Defines the weather records for truth-maintenance tests.
 
-(:wat::core::defrecord :weather::Temperature [celsius  <- wat.type/i64  location <- wat.type/String])
-(:wat::core::defrecord :weather::WindSpeed    [kph      <- wat.type/i64  location <- wat.type/String])
-(:wat::core::defrecord :weather::ColdAndWindy [location <- wat.type/String])
-(:wat::core::defrecord :weather::WeatherAlert [location <- wat.type/String])
+(wat.core/defrecord weather/Temperature [celsius  :- wat.type/i64  location :- wat.type/String])
+(wat.core/defrecord weather/WindSpeed    [kph      :- wat.type/i64  location :- wat.type/String])
+(wat.core/defrecord weather/ColdAndWindy [location :- wat.type/String])
+(wat.core/defrecord weather/WeatherAlert [location :- wat.type/String])
 
-(:wat::rete::defquery :weather::q-ColdAndWindy
+(wat.rete/defquery weather/q-ColdAndWindy
   :params []
-  :when [(?fact :- :weather::ColdAndWindy)])
+  :when [(?fact :- weather/ColdAndWindy)])
 
 
-(:wat::rete::defquery :weather::q-WeatherAlert
+(wat.rete/defquery weather/q-WeatherAlert
   :params []
-  :when [(?fact :- :weather::WeatherAlert)])
+  :when [(?fact :- weather/WeatherAlert)])
 
 
 ;; The 2-rule chain (reused across all four parts): A: Temp+Wind(same loc)→ColdAndWindy;
 ;; B: ColdAndWindy→WeatherAlert.
 
-(:wat::core::defn :test::compile-ab-rules [] -> :wat::rete::Session
-  (:wat::core::let
-    [ca1   (:wat::core::quote (:weather::Temperature (?loc :- :location) (?t :- :celsius)))
-     ca2   (:wat::core::quote (:weather::WindSpeed (?loc :- :location) (?w :- :kph)))
-     ra1   (:wat::core::quote (:weather::ColdAndWindy ?loc))
-     ruleA (:wat::rete::Rule :name "A" :lhs (wat.type/PersistentVector :- [wat.type/AST] ca1 ca2) :rhs (wat.type/PersistentVector :- [wat.type/AST] ra1))
-     cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc :- :location)))
-     rb1   (:wat::core::quote (:weather::WeatherAlert ?loc))
-     ruleB (:wat::rete::Rule :name "B" :lhs (wat.type/PersistentVector :- [wat.type/AST] cb1) :rhs (wat.type/PersistentVector :- [wat.type/AST] rb1))]
-    (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] ruleA ruleB) (wat.type/PersistentVector :- [:wat::rete::Query] (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])))
+(wat.core/defn test/compile-ab-rules [] :- wat.rete/Session
+  (wat.core/let
+    [ca1   (wat.core/quote (weather/Temperature (?loc :- :location) (?t :- :celsius)))
+     ca2   (wat.core/quote (weather/WindSpeed (?loc :- :location) (?w :- :kph)))
+     ra1   (wat.core/quote (weather/ColdAndWindy ?loc))
+     ruleA (wat.rete/Rule :name "A" :lhs (wat.type/PersistentVector :- [wat.type/AST] ca1 ca2) :rhs (wat.type/PersistentVector :- [wat.type/AST] ra1))
+     cb1   (wat.core/quote (weather/ColdAndWindy (?loc :- :location)))
+     rb1   (wat.core/quote (weather/WeatherAlert ?loc))
+     ruleB (wat.rete/Rule :name "B" :lhs (wat.type/PersistentVector :- [wat.type/AST] cb1) :rhs (wat.type/PersistentVector :- [wat.type/AST] rb1))]
+    (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] ruleA ruleB) (wat.type/PersistentVector :- [wat.rete/Query] (weather/q-ColdAndWindy) (weather/q-WeatherAlert))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])))
 
-(:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::insert s (:weather::Temperature :celsius 15 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:weather::WindSpeed :kph 45 :location "Oslo")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn test/seed-oslo [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/insert s (weather/Temperature :celsius 15 :location "Oslo")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (weather/WindSpeed :kph 45 :location "Oslo")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::seed-bergen [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::insert s (:weather::Temperature :celsius 10 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:weather::WindSpeed :kph 50 :location "Bergen")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn test/seed-bergen [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/insert s (weather/Temperature :celsius 10 :location "Bergen")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (weather/WindSpeed :kph 50 :location "Bergen")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::fire [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn test/fire [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules s) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :test::count-derived [s <- :wat::rete::Session q <- :wat::rete::Query] -> wat.type/i64
-  (:wat::core::length (:wat::rete::query s q)))
+(wat.core/defn test/count-derived [s :- wat.rete/Session q :- wat.rete/Query] :- wat.type/i64
+  (wat.core/length (wat.rete/query s q)))
 
-(:wat::core::defn :user::compile-ab-rules-fires-nothing [] -> wat.type/i64
-  (:test::count-derived (:test::fire (:test::compile-ab-rules)) (:weather::q-ColdAndWindy)))
+(wat.core/defn user/compile-ab-rules-fires-nothing [] :- wat.type/i64
+  (test/count-derived (test/fire (test/compile-ab-rules)) (weather/q-ColdAndWindy)))
 
-(:wat::core::defn :user::seed-oslo-then-fire-cw [] -> wat.type/i64
-  (:test::count-derived (:test::fire (:test::seed-oslo (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
+(wat.core/defn user/seed-oslo-then-fire-cw [] :- wat.type/i64
+  (test/count-derived (test/fire (test/seed-oslo (test/compile-ab-rules))) (weather/q-ColdAndWindy)))
 
-(:wat::core::defn :user::seed-bergen-then-fire-cw [] -> wat.type/i64
-  (:test::count-derived (:test::fire (:test::seed-bergen (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
+(wat.core/defn user/seed-bergen-then-fire-cw [] :- wat.type/i64
+  (test/count-derived (test/fire (test/seed-bergen (test/compile-ab-rules))) (weather/q-ColdAndWindy)))
 
 ;; ── Part A — the fact-model fix: fire keeps INPUT distinct from DERIVED ─────────────
 ;; Assert Temp+Wind at Oslo, fire. Session.facts must hold the 2 INPUT facts and NO derived ColdAndWindy.
 
-(:wat::core::defn :user::part-a-temperature-in-facts [] -> wat.type/i64
+(wat.core/defn user/part-a-temperature-in-facts [] :- wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: Temperature must remain in Session/facts after fire
-  (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
-    (:wat::core::length (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record]) (:wat::core::filter
-      (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::Temperature"))
-      (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
+  (wat.core/let [fired (test/fire (test/seed-oslo (test/compile-ab-rules)))]
+    (wat.core/length (wat.core/into (wat.type/PersistentVector :- [wat.type/Record]) (wat.core/filter
+      (wat.core/fn [f :- wat.type/Record] :- wat.type/bool (wat.core/= (wat.core/type f) "weather::Temperature"))
+      (wat.rete.factbag/items (wat.rete.Session/facts fired)))))))
 
-(:wat::core::defn :user::part-a-coldandwindy-in-facts [] -> wat.type/i64
+(wat.core/defn user/part-a-coldandwindy-in-facts [] :- wat.type/i64
   ;; rune:vocare(vantage-bypass-test) — input-vs-derived layout: derived ColdAndWindy must NOT leak into Session/facts
-  (:wat::core::let [fired (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))]
-    (:wat::core::length (:wat::core::into (wat.type/PersistentVector :- [wat.type/Record]) (:wat::core::filter
-      (:wat::core::fn [f <- wat.type/Record] -> wat.type/bool (:wat::core::= (:wat::core::type f) "weather::ColdAndWindy"))
-      (:wat::rete::factbag::items (:wat::rete::Session/facts fired)))))))
+  (wat.core/let [fired (test/fire (test/seed-oslo (test/compile-ab-rules)))]
+    (wat.core/length (wat.core/into (wat.type/PersistentVector :- [wat.type/Record]) (wat.core/filter
+      (wat.core/fn [f :- wat.type/Record] :- wat.type/bool (wat.core/= (wat.core/type f) "weather::ColdAndWindy"))
+      (wat.rete.factbag/items (wat.rete.Session/facts fired)))))))
 
-(:wat::core::defn :user::part-a-coldandwindy-derived [] -> wat.type/i64
-  (:test::count-derived (:test::fire (:test::seed-oslo (:test::compile-ab-rules))) (:weather::q-ColdAndWindy)))
+(wat.core/defn user/part-a-coldandwindy-derived [] :- wat.type/i64
+  (test/count-derived (test/fire (test/seed-oslo (test/compile-ab-rules))) (weather/q-ColdAndWindy)))
 
 ;; ── Part B — retraction drops the derived consequence ───────────────────────────
 
-(:wat::core::defn :user::part-b-coldandwindy-derived-after-retract [] -> wat.type/i64
-  (:wat::core::let
-    [f0    (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))
-     s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:test::fire s3)]
-    (:test::count-derived fired (:weather::q-ColdAndWindy))))
+(wat.core/defn user/part-b-coldandwindy-derived-after-retract [] :- wat.type/i64
+  (wat.core/let
+    [f0    (test/fire (test/seed-oslo (test/compile-ab-rules)))
+     s3    (wat.rete/retract f0 (weather/Temperature :celsius 15 :location "Oslo"))
+     fired (test/fire s3)]
+    (test/count-derived fired (weather/q-ColdAndWindy))))
 
 ;; ── Part C — retraction cascades transitively (CW supported WA) ──────────────────
 
-(:wat::core::defn :user::part-c-weatheralert-derived-after-retract [] -> wat.type/i64
-  (:wat::core::let
-    [f0    (:test::fire (:test::seed-oslo (:test::compile-ab-rules)))
-     s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:test::fire s3)]
-    (:test::count-derived fired (:weather::q-WeatherAlert))))
+(wat.core/defn user/part-c-weatheralert-derived-after-retract [] :- wat.type/i64
+  (wat.core/let
+    [f0    (test/fire (test/seed-oslo (test/compile-ab-rules)))
+     s3    (wat.rete/retract f0 (weather/Temperature :celsius 15 :location "Oslo"))
+     fired (test/fire s3)]
+    (test/count-derived fired (weather/q-WeatherAlert))))
 
 ;; ── Part D — retraction is precise: independent derivations survive ──────────────
 
-(:wat::core::defn :user::part-d-coldandwindy-derived-after-retract-oslo [] -> wat.type/i64
-  (:wat::core::let
-    [f0    (:test::fire (:test::seed-bergen (:test::seed-oslo (:test::compile-ab-rules))))
-     s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:test::fire s5)]
-    (:test::count-derived fired (:weather::q-ColdAndWindy))))
+(wat.core/defn user/part-d-coldandwindy-derived-after-retract-oslo [] :- wat.type/i64
+  (wat.core/let
+    [f0    (test/fire (test/seed-bergen (test/seed-oslo (test/compile-ab-rules))))
+     s5    (wat.rete/retract f0 (weather/Temperature :celsius 15 :location "Oslo"))
+     fired (test/fire s5)]
+    (test/count-derived fired (weather/q-ColdAndWindy))))

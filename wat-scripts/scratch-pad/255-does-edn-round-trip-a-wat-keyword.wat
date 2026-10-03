@@ -7,14 +7,14 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "-- a bare keyword VALUE through edn::write --")
-    (:wat::kernel::println (:wat::edn::write :my::doc::some-name))
-    (:wat::kernel::println "-- LOSSLESS? read(write(k)) == k --")
-    (:wat::kernel::println
-      (:wat::core::bool::to-string
-        (:wat::core::= (:wat::edn::read (:wat::edn::write :my::doc::some-name)) :my::doc::some-name)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "-- a bare keyword VALUE through edn::write --")
+    (wat.kernel/println (wat.edn/write my.doc/some-name))
+    (wat.kernel/println "-- LOSSLESS? read(write(k)) == k --")
+    (wat.kernel/println
+      (wat.core.bool/to-string
+        (wat.core/= (wat.edn/read (wat.edn/write my.doc/some-name)) my.doc/some-name)))
     ;; The tagged-read is NOT run here — it RAISES today, and that raise is the finding:
     ;;   (:wat::edn::read "#wat.doc/Row {:added \"1.0.0\"}")
     ;;   -> MalformedForm: "unknown tag #wat.doc/Row (body shape: map); no matching struct or
@@ -22,4 +22,4 @@
     ;; i.e. a tag RESOLVES TO A REGISTERED RECORD. `#wat.doc/Row` starts working the moment
     ;; `:wat::doc::Row` exists as a type — and the reader then VALIDATES the map against it.
     ;; Kept as a comment so this probe stays exit-0 and remains a durable instrument.
-    (:wat::kernel::println "")))
+    (wat.kernel/println "")))

@@ -6,12 +6,12 @@
 ;; never matched a real Vector value — every call fell through to `NoMatchingClause`. Found by
 ;; this stone's own stdlib conversion of `:wat::test::spawn-peer`'s
 ;; `(wat.type/Vector :- [wat.type/AST])` clause.
-(:wat::core::defclause :probe::which-container
-  ([xs <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String "vector")
-  ([xs <- (wat.type/List :- [wat.type/i64])] -> wat.type/String "list"))
+(wat.core/defclause probe/which-container
+  ([xs :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String "vector")
+  ([xs :- (wat.type/List :- [wat.type/i64])] :- wat.type/String "list"))
 
-(:wat::core::defn :user::vector-clause-dispatches [] -> wat.type/bool
-  (:wat::core::= (:probe::which-container [1 2 3]) "vector"))
+(wat.core/defn user/vector-clause-dispatches [] :- wat.type/bool
+  (wat.core/= (probe/which-container [1 2 3]) "vector"))
 
-(:wat::core::defn :user::list-clause-dispatches [] -> wat.type/bool
-  (:wat::core::= (:probe::which-container (wat.type/List :- [wat.type/i64] 1 2 3)) "list"))
+(wat.core/defn user/list-clause-dispatches [] :- wat.type/bool
+  (wat.core/= (probe/which-container (wat.type/List :- [wat.type/i64] 1 2 3)) "list"))

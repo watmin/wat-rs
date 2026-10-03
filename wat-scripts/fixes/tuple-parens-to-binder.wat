@@ -50,40 +50,40 @@
 ;; ── the tuple -> binder renderer (pure string surgery, reused verbatim from
 ;;    angle-brackets-to-binder.wat — none of it touches the type parser) ────────────────────────
 
-(:wat::core::defn :user::open-bracket? [c <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= c "<") true (:wat::core::= c "(")))
-(:wat::core::defn :user::close-bracket? [c <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= c ">") true (:wat::core::= c ")")))
+(wat.core/defn user/open-bracket? [c :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= c "<") true (wat.core/= c "(")))
+(wat.core/defn user/close-bracket? [c :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= c ">") true (wat.core/= c ")")))
 
 ;; scan-for-close — index of the close bracket matching the open bracket just consumed
 ;; (depth starts at 1, `i` is the position right after that open bracket).
-(:wat::core::defn :user::scan-for-close
-  [s <- wat.type/String i <- wat.type/i64 depth <- wat.type/i64] -> wat.type/i64
-  (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
-    (:wat::core::if (:user::open-bracket? c)
-      (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::+ depth 1))
-      (:wat::core::if (:user::close-bracket? c)
-        (:wat::core::if (:wat::i64::= depth 1)
+(wat.core/defn user/scan-for-close
+  [s :- wat.type/String i :- wat.type/i64 depth :- wat.type/i64] :- wat.type/i64
+  (wat.core/let [c (wat.string/subs s i (wat.i64/+ i 1))]
+    (wat.core/if (user/open-bracket? c)
+      (user/scan-for-close s (wat.i64/+ i 1) (wat.i64/+ depth 1))
+      (wat.core/if (user/close-bracket? c)
+        (wat.core/if (wat.i64/= depth 1)
           i
-          (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::- depth 1)))
-        (:user::scan-for-close s (:wat::i64::+ i 1) depth)))))
+          (user/scan-for-close s (wat.i64/+ i 1) (wat.i64/- depth 1)))
+        (user/scan-for-close s (wat.i64/+ i 1) depth)))))
 
 ;; split-top-level — split `s` on commas at depth 0 (nested-bracket commas are NOT split points).
-(:wat::core::defn :user::split-top-level
-  [s <- wat.type/String i <- wat.type/i64 depth <- wat.type/i64 start <- wat.type/i64
-   acc <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::i64::>= i (:wat::string::length s))
-    (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i)))
-    (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
-      (:wat::core::if (:user::open-bracket? c)
-        (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::+ depth 1) start acc)
-        (:wat::core::if (:user::close-bracket? c)
-          (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::- depth 1) start acc)
-          (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::i64::= depth 0) false)
-            (:user::split-top-level s (:wat::i64::+ i 1) depth (:wat::i64::+ i 1)
-              (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i))))
-            (:user::split-top-level s (:wat::i64::+ i 1) depth start acc)))))))
+(wat.core/defn user/split-top-level
+  [s :- wat.type/String i :- wat.type/i64 depth :- wat.type/i64 start :- wat.type/i64
+   acc :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.i64/>= i (wat.string/length s))
+    (wat.core/conj acc (wat.string/trim (wat.string/subs s start i)))
+    (wat.core/let [c (wat.string/subs s i (wat.i64/+ i 1))]
+      (wat.core/if (user/open-bracket? c)
+        (user/split-top-level s (wat.i64/+ i 1) (wat.i64/+ depth 1) start acc)
+        (wat.core/if (user/close-bracket? c)
+          (user/split-top-level s (wat.i64/+ i 1) (wat.i64/- depth 1) start acc)
+          (wat.core/if (wat.core/if (wat.core/= c ",") (wat.i64/= depth 0) false)
+            (user/split-top-level s (wat.i64/+ i 1) depth (wat.i64/+ i 1)
+              (wat.core/conj acc (wat.string/trim (wat.string/subs s start i))))
+            (user/split-top-level s (wat.i64/+ i 1) depth start acc)))))))
 
 ;; render-ref — full REFERENCE-role rendering of a `:(`-leading keyword's TEXT (leading colon
 ;; included, e.g. ":(wat::core::i64,wat::core::String)") -> "(:wat::core::Tuple :- [args])". A
@@ -100,30 +100,30 @@
 ;;   - contains "::" — a namespaced concrete type; colon-prefix it (no further nesting possible:
 ;;     a `::`-qualified path never itself contains an unrendered `<...>`/`(...)` group post-arc-③).
 ;;   - otherwise — a bare short identifier (K, V, T, Xt) — a lexical type VARIABLE; verbatim.
-(:wat::core::defn :user::render-one-arg
-  [s <- wat.type/String] -> wat.type/String
-  (:wat::core::if (:wat::string::starts-with? s "(")
-    (:user::render-tuple (:wat::string::concat ":" s))
-    (:wat::core::if (:wat::string::contains? s "::")
-      (:wat::string::concat ":" s)
+(wat.core/defn user/render-one-arg
+  [s :- wat.type/String] :- wat.type/String
+  (wat.core/if (wat.string/starts-with? s "(")
+    (user/render-tuple (wat.string/concat ":" s))
+    (wat.core/if (wat.string/contains? s "::")
+      (wat.string/concat ":" s)
       s)))
 
-(:wat::core::defn :user::render-args
-  [args <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
-  (:wat::string::join " "
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) a <- wat.type/String]
-        -> (wat.type/Vector :- [wat.type/String])
-        (:wat::core::conj acc (:user::render-one-arg a)))
+(wat.core/defn user/render-args
+  [args :- (wat.type/Vector :- [wat.type/String])] :- wat.type/String
+  (wat.string/join " "
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) a :- wat.type/String]
+        :- (wat.type/Vector :- [wat.type/String])
+        (wat.core/conj acc (user/render-one-arg a)))
       (wat.type/Vector :- [wat.type/String])
       args)))
 
-(:wat::core::defn :user::render-tuple
-  [kw-text <- wat.type/String] -> wat.type/String
-  (:wat::core::let [inner         (:wat::string::subs kw-text 2 (:wat::i64::- (:wat::string::length kw-text) 1))
-                    args          (:user::split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
-                    rendered-args (:user::render-args args)]
-    (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args)))
+(wat.core/defn user/render-tuple
+  [kw-text :- wat.type/String] :- wat.type/String
+  (wat.core/let [inner         (wat.string/subs kw-text 2 (wat.i64/- (wat.string/length kw-text) 1))
+                    args          (user/split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
+                    rendered-args (user/render-args args)]
+    (wat.string/interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args)))
 
 ;; ── the raw-text scanner — replaces fix.wat's `read-string`-based walk ──────────────────────────
 ;;
@@ -135,91 +135,91 @@
 ;; `\` outside a string escapes the NEXT character unconditionally (covers both string escapes
 ;; like `\"` and char literals like `\;`), so neither is mistaken for a comment/string boundary.
 
-(:wat::core::defn :user::char-at
-  [s <- wat.type/String i <- wat.type/i64] -> wat.type/String
-  (:wat::string::subs s i (:wat::i64::+ i 1)))
+(wat.core/defn user/char-at
+  [s :- wat.type/String i :- wat.type/i64] :- wat.type/String
+  (wat.string/subs s i (wat.i64/+ i 1)))
 
 ;; has-top-level-comma? — does `inner` (a tuple's paren-interior text) contain a depth-0 comma?
 ;; Reuses split-top-level: more than one segment means a real separator fired.
-(:wat::core::defn :user::has-top-level-comma?
-  [inner <- wat.type/String] -> wat.type/bool
-  (:wat::i64::> (:wat::core::count (:user::split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))) 1))
+(wat.core/defn user/has-top-level-comma?
+  [inner :- wat.type/String] :- wat.type/bool
+  (wat.i64/> (wat.core/count (user/split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))) 1))
 
 ;; scan — the walk. `text` never mutates; `edits` accumulates in ASCENDING offset order (the walk
 ;; is strictly left-to-right), reversed once at the top level before `fix-text-apply` (which wants
 ;; right-to-left, per its own docstring — same convention `angle-brackets-to-binder.wat` uses).
-(:wat::core::defn :user::scan
-  [text <- wat.type/String i <- wat.type/i64 len <- wat.type/i64
-   in-string? <- wat.type/bool
-   edits <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::i64::>= i len)
+(wat.core/defn user/scan
+  [text :- wat.type/String i :- wat.type/i64 len :- wat.type/i64
+   in-string? :- wat.type/bool
+   edits :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.i64/>= i len)
     edits
-    (:wat::core::let [c (:user::char-at text i)]
-      (:wat::core::if (:wat::core::= c "\\")
+    (wat.core/let [c (user/char-at text i)]
+      (wat.core/if (wat.core/= c "\\")
         ;; Escape: swallow this char and the next, unconditionally (string- or char-literal escape).
-        (:user::scan text (:wat::i64::+ i 2) len in-string? edits)
-        (:wat::core::if in-string?
-          (:wat::core::if (:wat::core::= c "\"")
-            (:user::scan text (:wat::i64::+ i 1) len false edits)
-            (:user::scan text (:wat::i64::+ i 1) len true edits))
-          (:wat::core::if (:wat::core::= c "\"")
-            (:user::scan text (:wat::i64::+ i 1) len true edits)
-            (:wat::core::if (:wat::core::= c ";")
-              (:user::scan text (:user::skip-to-eol text (:wat::i64::+ i 1) len) len false edits)
-              (:wat::core::if (:wat::core::if (:wat::core::= c ":")
-                                (:wat::core::= (:user::char-at text (:wat::i64::+ i 1)) "(")
+        (user/scan text (wat.i64/+ i 2) len in-string? edits)
+        (wat.core/if in-string?
+          (wat.core/if (wat.core/= c "\"")
+            (user/scan text (wat.i64/+ i 1) len false edits)
+            (user/scan text (wat.i64/+ i 1) len true edits))
+          (wat.core/if (wat.core/= c "\"")
+            (user/scan text (wat.i64/+ i 1) len true edits)
+            (wat.core/if (wat.core/= c ";")
+              (user/scan text (user/skip-to-eol text (wat.i64/+ i 1) len) len false edits)
+              (wat.core/if (wat.core/if (wat.core/= c ":")
+                                (wat.core/= (user/char-at text (wat.i64/+ i 1)) "(")
                                 false)
-                (:user::scan-tuple-site text i len edits)
-                (:user::scan text (:wat::i64::+ i 1) len false edits)))))))))
+                (user/scan-tuple-site text i len edits)
+                (user/scan text (wat.i64/+ i 1) len false edits)))))))))
 
 ;; skip-to-eol — advance `i` to the index right after the next `\n` (or to `len` at EOF).
-(:wat::core::defn :user::skip-to-eol
-  [text <- wat.type/String i <- wat.type/i64 len <- wat.type/i64] -> wat.type/i64
-  (:wat::core::if (:wat::i64::>= i len)
+(wat.core/defn user/skip-to-eol
+  [text :- wat.type/String i :- wat.type/i64 len :- wat.type/i64] :- wat.type/i64
+  (wat.core/if (wat.i64/>= i len)
     len
-    (:wat::core::if (:wat::core::= (:user::char-at text i) "\n")
-      (:wat::i64::+ i 1)
-      (:user::skip-to-eol text (:wat::i64::+ i 1) len))))
+    (wat.core/if (wat.core/= (user/char-at text i) "\n")
+      (wat.i64/+ i 1)
+      (user/skip-to-eol text (wat.i64/+ i 1) len))))
 
 ;; scan-tuple-site — `text[i]` is the `:` of a `:(` keyword start. Find its matching close paren,
 ;; decide (top-level comma?) whether it is a retired tuple site, record an edit iff so, and resume
 ;; the walk right after the whole keyword either way (never re-enter what was just consumed).
-(:wat::core::defn :user::scan-tuple-site
-  [text <- wat.type/String i <- wat.type/i64 len <- wat.type/i64
-   edits <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [close (:user::scan-for-close text (:wat::i64::+ i 2) 1)
-                    inner (:wat::string::subs text (:wat::i64::+ i 2) close)
-                    next-i (:wat::i64::+ close 1)]
-    (:wat::core::if (:user::has-top-level-comma? inner)
-      (:wat::core::let [old-text (:wat::string::subs text i next-i)
-                        new-text (:user::render-tuple old-text)]
-        (:user::scan text next-i len false (:wat::core::conj edits (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] i old-text new-text))))
-      (:user::scan text next-i len false edits))))
+(wat.core/defn user/scan-tuple-site
+  [text :- wat.type/String i :- wat.type/i64 len :- wat.type/i64
+   edits :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [close (user/scan-for-close text (wat.i64/+ i 2) 1)
+                    inner (wat.string/subs text (wat.i64/+ i 2) close)
+                    next-i (wat.i64/+ close 1)]
+    (wat.core/if (user/has-top-level-comma? inner)
+      (wat.core/let [old-text (wat.string/subs text i next-i)
+                        new-text (user/render-tuple old-text)]
+        (user/scan text next-i len false (wat.core/conj edits (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] i old-text new-text))))
+      (user/scan text next-i len false edits))))
 
-(:wat::core::defn :user::convert
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let [all-edits (:user::scan src 0 (:wat::string::length src) false
+(wat.core/defn user/convert
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let [all-edits (user/scan src 0 (wat.string/length src) false
                                  (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ── file/stdin harness — identical shape to every recorded migration ────────────────────────────
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[tuple-parens-to-binder] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/convert (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[tuple-parens-to-binder] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

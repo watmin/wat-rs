@@ -21,29 +21,29 @@
 ;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the TypeMismatch names
 ;; `:wat::kernel::peer-pid` and the expected-peer union type.
 
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- wat.type/String])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- wat.type/String] :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-                                                                                                      :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.Echo/EchoRequest  [msg   :- wat.type/String])
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure :Ok [reply :- wat.type/String] :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+                                                                                                      :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo
-  :satisfies :probe::Echo  :durable [] :ephemeral []
-  :impls [(echo [s ctx req] (:wat::service::Outcome.Reply {:state s
-                          :reply (:probe::Echo::EchoResponse.Ok {:reply (:probe::Echo::EchoRequest/msg req)})}))])
+(wat.service/defservice probe/echo
+  :satisfies probe/Echo  :durable [] :ephemeral []
+  :impls [(echo [s ctx req] (wat.service/Outcome.Reply {:state s
+                          :reply (probe.Echo/EchoResponse.Ok {:reply (probe.Echo.EchoRequest/msg req)})}))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; ── a PROCESS peer: its far end is a forked child → peer-pid should be (Some pid) ──
-     ph  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     pc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr ph)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _   (:wat::kernel::println "process-peer peer-pid:")
-     _   (:wat::kernel::println (:wat::kernel::peer-pid pc))   ; ← THE GAP (undefined pre-strike)
+     ph  (probe.echo/start :locus (wat.spawn/process) :record (probe.echo/Record))
+     pc  (wat.core/match (wat.kernel/connect (probe.echo.Handle/addr ph)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _   (wat.kernel/println "process-peer peer-pid:")
+     _   (wat.kernel/println (wat.kernel/peer-pid pc))   ; ← THE GAP (undefined pre-strike)
      ;; ── a THREAD peer: its far end is a cell in THIS process → peer-pid should be :None ──
-     th  (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))
-     tc  (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr th)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _   (:wat::kernel::println "thread-peer peer-pid:")
-     _   (:wat::kernel::println (:wat::kernel::peer-pid tc))]
+     th  (probe.echo/start :locus (wat.spawn/thread) :record (probe.echo/Record))
+     tc  (wat.core/match (wat.kernel/connect (probe.echo.Handle/addr th)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _   (wat.kernel/println "thread-peer peer-pid:")
+     _   (wat.kernel/println (wat.kernel/peer-pid tc))]
     nil))

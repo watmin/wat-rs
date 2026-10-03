@@ -1,23 +1,23 @@
 ;; DESIGN-STONE-rst-peer-notify.md STEP-1 probe: a PROCESS service whose handler genuinely
 ;; panics; a SEPARATE connect'-ed client peer `c` reads the reply. At HEAD the client sees a
 ;; bare clean-EOF (RecvError::Disconnected), never a distinct reset — this is the RED baseline.
-(:wat::core::defsurface :my::RstSvc :nature :wat::kernel::Peer
+(wat.core/defsurface my/RstSvc :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :my::RstSvc::BoomRequest  [])
-   (:wat::core::defenum :my::RstSvc::BoomResponse :wat::enum::Pure
-     :Ok              [ok <- wat.type/bool]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord my.RstSvc/BoomRequest  [])
+   (wat.core/defenum my.RstSvc/BoomResponse wat.enum/Pure
+     :Ok              [ok :- wat.type/bool]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(boom [self <- :my::RstSvc  req <- :my::RstSvc::BoomRequest] -> :my::RstSvc::BoomResponse :max-request-bytes 524288)])
+  [(boom [self :- my/RstSvc  req :- my.RstSvc/BoomRequest] :- my.RstSvc/BoomResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :my::rstsvc
-  :satisfies :my::RstSvc
-  :durable [count <- wat.type/i64]
+(wat.service/defservice my/rstsvc
+  :satisfies my/RstSvc
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(boom [s ctx req]
-     (:wat::kernel::assertion-failed! :message "RST-BASELINE-SENTINEL-7731 — the handler crashed on purpose" :actual (:wat::core::Option.Some {:value "boom"}) :expected (:wat::core::Option.Some {:value "ok"})))])
+     (wat.kernel/assertion-failed! :message "RST-BASELINE-SENTINEL-7731 — the handler crashed on purpose" :actual (wat.core/Option.Some {:value "boom"}) :expected (wat.core/Option.Some {:value "ok"})))])
 
 ;; arc 278 recv'-wall: the generated client method `/boom` returns a matchable (RecvOutcome :- [BoomResponse])
 ;; VALUE, never a raise. A genuine far-side handler panic makes the client's recv' surface a DISTINCT
@@ -25,12 +25,12 @@
 ;; clean-EOF ::Closed (the old mute disconnect) and NOT a fake ::Message. We MATCH and RETURN a marker:
 ;; "LOST:<reason-free msg>" on the crash, "MESSAGE"/"CLOSED" otherwise — the .rs asserts the client saw
 ;; the peer crashed (::Lost), distinct from a bare disconnect (::Closed), carrying no crash sentinel.
-(:wat::core::defn :user::compute [] -> wat.type/String
-  (:wat::core::let
-    [h (:my::rstsvc/start :locus (:wat::spawn::process) :record (:my::rstsvc::Record :count 0))
-     c (:wat::core::match (:wat::kernel::connect (:my::rstsvc::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])]
-    (:wat::core::match (:my::rstsvc/boom c (:my::RstSvc::BoomRequest))
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} "LOST"]
-      [:wat::kernel::RecvOutcome.Stopped {} "STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "CLOSED"])))
+(wat.core/defn user/compute [] :- wat.type/String
+  (wat.core/let
+    [h (my.rstsvc/start :locus (wat.spawn/process) :record (my.rstsvc/Record :count 0))
+     c (wat.core/match (wat.kernel/connect (my.rstsvc.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])]
+    (wat.core/match (my.rstsvc/boom c (my.RstSvc/BoomRequest))
+      [wat.kernel/RecvOutcome.Message {:msg _m} "MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} "LOST"]
+      [wat.kernel/RecvOutcome.Stopped {} "STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "CLOSED"])))

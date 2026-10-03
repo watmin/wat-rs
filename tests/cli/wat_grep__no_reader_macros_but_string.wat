@@ -6,5 +6,5 @@
 ;; node, written or not. This is NOT the reader-macro phantom class G5/G6 were designed around;
 ;; it is a second, independent way `Written` under-counts `Named`, over EVERY string literal in
 ;; the corpus (measured: 10123 of 11534 named-not-written nodes corpus-wide).
-(:wat::core::defn :user::greet [] -> wat.type/String
+(wat.core/defn user/greet [] :- wat.type/String
   "hello")

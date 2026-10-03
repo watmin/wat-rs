@@ -8,15 +8,15 @@
 ;;
 ;; (:t::Maker/make (:t::Id 7) 42) → (:t::Box 42) → (:t::Box/v …) = 42. The body wraps `x` (42), not the tag.
 
-(:wat::core::defsurface :t::Maker
+(wat.core/defsurface t/Maker
   :nature wat.type/Struct
-  :features [(make :- [T] [self <- :t::Maker  x <- :T] -> (:t::Box :- [T]))])
+  :features [(make :- [T] [self :- t/Maker  x :- T] :- (t/Box :- [T]))])
 
-(:wat::core::defrecord :t::Box :- [T] [v <- :T])
-(:wat::core::defrecord :t::Id [tag <- wat.type/i64])
+(wat.core/defrecord t/Box :- [T] [v :- T])
+(wat.core/defrecord t/Id [tag :- wat.type/i64])
 
 ;; bare GENERIC impl — body wraps x (typed :T from the surface) in a (:t::Box :- [T]).
-(:wat::core::extend-type :t::Id :t::Maker
-  (make [self x] (:t::Box :v x)))
+(wat.core/extend-type t/Id t/Maker
+  (make [self x] (t/Box :v x)))
 
-(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::Box/v (:t::Maker/make (:t::Id :tag 7) 42)))
+(wat.core/defn t/probe [] :- wat.type/i64 (t.Box/v (t.Maker/make (t/Id :tag 7) 42)))

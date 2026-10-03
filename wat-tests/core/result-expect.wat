@@ -9,64 +9,64 @@
 
 ;; ─── Ok happy path — i64 ──────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::result-expect::ok-i64
+(wat.test/deftest wat-tests.core.result-expect/ok-i64
   
-  (:wat::core::let
-    [res (:wat::core::Result.Ok {:value 99})
+  (wat.core/let
+    [res (wat.core/Result.Ok {:value 99})
      v
-      (:wat::core::Result/expect  
+      (wat.core.Result/expect  
         res
         "should be Ok")]
-    (:wat::test::assert-eq v 99)))
+    (wat.test/assert-eq v 99)))
 
 
 ;; ─── Ok happy path — String ───────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::result-expect::ok-string
+(wat.test/deftest wat-tests.core.result-expect/ok-string
   
-  (:wat::core::let
-    [res (:wat::core::Result.Ok {:value "yes"})
+  (wat.core/let
+    [res (wat.core/Result.Ok {:value "yes"})
      v
-      (:wat::core::Result/expect  
+      (wat.core.Result/expect  
         res
         "should be Ok")]
-    (:wat::test::assert-eq v "yes")))
+    (wat.test/assert-eq v "yes")))
 
 
 ;; ─── Err panics with the supplied message ────────────────────────────
 
 
-(:wat::test::deftest :wat-tests::core::result-expect::err-panics-with-message
+(wat.test/deftest wat-tests.core.result-expect/err-panics-with-message
   
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/thread)
+         (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
            ;; Result/expect on Err panics; the crash reaches the parent's recv'
            ;; as Lost (carrying the LociDiedError) BEFORE the completion send'.
-           (:wat::core::do
-             (:wat::core::let
-               [res (:wat::core::Result.Err {:error "rundb crashed"})
+           (wat.core/do
+             (wat.core/let
+               [res (wat.core/Result.Err {:error "rundb crashed"})
                 _v
-                 (:wat::core::Result/expect
+                 (wat.core.Result/expect
                    res
                    "expected Ok value")]
                nil)
-             (:wat::core::match (:wat::kernel::send self 0)
-               [:wat::kernel::SendOutcome.Sent {}   nil]
-               [:wat::kernel::SendOutcome.HandleClosed {} nil]
+             (wat.core/match (wat.kernel/send self 0)
+               [wat.kernel/SendOutcome.Sent {}   nil]
+               [wat.kernel/SendOutcome.HandleClosed {} nil]
                ;; arc 278 #73 — same body as Sent/Closed: this send-outcome wall just
                ;; needs to proceed regardless; the Err expect above already panicked
                ;; before this line could even run.
-               [:wat::kernel::SendOutcome.Stopped {} nil]
-               [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "expected panic on Err expect, got clean completion")]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::test::assert-eq
-          (:wat::kernel::LociDiedError/message cause)
+               [wat.kernel/SendOutcome.Stopped {} nil]
+               [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil]))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "expected panic on Err expect, got clean completion")]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.test/assert-eq
+          (wat.kernel.LociDiedError/message cause)
           "expected Ok value")]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected panic on Err expect, got clean close")])))
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected panic on Err expect, got clean close")])))

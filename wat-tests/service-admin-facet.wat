@@ -17,61 +17,61 @@
 ;; ── the surface (the counter protocol, lifted) ───────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::AdminCounter :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/AdminCounter :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::AdminCounter::IncrementRequest  [n <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::AdminCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.AdminCounter/IncrementRequest  [n :- wat.type/i64])
+   (wat.core/defenum wat-tests.AdminCounter/IncrementResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(increment [self <- :wat-tests::AdminCounter  req <- :wat-tests::AdminCounter::IncrementRequest] -> :wat-tests::AdminCounter::IncrementResponse :max-request-bytes 524288)])
+  [(increment [self :- wat-tests/AdminCounter  req :- wat-tests.AdminCounter/IncrementRequest] :- wat-tests.AdminCounter/IncrementResponse :max-request-bytes 524288)])
 
 ;; ── the service: a counter; Increment is a client (data-plane) op; stop is admin (control-plane) ──
-(:wat::service::defservice :wat-tests::admin-counter
-  :satisfies :wat-tests::AdminCounter
-  :durable [count <- wat.type/i64]
+(wat.service/defservice wat-tests/admin-counter
+  :satisfies wat-tests/AdminCounter
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]
-     (:wat::core::let [c (:wat::i64::+
-                           (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
-                           (:wat-tests::AdminCounter::IncrementRequest/n req))]
-       (:wat::service::Outcome.Reply
-         {:state (:wat-tests::admin-counter::State :durable (:wat-tests::admin-counter::Record :count c))
-         :reply (:wat-tests::AdminCounter::IncrementResponse.Ok {:value c})})))])
+     (wat.core/let [c (wat.i64/+
+                           (wat-tests.admin-counter.Record/count (wat-tests.admin-counter.State/durable s))
+                           (wat-tests.AdminCounter.IncrementRequest/n req))]
+       (wat.service/Outcome.Reply
+         {:state (wat-tests.admin-counter/State :durable (wat-tests.admin-counter/Record :count c))
+         :reply (wat-tests.AdminCounter/IncrementResponse.Ok {:value c})})))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; A client (dial-Address') does the data op; the Handle-holder issues the admin stop.
 ;; stop takes the HANDLE (h), not the client peer (c) — owner-only by construction.
 ;; stop defaults to returning the ::Record — extract count via Record/count.
-(:wat::test::deftest :wat-tests::service::admin-stop-on-thread
+(wat.test/deftest wat-tests.service/admin-stop-on-thread
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::admin-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::admin-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _ (:wat::core::match (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       final (:wat-tests::admin-counter/stop h)]
-      (:wat-tests::admin-counter::Record/count final))
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.admin-counter/start :locus (wat.spawn/thread) :record (wat-tests.admin-counter/Record :count 0))
+       c (wat.core/match (wat.kernel/connect (wat-tests.admin-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _ (wat.core/match (wat-tests.AdminCounter/increment c (wat-tests.AdminCounter/IncrementRequest :n 7))
+           [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+           [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+           [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       final (wat-tests.admin-counter/stop h)]
+      (wat-tests.admin-counter.Record/count final))
     7))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
-(:wat::test::deftest :wat-tests::service::admin-stop-on-process
+(wat.test/deftest wat-tests.service/admin-stop-on-process
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::admin-counter/start :locus (:wat::spawn::process) :record (:wat-tests::admin-counter::Record :count 0))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::admin-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _ (:wat::core::match (:wat-tests::AdminCounter/increment c (:wat-tests::AdminCounter::IncrementRequest :n 7))
-           [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-           [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-           [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       final (:wat-tests::admin-counter/stop h)]
-      (:wat-tests::admin-counter::Record/count final))
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.admin-counter/start :locus (wat.spawn/process) :record (wat-tests.admin-counter/Record :count 0))
+       c (wat.core/match (wat.kernel/connect (wat-tests.admin-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _ (wat.core/match (wat-tests.AdminCounter/increment c (wat-tests.AdminCounter/IncrementRequest :n 7))
+           [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+           [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+           [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       final (wat-tests.admin-counter/stop h)]
+      (wat-tests.admin-counter.Record/count final))
     7))

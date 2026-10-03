@@ -12,15 +12,15 @@
 ;; If that is inverted — if it reports spawner's OWN line — then the lift needs the caller
 ;; to pass its position in, and the "no plumbing" claim is false. Measure, do not assume.
 
-(:wat::core::defn :probe::spawner [] -> :wat::kernel::Frame
-  (:wat::kernel::call-site))
+(wat.core/defn probe/spawner [] :- wat.kernel/Frame
+  (wat.kernel/call-site))
 
 ;; A second caller at a DIFFERENT line: the two must disagree, or call-site is reporting
 ;; the callee's fixed position and is useless for labelling.
-(:wat::core::defn :probe::other-caller [] -> :wat::kernel::Frame
-  (:probe::spawner))
+(wat.core/defn probe/other-caller [] :- wat.kernel/Frame
+  (probe/spawner))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:probe::spawner))
-    (:wat::kernel::println (:probe::other-caller))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (probe/spawner))
+    (wat.kernel/println (probe/other-caller))))

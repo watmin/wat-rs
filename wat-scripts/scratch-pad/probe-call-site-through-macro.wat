@@ -14,21 +14,21 @@
 ;; line in `:user::main`, and the two differ from each other.
 
 ;; ── case 1: call-site inside a `let`, hand-written (the map-worker shape) ─────────────
-(:wat::core::defn :probe::via-let [] -> :wat::kernel::Frame
-  (:wat::core::let
-    [origin (:wat::kernel::call-site)]
+(wat.core/defn probe/via-let [] :- wat.kernel/Frame
+  (wat.core/let
+    [origin (wat.kernel/call-site)]
     origin))
 
 ;; ── case 2: call-site inside a MACRO-GENERATED defn (the defservice start shape) ──────
-(:wat::core::defmacro :probe::gen-spawner [name <- wat.type/AST] -> wat.type/AST
-  `(:wat::core::defn ~name [] -> :wat::kernel::Frame
-     (:wat::core::let
-       [origin (:wat::kernel::call-site)]
+(wat.core/defmacro probe/gen-spawner [name :- wat.type/AST] :- wat.type/AST
+  `(wat.core/defn ~name [] :- wat.kernel/Frame
+     (wat.core/let
+       [origin (wat.kernel/call-site)]
        origin)))
 
-(:probe::gen-spawner :probe::via-macro)
+(probe/gen-spawner probe/via-macro)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:probe::via-let))     ;; <- expect THIS line
-    (:wat::kernel::println (:probe::via-macro)))) ;; <- expect THIS line (a different one)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (probe/via-let))     ;; <- expect THIS line
+    (wat.kernel/println (probe/via-macro)))) ;; <- expect THIS line (a different one)

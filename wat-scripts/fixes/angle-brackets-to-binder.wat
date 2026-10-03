@@ -45,13 +45,13 @@
 ;; brackets never appear elsewhere in a keyword), so the FIRST `<` is always the marker —
 ;; no top-level-vs-nested ambiguity at this call site (unlike `scan-for-close`/
 ;; `split-top-level` below, which walk INSIDE that group where nesting is real).
-(:wat::core::defn :user::find-first-lt
-  [s <- wat.type/String i <- wat.type/i64] -> wat.type/i64
-  (:wat::core::if (:wat::i64::> i (:wat::i64::- (:wat::string::length s) 1))
+(wat.core/defn user/find-first-lt
+  [s :- wat.type/String i :- wat.type/i64] :- wat.type/i64
+  (wat.core/if (wat.i64/> i (wat.i64/- (wat.string/length s) 1))
     -1
-    (:wat::core::if (:wat::core::= (:wat::string::subs s i (:wat::i64::+ i 1)) "<")
+    (wat.core/if (wat.core/= (wat.string/subs s i (wat.i64/+ i 1)) "<")
       i
-      (:user::find-first-lt s (:wat::i64::+ i 1)))))
+      (user/find-first-lt s (wat.i64/+ i 1)))))
 
 ;; open-bracket? / close-bracket? — bracket-KIND-agnostic depth predicates. `scan-for-close`/
 ;; `split-top-level` track `<…>` AND `(…)` nesting TOGETHER (one depth counter, either kind
@@ -59,42 +59,42 @@
 ;; (`:(Vector<i64>,String)`) and a parametric's args can, in principle, carry a nested tuple —
 ;; either way, the two bracket kinds are always properly nested (never crossing) in valid wat
 ;; type syntax, so one counter is exact.
-(:wat::core::defn :user::open-bracket? [c <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= c "<") true (:wat::core::= c "(")))
-(:wat::core::defn :user::close-bracket? [c <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::core::= c ">") true (:wat::core::= c ")")))
+(wat.core/defn user/open-bracket? [c :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= c "<") true (wat.core/= c "(")))
+(wat.core/defn user/close-bracket? [c :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.core/= c ">") true (wat.core/= c ")")))
 
 ;; scan-for-close — index of the close bracket matching the open bracket just consumed
 ;; (depth starts at 1, `i` is the position right after that open bracket).
-(:wat::core::defn :user::scan-for-close
-  [s <- wat.type/String i <- wat.type/i64 depth <- wat.type/i64] -> wat.type/i64
-  (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
-    (:wat::core::if (:user::open-bracket? c)
-      (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::+ depth 1))
-      (:wat::core::if (:user::close-bracket? c)
-        (:wat::core::if (:wat::i64::= depth 1)
+(wat.core/defn user/scan-for-close
+  [s :- wat.type/String i :- wat.type/i64 depth :- wat.type/i64] :- wat.type/i64
+  (wat.core/let [c (wat.string/subs s i (wat.i64/+ i 1))]
+    (wat.core/if (user/open-bracket? c)
+      (user/scan-for-close s (wat.i64/+ i 1) (wat.i64/+ depth 1))
+      (wat.core/if (user/close-bracket? c)
+        (wat.core/if (wat.i64/= depth 1)
           i
-          (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::- depth 1)))
-        (:user::scan-for-close s (:wat::i64::+ i 1) depth)))))
+          (user/scan-for-close s (wat.i64/+ i 1) (wat.i64/- depth 1)))
+        (user/scan-for-close s (wat.i64/+ i 1) depth)))))
 
 ;; split-top-level — split `s` on commas at depth 0 (nested-bracket commas are NOT split
 ;; points). `i` is the scan cursor, `start` is the pending segment's start, `acc` accumulates
 ;; trimmed segments in order.
-(:wat::core::defn :user::split-top-level
-  [s <- wat.type/String i <- wat.type/i64 depth <- wat.type/i64 start <- wat.type/i64
-   acc <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::i64::>= i (:wat::string::length s))
-    (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i)))
-    (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
-      (:wat::core::if (:user::open-bracket? c)
-        (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::+ depth 1) start acc)
-        (:wat::core::if (:user::close-bracket? c)
-          (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::- depth 1) start acc)
-          (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::i64::= depth 0) false)
-            (:user::split-top-level s (:wat::i64::+ i 1) depth (:wat::i64::+ i 1)
-              (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i))))
-            (:user::split-top-level s (:wat::i64::+ i 1) depth start acc)))))))
+(wat.core/defn user/split-top-level
+  [s :- wat.type/String i :- wat.type/i64 depth :- wat.type/i64 start :- wat.type/i64
+   acc :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.i64/>= i (wat.string/length s))
+    (wat.core/conj acc (wat.string/trim (wat.string/subs s start i)))
+    (wat.core/let [c (wat.string/subs s i (wat.i64/+ i 1))]
+      (wat.core/if (user/open-bracket? c)
+        (user/split-top-level s (wat.i64/+ i 1) (wat.i64/+ depth 1) start acc)
+        (wat.core/if (user/close-bracket? c)
+          (user/split-top-level s (wat.i64/+ i 1) (wat.i64/- depth 1) start acc)
+          (wat.core/if (wat.core/if (wat.core/= c ",") (wat.i64/= depth 0) false)
+            (user/split-top-level s (wat.i64/+ i 1) depth (wat.i64/+ i 1)
+              (wat.core/conj acc (wat.string/trim (wat.string/subs s start i))))
+            (user/split-top-level s (wat.i64/+ i 1) depth start acc)))))))
 
 ;; render-ref — full REFERENCE-role rendering of an angle-bracket-CARRYING keyword's TEXT
 ;; (leading colon included, e.g. ":wat::cache::Lru<K,V>") -> "(:wat::cache::Lru :- [K V])".
@@ -116,53 +116,53 @@
 ;; identifier (K, V, T, Xt — no "::") is a lexical type VARIABLE and renders AS-IS, no colon —
 ;; the exact "inside compounds, args are bare Rust symbols" rule `parse_type_inner` used to
 ;; enforce at parse time (`src/types.rs`), now a corpus-authoring convention instead.
-(:wat::core::defn :user::render-ref
-  [kw-text <- wat.type/String] -> wat.type/String
-  (:wat::core::let [stripped (:wat::string::subs kw-text 1 (:wat::string::length kw-text))]
-    (:wat::core::if (:wat::core::if (:wat::string::starts-with? stripped "fn(")
+(wat.core/defn user/render-ref
+  [kw-text :- wat.type/String] :- wat.type/String
+  (wat.core/let [stripped (wat.string/subs kw-text 1 (wat.string/length kw-text))]
+    (wat.core/if (wat.core/if (wat.string/starts-with? stripped "fn(")
                       true
-                      (:wat::string::starts-with? stripped "wat::core::Fn("))
+                      (wat.string/starts-with? stripped "wat::core::Fn("))
       kw-text
-      (:wat::core::if (:wat::string::starts-with? stripped "(")
-        (:wat::core::let [close         (:user::scan-for-close stripped 1 1)
-                          inner         (:wat::string::subs stripped 1 close)
-                          args          (:user::split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
-                          rendered-args (:user::render-args args)]
-          (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
-        (:wat::core::let [lt (:user::find-first-lt stripped 0)]
-          (:wat::core::if (:wat::i64::< lt 0)
+      (wat.core/if (wat.string/starts-with? stripped "(")
+        (wat.core/let [close         (user/scan-for-close stripped 1 1)
+                          inner         (wat.string/subs stripped 1 close)
+                          args          (user/split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
+                          rendered-args (user/render-args args)]
+          (wat.string/interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
+        (wat.core/let [lt (user/find-first-lt stripped 0)]
+          (wat.core/if (wat.i64/< lt 0)
             kw-text
-            (:wat::core::let [base          (:wat::string::subs stripped 0 lt)
-                              close         (:user::scan-for-close stripped (:wat::i64::+ lt 1) 1)
-                              inner         (:wat::string::subs stripped (:wat::i64::+ lt 1) close)
-                              args          (:user::split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
-                              rendered-args (:user::render-args args)]
-              (:wat::string::interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
+            (wat.core/let [base          (wat.string/subs stripped 0 lt)
+                              close         (user/scan-for-close stripped (wat.i64/+ lt 1) 1)
+                              inner         (wat.string/subs stripped (wat.i64/+ lt 1) close)
+                              args          (user/split-top-level inner 0 0 0 (wat.type/Vector :- [wat.type/String]))
+                              rendered-args (user/render-args args)]
+              (wat.string/interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
 
-(:wat::core::defn :user::render-one-arg
-  [s <- wat.type/String] -> wat.type/String
-  (:wat::core::if (:wat::string::contains? s "::")
-    (:user::render-ref (:wat::string::concat ":" s))
+(wat.core/defn user/render-one-arg
+  [s :- wat.type/String] :- wat.type/String
+  (wat.core/if (wat.string/contains? s "::")
+    (user/render-ref (wat.string/concat ":" s))
     s))
 
-(:wat::core::defn :user::render-args
-  [args <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
-  (:wat::string::join " "
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/Vector :- [wat.type/String]) a <- wat.type/String]
-        -> (wat.type/Vector :- [wat.type/String])
-        (:wat::core::conj acc (:user::render-one-arg a)))
+(wat.core/defn user/render-args
+  [args :- (wat.type/Vector :- [wat.type/String])] :- wat.type/String
+  (wat.string/join " "
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/String]) a :- wat.type/String]
+        :- (wat.type/Vector :- [wat.type/String])
+        (wat.core/conj acc (user/render-one-arg a)))
       (wat.type/Vector :- [wat.type/String])
       args)))
 
 ;; render-decl — DECL-NAME-role rendering: the same reference text minus its outer parens
 ;; (siblings, no wrapping application — the exact shape `strip-outer-parens` produces in
 ;; `parametrics-take-a-type-vector.wat`, reimplemented here over this script's own renderer).
-(:wat::core::defn :user::render-decl
-  [kw-text <- wat.type/String] -> wat.type/String
-  (:wat::core::let [ref (:user::render-ref kw-text)]
-    (:wat::core::if (:wat::string::starts-with? ref "(")
-      (:wat::string::subs ref 1 (:wat::i64::- (:wat::string::length ref) 1))
+(wat.core/defn user/render-decl
+  [kw-text :- wat.type/String] :- wat.type/String
+  (wat.core/let [ref (user/render-ref kw-text)]
+    (wat.core/if (wat.string/starts-with? ref "(")
+      (wat.string/subs ref 1 (wat.i64/- (wat.string/length ref) 1))
       ref)))
 
 ;; ── the walk — byte-identical shape to `parametrics-take-a-type-vector.wat` ─────────────
@@ -173,22 +173,22 @@
 ;; (`:wat::core::i64,wat::core::String)` — `(` + `)`, no `<`/`>`) — which is STILL LEGAL
 ;; syntax this stone's wall never touched; converting it anyway would be exactly the
 ;; "converted something that did not scream" mistake STOP-3 warns against.
-(:wat::core::defn :user::angle-shaped-keyword?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::let [name (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::string::contains? name "<")
-        (:wat::string::contains? name ">")
+(wat.core/defn user/angle-shaped-keyword?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.core/let [name (wat.core/ast-name node)]
+      (wat.core/if (wat.string/contains? name "<")
+        (wat.string/contains? name ">")
         false))
     false))
 
 ;; declarator-head-keyword? — copied verbatim (the DECL-NAME-vs-REFERENCE role split is a
 ;; property of the language, not of which stone is doing the rewriting).
-(:wat::core::defn :user::declarator-head-keyword?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::contains?
-      (wat.type/HashSet :- [:wat::type::Infer]
+(wat.core/defn user/declarator-head-keyword?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+    (wat.core/contains?
+      (wat.type/HashSet :- [wat.type/Infer]
         ":wat::core::defn"
         ":wat::core::defenum"
         ":wat::core::defsurface"
@@ -202,7 +202,7 @@
         ":wat::core::recordtype"
         ":wat::core::aggregatetype"
         ":wat::core::structtype")
-      (:wat::core::ast-name node))
+      (wat.core/ast-name node))
     false))
 
 ;; leaf-edits — a keyword leaf gets ONE edit iff `:user::angle-shaped-keyword?` (structural,
@@ -217,83 +217,83 @@
 ;; fails ArityMismatch. Rather than silently emit that illegal shape again on every future
 ;; run, REFUSE loudly and point at the hand-fix step. Class D/C sites are hand-fixed per
 ;; BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2, never routed through this codemod.
-(:wat::core::defn :user::leaf-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])
-   prev-decl-head? <- wat.type/bool
-   call-head? <- wat.type/bool]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::angle-shaped-keyword? node)
-    (:wat::core::if call-head?
-      (:wat::kernel::assertion-failed! :message (:wat::string::interpolate
+(wat.core/defn user/leaf-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])
+   prev-decl-head? :- wat.type/bool
+   call-head? :- wat.type/bool]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/angle-shaped-keyword? node)
+    (wat.core/if call-head?
+      (wat.kernel/assertion-failed! :message (wat.string/interpolate
           "angle-brackets-to-binder: refusing call-head site `{n}` — a call-site type application (class D) or method-member name (class C) has no REFERENCE-role render (it is not a callable/name, a form is not a name). Hand-fix it per BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2 instead of running this codemod over it."
-          :n (:wat::core::ast-name node)))
-      (:wat::core::let [nm      (:wat::core::ast-name node)
-                         text    (:wat::core::if prev-decl-head?
-                                   (:user::render-decl nm)
-                                   (:user::render-ref nm))
-                         span    (:wat::core::ast-span node)
-                         off     (:wat::fix::fix-text-offset-of span lines)
+          :n (wat.core/ast-name node)))
+      (wat.core/let [nm      (wat.core/ast-name node)
+                         text    (wat.core/if prev-decl-head?
+                                   (user/render-decl nm)
+                                   (user/render-ref nm))
+                         span    (wat.core/ast-span node)
+                         off     (wat.fix/fix-text-offset-of span lines)
                          old-len nm]
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
           (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len text))))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
-(:wat::core::defn :user::node-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])
-   prev-decl-head? <- wat.type/bool
-   is-first? <- wat.type/bool
-   parent-kind <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:user::seq-edits (:wat::core::ast->children node) lines true false (:wat::core::ast-kind node))
-    (:user::leaf-edits node lines prev-decl-head?
-      (:wat::core::if is-first? (:wat::core::= parent-kind "list") false))))
+(wat.core/defn user/node-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])
+   prev-decl-head? :- wat.type/bool
+   is-first? :- wat.type/bool
+   parent-kind :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (user/seq-edits (wat.core/ast->children node) lines true false (wat.core/ast-kind node))
+    (user/leaf-edits node lines prev-decl-head?
+      (wat.core/if is-first? (wat.core/= parent-kind "list") false))))
 
-(:wat::core::defn :user::seq-edits
-  [items           <- (wat.type/Vector :- [wat.type/AST])
-   lines           <- (wat.type/Vector :- [wat.type/String])
-   is-first?       <- wat.type/bool
-   prev-decl-head? <- wat.type/bool
-   parent-kind     <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/seq-edits
+  [items           :- (wat.type/Vector :- [wat.type/AST])
+   lines           :- (wat.type/Vector :- [wat.type/String])
+   is-first?       :- wat.type/bool
+   prev-decl-head? :- wat.type/bool
+   parent-kind     :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::let [h               (:wat::core::first items)
-                       this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
-      (:wat::core::concat
-        (:user::node-edits h lines prev-decl-head? is-first? parent-kind)
-        (:user::seq-edits (:wat::core::rest items) lines false this-decl-head? parent-kind)))))
+    (wat.core/let [h               (wat.core/first items)
+                       this-decl-head? (wat.core/if is-first? (user/declarator-head-keyword? h) false)]
+      (wat.core/concat
+        (user/node-edits h lines prev-decl-head? is-first? parent-kind)
+        (user/seq-edits (wat.core/rest items) lines false this-decl-head? parent-kind)))))
 
-(:wat::core::defn :user::convert
-  [src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src)
-                                 [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-                                 [:wat::core::ReadOutcome.Malformed {:cause __cause}
-                                   (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:user::seq-edits forms lines true false "top")
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn user/convert
+  [src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src)
+                                 [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+                                 [wat.core/ReadOutcome.Malformed {:cause __cause}
+                                   (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (user/seq-edits forms lines true false "top")
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ── file/stdin harness — identical shape to every recorded migration ────────────────────
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[angle-brackets-to-binder] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/convert (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[angle-brackets-to-binder] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

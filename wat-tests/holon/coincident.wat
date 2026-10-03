@@ -12,36 +12,36 @@
 
 ;; ─── Self-coincidence: a holon is the same as itself ─────────────
 
-(:wat::test::deftest :wat-tests::holon::coincident::test-self-coincident
+(wat.test/deftest wat-tests.holon.coincident/test-self-coincident
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "rsi")]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? a a)
+  (wat.core/let
+    [a (wat.holon/to-holon "rsi")]
+    (wat.test/assert-eq
+      (wat.holon/coincident? a a)
       true)))
 
 ;; ─── Structural equivalence: same-shape ASTs coincide ────────────
 
-(:wat::test::deftest :wat-tests::holon::coincident::test-structurally-same
+(wat.test/deftest wat-tests.holon.coincident/test-structurally-same
   
-  (:wat::core::let
+  (wat.core/let
     [a
-      (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))
+      (wat.holon/Bind (wat.holon/to-holon "k") (wat.holon/to-holon "v"))
      b
-      (:wat::holon::Bind (:wat::holon::to-holon "k") (:wat::holon::to-holon "v"))]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? a b)
+      (wat.holon/Bind (wat.holon/to-holon "k") (wat.holon/to-holon "v"))]
+    (wat.test/assert-eq
+      (wat.holon/coincident? a b)
       true)))
 
 ;; ─── Unrelated holons do NOT coincide ────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::coincident::test-unrelated-not-coincident
+(wat.test/deftest wat-tests.holon.coincident/test-unrelated-not-coincident
   
-  (:wat::core::let
-    [a (:wat::holon::to-holon "alice")
-     b (:wat::holon::to-holon "charlie")]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? a b)
+  (wat.core/let
+    [a (wat.holon/to-holon "alice")
+     b (wat.holon/to-holon "charlie")]
+    (wat.test/assert-eq
+      (wat.holon/coincident? a b)
       false)))
 
 ;; ─── Coincident? is STRICTER than presence? ──────────────────────
@@ -49,26 +49,26 @@
 ;; An Atom is present in a Bundle that contains it, but is NOT
 ;; coincident with the Bundle — the Bundle is a superposition, not
 ;; the atom itself.
-(:wat::test::deftest :wat-tests::holon::coincident::test-stricter-than-presence
+(wat.test/deftest wat-tests.holon.coincident/test-stricter-than-presence
   
-  (:wat::core::let
+  (wat.core/let
     [bundled
-      (:wat::holon::Bundle
-        (wat.type/Vector :- [:wat::holon::HolonAST]
-          (:wat::holon::to-holon "a")
-          (:wat::holon::to-holon "b")
-          (:wat::holon::to-holon "c")))
+      (wat.holon/Bundle
+        (wat.type/Vector :- [wat.holon/HolonAST]
+          (wat.holon/to-holon "a")
+          (wat.holon/to-holon "b")
+          (wat.holon/to-holon "c")))
      bundle
-      (:wat::core::match bundled 
-        [:wat::core::Result.Ok {:value h}  h]
-        [:wat::core::Result.Err {:error _} (:wat::holon::to-holon "unreachable")])
-     atom (:wat::holon::to-holon "a")]
+      (wat.core/match bundled 
+        [wat.core/Result.Ok {:value h}  h]
+        [wat.core/Result.Err {:error _} (wat.holon/to-holon "unreachable")])
+     atom (wat.holon/to-holon "a")]
     ;; presence? fires (atom's signal IS in the bundle).
-    (:wat::test::assert-eq
-      (:wat::core::if (:wat::holon::presence? atom bundle)
+    (wat.test/assert-eq
+      (wat.core/if (wat.holon/presence? atom bundle)
                       
         ;; And coincident? does NOT fire (the bundle is not the atom).
-        (:wat::core::if (:wat::holon::coincident? atom bundle)
+        (wat.core/if (wat.holon/coincident? atom bundle)
                         
           false    ;; would mean they coincide — wrong
           true)
@@ -81,14 +81,14 @@
 ;; encoded-vector float precision at d=1024 jitters by ~1e-10,
 ;; which is 15 orders of magnitude below noise-floor (~0.156).
 ;; Coincident? has massive headroom for self-equivalence checks.
-(:wat::test::deftest :wat-tests::holon::coincident::test-self-cosine-within-floor
+(wat.test/deftest wat-tests.holon.coincident/test-self-cosine-within-floor
   
-  (:wat::core::let
+  (wat.core/let
     [a
-      (:wat::holon::Bind (:wat::holon::to-holon "rsi")
-                         (:wat::holon::Thermometer 0.5 -1.0 1.0))]
+      (wat.holon/Bind (wat.holon/to-holon "rsi")
+                         (wat.holon/Thermometer 0.5 -1.0 1.0))]
     ;; Arc 037: coincident? does the per-d threshold comparison
     ;; internally. Replaces the pre-arc-037 hand-rolled
     ;; `(cosine a a) vs (noise-floor)` — the accessor is retired
     ;; since noise-floor is per-d now, not a global config value.
-    (:wat::test::assert-eq (:wat::holon::coincident? a a) true)))
+    (wat.test/assert-eq (wat.holon/coincident? a a) true)))

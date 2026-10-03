@@ -16,35 +16,35 @@
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["pathA" "pathB"]\n' | ./target/release/wat ./wat-scripts/fixes/thread-self-peer-to-peer.wat
 
-(:wat::core::defn :user::literal-replace
-  [src <- wat.type/String  old <- wat.type/String  new <- wat.type/String] -> wat.type/String
-  (:wat::string::join new (:wat::string::split src old)))
+(wat.core/defn user/literal-replace
+  [src :- wat.type/String  old :- wat.type/String  new :- wat.type/String] :- wat.type/String
+  (wat.string/join new (wat.string/split src old)))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [src1 (:user::literal-replace src
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [src1 (user/literal-replace src
             "(:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)"
             "")
-     src2 (:wat::fix::rename-keyword-exact
+     src2 (wat.fix/rename-keyword-exact
             ":wat::kernel::ThreadSelfPeer" ":wat::kernel::Peer" src1)]
     src2))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[thread-self-peer->peer] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[thread-self-peer->peer] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v paths} paths]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v paths} paths]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

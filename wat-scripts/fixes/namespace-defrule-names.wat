@@ -62,135 +62,135 @@
 ;; ── small predicates over defrule forms ─────────────────────────────────────────────────────────
 
 ;; defrule-form? — a top-level `(:wat::rete::defrule NAME ...)` list.
-(:wat::core::defn :user::defrule-form? [f <- wat.type/AST] -> wat.type/bool
-  (:wat::core::= (:wat::fix::head-name f) ":wat::rete::defrule"))
+(wat.core/defn user/defrule-form? [f :- wat.type/AST] :- wat.type/bool
+  (wat.core/= (wat.fix/head-name f) ":wat::rete::defrule"))
 
 ;; defrule-name-node — the NAME keyword node (child[1]) of a defrule-form.
-(:wat::core::defn :user::defrule-name-node [f <- wat.type/AST] -> wat.type/AST
-  (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "defrule-name-node: name"))
+(wat.core/defn user/defrule-name-node [f :- wat.type/AST] :- wat.type/AST
+  (wat.core.Option/expect (wat.core/get (wat.core/ast->children f) 1) "defrule-name-node: name"))
 
 ;; bare-defrule? — a defrule-form whose NAME keyword has no "::" in it.
-(:wat::core::defn :user::bare-defrule? [f <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:user::defrule-form? f)
-    (:wat::core::not (:wat::string::contains? (:wat::core::ast-name (:user::defrule-name-node f)) "::"))
+(wat.core/defn user/bare-defrule? [f :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (user/defrule-form? f)
+    (wat.core/not (wat.string/contains? (wat.core/ast-name (user/defrule-name-node f)) "::"))
     false))
 
 ;; any-bare-defrule? — the idempotence gate: does ANY top-level form need renaming?
-(:wat::core::defn :user::any-bare-defrule? [forms <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/bool  f <- wat.type/AST] -> wat.type/bool
-      (:wat::core::if acc true (:user::bare-defrule? f)))
+(wat.core/defn user/any-bare-defrule? [forms :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/bool
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/bool  f :- wat.type/AST] :- wat.type/bool
+      (wat.core/if acc true (user/bare-defrule? f)))
     false
     forms))
 
 ;; ── deriving the file's namespace from its OWN first namespaced top-level defn/defrecord ───────
 ;; (never a hand-kept path -> namespace table)
 
-(:wat::core::defn :user::namespaced-defn-name [f <- wat.type/AST] -> (:wat::core::Option :- [wat.type/String])
-  (:wat::core::let [head (:wat::fix::head-name f)]
-    (:wat::core::if (:wat::core::if (:wat::core::= head ":wat::core::defn") true (:wat::core::= head ":wat::core::defrecord"))
-      (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "namespaced-defn-name: name")]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind namekw) "keyword")
-          (:wat::core::let [nm (:wat::core::ast-name namekw)]
-            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Option.Some {:value nm}) :wat::core::Option.None))
-          :wat::core::Option.None))
-      :wat::core::Option.None)))
+(wat.core/defn user/namespaced-defn-name [f :- wat.type/AST] :- (wat.core/Option :- [wat.type/String])
+  (wat.core/let [head (wat.fix/head-name f)]
+    (wat.core/if (wat.core/if (wat.core/= head ":wat::core::defn") true (wat.core/= head ":wat::core::defrecord"))
+      (wat.core/let [namekw (wat.core.Option/expect (wat.core/get (wat.core/ast->children f) 1) "namespaced-defn-name: name")]
+        (wat.core/if (wat.core/= (wat.core/ast-kind namekw) "keyword")
+          (wat.core/let [nm (wat.core/ast-name namekw)]
+            (wat.core/if (wat.string/contains? nm "::") (wat.core/Option.Some {:value nm}) wat.core/Option.None))
+          wat.core/Option.None))
+      wat.core/Option.None)))
 
 ;; find-ns — walk top-level forms in order; the FIRST namespaced defn/defrecord names this file's
 ;; namespace (e.g. ":wsh::items" -> "wsh"). STOPS if the file has none at all — never a guessed default.
-(:wat::core::defn :user::find-ns [forms <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/String
-  (:wat::core::if (:wat::core::empty? forms)
-    (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from")
-    (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
-      [:wat::core::Option.Some {:value nm}
-        (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
+(wat.core/defn user/find-ns [forms :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/String
+  (wat.core/if (wat.core/empty? forms)
+    (wat.kernel/assertion-failed! :message "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from")
+    (wat.core/match (user/namespaced-defn-name (wat.core/first forms))
+      [wat.core/Option.Some {:value nm}
+        (wat.core/let [seg0 (wat.core.Option/expect (wat.core/get (wat.string/split nm "::") 0)
                                   "find-ns: split always yields >= 1 element")]
-          (:wat::string::strip-leading-colon seg0))]
-      [:wat::core::Option.None {} (:user::find-ns (:wat::core::rest forms))])))
+          (wat.string/strip-leading-colon seg0))]
+      [wat.core/Option.None {} (user/find-ns (wat.core/rest forms))])))
 
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
 
-(:wat::core::defn :user::rule-renames
-  [forms <- (wat.type/Vector :- [wat.type/AST])  ns <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? forms)
+(wat.core/defn user/rule-renames
+  [forms :- (wat.type/Vector :- [wat.type/AST])  ns :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? forms)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-    (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
-      (:wat::core::if (:user::bare-defrule? f)
-        (:wat::core::let [old  (:wat::core::ast-name (:user::defrule-name-node f))
-                          bare (:wat::string::strip-leading-colon old)
-                          new  (:wat::string::concat ":"
-                                 (:wat::string::concat ns
-                                   (:wat::string::concat "::" bare)))]
-          (:wat::core::concat
+    (wat.core/let [f (wat.core/first forms) tl (wat.core/rest forms)]
+      (wat.core/if (user/bare-defrule? f)
+        (wat.core/let [old  (wat.core/ast-name (user/defrule-name-node f))
+                          bare (wat.string/strip-leading-colon old)
+                          new  (wat.string/concat ":"
+                                 (wat.string/concat ns
+                                   (wat.string/concat "::" bare)))]
+          (wat.core/concat
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])] (wat.type/Tuple :- [wat.type/String wat.type/String] old new))
-            (:user::rule-renames tl ns)))
-        (:user::rule-renames tl ns)))))
+            (user/rule-renames tl ns)))
+        (user/rule-renames tl ns)))))
 
-(:wat::core::defn :user::apply-renames
-  [text    <- wat.type/String
-   renames <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::empty? renames)
+(wat.core/defn user/apply-renames
+  [text    :- wat.type/String
+   renames :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  :- wat.type/String
+  (wat.core/if (wat.core/empty? renames)
     text
-    (:wat::core::let [p   (:wat::core::first renames)
-                      old (:wat::core::first p)
-                      new (:wat::core::second p)]
-      (:user::apply-renames (:wat::fix::rename-keyword-exact old new text) (:wat::core::rest renames)))))
+    (wat.core/let [p   (wat.core/first renames)
+                      old (wat.core/first p)
+                      new (wat.core/second p)]
+      (user/apply-renames (wat.fix/rename-keyword-exact old new text) (wat.core/rest renames)))))
 
 ;; ── locating run-row's `(:wat::rete::Rule/name rule)` read, post-rename ────────────────────────
 
-(:wat::core::defn :user::ends-with? [s <- wat.type/String suf <- wat.type/String] -> wat.type/bool
-  (:wat::core::let [ls (:wat::string::length s) lsuf (:wat::string::length suf)]
-    (:wat::core::if (:wat::core::< ls lsuf)
+(wat.core/defn user/ends-with? [s :- wat.type/String suf :- wat.type/String] :- wat.type/bool
+  (wat.core/let [ls (wat.string/length s) lsuf (wat.string/length suf)]
+    (wat.core/if (wat.core/< ls lsuf)
       false
-      (:wat::core::= (:wat::string::subs s (:wat::i64::- ls lsuf) ls) suf))))
+      (wat.core/= (wat.string/subs s (wat.i64/- ls lsuf) ls) suf))))
 
 ;; run-row-defn? — a top-level `(:wat::core::defn NAME:...::run-row ...)` form.
-(:wat::core::defn :user::run-row-defn? [f <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::fix::head-name f) ":wat::core::defn")
-    (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "run-row-defn?: name")]
-      (:wat::core::if (:wat::core::= (:wat::core::ast-kind namekw) "keyword")
-        (:user::ends-with? (:wat::core::ast-name namekw) "::run-row")
+(wat.core/defn user/run-row-defn? [f :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.fix/head-name f) ":wat::core::defn")
+    (wat.core/let [namekw (wat.core.Option/expect (wat.core/get (wat.core/ast->children f) 1) "run-row-defn?: name")]
+      (wat.core/if (wat.core/= (wat.core/ast-kind namekw) "keyword")
+        (user/ends-with? (wat.core/ast-name namekw) "::run-row")
         false))
     false))
 
-(:wat::core::defn :user::find-run-row [forms <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
-  (:wat::core::if (:wat::core::empty? forms)
-    (:wat::kernel::assertion-failed! :message "namespace-defrule-names: no ::run-row defn found")
-    (:wat::core::let [f (:wat::core::first forms)]
-      (:wat::core::if (:user::run-row-defn? f) f (:user::find-run-row (:wat::core::rest forms))))))
+(wat.core/defn user/find-run-row [forms :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/AST
+  (wat.core/if (wat.core/empty? forms)
+    (wat.kernel/assertion-failed! :message "namespace-defrule-names: no ::run-row defn found")
+    (wat.core/let [f (wat.core/first forms)]
+      (wat.core/if (user/run-row-defn? f) f (user/find-run-row (wat.core/rest forms))))))
 
 ;; find-call — deep search for the (unique, per the survey) node calling exactly `head`.
-(:wat::core::defn :user::find-call [node <- wat.type/AST  head <- wat.type/String] -> (:wat::core::Option :- [wat.type/AST])
-  (:wat::core::if (:wat::fix::calls-to? node head)
-    (:wat::core::Option.Some {:value node})
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::find-call-seq (:wat::core::ast->children node) head)
-      :wat::core::Option.None)))
+(wat.core/defn user/find-call [node :- wat.type/AST  head :- wat.type/String] :- (wat.core/Option :- [wat.type/AST])
+  (wat.core/if (wat.fix/calls-to? node head)
+    (wat.core/Option.Some {:value node})
+    (wat.core/if (wat.fix/structural? node)
+      (user/find-call-seq (wat.core/ast->children node) head)
+      wat.core/Option.None)))
 
-(:wat::core::defn :user::find-call-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])  head <- wat.type/String] -> (:wat::core::Option :- [wat.type/AST])
-  (:wat::core::if (:wat::core::empty? items)
-    :wat::core::Option.None
-    (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
-      (:wat::core::match (:user::find-call h head)
-        [:wat::core::Option.Some {:value found} (:wat::core::Option.Some {:value found})]
-        [:wat::core::Option.None {} (:user::find-call-seq tl head)]))))
+(wat.core/defn user/find-call-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])  head :- wat.type/String] :- (wat.core/Option :- [wat.type/AST])
+  (wat.core/if (wat.core/empty? items)
+    wat.core/Option.None
+    (wat.core/let [h (wat.core/first items) tl (wat.core/rest items)]
+      (wat.core/match (user/find-call h head)
+        [wat.core/Option.Some {:value found} (wat.core/Option.Some {:value found})]
+        [wat.core/Option.None {} (user/find-call-seq tl head)]))))
 
 ;; ── the inserted helper's source text (only the namespace varies) ──────────────────────────────
 
 ;; concat-all — String/concat is 2-arg; fold a (Vector :- [String]) of parts left-to-right instead of
 ;; hand-nesting a nine-deep concat chain (error-prone and unreadable at that depth).
-(:wat::core::defn :user::concat-all [parts <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  p <- wat.type/String] -> wat.type/String
-      (:wat::string::concat acc p))
+(wat.core/defn user/concat-all [parts :- (wat.type/Vector :- [wat.type/String])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  p :- wat.type/String] :- wat.type/String
+      (wat.string/concat acc p))
     ""
     parts))
 
-(:wat::core::defn :user::helper-defn-text [ns <- wat.type/String] -> wat.type/String
-  (:user::concat-all
+(wat.core/defn user/helper-defn-text [ns :- wat.type/String] :- wat.type/String
+  (user/concat-all
     (wat.type/Vector :- [wat.type/String]
       ";; rule-display-name — TOTAL derivation of the printed row label from a Rule/name that may\n"
       ";; now carry this file's namespace prefix (e.g. \"NS::arith\") after the namespacing wall.\n"
@@ -206,42 +206,42 @@
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [tree0  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     forms0 (:wat::core::ast->children tree0)]
-    (:wat::core::if (:wat::core::not (:user::any-bare-defrule? forms0))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [tree0  (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     forms0 (wat.core/ast->children tree0)]
+    (wat.core/if (wat.core/not (user/any-bare-defrule? forms0))
       src ;; idempotent no-op — every defrule name is already namespaced
-      (:wat::core::let
-        [ns       (:user::find-ns forms0)
-         renames  (:user::rule-renames forms0 ns)
-         text1    (:user::apply-renames src renames)
-         lines1   (:wat::string::split text1 "\n")
-         tree1    (:wat::core::match (:wat::core::read-string text1) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-         forms1   (:wat::core::ast->children tree1)
-         run-row  (:user::find-run-row forms1)
-         target   (:wat::core::Option/expect (:user::find-call run-row ":wat::rete::Rule/name")
+      (wat.core/let
+        [ns       (user/find-ns forms0)
+         renames  (user/rule-renames forms0 ns)
+         text1    (user/apply-renames src renames)
+         lines1   (wat.string/split text1 "\n")
+         tree1    (wat.core/match (wat.core/read-string text1) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+         forms1   (wat.core/ast->children tree1)
+         run-row  (user/find-run-row forms1)
+         target   (wat.core.Option/expect (user/find-call run-row ":wat::rete::Rule/name")
                      "migrate: no Rule/name call found in run-row")
-         wrap-eds (:wat::fix::wrap-edits target
-                    (:wat::string::concat "(:" (:wat::string::concat ns "::rule-display-name "))
+         wrap-eds (wat.fix/wrap-edits target
+                    (wat.string/concat "(:" (wat.string/concat ns "::rule-display-name "))
                     ")"
                     lines1)
-         ins-off  (:wat::fix::node-start-offset run-row lines1)
-         ins-edit (wat.type/Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ins-off "" (:user::helper-defn-text ns)))
-         all-eds  (:wat::core::concat wrap-eds ins-edit)
-         text2    (:wat::fix::fix-text-apply text1 (:wat::core::reverse (:wat::core::sort all-eds)))]
+         ins-off  (wat.fix/node-start-offset run-row lines1)
+         ins-edit (wat.type/Vector :- [wat.fix/Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] ins-off "" (user/helper-defn-text ns)))
+         all-eds  (wat.core/concat wrap-eds ins-edit)
+         text2    (wat.fix/fix-text-apply text1 (wat.core/reverse (wat.core/sort all-eds)))]
         text2))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/rewrite-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [p (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file p (:user::migrate (:wat::io::read-file p)))
-        (:wat::kernel::println (:wat::string::concat "[namespace-defrule-names] " p))
-        (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
+    (wat.core/let [p (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file p (user/migrate (wat.io/read-file p)))
+        (wat.kernel/println (wat.string/concat "[namespace-defrule-names] " p))
+        (user/rewrite-each (wat.core/into [] (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::rewrite-each paths)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [paths (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+    (user/rewrite-each paths)))

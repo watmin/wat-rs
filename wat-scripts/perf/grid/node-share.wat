@@ -42,23 +42,23 @@
 ;;   echo '[50 200]' | cargo wat ./wat-scripts/perf/grid/node-share.wat
 ;;   => #grid/Result {:axis "node-share" :size [50 200] :derived [...] :native-ns N}
 
-(:wat::core::defrecord :nsh::A   [k <- wat.type/i64])   ;; shared leading condition
-(:wat::core::defrecord :nsh::B   [k <- wat.type/i64])   ;; shared join partner (prefix = A ⋈ B)
-(:wat::core::defrecord :nsh::Out [k <- wat.type/i64])   ;; per-rule production (single output type)
+(wat.core/defrecord nsh/A   [k :- wat.type/i64])   ;; shared leading condition
+(wat.core/defrecord nsh/B   [k :- wat.type/i64])   ;; shared join partner (prefix = A ⋈ B)
+(wat.core/defrecord nsh/Out [k :- wat.type/i64])   ;; per-rule production (single output type)
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
-(:wat::rete::defquery :nsh::q-Out
+(wat.rete/defquery nsh/q-Out
   :params []
-  :when [(?fact :- :nsh::Out)])
+  :when [(?fact :- nsh/Out)])
 
 
 ;; build-rule i n — the i-th rule of the N-rule set:
@@ -78,82 +78,82 @@
 ;; never be produced by a real (non-overflow, non-zero-divisor) evaluation, so if the undefined
 ;; point were ever reached the token simply fails every rule's `where` (i, the compared literal, is
 ;; always in [0, n) — never -1) rather than silently landing on a plausible wrong match.
-(:wat::core::defn :nsh::build-rule [i <- wat.type/i64  n <- wat.type/i64] -> :wat::rete::Rule
-  (:wat::core::let [a-c     (:wat::core::quasiquote (:nsh::A (?k :- :k)))
-                    b-c     (:wat::core::quasiquote (:nsh::B (?k :- :k)))
-                    where-c (:wat::core::quasiquote
-                              (:wat::rete::where
-                                (:wat::rete::i64::= (:wat::core::unquote i)
-                                  (:wat::rete::i64::- ?k
-                                    (:wat::rete::i64::* (:wat::rete::i64::/ ?k (:wat::core::unquote n) :undefined -1) (:wat::core::unquote n) :undefined -1)
+(wat.core/defn nsh/build-rule [i :- wat.type/i64  n :- wat.type/i64] :- wat.rete/Rule
+  (wat.core/let [a-c     (wat.core/quasiquote (nsh/A (?k :- :k)))
+                    b-c     (wat.core/quasiquote (nsh/B (?k :- :k)))
+                    where-c (wat.core/quasiquote
+                              (wat.rete/where
+                                (wat.rete.i64/= (wat.core/unquote i)
+                                  (wat.rete.i64/- ?k
+                                    (wat.rete.i64/* (wat.rete.i64// ?k (wat.core/unquote n) :undefined -1) (wat.core/unquote n) :undefined -1)
                                     :undefined -1))))
-                    ins     (:wat::core::quasiquote (:nsh::Out ?k))]
-    (:wat::rete::Rule :name (:wat::i64::to-string i)
+                    ins     (wat.core/quasiquote (nsh/Out ?k))]
+    (wat.rete/Rule :name (wat.i64/to-string i)
       :lhs (wat.type/PersistentVector :- [wat.type/AST] a-c b-c where-c)
       :rhs (wat.type/PersistentVector :- [wat.type/AST] ins))))
 
 ;; build-rules n — the N-rule set [r0 .. r(n-1)], folding build-rule over (range 0 n). Every rule
 ;; shares the leading [A]⋈[B] join-prefix; only the trailing literal differs (mirrors strat-neg's
 ;; build-rules fold shape).
-(:wat::core::defn :nsh::build-rules [n <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [:wat::rete::Rule])  i <- wat.type/i64]
-      -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::conj acc (:nsh::build-rule i n)))
-    (wat.type/PersistentVector :- [:wat::rete::Rule])
-    (:wat::core::range 0 n)))
+(wat.core/defn nsh/build-rules [n :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.rete/Rule])  i :- wat.type/i64]
+      :- (wat.type/PersistentVector :- [wat.rete/Rule])
+      (wat.core/conj acc (nsh/build-rule i n)))
+    (wat.type/PersistentVector :- [wat.rete/Rule])
+    (wat.core/range 0 n)))
 
 ;; seed session items — stage A(i) AND B(i) for i in [0, items), threading the staging session, so
 ;; the shared [A]⋈[B] join yields exactly one token per k (fan-in = items).
 ;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
 ;; The fact vector is heterogeneous (A and B), which `(PersistentVector :- [Record])` carries fine.
-(:wat::core::defn :nsh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn nsh/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj (:wat::core::conj acc (:nsh::A i)) (:nsh::B i)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj (wat.core/conj acc (nsh/A i)) (nsh/B i)))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :nsh::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn nsh/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector fired — every derived Out fact's key k, sorted ascending. THE (one-time) sanity
 ;; witness: the full derived set. Expected = [0 1 .. items-1], independent of rule-count N.
-(:wat::core::defn :nsh::derived-vector
-  [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:nsh::vec->pvec
-    (:wat::core::sort
-      (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-        (:wat::core::map
-          (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:nsh::Out/k f)))
-          (:wat::rete::query fired (:nsh::q-Out)))))))
+(wat.core/defn nsh/derived-vector
+  [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (nsh/vec->pvec
+    (wat.core/sort
+      (wat.core/into (wat.type/Vector :- [wat.type/i64])
+        (wat.core/map
+          (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (nsh.Out/k f)))
+          (wat.rete/query fired (nsh/q-Out)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).
-(:wat::core::defn :nsh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn nsh/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    rules-n (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [rules items]")
-                    items   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [rules items]")
-                    rules   (:nsh::build-rules rules-n)
-                    staged  (:nsh::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:nsh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) items)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    rules-n (wat.core.Option/expect (wat.core/get params 0) "stdin: [rules items]")
+                    items   (wat.core.Option/expect (wat.core/get params 1) "stdin: [rules items]")
+                    rules   (nsh/build-rules rules-n)
+                    staged  (nsh/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (nsh/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) items)
                     ;; time the NATIVE production verb only (compile + seed are un-timed setup)
-                    n0      (:wat::time::now)
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    n1      (:wat::time::now)
-                    derived (:nsh::derived-vector fired)
-                    nat-ns  (:nsh::ns-between n0 n1)
+                    n0      (wat.time/now)
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    n1      (wat.time/now)
+                    derived (nsh/derived-vector fired)
+                    nat-ns  (nsh/ns-between n0 n1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "node-share" :size (wat.type/PersistentVector :- [wat.type/i64] rules-n items) :derived derived :native-ns nat-ns :oracle-derived (:nsh::derived-vector ofired) :oracle-ns (:nsh::ns-between o0 o1)))))
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "node-share" :size (wat.type/PersistentVector :- [wat.type/i64] rules-n items) :derived derived :native-ns nat-ns :oracle-derived (nsh/derived-vector ofired) :oracle-ns (nsh/ns-between o0 o1)))))

@@ -36,7 +36,7 @@
 
 ;; The migration as DATA — one line per name. (0z's first draft nested these into a 24-deep
 ;; staircase and the closing-paren count was wrong twice. A fold over a list cannot have that bug.)
-(:wat::core::defn :user::renames [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+(wat.core/defn user/renames [] :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     ;; the arena / producer-consumer pair
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":cons::consumer'"          ":cons::consumer")
@@ -69,25 +69,25 @@
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::test::run-hermetic'" ":wat::test::run-hermetic")
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::test::run-thread'"   ":wat::test::run-thread")))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String
-                     pr  <- (wat.type/Tuple :- [wat.type/String wat.type/String])] -> wat.type/String
-      (:wat::fix::rename-keyword-prefix (:wat::core::first pr) (:wat::core::second pr) acc))
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String
+                     pr  :- (wat.type/Tuple :- [wat.type/String wat.type/String])] :- wat.type/String
+      (wat.fix/rename-keyword-prefix (wat.core/first pr) (wat.core/second pr) acc))
     src
-    (:user::renames)))
+    (user/renames)))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

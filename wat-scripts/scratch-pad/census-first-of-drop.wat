@@ -18,70 +18,70 @@
 ;;   printf '["wat/service.wat" "wat/lint.wat"]\n' | ./target/release/wat \
 ;;     wat-scripts/scratch-pad/census-first-of-drop.wat
 
-(:wat::core::defn :census::head-is?
-  [form <- wat.type/AST name <- wat.type/String] -> wat.type/bool
-  (:wat::core::let
-    [ch (:wat::core::into [] (:wat::core::ast->children form))]
-    (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn census/head-is?
+  [form :- wat.type/AST name :- wat.type/String] :- wat.type/bool
+  (wat.core/let
+    [ch (wat.core/into [] (wat.core/ast->children form))]
+    (wat.core/if (wat.core/empty? ch)
       false
-      (:wat::core::= (:wat::core::ast->source (:wat::core::first ch)) name))))
+      (wat.core/= (wat.core/ast->source (wat.core/first ch)) name))))
 
 ;; Is THIS form `(first (drop X n))`? Head is `first`, arity 1, and that one arg is a `drop` call.
-(:wat::core::defn :census::is-first-of-drop?
-  [form <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let
-    [ch (:wat::core::into [] (:wat::core::ast->children form))]
-    (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+(wat.core/defn census/is-first-of-drop?
+  [form :- wat.type/AST] :- wat.type/bool
+  (wat.core/let
+    [ch (wat.core/into [] (wat.core/ast->children form))]
+    (wat.core/if (wat.core/< (wat.core/length ch) 2)
       false
-      (:wat::core::and
-        (:census::head-is? form ":wat::core::first")
-        (:census::head-is? (:wat::core::nth ch 1) ":wat::core::drop")))))
+      (wat.core/and
+        (census/head-is? form ":wat::core::first")
+        (census/head-is? (wat.core/nth ch 1) ":wat::core::drop")))))
 
 ;; Report one hit as `receiver | index`, the two operands the codemod carries into `(nth X n)`.
-(:wat::core::defn :census::report-hit
-  [path <- wat.type/String form <- wat.type/AST] -> wat.type/nil
-  (:wat::core::let
-    [inner (:wat::core::into [] (:wat::core::ast->children
-             (:wat::core::nth (:wat::core::into [] (:wat::core::ast->children form)) 1)))]
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::string::concat "  FIRST-OF-DROP  " path)
-        (:wat::string::concat "  ::  "
-          (:wat::core::if (:wat::core::< (:wat::core::length inner) 3)
+(wat.core/defn census/report-hit
+  [path :- wat.type/String form :- wat.type/AST] :- wat.type/nil
+  (wat.core/let
+    [inner (wat.core/into [] (wat.core/ast->children
+             (wat.core/nth (wat.core/into [] (wat.core/ast->children form)) 1)))]
+    (wat.kernel/println
+      (wat.string/concat
+        (wat.string/concat "  FIRST-OF-DROP  " path)
+        (wat.string/concat "  ::  "
+          (wat.core/if (wat.core/< (wat.core/length inner) 3)
             "<malformed drop — REPORT THIS, do not migrate it>"
-            (:wat::string::concat
-              (:wat::core::ast->source (:wat::core::nth inner 1))
-              (:wat::string::concat " | "
-                (:wat::core::ast->source (:wat::core::nth inner 2))))))))))
+            (wat.string/concat
+              (wat.core/ast->source (wat.core/nth inner 1))
+              (wat.string/concat " | "
+                (wat.core/ast->source (wat.core/nth inner 2))))))))))
 
 ;; Walk every form beneath this one. A hit does not stop the descent — `(first (drop (first
 ;; (drop x 1)) 2))` is two hits and the codemod must see both.
-(:wat::core::defn :census::walk
-  [path <- wat.type/String form <- wat.type/AST] -> wat.type/nil
-  (:wat::core::do
-    (:wat::core::if (:census::is-first-of-drop? form)
-      (:census::report-hit path form)
+(wat.core/defn census/walk
+  [path :- wat.type/String form :- wat.type/AST] :- wat.type/nil
+  (wat.core/do
+    (wat.core/if (census/is-first-of-drop? form)
+      (census/report-hit path form)
       nil)
-    (:wat::core::run!
-      (:wat::core::fn [child <- wat.type/AST] -> wat.type/nil (:census::walk path child))
-      (:wat::core::into [] (:wat::core::ast->children form)))))
+    (wat.core/run!
+      (wat.core/fn [child :- wat.type/AST] :- wat.type/nil (census/walk path child))
+      (wat.core/into [] (wat.core/ast->children form)))))
 
-(:wat::core::defn :census::file
-  [path <- wat.type/String] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::string::concat "== " path))
-    (:census::walk path
-      (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-        [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-        [:wat::core::ReadOutcome.Malformed {:cause __cause}
-          (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))))
+(wat.core/defn census/file
+  [path :- wat.type/String] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.string/concat "== " path))
+    (census/walk path
+      (wat.core/match (wat.core/read-string (wat.io/read-file path))
+        [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+        [wat.core/ReadOutcome.Malformed {:cause __cause}
+          (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::run!
-    (:wat::core::fn [p <- wat.type/String] -> wat.type/nil (:census::file p))
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/run!
+    (wat.core/fn [p :- wat.type/String] :- wat.type/nil (census/file p))
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

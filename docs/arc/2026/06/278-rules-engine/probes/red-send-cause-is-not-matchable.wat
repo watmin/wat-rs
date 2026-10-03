@@ -36,16 +36,16 @@
 ;;    cause was a fabricated constant: the producer collapses it and every reader discards it. This
 ;;    probe is the first thing in the substrate that tries to READ a send failure's reason.
 
-(:wat::core::defn :probe::send-side-cannot-match [] -> wat.type/nil
-  (:wat::core::let
-    [peer (:wat::test::spawn-peer
-            (:wat::spawn::process)
-            (:wat::core::forms
-              (:wat::core::defn :user::main [] -> wat.type/nil
-                (:wat::kernel::println "child up"))))]
-    (:wat::core::match (:wat::kernel::send peer "ping")
-      [:wat::kernel::SendOutcome.Sent {} nil]
-      [:wat::kernel::SendOutcome.HandleClosed {} nil]
+(wat.core/defn probe/send-side-cannot-match [] :- wat.type/nil
+  (wat.core/let
+    [peer (wat.test/spawn-peer
+            (wat.spawn/process)
+            (wat.core/forms
+              (wat.core/defn user/main [] :- wat.type/nil
+                (wat.kernel/println "child up"))))]
+    (wat.core/match (wat.kernel/send peer "ping")
+      [wat.kernel/SendOutcome.Sent {} nil]
+      [wat.kernel/SendOutcome.HandleClosed {} nil]
       ;; arc 278 #73 — orthogonal to this probe's gap (its subject is the Lost arm's
       ;; carrier type below, not this enum's exhaustiveness). Added only so the corpus
       ;; sweep doesn't overload this file with a SECOND, unrelated red — the deliberate
@@ -53,36 +53,36 @@
       ;; 255.36 — the nested LociDiedError match was the one arm that read the
       ;; cause differently for a stop, a departure, and anything else. Those
       ;; are the variants now. A Failure cause does not carry them.
-      [:wat::kernel::SendOutcome.Stopped {}
-        (:wat::kernel::println "the process is stopping")]
-      [:wat::kernel::SendOutcome.Closed {:cause _cause}
-        (:wat::kernel::println "the peer is gone")]
-      [:wat::kernel::SendOutcome.Failed {:cause _cause}
-        (:wat::kernel::println "an io failure")])))
+      [wat.kernel/SendOutcome.Stopped {}
+        (wat.kernel/println "the process is stopping")]
+      [wat.kernel/SendOutcome.Closed {:cause _cause}
+        (wat.kernel/println "the peer is gone")]
+      [wat.kernel/SendOutcome.Failed {:cause _cause}
+        (wat.kernel/println "an io failure")])))
 
 ;; ── POSITIVE CONTROL — the recv side already carries a matchable cause. MUST type-check. ──────
-(:wat::core::defn :probe::recv-side-already-works [] -> wat.type/nil
-  (:wat::core::let
-    [peer (:wat::test::spawn-peer
-            (:wat::spawn::process)
-            (:wat::core::forms
-              (:wat::core::defn :user::main [] -> wat.type/nil
-                (:wat::kernel::println "child up"))))]
-    (:wat::core::match (:wat::kernel::recv peer)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} nil]
-      [:wat::kernel::RecvOutcome.Closed {} nil]
+(wat.core/defn probe/recv-side-already-works [] :- wat.type/nil
+  (wat.core/let
+    [peer (wat.test/spawn-peer
+            (wat.spawn/process)
+            (wat.core/forms
+              (wat.core/defn user/main [] :- wat.type/nil
+                (wat.kernel/println "child up"))))]
+    (wat.core/match (wat.kernel/recv peer)
+      [wat.kernel/RecvOutcome.Message {:msg _m} nil]
+      [wat.kernel/RecvOutcome.Closed {} nil]
       ;; arc 278 #73 — same orthogonal note as the send-side match above: this control
       ;; MUST stay green (see the header), so it needs this arm to keep type-checking
       ;; now that RecvOutcome gained Stopped; it is not part of what the control proves.
-      [:wat::kernel::RecvOutcome.Stopped {} nil]
+      [wat.kernel/RecvOutcome.Stopped {} nil]
       ;; The SAME variants, against the SAME enum, on the outcome that was migrated. Green today.
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::core::match cause
-          [:wat::kernel::LociDiedError.Stopped {}
-            (:wat::kernel::println "the process is stopping")]
-          [:wat::kernel::LociDiedError.Disconnected {}
-            (:wat::kernel::println "the peer is gone")]
-          [_ (:wat::kernel::println "some other death")])])))
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.core/match cause
+          [wat.kernel/LociDiedError.Stopped {}
+            (wat.kernel/println "the process is stopping")]
+          [wat.kernel/LociDiedError.Disconnected {}
+            (wat.kernel/println "the peer is gone")]
+          [_ (wat.kernel/println "some other death")])])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "red-send-cause probe: if you see this, the send arm compiled"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "red-send-cause probe: if you see this, the send arm compiled"))

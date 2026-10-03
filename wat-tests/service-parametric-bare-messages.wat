@@ -28,80 +28,80 @@
 ;; `service-parametric.wat` pins, minus the vacuous `T` this stone retires.
 
 ;; ── the surface: parametric, messages BARE (the whole point) ────────────────────────────────
-(:wat::core::defsurface :wat-tests::BareBox :- [T] :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/BareBox :- [T] :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::BareBox::PutRequest [item <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::BareBox::PutResponse :wat::enum::Pure
+  [(wat.core/defrecord wat-tests.BareBox/PutRequest [item :- wat.type/i64])
+   (wat.core/defenum wat-tests.BareBox/PutResponse wat.enum/Pure
      ;; `echo` carries the handler's answer back so the round-trip asserts a VALUE, not just
      ;; "no crash": item + 1 when the generic durable holds something, item + 0 when empty.
-     :Ok              [echo <- wat.type/i64]
+     :Ok              [echo :- wat.type/i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- (:wat-tests::BareBox :- [T])  req <- :wat-tests::BareBox::PutRequest]
-     -> :wat-tests::BareBox::PutResponse :max-request-bytes 1024)])
+  [(put [self :- (wat-tests/BareBox :- [T])  req :- wat-tests.BareBox/PutRequest]
+     :- wat-tests.BareBox/PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
 ;; `held <- (Option :- [T])` is the whole point: the durable record — and therefore ::State, ::Admin,
 ;; ::Status and ::Handle, each of which carries it — is generic in T.
-(:wat::service::defservice :wat-tests::barebox-svc :- [T]
-  :satisfies (:wat-tests::BareBox :- [T])
-  :durable   [held <- (:wat::core::Option :- [T])]
+(wat.service/defservice wat-tests/barebox-svc :- [T]
+  :satisfies (wat-tests/BareBox :- [T])
+  :durable   [held :- (wat.core/Option :- [T])]
   :ephemeral []
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat-tests::BareBox::PutResponse.Ok
-         {:echo (:wat::i64::+
-           (:wat-tests::BareBox::PutRequest/item req)
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat-tests.BareBox/PutResponse.Ok
+         {:echo (wat.i64/+
+           (wat-tests.BareBox.PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
-           (:wat::core::match
-               (:wat-tests::barebox-svc::Record/held (:wat-tests::barebox-svc::State/durable s))
-             [:wat::core::Option.Some {:value v} 1]
-             [:wat::core::Option.None {} 0]))})}))])
+           (wat.core/match
+               (wat-tests.barebox-svc.Record/held (wat-tests.barebox-svc.State/durable s))
+             [wat.core/Option.Some {:value v} 1]
+             [wat.core/Option.None {} 0]))})}))])
 
 ;; ── the gate: stand it up, dial it, round-trip one call ──────────────────────────────────────
 ;; `T` is pinned to `i64` at the `/start` call site by the seed `(Some 42)`.
 ;; Expected: item 7 + 1 (durable is `Some`) = 8.
-(:wat::core::defn :wat-tests::barebox::run :- [T] [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/i64
-  (:wat::core::let
-    [h (:wat-tests::barebox-svc/start :locus locus
-         :record (:wat-tests::barebox-svc::Record :held (:wat::core::Option.Some {:value 42})))
-     c (:wat::core::match (:wat::kernel::connect (:wat-tests::barebox-svc::Handle/addr h))
-         [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-         [:wat::kernel::ConnectOutcome.Closed {:cause cz}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-         [:wat::kernel::ConnectOutcome.Undialable {:cause cz}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause cz}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))]
-         [:wat::kernel::ConnectOutcome.Failed {:cause cz}
-           (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cz))])
-     r (:wat-tests::barebox-svc/put c (:wat-tests::BareBox::PutRequest :item 7))
-     out (:wat::core::match r
-           [:wat::kernel::RecvOutcome.Message {:msg __recv}
-             (:wat::core::match __recv
-               [:wat-tests::BareBox::PutResponse.Ok {:echo echo} echo]
+(wat.core/defn wat-tests.barebox/run :- [T] [locus :- (wat.spawn/Locus :- [T])] :- wat.type/i64
+  (wat.core/let
+    [h (wat-tests.barebox-svc/start :locus locus
+         :record (wat-tests.barebox-svc/Record :held (wat.core/Option.Some {:value 42})))
+     c (wat.core/match (wat.kernel/connect (wat-tests.barebox-svc.Handle/addr h))
+         [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+         [wat.kernel/ConnectOutcome.Closed {:cause cz}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))]
+         [wat.kernel/ConnectOutcome.Undialable {:cause cz}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))] [wat.kernel/ConnectOutcome.WrongPeer {:cause cz}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))]
+         [wat.kernel/ConnectOutcome.Failed {:cause cz}
+           (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cz))])
+     r (wat-tests.barebox-svc/put c (wat-tests.BareBox/PutRequest :item 7))
+     out (wat.core/match r
+           [wat.kernel/RecvOutcome.Message {:msg __recv}
+             (wat.core/match __recv
+               [wat-tests.BareBox/PutResponse.Ok {:echo echo} echo]
                ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-               [:wat-tests::BareBox::PutResponse.RequestTooLarge {:bytes bytes :cap cap}
-                 (:wat::kernel::assertion-failed! :message "barebox-svc put: unexpected RequestTooLarge")]
-               [:wat-tests::BareBox::PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-                 (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])]
-           [:wat::kernel::RecvOutcome.Lost {:cause __cause}
-             (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))]
-           [:wat::kernel::RecvOutcome.Stopped {}
-             (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-           [:wat::kernel::RecvOutcome.Closed {}
-             (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-     _ (:wat-tests::barebox-svc/stop h)]
+               [wat-tests.BareBox/PutResponse.RequestTooLarge {:bytes bytes :cap cap}
+                 (wat.kernel/assertion-failed! :message "barebox-svc put: unexpected RequestTooLarge")]
+               [wat-tests.BareBox/PutResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+                 (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])]
+           [wat.kernel/RecvOutcome.Lost {:cause __cause}
+             (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))]
+           [wat.kernel/RecvOutcome.Stopped {}
+             (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+           [wat.kernel/RecvOutcome.Closed {}
+             (wat.kernel/assertion-failed! :message "recv': peer closed")])
+     _ (wat-tests.barebox-svc/stop h)]
     out))
 
 ;; ── thread tier ─────────────────────────────────────────────────────────────────────────────
-(:wat::test::deftest :wat-tests::service::parametric-bare-messages-round-trip-on-thread
+(wat.test/deftest wat-tests.service/parametric-bare-messages-round-trip-on-thread
 
-  (:wat::test::assert-eq
-    (:wat-tests::barebox::run (:wat::spawn::thread))
+  (wat.test/assert-eq
+    (wat-tests.barebox/run (wat.spawn/thread))
     8))
 
 ;; ── process tier ────────────────────────────────────────────────────────────────────────────
@@ -109,8 +109,8 @@
 ;; surface from the shipped `service-forms` bundle and the payload crosses as ENCODED EDN — so
 ;; the bare `PutRequest` resolves through the Rust-minted alias a SECOND time, independently, in
 ;; the child's own `register_types` pass.
-(:wat::test::deftest :wat-tests::service::parametric-bare-messages-round-trip-on-process
+(wat.test/deftest wat-tests.service/parametric-bare-messages-round-trip-on-process
 
-  (:wat::test::assert-eq
-    (:wat-tests::barebox::run (:wat::spawn::process))
+  (wat.test/assert-eq
+    (wat-tests.barebox/run (wat.spawn/process))
     8))

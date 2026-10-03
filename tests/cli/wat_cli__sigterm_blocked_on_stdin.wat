@@ -9,21 +9,21 @@
 ;; A compute loop reaches its poll on its own; a blocked read never reaches anything
 ;; unless the read itself is multiplexed against the shutdown signal.
 
-(:wat::core::defn :demo::loop [] -> wat.type/nil
-  (:wat::core::match (:wat::kernel::read-frame )
-    [:wat::kernel::ReadFrameOutcome.Frame {:text text}
-      (:wat::core::do
-        (:wat::kernel::println text)
-        (:demo::loop))]
-    [:wat::kernel::ReadFrameOutcome.Eof {} nil]
+(wat.core/defn demo/loop [] :- wat.type/nil
+  (wat.core/match (wat.kernel/read-frame )
+    [wat.kernel/ReadFrameOutcome.Frame {:text text}
+      (wat.core/do
+        (wat.kernel/println text)
+        (demo/loop))]
+    [wat.kernel/ReadFrameOutcome.Eof {} nil]
     ;; THE ARM THIS TEST EXISTS FOR — a stop arrived while parked in the read. Returning
     ;; cleanly here IS the contract: SIGTERM is a flag the program observes, not a kill.
     ;; Before the stdin read joined the lock-step there was no way to reach this point at
     ;; all: the read was a bare `read(2)`, so the signal could not be observed and the
     ;; parked thread pinned the process alive until stdin EOF'd.
-    [:wat::kernel::ReadFrameOutcome.Stopped {} nil]))
+    [wat.kernel/ReadFrameOutcome.Stopped {} nil]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "READY")
-    (:demo::loop)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "READY")
+    (demo/loop)))

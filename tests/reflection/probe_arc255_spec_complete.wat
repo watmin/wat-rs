@@ -5,24 +5,24 @@
 ;; inspects the returned typed Value.
 
 ;; ─── Part A: variadic-args-measurement ───────────────────────────────────────
-(:wat::core::defn :user::variadic-three [] -> wat.type/i64
-  (:wat::intrinsic::variadic-args-measurement 1 2 3))
-(:wat::core::defn :user::variadic-zero [] -> wat.type/i64
-  (:wat::intrinsic::variadic-args-measurement))
-(:wat::core::defn :user::variadic-one [] -> wat.type/i64
-  (:wat::intrinsic::variadic-args-measurement :x))
+(wat.core/defn user/variadic-three [] :- wat.type/i64
+  (wat.intrinsic/variadic-args-measurement 1 2 3))
+(wat.core/defn user/variadic-zero [] :- wat.type/i64
+  (wat.intrinsic/variadic-args-measurement))
+(wat.core/defn user/variadic-one [] :- wat.type/i64
+  (wat.intrinsic/variadic-args-measurement :x))
 
 ;; ─── Part B/C: render-doc goldens ─────────────────────────────────────────────
-(:wat::core::defn :user::render-yields [] -> wat.type/String
-  (:wat::core::render-doc :wat::intrinsic::yields-witness))
-(:wat::core::defn :user::render-to-hex [] -> wat.type/String
-  (:wat::core::render-doc :wat::bytes::to-hex))
-(:wat::core::defn :user::render-variadic [] -> wat.type/String
-  (:wat::core::render-doc :wat::intrinsic::variadic-args-measurement))
+(wat.core/defn user/render-yields [] :- wat.type/String
+  (wat.core/render-doc wat.intrinsic/yields-witness))
+(wat.core/defn user/render-to-hex [] :- wat.type/String
+  (wat.core/render-doc wat.bytes/to-hex))
+(wat.core/defn user/render-variadic [] :- wat.type/String
+  (wat.core/render-doc wat.intrinsic/variadic-args-measurement))
 
 ;; ─── metadata-of carries :category ───────────────────────────────────────────
 ;; metadata-of has no registered TypeScheme (runtime keyword-arg resolution); the
 ;; declared (Option :- [(HashMap :- [keyword HolonAST])]) mirrors its documented shape.
-(:wat::core::defn :user::to-hex-metadata []
-  -> (:wat::core::Option :- [(wat.type/HashMap :- [wat.type/keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::bytes::to-hex))
+(wat.core/defn user/to-hex-metadata []
+  :- (wat.core/Option :- [(wat.type/HashMap :- [wat.type/keyword wat.holon/HolonAST])])
+  (wat.runtime/metadata-of wat.bytes/to-hex))

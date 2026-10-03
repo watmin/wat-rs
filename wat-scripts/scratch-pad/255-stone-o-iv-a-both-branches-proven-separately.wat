@@ -13,22 +13,22 @@
 ;; "unknown-function", which is exactly what this probe needs to distinguish the two
 ;; branches without looking at message text.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [registered (:wat::eval-ast! (:wat::core::quote
-                  (:wat::core::apply :wat::f64::max-of
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [registered (wat/eval-ast! (wat.core/quote
+                  (wat.core/apply wat.f64/max-of
                     (wat.type/Vector :- [wat.type/f64] 3.0 9.0 41.0))))
-     unknown    (:wat::eval-ast! (:wat::core::quote
-                  (:wat::core::apply :wat::not::a::real::verb
+     unknown    (wat/eval-ast! (wat.core/quote
+                  (wat.core/apply wat.not.a.real/verb
                     (wat.type/Vector :- [wat.type/i64] 1))))]
-    (:wat::core::do
-      (:wat::core::match registered
-        [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
-        [:wat::core::Result.Err {:error e}
-          (:wat::kernel::println (:wat::string::concat "registered-but-unreachable  kind="
-            (:wat::core::EvalError/kind e) "  message=" (:wat::core::EvalError/message e)))])
-      (:wat::core::match unknown
-        [:wat::core::Result.Ok {:value v} (:wat::kernel::println (:wat::string::concat "UNEXPECTED ok: " (:wat::edn::write v)))]
-        [:wat::core::Result.Err {:error e}
-          (:wat::kernel::println (:wat::string::concat "genuinely-unknown           kind="
-            (:wat::core::EvalError/kind e) "  message=" (:wat::core::EvalError/message e)))]))))
+    (wat.core/do
+      (wat.core/match registered
+        [wat.core/Result.Ok {:value v} (wat.kernel/println (wat.string/concat "UNEXPECTED ok: " (wat.edn/write v)))]
+        [wat.core/Result.Err {:error e}
+          (wat.kernel/println (wat.string/concat "registered-but-unreachable  kind="
+            (wat.core.EvalError/kind e) "  message=" (wat.core.EvalError/message e)))])
+      (wat.core/match unknown
+        [wat.core/Result.Ok {:value v} (wat.kernel/println (wat.string/concat "UNEXPECTED ok: " (wat.edn/write v)))]
+        [wat.core/Result.Err {:error e}
+          (wat.kernel/println (wat.string/concat "genuinely-unknown           kind="
+            (wat.core.EvalError/kind e) "  message=" (wat.core.EvalError/message e)))]))))

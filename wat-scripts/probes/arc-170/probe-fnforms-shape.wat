@@ -10,15 +10,15 @@
 ;; asserting `rt == (type (work-fn 5))` checks that return-type-of's declared-type report
 ;; agrees with the ACTUAL runtime type of a real i64 the fn produces — two independent live
 ;; computations agreeing, never a literal I chose.
-(:wat::core::defn :my::double [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [work-fn (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 (:my::double n))
-     forms   (:wat::kernel::fn-forms work-fn :bracket::__pool-work)
-     rt      (:wat::runtime::return-type-of work-fn)
-     denoted (:wat::core::type (work-fn 5))]
-    (:wat::core::do
-      (:wat::test::assert-eq (:wat::core::length forms) 2)
-      (:wat::test::assert-eq rt denoted)
-      (:wat::kernel::println (:wat::edn::write forms))
-      (:wat::kernel::println (:wat::string::concat "return-type-of = " rt)))))
+(wat.core/defn my/double [n :- wat.type/i64] :- wat.type/i64 (wat.i64/* n 2))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [work-fn (wat.core/fn [n :- wat.type/i64] :- wat.type/i64 (my/double n))
+     forms   (wat.kernel/fn-forms work-fn bracket/__pool-work)
+     rt      (wat.runtime/return-type-of work-fn)
+     denoted (wat.core/type (work-fn 5))]
+    (wat.core/do
+      (wat.test/assert-eq (wat.core/length forms) 2)
+      (wat.test/assert-eq rt denoted)
+      (wat.kernel/println (wat.edn/write forms))
+      (wat.kernel/println (wat.string/concat "return-type-of = " rt)))))

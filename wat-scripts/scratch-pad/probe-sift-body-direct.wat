@@ -4,97 +4,97 @@
 ;; 5 hot / 5 cold usr::Temp), but runs the op body as a plain :user:: fn — no defservice, no
 ;; connect'/send'/recv' — so any crash surfaces its FULL RuntimeError directly.
 
-(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Warn [c <- wat.type/i64])
+(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot  [c :- wat.type/i64])
+(wat.core/defrecord usr/Warn [c :- wat.type/i64])
 
-(:wat::rete::defquery :usr::q-Hot
+(wat.rete/defquery usr/q-Hot
   :params []
-  :when [(?fact :- :usr::Hot)])
+  :when [(?fact :- usr/Hot)])
 
 
-(:wat::rete::defquery :usr::q-Warn
+(wat.rete/defquery usr/q-Warn
   :params []
-  :when [(?fact :- :usr::Warn)])
+  :when [(?fact :- usr/Warn)])
 
 
-(:wat::core::defn :usr::template [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule]
-      (:wat::rete::make-rule "usr::hot-rule"
-        (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
-        (:wat::core::quote [(:usr::Hot :c ?c)]))
-      (:wat::rete::make-rule "usr::warn-rule"
-        (:wat::core::quote [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))])
-        (:wat::core::quote [(:usr::Warn :c ?c)]))) (wat.type/PersistentVector :- [:wat::rete::Query] (:usr::q-Hot) (:usr::q-Warn))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn usr/template [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule]
+      (wat.rete/make-rule "usr::hot-rule"
+        (wat.core/quote [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))])
+        (wat.core/quote [(usr/Hot :c ?c)]))
+      (wat.rete/make-rule "usr::warn-rule"
+        (wat.core/quote [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))])
+        (wat.core/quote [(usr/Warn :c ?c)]))) (wat.type/PersistentVector :- [wat.rete/Query] (usr/q-Hot) (usr/q-Warn))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [msh   (:wat::query::mem-store/start :locus (:wat::spawn::thread)
-             :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     maddr (:wat::query::mem-store::Handle/addr msh)
-     jh    (:wat::telemetry::journal/start :locus (:wat::spawn::thread)
-             :record (:wat::telemetry::journal::Record) :store-addr maddr)
-     jaddr (:wat::telemetry::journal::Handle/addr jh)
-     journal (:wat::core::match (:wat::kernel::connect jaddr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [msh   (wat.query.mem-store/start :locus (wat.spawn/thread)
+             :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     maddr (wat.query.mem-store.Handle/addr msh)
+     jh    (wat.telemetry.journal/start :locus (wat.spawn/thread)
+             :record (wat.telemetry.journal/Record) :store-addr maddr)
+     jaddr (wat.telemetry.journal.Handle/addr jh)
+     journal (wat.core/match (wat.kernel/connect jaddr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
      tags  (wat.type/HashMap :- [wat.type/keyword wat.type/String])
-     idxs  (:wat::core::range 0 10)
-     logs  (:wat::core::into (wat.type/Vector :- [:wat::telemetry::Log])
-             (:wat::core::map
-               (:wat::core::fn [i <- wat.type/i64] -> :wat::telemetry::Log
-                 (:wat::core::let
-                   [hot? (:wat::i64::< (:wat::core::mod i 2) 1)
-                    c    (:wat::core::if hot? 60 10)
-                    msg  (:wat::edn::write (:usr::Temp :c c))]
-                   (:wat::telemetry::Log :namespace "sift-ns" :uuid (:wat::uuid::nil) :tags tags
-                     :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
-                     :level :wat::telemetry::Level.Info :message msg)))
+     idxs  (wat.core/range 0 10)
+     logs  (wat.core/into (wat.type/Vector :- [wat.telemetry/Log])
+             (wat.core/map
+               (wat.core/fn [i :- wat.type/i64] :- wat.telemetry/Log
+                 (wat.core/let
+                   [hot? (wat.i64/< (wat.core/mod i 2) 1)
+                    c    (wat.core/if hot? 60 10)
+                    msg  (wat.edn/write (usr/Temp :c c))]
+                   (wat.telemetry/Log :namespace "sift-ns" :uuid (wat.uuid/nil) :tags tags
+                     :time-ns (wat.i64/+ i 1) :emitted-from (wat.kernel/call-site)
+                     :level wat.telemetry/Level.Info :message msg)))
                idxs))
-     _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))
-     qr    (:wat::telemetry::Journal/query-logs journal
-             (:wat::telemetry::Journal::QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor :wat::core::Option.None))]
-    (:wat::core::match qr [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::telemetry::Journal::QueryLogsResponse.Success {:logs qlogs :cursor _cur}
-        (:wat::core::let
-          [class-ok (:wat::core::foldl
-                      (:wat::core::fn [ok <- wat.type/bool log <- :wat::telemetry::Log] -> wat.type/bool
-                        (:wat::core::if ok
-                          (:wat::core::contains?
+     _wr   (wat.telemetry.Journal/write-logs journal (wat.telemetry.Journal/WriteLogsRequest logs))
+     qr    (wat.telemetry.Journal/query-logs journal
+             (wat.telemetry.Journal/QueryLogsRequest :namespace "sift-ns" :time-lo 0 :time-hi 100000 :limit 50 :cursor wat.core/Option.None))]
+    (wat.core/match qr [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.telemetry.Journal/QueryLogsResponse.Success {:logs qlogs :cursor _cur}
+        (wat.core/let
+          [class-ok (wat.core/foldl
+                      (wat.core/fn [ok :- wat.type/bool log :- wat.telemetry/Log] :- wat.type/bool
+                        (wat.core/if ok
+                          (wat.core/contains?
                             (wat.type/Vector :- [wat.type/String] "usr::Temp" "usr::Hot" "usr::Warn")
-                            (:wat::core::match
-                              (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
-                              [:wat::edn::ReadForeignOutcome.Value {:value payload}
-                                (:wat::core::type payload)]
-                              [:wat::edn::ReadForeignOutcome.Malformed {:cause _}
+                            (wat.core/match
+                              (wat.edn/read-foreign (wat.telemetry.Log/message log))
+                              [wat.edn/ReadForeignOutcome.Value {:value payload}
+                                (wat.core/type payload)]
+                              [wat.edn/ReadForeignOutcome.Malformed {:cause _}
                                 ""]))
                           false))
                       true
                       qlogs)
-           _p1 (:wat::kernel::println (:wat::string::concat "class-ok=" (:wat::core::str class-ok)))
-           tmpl (:usr::template)
-           deds (:wat::core::foldl
-                  (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Value]) log <- :wat::telemetry::Log]
-                    -> (wat.type/PersistentVector :- [wat.type/Value])
-                    (:wat::core::concat acc
-                      (:wat::core::let
-                        [fired (:wat::core::match (:wat::rete::fire-rules
-                                 (:wat::core::match (:wat::rete::insert tmpl (:wat::edn::read (:wat::telemetry::Log/message log))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-                        (:wat::core::concat
-                          (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
-                            (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
-                                (:wat::core::Option/expect
-                                  (:wat::core::get p "?fact")
+           _p1 (wat.kernel/println (wat.string/concat "class-ok=" (wat.core/str class-ok)))
+           tmpl (usr/template)
+           deds (wat.core/foldl
+                  (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Value]) log :- wat.telemetry/Log]
+                    :- (wat.type/PersistentVector :- [wat.type/Value])
+                    (wat.core/concat acc
+                      (wat.core/let
+                        [fired (wat.core/match (wat.rete/fire-rules
+                                 (wat.core/match (wat.rete/insert tmpl (wat.edn/read (wat.telemetry.Log/message log))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+                        (wat.core/concat
+                          (wat.core/into (wat.type/PersistentVector :- [wat.type/Value])
+                            (wat.core/map
+                              (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/Value
+                                (wat.core.Option/expect
+                                  (wat.core/get p "?fact")
                                   "q-Hot: ?fact"))
-                              (:wat::rete::query fired (:usr::q-Hot))))
-                          (:wat::core::into (wat.type/PersistentVector :- [wat.type/Value])
-                            (:wat::core::map
-                              (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/Value
-                                (:wat::core::Option/expect
-                                  (:wat::core::get p "?fact")
+                              (wat.rete/query fired (usr/q-Hot))))
+                          (wat.core/into (wat.type/PersistentVector :- [wat.type/Value])
+                            (wat.core/map
+                              (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/Value
+                                (wat.core.Option/expect
+                                  (wat.core/get p "?fact")
                                   "q-Warn: ?fact"))
-                              (:wat::rete::query fired (:usr::q-Warn))))))))
+                              (wat.rete/query fired (usr/q-Warn))))))))
                   (wat.type/PersistentVector :- [wat.type/Value])
                   qlogs)
-           _p2 (:wat::kernel::println (:wat::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
+           _p2 (wat.kernel/println (wat.string/concat "deds=" (wat.core/str (wat.core/length deds))))]
           nil)]
-      [_ (:wat::kernel::println "query-logs failed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+      [_ (wat.kernel/println "query-logs failed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

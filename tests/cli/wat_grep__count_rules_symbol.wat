@@ -7,5 +7,5 @@
           :rule "probe.a87/node"
           :captures (wat.rete.core/PersistentVector))])
 
-(wat.core/defn :user::grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
-  (wat.rete/collect-rules :probe::a87))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules probe/a87))

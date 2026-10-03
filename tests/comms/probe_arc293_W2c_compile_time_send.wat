@@ -16,11 +16,11 @@
 ;; This is the same invariant as 2c but enforced at the peer SHAPE level, not
 ;; at the send' call site. The 2c send'-gate was deleted in arc 293.W.2d.
 
-(:wat::core::defstruct :w2c::S [val <- wat.type/i64])
+(wat.core/defstruct w2c/S [val :- wat.type/i64])
 
 ;; :wat::program::self-peer with a struct type arg is a CHECK ERROR (§7 purity wall).
 ;; The wire peer producer checks that I,O are pure; a struct is impure.
-(:wat::core::defn :w2c::probe-impure-wire-peer [] -> wat.type/nil
-  (:wat::core::let
-    [_pair (:wat::program::self-peer :w2c::S wat.type/i64)]
+(wat.core/defn w2c/probe-impure-wire-peer [] :- wat.type/nil
+  (wat.core/let
+    [_pair (wat.program/self-peer w2c/S wat.type/i64)]
     nil))

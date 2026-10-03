@@ -26,81 +26,81 @@
 ;;   printf '["pathA" "pathB" …]\n' | ./target/release/wat ./wat-scripts/fixes/strip-insert-rhs-marker.wat
 
 ;; rhs-marker? — a List `(:wat::rete::insert <fact>)`: exact head + exactly 2 children.
-(:wat::core::defn :user::rhs-marker? [f <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? f ":wat::rete::insert")
-    (:wat::core::= (:wat::core::count (:wat::core::ast->children f)) 2)
+(wat.core/defn user/rhs-marker? [f :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? f ":wat::rete::insert")
+    (wat.core/= (wat.core/count (wat.core/ast->children f)) 2)
     false))
 
 ;; node-edit — 0-or-1 replacement edit stripping ONE rhs-marker node down to its fact-form text.
-(:wat::core::defn :user::node-edit
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:user::rhs-marker? node)
-    (:wat::core::let
-      [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children node) 1) "node-edit: unreachable")
-       fact-off (:wat::fix::node-start-offset fact lines)
-       fact-end (:wat::fix::node-end-offset fact lines)
-       fact-text (:wat::string::subs src fact-off fact-end)
-       node-off (:wat::fix::node-start-offset node lines)
+(wat.core/defn user/node-edit
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (user/rhs-marker? node)
+    (wat.core/let
+      [fact (wat.core.Option/expect (wat.core/get (wat.core/ast->children node) 1) "node-edit: unreachable")
+       fact-off (wat.fix/node-start-offset fact lines)
+       fact-end (wat.fix/node-end-offset fact lines)
+       fact-text (wat.string/subs src fact-off fact-end)
+       node-off (wat.fix/node-start-offset node lines)
        ;; old-text = fix-text-span-text over the WHOLE matched `(:wat::rete::insert fact)`
        ;; node's OWN span (arc 282) — sanctioned: rhs-marker? already verified this node's
        ;; identity structurally (exact head + arity), and it is a List's own span.
-       old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
-      (wat.type/Vector :- [:wat::fix::Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] node-off old-text fact-text)))
-    (wat.type/Vector :- [:wat::fix::Edit])))
+       old-text (wat.fix/fix-text-span-text (wat.core/ast-span node) (wat.core/ast-end-span node) lines src)]
+      (wat.type/Vector :- [wat.fix/Edit] (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] node-off old-text fact-text)))
+    (wat.type/Vector :- [wat.fix/Edit])))
 
 ;; walk-edits — deep walk: a rhs-marker node's OWN children are not further descended (its fact
 ;; form cannot itself contain another rhs-marker in this corpus, and even if it did, the outer
 ;; strip already reveals it for a subsequent run — never true in practice, but harmless either
 ;; way since a second run is proven idempotent below).
-(:wat::core::defn :user::walk-edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::let [this (:user::node-edit node src lines)]
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::concat this (:user::walk-seq-edits (:wat::core::ast->children node) src lines))
+(wat.core/defn user/walk-edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/let [this (user/node-edit node src lines)]
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/concat this (user/walk-seq-edits (wat.core/ast->children node) src lines))
       this)))
 
-(:wat::core::defn :user::walk-seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::empty? items)
-    (wat.type/Vector :- [:wat::fix::Edit])
-    (:wat::core::concat
-      (:user::walk-edits (:wat::core::first items) src lines)
-      (:user::walk-seq-edits (:wat::core::rest items) src lines))))
+(wat.core/defn user/walk-seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.core/empty? items)
+    (wat.type/Vector :- [wat.fix/Edit])
+    (wat.core/concat
+      (user/walk-edits (wat.core/first items) src lines)
+      (user/walk-seq-edits (wat.core/rest items) src lines))))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     forms (:wat::core::ast->children tree)
-     edits (:user::walk-seq-edits forms src lines)]
-    (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     forms (wat.core/ast->children tree)
+     edits (user/walk-seq-edits forms src lines)]
+    (wat.fix/fix-text-apply src (wat.core/reverse (wat.core/sort edits)))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON/EDN array of strings) ────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/rewrite-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[strip-insert-rhs-marker] " path))
-        (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[strip-insert-rhs-marker] " path))
+        (user/rewrite-each (wat.core/into [] (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln)
-                            [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-                            [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-                            [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])]
-    (:user::rewrite-each paths)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [paths (wat.core/match (wat.kernel/readln)
+                            [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+                            [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+                            [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])]
+    (user/rewrite-each paths)))

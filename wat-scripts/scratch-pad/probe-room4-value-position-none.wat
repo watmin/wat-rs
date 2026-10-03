@@ -18,13 +18,13 @@
 ;; value position, matched against the pre-existing BARE `:None` pattern (not the qualified
 ;; pattern — that cross-spelling round trip is the point).
 
-(:wat::core::defn :user::give-none [] -> (:wat::core::Option :- [wat.type/i64])
-  :wat::core::Option.None)
+(wat.core/defn user/give-none [] :- (wat.core/Option :- [wat.type/i64])
+  wat.core/Option.None)
 
-(:wat::core::defn :user::check [] -> wat.type/i64
-  (:wat::core::match (:user::give-none)
-    [:wat::core::Option.Some {:value x} x]
-    [:wat::core::Option.None {} -1]))
+(wat.core/defn user/check [] :- wat.type/i64
+  (wat.core/match (user/give-none)
+    [wat.core/Option.Some {:value x} x]
+    [wat.core/Option.None {} -1]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:user::check)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (user/check)))

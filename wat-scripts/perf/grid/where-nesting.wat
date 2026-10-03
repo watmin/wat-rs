@@ -64,204 +64,204 @@
 ;; mod is spelled out as `x - (x/n)*n`, matching where-shapes' convention, so a row measures the
 ;; constraint and not a translation choice.
 
-(:wat::core::defn :wnst::items [] -> wat.type/i64 200)
+(wat.core/defn wnst/items [] :- wat.type/i64 200)
 
-(:wat::core::defn :wnst::row-count [] -> wat.type/i64 11)
+(wat.core/defn wnst/row-count [] :- wat.type/i64 11)
 
-(:wat::core::defrecord :wnst::Req [k <- wat.type/i64  m <- wat.type/i64])
-(:wat::core::defrecord :wnst::Hit [k <- wat.type/i64])
+(wat.core/defrecord wnst/Req [k :- wat.type/i64  m :- wat.type/i64])
+(wat.core/defrecord wnst/Hit [k :- wat.type/i64])
 
 ;; ── depth chain c1..c10 — each level's ONLY new work is "+3", so the chain measures purity-check
 ;; nesting depth and nothing else. c1 is the leaf (no call); cN calls c(N-1).
-(:wat::rete::core::defn :wnst::c1  [k <- wat.type/i64] -> wat.type/i64
-  (:wat::rete::i64::- k (:wat::rete::i64::* (:wat::rete::i64::/ k 13 :undefined 0) 13 :undefined 0) :undefined 0))
-(:wat::rete::core::defn :wnst::c2  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c1 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c3  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c2 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c4  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c3 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c5  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c4 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c6  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c5 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c7  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c6 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c8  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c7 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c9  [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c8 k) 3 :undefined 0))
-(:wat::rete::core::defn :wnst::c10 [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::c9 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c1  [k :- wat.type/i64] :- wat.type/i64
+  (wat.rete.i64/- k (wat.rete.i64/* (wat.rete.i64// k 13 :undefined 0) 13 :undefined 0) :undefined 0))
+(wat.rete.core/defn wnst/c2  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c1 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c3  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c2 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c4  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c3 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c5  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c4 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c6  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c5 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c7  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c6 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c8  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c7 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c9  [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c8 k) 3 :undefined 0))
+(wat.rete.core/defn wnst/c10 [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/c9 k) 3 :undefined 0))
 
 ;; row 7's two-bound-var predicate.
-(:wat::rete::core::defn :wnst::twoarg [a <- wat.type/i64  b <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::> (:wat::rete::i64::+ a b :undefined 0) 113))
+(wat.rete.core/defn wnst/twoarg [a :- wat.type/i64  b :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/> (wat.rete.i64/+ a b :undefined 0) 113))
 
 ;; row 8's outer fn — its ARGUMENT (not its body) is where the nested call lives, at the call site.
-(:wat::rete::core::defn :wnst::wrap [v <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::= 0 (:wat::rete::i64::- v (:wat::rete::i64::* (:wat::rete::i64::/ v 4 :undefined 0) 4 :undefined 0) :undefined 0)))
+(wat.rete.core/defn wnst/wrap [v :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/= 0 (wat.rete.i64/- v (wat.rete.i64/* (wat.rete.i64// v 4 :undefined 0) 4 :undefined 0) :undefined 0)))
 
 ;; row 9's diamond — f calls g and h; g and h BOTH call hub. Not a straight chain: TWO fns share one
 ;; callee, exercising `classify_fn`'s `seen`-set on a shared dependency rather than a linear back-edge.
-(:wat::rete::core::defn :wnst::hub [k <- wat.type/i64] -> wat.type/i64
-  (:wat::rete::i64::- k (:wat::rete::i64::* (:wat::rete::i64::/ k 17 :undefined 0) 17 :undefined 0) :undefined 0))
-(:wat::rete::core::defn :wnst::g [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::+ (:wnst::hub k) 2 :undefined 0))
-(:wat::rete::core::defn :wnst::h [k <- wat.type/i64] -> wat.type/i64 (:wat::rete::i64::* (:wnst::hub k) 2 :undefined 1000000))
-(:wat::rete::core::defn :wnst::f [k <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::core::and
-    (:wat::rete::i64::> (:wnst::g k) 5)
-    (:wat::rete::i64::< (:wnst::h k) 25)))
+(wat.rete.core/defn wnst/hub [k :- wat.type/i64] :- wat.type/i64
+  (wat.rete.i64/- k (wat.rete.i64/* (wat.rete.i64// k 17 :undefined 0) 17 :undefined 0) :undefined 0))
+(wat.rete.core/defn wnst/g [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/+ (wnst/hub k) 2 :undefined 0))
+(wat.rete.core/defn wnst/h [k :- wat.type/i64] :- wat.type/i64 (wat.rete.i64/* (wnst/hub k) 2 :undefined 1000000))
+(wat.rete.core/defn wnst/f [k :- wat.type/i64] :- wat.type/bool
+  (wat.rete.core/and
+    (wat.rete.i64/> (wnst/g k) 5)
+    (wat.rete.i64/< (wnst/h k) 25)))
 
 ;; rows 10/11's shared int-returning helper, and the bool wrapper that calls it.
-(:wat::rete::core::defn :wnst::score [k <- wat.type/i64] -> wat.type/i64
-  (:wat::rete::core::let [v (:wat::rete::i64::* k 3 :undefined 0)]
-    (:wat::rete::i64::- v (:wat::rete::i64::* (:wat::rete::i64::/ v 11 :undefined 0) 11 :undefined 0) :undefined 0)))
-(:wat::rete::core::defn :wnst::is-good [k <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::core::let [sc (:wnst::score k)]
-    (:wat::rete::i64::= 0 (:wat::rete::i64::- sc (:wat::rete::i64::* (:wat::rete::i64::/ sc 2 :undefined 0) 2 :undefined 0) :undefined 1))))
+(wat.rete.core/defn wnst/score [k :- wat.type/i64] :- wat.type/i64
+  (wat.rete.core/let [v (wat.rete.i64/* k 3 :undefined 0)]
+    (wat.rete.i64/- v (wat.rete.i64/* (wat.rete.i64// v 11 :undefined 0) 11 :undefined 0) :undefined 0)))
+(wat.rete.core/defn wnst/is-good [k :- wat.type/i64] :- wat.type/bool
+  (wat.rete.core/let [sc (wnst/score k)]
+    (wat.rete.i64/= 0 (wat.rete.i64/- sc (wat.rete.i64/* (wat.rete.i64// sc 2 :undefined 0) 2 :undefined 0) :undefined 1))))
 
 ;; ROW 1 — depth-2 chain. c2(k) = c1(k)+3, c1(k) = k mod 13. c2 > 10 <=> c1 in {8..12} -> 75 of 200.
-(:wat::rete::defrule :wnst::depth2
+(wat.rete/defrule wnst/depth2
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c2 ?k) 10))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/c2 ?k) 10))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 2 — depth-3 chain. c3 > 15 <=> c1 in {10,11,12} -> 45 of 200.
-(:wat::rete::defrule :wnst::depth3
+(wat.rete/defrule wnst/depth3
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c3 ?k) 15))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/c3 ?k) 15))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 3 — depth-4 chain. c4 > 15 <=> c1 in {7..12} -> 90 of 200.
-(:wat::rete::defrule :wnst::depth4
+(wat.rete/defrule wnst/depth4
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c4 ?k) 15))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/c4 ?k) 15))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 4 — depth-5 chain. c5 > 20 <=> c1 in {9,10,11,12} -> 60 of 200.
-(:wat::rete::defrule :wnst::depth5
+(wat.rete/defrule wnst/depth5
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c5 ?k) 20))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/c5 ?k) 20))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 5 — depth-10 chain, the "keeps going past 5" witness kept live in the gate.
 ;; c10 = c1 + 27. c10 > 32 <=> c1 in {6..12} -> 105 of 200.
-(:wat::rete::defrule :wnst::depth10
+(wat.rete/defrule wnst/depth10
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::c10 ?k) 32))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/c10 ?k) 32))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 6 — deep INLINE expression tree, 6 arithmetic levels, ZERO fn calls: the pure-structural-depth
 ;; reference, separate from call depth. g1=k+10 g2=g1*2 g3=g2-15 g4=g3/3 g5=g4+7 g6=g5*2 -> g6>157
 ;; selects 94 of 200 (all intermediate values stay non-negative by construction, so wat's truncating
 ;; `i64::/` and Clojure's `quot` agree without a sign subtlety to reason about).
-(:wat::rete::defrule :wnst::inline-tree
+(wat.rete/defrule wnst/inline-tree
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where
-                                (:wat::rete::i64::>
-                                  (:wat::rete::i64::*
-                                    (:wat::rete::i64::+
-                                      (:wat::rete::i64::/
-                                        (:wat::rete::i64::-
-                                          (:wat::rete::i64::* (:wat::rete::i64::+ ?k 10 :undefined 0) 2 :undefined 0)
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where
+                                (wat.rete.i64/>
+                                  (wat.rete.i64/*
+                                    (wat.rete.i64/+
+                                      (wat.rete.i64//
+                                        (wat.rete.i64/-
+                                          (wat.rete.i64/* (wat.rete.i64/+ ?k 10 :undefined 0) 2 :undefined 0)
                                           15 :undefined 0)
                                         3 :undefined 0)
                                       7 :undefined 0)
                                     2 :undefined 0)
                                   157))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 7 — TWO bound vars, both live at test time. twoarg(?k, ?m) = (?k+?m) > 113 -> 108 of 200.
-(:wat::rete::defrule :wnst::two-arg
+(wat.rete/defrule wnst/two-arg
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::twoarg ?k ?m))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wnst/twoarg ?k ?m))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 8 — the where-clause's OWN top-level call takes a call to a DIFFERENT pure fn as its argument:
 ;; (wrap (c2 ?k)). wrap(v) = v mod 4 == 0. c2(k) = c1(k)+3 in {4,8,12} <=> c1 in {1,5,9} -> 46 of 200.
-(:wat::rete::defrule :wnst::arg-is-call
+(wat.rete/defrule wnst/arg-is-call
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::wrap (:wnst::c2 ?k)))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wnst/wrap (wnst/c2 ?k)))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 9 — mutual/chained helpers: f calls g AND h, both of which call the shared hub.
 ;; hub in {4..12} (mod 17) -> 108 of 200.
-(:wat::rete::defrule :wnst::diamond
+(wat.rete/defrule wnst/diamond
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::f ?k))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wnst/f ?k))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 10 — a user fn returning a NON-bool (i64), compared from OUTSIDE the call.
 ;; score(k) = (3k) mod 11; score > 6 -> 72 of 200.
-(:wat::rete::defrule :wnst::int-then-compare
+(wat.rete/defrule wnst/int-then-compare
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wat::rete::i64::> (:wnst::score ?k) 6))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wat.rete.i64/> (wnst/score ?k) 6))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
 ;; ROW 11 — the CONTRAST with row 10: a user fn returning bool DIRECTLY (internally calling score),
 ;; used bare in the where clause with no external comparison. is-good(k) = score(k) even -> 109 of 200.
-(:wat::rete::defrule :wnst::bool-direct
+(wat.rete/defrule wnst/bool-direct
   :when
-  [(:wnst::Req (?k :- :k) (?m :- :m)) (:wat::rete::where (:wnst::is-good ?k))]
+  [(wnst/Req (?k :- :k) (?m :- :m)) (wat.rete/where (wnst/is-good ?k))]
   :then
-  [(:wnst::Hit ?k)])
+  [(wnst/Hit ?k)])
 
-(:wat::rete::defquery :wnst::q-Hit
+(wat.rete/defquery wnst/q-Hit
   :params []
-  :when [(?fact :- :wnst::Hit)])
+  :when [(?fact :- wnst/Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wnst::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1)  (:wnst::depth2))
-      ((:wat::core::= row 2)  (:wnst::depth3))
-      ((:wat::core::= row 3)  (:wnst::depth4))
-      ((:wat::core::= row 4)  (:wnst::depth5))
-      ((:wat::core::= row 5)  (:wnst::depth10))
-      ((:wat::core::= row 6)  (:wnst::inline-tree))
-      ((:wat::core::= row 7)  (:wnst::two-arg))
-      ((:wat::core::= row 8)  (:wnst::arg-is-call))
-      ((:wat::core::= row 9)  (:wnst::diamond))
-      ((:wat::core::= row 10) (:wnst::int-then-compare))
-      ((:wat::core::= row 11) (:wnst::bool-direct))
+(wat.core/defn wnst/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1)  (wnst/depth2))
+      ((wat.core/= row 2)  (wnst/depth3))
+      ((wat.core/= row 3)  (wnst/depth4))
+      ((wat.core/= row 4)  (wnst/depth5))
+      ((wat.core/= row 5)  (wnst/depth10))
+      ((wat.core/= row 6)  (wnst/inline-tree))
+      ((wat.core/= row 7)  (wnst/two-arg))
+      ((wat.core/= row 8)  (wnst/arg-is-call))
+      ((wat.core/= row 9)  (wnst/diamond))
+      ((wat.core/= row 10) (wnst/int-then-compare))
+      ((wat.core/= row 11) (wnst/bool-direct))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-nesting: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-nesting: unknown row " (wat.i64/to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items). Both fields are FORMULAS over i (rule 3):
 ;;   k(i) = i
 ;;   m(i) = (7i + 11) mod 40
-(:wat::core::defn :wnst::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wnst/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::let [mraw (:wat::i64::+ (:wat::i64::* 7 i) 11)
-                          m    (:wat::i64::- mraw (:wat::i64::* (:wat::i64::/ mraw 40) 40))]
-          (:wat::core::conj acc (:wnst::Req :k i :m m))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/let [mraw (wat.i64/+ (wat.i64/* 7 i) 11)
+                          m    (wat.i64/- mraw (wat.i64/* (wat.i64// mraw 40) 40))]
+          (wat.core/conj acc (wnst/Req :k i :m m))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
-(:wat::core::defn :wnst::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wnst::Hit/k f)))
-        (:wat::rete::query fired (:wnst::q-Hit))))))
+(wat.core/defn wnst/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wnst.Hit/k f)))
+        (wat.rete/query fired (wnst/q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's render-ints for why (byte-identical rendering across engines).
-(:wat::core::defn :wnst::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wnst/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
@@ -275,31 +275,31 @@
 ;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
-(:wat::core::defn :wnst::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wnst/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wnst::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wnst::build-rules row)
-                    rule    (:wat::core::first rules)
-                    staged  (:wnst::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wnst::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wnst::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wnst::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wnst::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wnst::render-ints derived))))))
+(wat.core/defn wnst/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wnst/build-rules row)
+                    rule    (wat.core/first rules)
+                    staged  (wnst/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wnst/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wnst/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wnst/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wnst/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wnst/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wnst::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wnst/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wnst::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wnst/row-count) 1))))

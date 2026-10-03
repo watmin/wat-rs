@@ -33,8 +33,8 @@
 ;; Idempotent by construction: after a pass the old tokens are gone.
 ;; Dry-run on a /tmp copy and `diff` before touching the corpus.
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
   ;; Innermost applies first. Oracle names, then fire-once (unprimed oracle),
   ;; then native primes drop their `'`.
   ;;
@@ -44,35 +44,35 @@
   ;; rune:lint(rete-name-unminted) :wat::rete::insert-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
   ;; rune:lint(rete-name-unminted) :wat::rete::insert-all-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
   ;; rune:lint(rete-name-unminted) :wat::rete::fire-rules-spec — pre-`$oracle` spelling of the wat reference impl, retired by the very rewrite recorded below.
-  (:wat::fix::rename-keyword-exact ":wat::rete::step-payload'" ":wat::rete::step-payload"
-    (:wat::fix::rename-keyword-exact ":wat::rete::arm-session'" ":wat::rete::arm-session"
-      (:wat::fix::rename-keyword-exact ":wat::rete::insert'" ":wat::rete::insert"
-        (:wat::fix::rename-keyword-exact ":wat::rete::insert-all'" ":wat::rete::insert-all"
-          (:wat::fix::rename-keyword-exact ":wat::rete::fire-rules'" ":wat::rete::fire-rules"
-            (:wat::fix::rename-keyword-exact ":wat::rete::fire-rules-explain'" ":wat::rete::fire-rules-explain"
-              (:wat::fix::rename-keyword-exact ":wat::rete::fire-once'" ":wat::rete::fire-once"
-                (:wat::fix::rename-keyword-exact ":wat::rete::fire-once" ":wat::rete::fire-once$oracle"
-                  (:wat::fix::rename-keyword-exact ":wat::rete::insert-spec" ":wat::rete::insert$oracle"
-                    (:wat::fix::rename-keyword-exact ":wat::rete::insert-all-spec" ":wat::rete::insert-all$oracle"
-                      (:wat::fix::rename-keyword-exact ":wat::rete::fire-rules-spec" ":wat::rete::fire-rules$oracle"
+  (wat.fix/rename-keyword-exact ":wat::rete::step-payload'" ":wat::rete::step-payload"
+    (wat.fix/rename-keyword-exact ":wat::rete::arm-session'" ":wat::rete::arm-session"
+      (wat.fix/rename-keyword-exact ":wat::rete::insert'" ":wat::rete::insert"
+        (wat.fix/rename-keyword-exact ":wat::rete::insert-all'" ":wat::rete::insert-all"
+          (wat.fix/rename-keyword-exact ":wat::rete::fire-rules'" ":wat::rete::fire-rules"
+            (wat.fix/rename-keyword-exact ":wat::rete::fire-rules-explain'" ":wat::rete::fire-rules-explain"
+              (wat.fix/rename-keyword-exact ":wat::rete::fire-once'" ":wat::rete::fire-once"
+                (wat.fix/rename-keyword-exact ":wat::rete::fire-once" ":wat::rete::fire-once$oracle"
+                  (wat.fix/rename-keyword-exact ":wat::rete::insert-spec" ":wat::rete::insert$oracle"
+                    (wat.fix/rename-keyword-exact ":wat::rete::insert-all-spec" ":wat::rete::insert-all$oracle"
+                      (wat.fix/rename-keyword-exact ":wat::rete::fire-rules-spec" ":wat::rete::fire-rules$oracle"
                         src))))))))))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[oracle-sigil] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[oracle-sigil] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

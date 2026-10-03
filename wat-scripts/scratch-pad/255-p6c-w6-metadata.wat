@@ -9,26 +9,26 @@
 ;; scratch, built, run), not a `git stash`. Direct FQDN-keyword call sites, mirrors
 ;; `255-p6c-w5c-metadata.wat`.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::length)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::length :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::length :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::empty?)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::empty? :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::empty? :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::nth)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::nth :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::nth :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::last)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::last :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::last :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::rest)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::rest :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::rest :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::reverse)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::reverse :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::reverse :arity= NONE")])
-    (:wat::core::match (:wat::runtime::metadata-of :wat::core::range)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::println (:wat::string::concat "core::range :arity= " (:wat::edn::write (:wat::core::get hm :arity))))]
-      [:wat::core::Option.None {} (:wat::kernel::println "core::range :arity= NONE")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.core/match (wat.runtime/metadata-of wat.core/length)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::length :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::length :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/empty?)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::empty? :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::empty? :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/nth)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::nth :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::nth :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/last)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::last :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::last :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/rest)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::rest :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::rest :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/reverse)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::reverse :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::reverse :arity= NONE")])
+    (wat.core/match (wat.runtime/metadata-of wat.core/range)
+      [wat.core/Option.Some {:value hm} (wat.kernel/println (wat.string/concat "core::range :arity= " (wat.edn/write (wat.core/get hm :arity))))]
+      [wat.core/Option.None {} (wat.kernel/println "core::range :arity= NONE")])))

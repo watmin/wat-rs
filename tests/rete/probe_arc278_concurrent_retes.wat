@@ -41,69 +41,69 @@
 
 ;; ── :cc — a 3-stratum chain (Item -> Bad -> Warn -> Safe) ────────────────────
 
-(:wat::core::defrecord :cc::Item [k <- wat.type/i64])
-(:wat::core::defrecord :cc::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :cc::Warn [k <- wat.type/i64])
-(:wat::core::defrecord :cc::Safe [k <- wat.type/i64])
+(wat.core/defrecord cc/Item [k :- wat.type/i64])
+(wat.core/defrecord cc/Bad  [k :- wat.type/i64])
+(wat.core/defrecord cc/Warn [k :- wat.type/i64])
+(wat.core/defrecord cc/Safe [k :- wat.type/i64])
 
-(:wat::rete::defrule :cc::mark-bad
-  :when [(:cc::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
-  :then [(:cc::Bad :k ?k)])
+(wat.rete/defrule cc/mark-bad
+  :when [(cc/Item (?k :- :k)) (wat.rete/where (wat.rete.i64/= ?k 2))]
+  :then [(cc/Bad :k ?k)])
 
-(:wat::rete::defrule :cc::mark-warn
-  :when [(:cc::Item (?k :- :k)) (:wat::rete::not (:cc::Bad (?k :- :k)))]
-  :then [(:cc::Warn :k ?k)])
+(wat.rete/defrule cc/mark-warn
+  :when [(cc/Item (?k :- :k)) (wat.rete/not (cc/Bad (?k :- :k)))]
+  :then [(cc/Warn :k ?k)])
 
-(:wat::rete::defrule :cc::mark-safe
-  :when [(:cc::Item (?k :- :k)) (:wat::rete::not (:cc::Warn (?k :- :k)))]
-  :then [(:cc::Safe :k ?k)])
+(wat.rete/defrule cc/mark-safe
+  :when [(cc/Item (?k :- :k)) (wat.rete/not (cc/Warn (?k :- :k)))]
+  :then [(cc/Safe :k ?k)])
 
-(:wat::rete::defquery :cc::q-Bad  :params [] :when [(?fact :- :cc::Bad)])
-(:wat::rete::defquery :cc::q-Warn :params [] :when [(?fact :- :cc::Warn)])
-(:wat::rete::defquery :cc::q-Safe :params [] :when [(?fact :- :cc::Safe)])
+(wat.rete/defquery cc/q-Bad  :params [] :when [(?fact :- cc/Bad)])
+(wat.rete/defquery cc/q-Warn :params [] :when [(?fact :- cc/Warn)])
+(wat.rete/defquery cc/q-Safe :params [] :when [(?fact :- cc/Safe)])
 
 ;; ── :dd — a DIFFERENT network: 2 strata, Bad on a different key ──────────────
 
-(:wat::core::defrecord :dd::Item [k <- wat.type/i64])
-(:wat::core::defrecord :dd::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :dd::Ok   [k <- wat.type/i64])
+(wat.core/defrecord dd/Item [k :- wat.type/i64])
+(wat.core/defrecord dd/Bad  [k :- wat.type/i64])
+(wat.core/defrecord dd/Ok   [k :- wat.type/i64])
 
-(:wat::rete::defrule :dd::mark-bad
-  :when [(:dd::Item (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 3))]
-  :then [(:dd::Bad :k ?k)])
+(wat.rete/defrule dd/mark-bad
+  :when [(dd/Item (?k :- :k)) (wat.rete/where (wat.rete.i64/= ?k 3))]
+  :then [(dd/Bad :k ?k)])
 
-(:wat::rete::defrule :dd::mark-ok
-  :when [(:dd::Item (?k :- :k)) (:wat::rete::not (:dd::Bad (?k :- :k)))]
-  :then [(:dd::Ok :k ?k)])
+(wat.rete/defrule dd/mark-ok
+  :when [(dd/Item (?k :- :k)) (wat.rete/not (dd/Bad (?k :- :k)))]
+  :then [(dd/Ok :k ?k)])
 
-(:wat::rete::defquery :dd::q-Bad :params [] :when [(?fact :- :dd::Bad)])
-(:wat::rete::defquery :dd::q-Ok  :params [] :when [(?fact :- :dd::Ok)])
+(wat.rete/defquery dd/q-Bad :params [] :when [(?fact :- dd/Bad)])
+(wat.rete/defquery dd/q-Ok  :params [] :when [(?fact :- dd/Ok)])
 
 ;; ── seeding ──────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :cc::seed
-  [session <- :wat::rete::Session  items <- wat.type/i64]
-  -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn cc/seed
+  [session :- wat.rete/Session  items :- wat.type/i64]
+  :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj acc (:cc::Item i)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj acc (cc/Item i)))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :dd::seed
-  [session <- :wat::rete::Session  items <- wat.type/i64]
-  -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn dd/seed
+  [session :- wat.rete/Session  items :- wat.type/i64]
+  :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj acc (:dd::Item i)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj acc (dd/Item i)))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; ── one whole rete per worker ────────────────────────────────────────────────
 ;;
@@ -114,58 +114,58 @@
 ;; identical between the two sets, so without it the strongest failure mode
 ;; would be invisible.
 
-(:wat::core::defn :cc::one-rete
-  [i <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::let [n     (:wat::core::+ 100 i)
-                    rules (:wat::rete::collect-rules :cc)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules
-                            (wat.type/PersistentVector :- [:wat::rete::Query] (:cc::q-Bad) (:cc::q-Warn) (:cc::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:cc::seed s0 n)
-                    fired (:wat::core::match (:wat::rete::fire-rules s1) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    bad   (:wat::core::length (:wat::rete::query fired (:cc::q-Bad)))
-                    warn  (:wat::core::length (:wat::rete::query fired (:cc::q-Warn)))]
-    (:wat::core::+ (:wat::core::* bad 1000000)
-                   (:wat::core::+ (:wat::core::* warn 1000) 1))))
+(wat.core/defn cc/one-rete
+  [i :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/let [n     (wat.core/+ 100 i)
+                    rules (wat.rete/collect-rules :cc)
+                    s0    (wat.core/match (wat.rete/compile-all rules
+                            (wat.type/PersistentVector :- [wat.rete/Query] (cc/q-Bad) (cc/q-Warn) (cc/q-Safe))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (cc/seed s0 n)
+                    fired (wat.core/match (wat.rete/fire-rules s1) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    bad   (wat.core/length (wat.rete/query fired (cc/q-Bad)))
+                    warn  (wat.core/length (wat.rete/query fired (cc/q-Warn)))]
+    (wat.core/+ (wat.core/* bad 1000000)
+                   (wat.core/+ (wat.core/* warn 1000) 1))))
 
-(:wat::core::defn :dd::one-rete
-  [i <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::let [n     (:wat::core::+ 100 i)
-                    rules (:wat::rete::collect-rules :dd)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules
-                            (wat.type/PersistentVector :- [:wat::rete::Query] (:dd::q-Bad) (:dd::q-Ok))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:dd::seed s0 n)
-                    fired (:wat::core::match (:wat::rete::fire-rules s1) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    bad   (:wat::core::length (:wat::rete::query fired (:dd::q-Bad)))
-                    ok    (:wat::core::length (:wat::rete::query fired (:dd::q-Ok)))]
-    (:wat::core::+ (:wat::core::* bad 1000000)
-                   (:wat::core::+ (:wat::core::* ok 1000) 2))))
+(wat.core/defn dd/one-rete
+  [i :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/let [n     (wat.core/+ 100 i)
+                    rules (wat.rete/collect-rules :dd)
+                    s0    (wat.core/match (wat.rete/compile-all rules
+                            (wat.type/PersistentVector :- [wat.rete/Query] (dd/q-Bad) (dd/q-Ok))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (dd/seed s0 n)
+                    fired (wat.core/match (wat.rete/fire-rules s1) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    bad   (wat.core/length (wat.rete/query fired (dd/q-Bad)))
+                    ok    (wat.core/length (wat.rete/query fired (dd/q-Ok)))]
+    (wat.core/+ (wat.core/* bad 1000000)
+                   (wat.core/+ (wat.core/* ok 1000) 2))))
 
 ;; Even -> :cc, odd -> :dd. Two distinct arms live on the pool at once.
-(:wat::core::defn :cc::dispatch
-  [i <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::if (:wat::core::= (:wat::core::rem i 2) 0)
-    (:cc::one-rete i)
-    (:dd::one-rete i)))
+(wat.core/defn cc/dispatch
+  [i :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/if (wat.core/= (wat.core/rem i 2) 0)
+    (cc/one-rete i)
+    (dd/one-rete i)))
 
 ;; Worker indices, eagerly materialized (`bracket::map` needs `items` eager).
-(:wat::core::defn :cc::indices [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::mapv
-    (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 i)
-    (:wat::core::range 0 48)))
+(wat.core/defn cc/indices [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/mapv
+    (wat.core/fn [i :- wat.type/i64] :- wat.type/i64 i)
+    (wat.core/range 0 48)))
 
 ;; ── entry points ─────────────────────────────────────────────────────────────
 
 ;; N whole retes AT ONCE on the thread pool.
-(:wat::core::defn :user::cc-concurrent [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::bracket::map (:wat::spawn::thread)
-    (:cc::indices)
-    (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 (:cc::dispatch i))))
+(wat.core/defn user/cc-concurrent [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.bracket/map (wat.spawn/thread)
+    (cc/indices)
+    (wat.core/fn [i :- wat.type/i64] :- wat.type/i64 (cc/dispatch i))))
 
 ;; The same witnesses, one thread, as the reference.
-(:wat::core::defn :user::cc-serial [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::mapv
-    (:wat::core::fn [i <- wat.type/i64] -> wat.type/i64 (:cc::dispatch i))
-    (:cc::indices)))
+(wat.core/defn user/cc-serial [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/mapv
+    (wat.core/fn [i :- wat.type/i64] :- wat.type/i64 (cc/dispatch i))
+    (cc/indices)))

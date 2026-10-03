@@ -8,11 +8,11 @@
 ;; the registry (eval_apply's dispatch chain: sym.get -> sym.def_value -> dispatch_substrate_impl,
 ;; runtime.rs:10746-10751) — so if dispatch_substrate_impl's `:wat::hashmap::length` arm were
 ;; deleted, `(apply :wat::hashmap::length ...)` would fall through to UnknownFunction.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [hm (:wat::core::assoc (wat.type/HashMap :- [wat.type/keyword wat.type/i64]) :a 1)]
-    (:wat::core::do
-      (:wat::kernel::println (:wat::i64::to-string (:wat::core::length hm)))
-      (:wat::kernel::println (:wat::i64::to-string
-        (:wat::core::apply :wat::core::length [hm])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [hm (wat.core/assoc (wat.type/HashMap :- [wat.type/keyword wat.type/i64]) :a 1)]
+    (wat.core/do
+      (wat.kernel/println (wat.i64/to-string (wat.core/length hm)))
+      (wat.kernel/println (wat.i64/to-string
+        (wat.core/apply wat.core/length [hm])))
       nil)))

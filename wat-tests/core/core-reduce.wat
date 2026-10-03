@@ -24,36 +24,36 @@
 
 ;; ─── 3-arity reduce (explicit init) over a Vector: sum [1 2 3 4] = 10 ───────
 
-(:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-sum-i64
+(wat.test/deftest wat-tests.core.core-reduce/reduce-3-arity-sum-i64
   
-  (:wat::core::let
+  (wat.core/let
     [xs (wat.type/Vector :- [wat.type/i64] 1 2 3 4)
      result
-      (:wat::core::reduce
-        (:wat::core::fn [acc <- wat.type/i64
-                         n   <- wat.type/i64] -> wat.type/i64
-          (:wat::i64::+ acc n))
+      (wat.core/reduce
+        (wat.core/fn [acc :- wat.type/i64
+                         n   :- wat.type/i64] :- wat.type/i64
+          (wat.i64/+ acc n))
         0
         xs)]
-    (:wat::test::assert-eq result 10)))
+    (wat.test/assert-eq result 10)))
 
 
 ;; ─── 3-arity reduce over a lazy Stream (map's output) — the new capability
 ;; :wat::seq::reduce never had: sum of [1 2 3 4] doubled = 20 ────────────────
 
-(:wat::test::deftest :wat-tests::core::core-reduce::reduce-3-arity-over-stream
+(wat.test/deftest wat-tests.core.core-reduce/reduce-3-arity-over-stream
   
-  (:wat::core::let
+  (wat.core/let
     [xs      (wat.type/Vector :- [wat.type/i64] 1 2 3 4)
-     doubled (:wat::core::map
-               (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64
-                 (:wat::i64::* n 2))
+     doubled (wat.core/map
+               (wat.core/fn [n :- wat.type/i64] :- wat.type/i64
+                 (wat.i64/* n 2))
                xs)
      result
-      (:wat::core::reduce
-        (:wat::core::fn [acc <- wat.type/i64
-                         n   <- wat.type/i64] -> wat.type/i64
-          (:wat::i64::+ acc n))
+      (wat.core/reduce
+        (wat.core/fn [acc :- wat.type/i64
+                         n   :- wat.type/i64] :- wat.type/i64
+          (wat.i64/+ acc n))
         0
         doubled)]
-    (:wat::test::assert-eq result 20)))
+    (wat.test/assert-eq result 20)))

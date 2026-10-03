@@ -28,12 +28,12 @@
 ;; RUN: ./target/release/wat wat-scripts/scratch-pad/probe-118B-memo-state-detector.wat | wc -l
 ;; Needs a real program (primed stdio for println), so run it as a subprocess, not in-process.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [v   (:wat::core::range 0 5)
-     f   (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-           (:wat::core::do
-             (:wat::kernel::println "FORCED")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [v   (wat.core/range 0 5)
+     f   (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+           (wat.core/do
+             (wat.kernel/println "FORCED")
              x))
-     out (:wat::core::into [] (:wat::core::map f v))]
-    (:wat::kernel::println (:wat::core::length out))))
+     out (wat.core/into [] (wat.core/map f v))]
+    (wat.kernel/println (wat.core/length out))))

@@ -10,83 +10,83 @@
 ;; `fire-rules` is used identically by all three — fire is not under test here; it is the
 ;; witness that the Session each path produced is structurally sound and holds the right facts.
 
-(:wat::core::defrecord :nin::Reading [g <- wat.type/i64  v <- wat.type/i64])
-(:wat::core::defrecord :nin::Out     [g <- wat.type/i64])
+(wat.core/defrecord nin/Reading [g :- wat.type/i64  v :- wat.type/i64])
+(wat.core/defrecord nin/Out     [g :- wat.type/i64])
 
-(:wat::rete::defrule :nin::pass-rule
+(wat.rete/defrule nin/pass-rule
   :when
-  [(:nin::Reading (?g :- :g))]
+  [(nin/Reading (?g :- :g))]
   :then
-  [(:nin::Out ?g)])
+  [(nin/Out ?g)])
 
-(:wat::rete::defquery :nin::q-Out
+(wat.rete/defquery nin/q-Out
   :params []
-  :when [(?fact :- :nin::Out)])
+  :when [(?fact :- nin/Out)])
 
 
-(:wat::core::defn :nin::base [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :nin) (wat.type/PersistentVector :- [:wat::rete::Query] (:nin::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn nin/base [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :nin) (wat.type/PersistentVector :- [wat.rete/Query] (nin/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
 ;; ── the three seeders — identical but for the verb under test ────────────────
 
-(:wat::core::defn :nin::seed-spec [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert$oracle s (:nin::Reading :g i :v (:wat::i64::* i 10))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    (:nin::base)
-    (:wat::core::range 0 n)))
+(wat.core/defn nin/seed-spec [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert$oracle s (nin/Reading :g i :v (wat.i64/* i 10))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (nin/base)
+    (wat.core/range 0 n)))
 
-(:wat::core::defn :nin::seed-native [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::i64::* i 10))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    (:nin::base)
-    (:wat::core::range 0 n)))
+(wat.core/defn nin/seed-native [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert$native s (nin/Reading :g i :v (wat.i64/* i 10))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (nin/base)
+    (wat.core/range 0 n)))
 
-(:wat::core::defn :nin::seed-public [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert s (:nin::Reading :g i :v (:wat::i64::* i 10))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    (:nin::base)
-    (:wat::core::range 0 n)))
+(wat.core/defn nin/seed-public [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [s :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert s (nin/Reading :g i :v (wat.i64/* i 10))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    (nin/base)
+    (wat.core/range 0 n)))
 
 ;; ── the three witnesses, read off a seeded Session ───────────────────────────
 ;; staged-count : the facts actually landed (and, with n>1, that repeated insert accumulates).
 ;; fired-count  : the Session is structurally sound enough for the native kernel to fire it.
 ;; fired-sum    : the CONTENT of what landed, not merely how much — 0+1+2+3+4 = 10 at n=5.
 
-(:wat::core::defn :nin::staged-count [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts s))))
+(wat.core/defn nin/staged-count [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts s))))
 
 ;; `query` returns a bare `PersistentVector` (untyped elements) — the checker said so
 ;; on the first pass, and the accum grid axis reads it the same way (map a concretely-typed fn over
 ;; the result). Declaring `(Vector :- [nin::Out])` here was my error, not the subject's.
-(:wat::core::defn :nin::fired-outs [s <- :wat::rete::Session] -> wat.type/PersistentVector
-  (:wat::rete::query (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (:nin::q-Out)))
+(wat.core/defn nin/fired-outs [s :- wat.rete/Session] :- wat.type/PersistentVector
+  (wat.rete/query (wat.core/match (wat.rete/fire-rules s) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]) (nin/q-Out)))
 
-(:wat::core::defn :nin::fired-count [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::length (:nin::fired-outs s)))
+(wat.core/defn nin/fired-count [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/length (nin/fired-outs s)))
 
-(:wat::core::defn :nin::fired-sum [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [a <- wat.type/i64  p <- wat.type/PersistentMap] -> wat.type/i64
-      (:wat::core::let [o (:wat::core::Option/expect
-                            (:wat::core::get p "?fact")
+(wat.core/defn nin/fired-sum [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [a :- wat.type/i64  p :- wat.type/PersistentMap] :- wat.type/i64
+      (wat.core/let [o (wat.core.Option/expect
+                            (wat.core/get p "?fact")
                             "q-Out: ?fact")]
-        (:wat::i64::+ a (:nin::Out/g o))))
+        (wat.i64/+ a (nin.Out/g o))))
     0
-    (:nin::fired-outs s)))
+    (nin/fired-outs s)))
 
 ;; ── entries (0-arity, called by name from the .rs) ───────────────────────────
 
-(:wat::core::defn :user::spec-staged   [] -> wat.type/i64 (:nin::staged-count (:nin::seed-spec   5)))
-(:wat::core::defn :user::native-staged [] -> wat.type/i64 (:nin::staged-count (:nin::seed-native 5)))
-(:wat::core::defn :user::public-staged [] -> wat.type/i64 (:nin::staged-count (:nin::seed-public 5)))
+(wat.core/defn user/spec-staged   [] :- wat.type/i64 (nin/staged-count (nin/seed-spec   5)))
+(wat.core/defn user/native-staged [] :- wat.type/i64 (nin/staged-count (nin/seed-native 5)))
+(wat.core/defn user/public-staged [] :- wat.type/i64 (nin/staged-count (nin/seed-public 5)))
 
-(:wat::core::defn :user::spec-fired    [] -> wat.type/i64 (:nin::fired-count (:nin::seed-spec   5)))
-(:wat::core::defn :user::native-fired  [] -> wat.type/i64 (:nin::fired-count (:nin::seed-native 5)))
-(:wat::core::defn :user::public-fired  [] -> wat.type/i64 (:nin::fired-count (:nin::seed-public 5)))
+(wat.core/defn user/spec-fired    [] :- wat.type/i64 (nin/fired-count (nin/seed-spec   5)))
+(wat.core/defn user/native-fired  [] :- wat.type/i64 (nin/fired-count (nin/seed-native 5)))
+(wat.core/defn user/public-fired  [] :- wat.type/i64 (nin/fired-count (nin/seed-public 5)))
 
-(:wat::core::defn :user::spec-sum      [] -> wat.type/i64 (:nin::fired-sum (:nin::seed-spec   5)))
-(:wat::core::defn :user::native-sum    [] -> wat.type/i64 (:nin::fired-sum (:nin::seed-native 5)))
-(:wat::core::defn :user::public-sum    [] -> wat.type/i64 (:nin::fired-sum (:nin::seed-public 5)))
+(wat.core/defn user/spec-sum      [] :- wat.type/i64 (nin/fired-sum (nin/seed-spec   5)))
+(wat.core/defn user/native-sum    [] :- wat.type/i64 (nin/fired-sum (nin/seed-native 5)))
+(wat.core/defn user/public-sum    [] :- wat.type/i64 (nin/fired-sum (nin/seed-public 5)))

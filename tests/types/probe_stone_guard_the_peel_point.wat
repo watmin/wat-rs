@@ -17,18 +17,18 @@
 
 ;; ─── Row 3 — empty binder against a zero-param callee; identical to no binder. ─────────────
 
-(:wat::core::defn :t::row3_empty_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
-  (:wat::eval-edn! :- [] "42"))
+(wat.core/defn t/row3_empty_binder [] :- (wat.core/Result :- [wat.holon/HolonAST wat.core/EvalError])
+  (wat/eval-edn! :- [] "42"))
 
 ;; ─── Row 4 — exact declared count (one param, one arg). ────────────────────────────────────
 
-(:wat::core::defn :t::row4_exact_count [] -> (:wat::core::Result :- [wat.type/i64 :wat::core::EvalError])
-  (:wat::core::let
-    [program (:wat::core::quote (:wat::i64::+ 40 2))]
-    (:wat::eval-ast! :- [wat.type/i64] program)))
+(wat.core/defn t/row4_exact_count [] :- (wat.core/Result :- [wat.type/i64 wat.core/EvalError])
+  (wat.core/let
+    [program (wat.core/quote (wat.i64/+ 40 2))]
+    (wat/eval-ast! :- [wat.type/i64] program)))
 
 ;; ─── Row 5 — fewer than declared (one of `eprintln`'s two params, `T` bound, `R` inferred
 ;; from the enclosing return type). Check-time only — never called; `eprintln` terminates. ──
 
-(:wat::core::defn :t::row5_fewer_than_declared [] -> wat.type/i64
-  (:wat::kernel::eprintln :- [wat.type/String] "diagnostic"))
+(wat.core/defn t/row5_fewer_than_declared [] :- wat.type/i64
+  (wat.kernel/eprintln :- [wat.type/String] "diagnostic"))

@@ -6,37 +6,37 @@
 ;; before any work — satisfies every assertion its twin makes. The derived answer is here rather
 ;; than a bare "it did not die" because a session that imports and then cannot fire would still
 ;; print a happy word.
-(:wat::core::defrecord :ia::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :ia::Hit [c <- wat.type/i64])
+(wat.core/defrecord ia/Temp [c :- wat.type/i64])
+(wat.core/defrecord ia/Hit [c :- wat.type/i64])
 
-(:wat::rete::defquery :ia::q-Hit :params [] :when [(?fact :- :ia::Hit)])
+(wat.rete/defquery ia/q-Hit :params [] :when [(?fact :- ia/Hit)])
 
-(:wat::rete::defrule :ia::cool
-  :when [(:ia::Temp (?c :- :c))
-         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
-  :then [(:ia::Hit ?c)])
+(wat.rete/defrule ia/cool
+  :when [(ia/Temp (?c :- :c))
+         (wat.rete/where (wat.rete.i64/< ?c 20))]
+  :then [(ia/Hit ?c)])
 
-(:wat::core::defn :ia::compiled [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all
-      (wat.type/PersistentVector :- [:wat::rete::Rule] (:ia::cool))
-      (wat.type/PersistentVector :- [:wat::rete::Query] (:ia::q-Hit)))
-    [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-      (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn ia/compiled [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all
+      (wat.type/PersistentVector :- [wat.rete/Rule] (ia/cool))
+      (wat.type/PersistentVector :- [wat.rete/Query] (ia/q-Hit)))
+    [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+      (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :ia::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s (:ia::Temp :c 10))
-    [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
-      (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn ia/seed [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s (ia/Temp :c 10))
+    [wat.rete/InsertOutcome.Inserted {:session __staged} __staged]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
+      (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [e  (:wat::rete::export (:ia::compiled))
-                    s1 (:wat::rete::import e)
-                    s2 (:wat::core::match (:wat::rete::fire-rules (:ia::seed s1))
-                         [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
-                         [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-                           (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
-                         [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-                           (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::kernel::println (:wat::core::length (:wat::rete::query s2 (:ia::q-Hit))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [e  (wat.rete/export (ia/compiled))
+                    s1 (wat.rete/import e)
+                    s2 (wat.core/match (wat.rete/fire-rules (ia/seed s1))
+                         [wat.rete/FireOutcome.Fired {:value __fired} __fired]
+                         [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+                           (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+                         [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+                           (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.kernel/println (wat.core/length (wat.rete/query s2 (ia/q-Hit))))))

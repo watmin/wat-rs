@@ -43,421 +43,421 @@
 
 ;; ── small predicates ────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::quoted?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::core::quote")
+(wat.core/defn user/quoted?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? node ":wat::core::quote")
     true
-    (:wat::fix::calls-to? node ":wat::core::quasiquote")))
+    (wat.fix/calls-to? node ":wat::core::quasiquote")))
 
-(:wat::core::defn :user::decl-form?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::let [h (:wat::fix::head-name node)]
-    (:wat::core::if (:wat::core::= h ":wat::core::defrecord") true
-      (:wat::core::if (:wat::core::= h ":wat::rete::defrule") true
-        (:wat::core::if (:wat::core::= h ":wat::rete::defquery") true
-          (:wat::core::if (:wat::core::= h ":wat::core::defenum") true
-            (:wat::core::if (:wat::core::= h ":wat::core::defstruct") true
-              (:wat::core::= h ":wat::core::defholon"))))))))
+(wat.core/defn user/decl-form?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/let [h (wat.fix/head-name node)]
+    (wat.core/if (wat.core/= h ":wat::core::defrecord") true
+      (wat.core/if (wat.core/= h ":wat::rete::defrule") true
+        (wat.core/if (wat.core/= h ":wat::rete::defquery") true
+          (wat.core/if (wat.core/= h ":wat::core::defenum") true
+            (wat.core/if (wat.core/= h ":wat::core::defstruct") true
+              (wat.core/= h ":wat::core::defholon"))))))))
 
-(:wat::core::defn :user::type-query?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::rete::query")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::count ch) 3)
-        (:wat::core::= (:wat::core::ast-kind
-                         (:wat::core::Option/expect
-                           (:wat::core::get ch 2)
+(wat.core/defn user/type-query?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? node ":wat::rete::query")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/count ch) 3)
+        (wat.core/= (wat.core/ast-kind
+                         (wat.core.Option/expect
+                           (wat.core/get ch 2)
                            "type-query?: child 2"))
                        "keyword")
         false))
     false))
 
 ;; rune:lint(rete-name-unminted) :wat::rete::query-by-type-string — the head this codemod detects and eliminates; retired by the migration recorded in this file, so its absence is the tool working.
-(:wat::core::defn :user::qbts?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::fix::calls-to? node ":wat::rete::query-by-type-string"))
+(wat.core/defn user/qbts?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.fix/calls-to? node ":wat::rete::query-by-type-string"))
 
-(:wat::core::defn :user::compile-1?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::rete::compile")
-    (:wat::core::= (:wat::core::count (:wat::core::ast->children node)) 2)
+(wat.core/defn user/compile-1?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? node ":wat::rete::compile")
+    (wat.core/= (wat.core/count (wat.core/ast->children node)) 2)
     false))
 
-(:wat::core::defn :user::compile-any?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::rete::compile")
+(wat.core/defn user/compile-any?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.fix/calls-to? node ":wat::rete::compile")
     true
-    (:wat::fix::calls-to? node ":wat::rete::compile-all")))
+    (wat.fix/calls-to? node ":wat::rete::compile-all")))
 
 ;; ── name algebra ────────────────────────────────────────────────────────────
 
 ;; "wnab::Hit" → "wnab::q-Hit". STOPS on a bare (unnamespaced) type.
-(:wat::core::defn :user::type->qname
-  [fqdn <- wat.type/String] -> wat.type/String
-  (:wat::core::let [parts (:wat::string::split fqdn "::")
-                    n     (:wat::core::length parts)]
-    (:wat::core::if (:wat::core::< n 2)
-      (:wat::kernel::assertion-failed! :message (:wat::string::concat
+(wat.core/defn user/type->qname
+  [fqdn :- wat.type/String] :- wat.type/String
+  (wat.core/let [parts (wat.string/split fqdn "::")
+                    n     (wat.core/length parts)]
+    (wat.core/if (wat.core/< n 2)
+      (wat.kernel/assertion-failed! :message (wat.string/concat
           "type-query-to-defquery: type has no namespace: " fqdn))
-      (:wat::core::let [ty (:wat::core::Option/expect
-                             (:wat::core::get parts (:wat::i64::- n 1))
+      (wat.core/let [ty (wat.core.Option/expect
+                             (wat.core/get parts (wat.i64/- n 1))
                              "type->qname: last")
-                        ns (:wat::core::foldl
-                             (:wat::core::fn [acc <- wat.type/String
-                                              i   <- wat.type/i64]
-                               -> wat.type/String
-                               (:wat::core::let [seg (:wat::core::Option/expect
-                                                       (:wat::core::get parts i)
+                        ns (wat.core/foldl
+                             (wat.core/fn [acc :- wat.type/String
+                                              i   :- wat.type/i64]
+                               :- wat.type/String
+                               (wat.core/let [seg (wat.core.Option/expect
+                                                       (wat.core/get parts i)
                                                        "type->qname: ns")]
-                                 (:wat::core::if (:wat::core::= acc "")
+                                 (wat.core/if (wat.core/= acc "")
                                    seg
-                                   (:wat::string::concat acc
-                                     (:wat::string::concat "::" seg)))))
+                                   (wat.string/concat acc
+                                     (wat.string/concat "::" seg)))))
                              ""
-                             (:wat::core::range 0 (:wat::i64::- n 1)))]
-        (:wat::string::concat ns
-          (:wat::string::concat "::q-" ty))))))
+                             (wat.core/range 0 (wat.i64/- n 1)))]
+        (wat.string/concat ns
+          (wat.string/concat "::q-" ty))))))
 
-(:wat::core::defn :user::strip-colon
-  [s <- wat.type/String] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::string::subs s 0 1) ":")
-    (:wat::string::subs s 1 (:wat::string::length s))
+(wat.core/defn user/strip-colon
+  [s :- wat.type/String] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.string/subs s 0 1) ":")
+    (wat.string/subs s 1 (wat.string/length s))
     s))
 
-(:wat::core::defn :user::unique-conj
-  [acc <- (wat.type/Vector :- [wat.type/String])
-   x   <- wat.type/String]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::fix::str-in? x acc)
+(wat.core/defn user/unique-conj
+  [acc :- (wat.type/Vector :- [wat.type/String])
+   x   :- wat.type/String]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.fix/str-in? x acc)
     acc
-    (:wat::core::conj acc x)))
+    (wat.core/conj acc x)))
 
 ;; ── collect types / existing defquery names / compile presence ───────────────
 
-(:wat::core::defn :user::node-type
-  [node <- wat.type/AST] -> (:wat::core::Option :- [wat.type/String])
-  (:wat::core::if (:user::type-query? node)
-    (:wat::core::Option.Some
-      {:value (:user::strip-colon
-        (:wat::core::ast-name
-          (:wat::core::Option/expect
-            (:wat::core::get (:wat::core::ast->children node) 2)
+(wat.core/defn user/node-type
+  [node :- wat.type/AST] :- (wat.core/Option :- [wat.type/String])
+  (wat.core/if (user/type-query? node)
+    (wat.core/Option.Some
+      {:value (user/strip-colon
+        (wat.core/ast-name
+          (wat.core.Option/expect
+            (wat.core/get (wat.core/ast->children node) 2)
             "node-type: type kw")))})
-    (:wat::core::if (:user::qbts? node)
-      (:wat::core::let [ch (:wat::core::ast->children node)]
-        (:wat::core::if
-          (:wat::core::if (:wat::core::= (:wat::core::count ch) 3)
-            (:wat::core::= (:wat::core::ast-kind
-                             (:wat::core::Option/expect
-                               (:wat::core::get ch 2)
+    (wat.core/if (user/qbts? node)
+      (wat.core/let [ch (wat.core/ast->children node)]
+        (wat.core/if
+          (wat.core/if (wat.core/= (wat.core/count ch) 3)
+            (wat.core/= (wat.core/ast-kind
+                             (wat.core.Option/expect
+                               (wat.core/get ch 2)
                                "node-type: qbts child"))
                            "string")
             false)
-          (:wat::core::Option.Some
-            {:value (:wat::core::ast-name
-              (:wat::core::Option/expect
-                (:wat::core::get ch 2)
+          (wat.core/Option.Some
+            {:value (wat.core/ast-name
+              (wat.core.Option/expect
+                (wat.core/get ch 2)
                 "node-type: qbts string"))})
-          (:wat::kernel::assertion-failed! :message "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")")))
-      :wat::core::Option.None)))
+          (wat.kernel/assertion-failed! :message "type-query-to-defquery: query-by-type-string must be (session \"ns::Type\")")))
+      wat.core/Option.None)))
 
-(:wat::core::defn :user::collect-types
-  [node  <- wat.type/AST
-   acc   <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:user::quoted? node)
+(wat.core/defn user/collect-types
+  [node  :- wat.type/AST
+   acc   :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (user/quoted? node)
     acc
-    (:wat::core::let [here (:wat::core::match (:user::node-type node)
-                             [:wat::core::Option.Some {:value t} (:user::unique-conj acc t)]
-                             [:wat::core::Option.None {} acc])]
-      (:wat::core::if (:wat::fix::structural? node)
-        (:user::collect-types-seq (:wat::core::ast->children node) here)
+    (wat.core/let [here (wat.core/match (user/node-type node)
+                             [wat.core/Option.Some {:value t} (user/unique-conj acc t)]
+                             [wat.core/Option.None {} acc])]
+      (wat.core/if (wat.fix/structural? node)
+        (user/collect-types-seq (wat.core/ast->children node) here)
         here))))
 
-(:wat::core::defn :user::collect-types-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   acc   <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/collect-types-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   acc   :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.core/empty? items)
     acc
-    (:user::collect-types-seq
-      (:wat::core::into [] (:wat::core::rest items))
-      (:user::collect-types (:wat::core::first items) acc))))
+    (user/collect-types-seq
+      (wat.core/into [] (wat.core/rest items))
+      (user/collect-types (wat.core/first items) acc))))
 
-(:wat::core::defn :user::collect-qnames
-  [node <- wat.type/AST
-   acc  <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::fix::calls-to? node ":wat::rete::defquery")
-    (:wat::core::let [nm (:wat::core::ast-name
-                           (:wat::core::Option/expect
-                             (:wat::core::get (:wat::core::ast->children node) 1)
+(wat.core/defn user/collect-qnames
+  [node :- wat.type/AST
+   acc  :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.fix/calls-to? node ":wat::rete::defquery")
+    (wat.core/let [nm (wat.core/ast-name
+                           (wat.core.Option/expect
+                             (wat.core/get (wat.core/ast->children node) 1)
                              "collect-qnames: name"))]
-      (:user::unique-conj acc nm))
-    (:wat::core::if (:wat::fix::structural? node)
-      (:user::collect-qnames-seq (:wat::core::ast->children node) acc)
+      (user/unique-conj acc nm))
+    (wat.core/if (wat.fix/structural? node)
+      (user/collect-qnames-seq (wat.core/ast->children node) acc)
       acc)))
 
-(:wat::core::defn :user::collect-qnames-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   acc   <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/collect-qnames-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   acc   :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/if (wat.core/empty? items)
     acc
-    (:user::collect-qnames-seq
-      (:wat::core::into [] (:wat::core::rest items))
-      (:user::collect-qnames (:wat::core::first items) acc))))
+    (user/collect-qnames-seq
+      (wat.core/into [] (wat.core/rest items))
+      (user/collect-qnames (wat.core/first items) acc))))
 
-(:wat::core::defn :user::has-compile?
-  [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:user::quoted? node)
+(wat.core/defn user/has-compile?
+  [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (user/quoted? node)
     false
-    (:wat::core::if (:user::compile-any? node)
+    (wat.core/if (user/compile-any? node)
       true
-      (:wat::core::if (:wat::fix::structural? node)
-        (:user::has-compile-seq (:wat::core::ast->children node))
+      (wat.core/if (wat.fix/structural? node)
+        (user/has-compile-seq (wat.core/ast->children node))
         false))))
 
-(:wat::core::defn :user::has-compile-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/bool
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/has-compile-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/bool
+  (wat.core/if (wat.core/empty? items)
     false
-    (:wat::core::if (:user::has-compile? (:wat::core::first items))
+    (wat.core/if (user/has-compile? (wat.core/first items))
       true
-      (:user::has-compile-seq (:wat::core::into [] (:wat::core::rest items))))))
+      (user/has-compile-seq (wat.core/into [] (wat.core/rest items))))))
 
 ;; ── text helpers ────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::node-text
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/String
-  (:wat::string::subs src
-    (:wat::fix::node-start-offset node lines)
-    (:wat::fix::node-end-offset node lines)))
+(wat.core/defn user/node-text
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/String
+  (wat.string/subs src
+    (wat.fix/node-start-offset node lines)
+    (wat.fix/node-end-offset node lines)))
 
 ;; old-text = fix-text-span-text over the WHOLE matched node's OWN span (arc 282) —
 ;; sanctioned: every caller has already structurally verified `node`'s identity before
 ;; calling this, and it is a List's own span — never a reader-synthesized leaf's.
-(:wat::core::defn :user::span-edit
-  [node  <- wat.type/AST
-   text  <- wat.type/String
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> :wat::fix::Edit
-  (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
-                    old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
+(wat.core/defn user/span-edit
+  [node  :- wat.type/AST
+   text  :- wat.type/String
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.fix/Edit
+  (wat.core/let [off      (wat.fix/node-start-offset node lines)
+                    old-text (wat.fix/fix-text-span-text (wat.core/ast-span node) (wat.core/ast-end-span node) lines src)]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text text)))
 
-(:wat::core::defn :user::q-call
-  [fqdn <- wat.type/String] -> wat.type/String
-  (:wat::string::concat "(:"
-    (:wat::string::concat (:user::type->qname fqdn) ")")))
+(wat.core/defn user/q-call
+  [fqdn :- wat.type/String] :- wat.type/String
+  (wat.string/concat "(:"
+    (wat.string/concat (user/type->qname fqdn) ")")))
 
-(:wat::core::defn :user::q-kw
-  [fqdn <- wat.type/String] -> wat.type/String
-  (:wat::string::concat ":" (:user::type->qname fqdn)))
+(wat.core/defn user/q-kw
+  [fqdn :- wat.type/String] :- wat.type/String
+  (wat.string/concat ":" (user/type->qname fqdn)))
 
-(:wat::core::defn :user::defquery-text
-  [fqdn <- wat.type/String] -> wat.type/String
-  (:wat::string::concat
+(wat.core/defn user/defquery-text
+  [fqdn :- wat.type/String] :- wat.type/String
+  (wat.string/concat
     "(:wat::rete::defquery "
-    (:wat::string::concat
-      (:user::q-kw fqdn)
-      (:wat::string::concat
+    (wat.string/concat
+      (user/q-kw fqdn)
+      (wat.string/concat
         "\n  :params []\n  :when [(:"
-        (:wat::string::concat fqdn ")])\n")))))
+        (wat.string/concat fqdn ")])\n")))))
 
-(:wat::core::defn :user::needed-texts
-  [types    <- (wat.type/Vector :- [wat.type/String])
-   existing <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  t <- wat.type/String]
-      -> wat.type/String
-      (:wat::core::if (:wat::fix::str-in? (:user::q-kw t) existing)
+(wat.core/defn user/needed-texts
+  [types    :- (wat.type/Vector :- [wat.type/String])
+   existing :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  t :- wat.type/String]
+      :- wat.type/String
+      (wat.core/if (wat.fix/str-in? (user/q-kw t) existing)
         acc
-        (:wat::string::concat acc
-          (:wat::string::concat "\n\n" (:user::defquery-text t)))))
+        (wat.string/concat acc
+          (wat.string/concat "\n\n" (user/defquery-text t)))))
     ""
     types))
 
-(:wat::core::defn :user::q-vec-text
-  [types <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/String
-  (:wat::string::concat
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/String  t <- wat.type/String]
-        -> wat.type/String
-        (:wat::string::concat acc
-          (:wat::string::concat " " (:user::q-call t))))
+(wat.core/defn user/q-vec-text
+  [types :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/String
+  (wat.string/concat
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/String  t :- wat.type/String]
+        :- wat.type/String
+        (wat.string/concat acc
+          (wat.string/concat " " (user/q-call t))))
       "(:wat::core::PersistentVector"
       types)
     ")"))
 
-(:wat::core::defn :user::last-decl-end
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/i64  f <- wat.type/AST]
-      -> wat.type/i64
-      (:wat::core::if (:user::decl-form? f)
-        (:wat::fix::node-end-offset f lines)
+(wat.core/defn user/last-decl-end
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/i64  f :- wat.type/AST]
+      :- wat.type/i64
+      (wat.core/if (user/decl-form? f)
+        (wat.fix/node-end-offset f lines)
         acc))
     0
     forms))
 
 ;; ── edits ───────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::call-edit
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:user::type-query? node)
-    (:wat::core::let [ty (:wat::core::Option/expect
-                           (:user::node-type node)
+(wat.core/defn user/call-edit
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (user/type-query? node)
+    (wat.core/let [ty (wat.core.Option/expect
+                           (user/node-type node)
                            "call-edit: type-query")
-                      arg (:wat::core::Option/expect
-                            (:wat::core::get (:wat::core::ast->children node) 2)
+                      arg (wat.core.Option/expect
+                            (wat.core/get (wat.core/ast->children node) 2)
                             "call-edit: type kw")]
       ;; old-text = (ast-name arg) — arg is a KEYWORD LEAF (type-query? verified
       ;; ast-kind=="keyword"), so this is a RENAME, not a whole-list replace; NEVER
       ;; span text here (span-edit's own sanctioned use is for List nodes only).
-      (wat.type/Vector :- [:wat::fix::Edit]
-        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:wat::fix::node-start-offset arg lines) (:wat::core::ast-name arg) (:user::q-call ty))))
-    (:wat::core::if (:user::qbts? node)
-      (:wat::core::let [ch (:wat::core::ast->children node)
-                        sess (:wat::core::Option/expect
-                               (:wat::core::get ch 1)
+      (wat.type/Vector :- [wat.fix/Edit]
+        (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (wat.fix/node-start-offset arg lines) (wat.core/ast-name arg) (user/q-call ty))))
+    (wat.core/if (user/qbts? node)
+      (wat.core/let [ch (wat.core/ast->children node)
+                        sess (wat.core.Option/expect
+                               (wat.core/get ch 1)
                                "call-edit: qbts session")
-                        ty (:wat::core::Option/expect
-                             (:user::node-type node)
+                        ty (wat.core.Option/expect
+                             (user/node-type node)
                              "call-edit: qbts type")
-                        new (:wat::string::concat
+                        new (wat.string/concat
                               "(:wat::rete::query "
-                              (:wat::string::concat
-                                (:user::node-text sess src lines)
-                                (:wat::string::concat " "
-                                  (:user::q-call ty))))]
-        (wat.type/Vector :- [:wat::fix::Edit]
-          (:user::span-edit node
-            (:wat::string::concat new ")")
+                              (wat.string/concat
+                                (user/node-text sess src lines)
+                                (wat.string/concat " "
+                                  (user/q-call ty))))]
+        (wat.type/Vector :- [wat.fix/Edit]
+          (user/span-edit node
+            (wat.string/concat new ")")
             src lines)))
-      (wat.type/Vector :- [:wat::fix::Edit]))))
+      (wat.type/Vector :- [wat.fix/Edit]))))
 
-(:wat::core::defn :user::compile-edit
-  [node  <- wat.type/AST
-   types <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:user::compile-1? node)
-    (:wat::core::let [rules (:wat::core::Option/expect
-                              (:wat::core::get (:wat::core::ast->children node) 1)
+(wat.core/defn user/compile-edit
+  [node  :- wat.type/AST
+   types :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (user/compile-1? node)
+    (wat.core/let [rules (wat.core.Option/expect
+                              (wat.core/get (wat.core/ast->children node) 1)
                               "compile-edit: rules")
-                      new (:wat::string::concat
+                      new (wat.string/concat
                             "(:wat::rete::compile-all "
-                            (:wat::string::concat
-                              (:user::node-text rules src lines)
-                              (:wat::string::concat " "
-                                (:user::q-vec-text types))))]
-      (wat.type/Vector :- [:wat::fix::Edit]
-        (:user::span-edit node
-          (:wat::string::concat new ")")
+                            (wat.string/concat
+                              (user/node-text rules src lines)
+                              (wat.string/concat " "
+                                (user/q-vec-text types))))]
+      (wat.type/Vector :- [wat.fix/Edit]
+        (user/span-edit node
+          (wat.string/concat new ")")
           src lines)))
-    (wat.type/Vector :- [:wat::fix::Edit])))
+    (wat.type/Vector :- [wat.fix/Edit])))
 
-(:wat::core::defn :user::walk-edits
-  [node  <- wat.type/AST
-   types <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:user::quoted? node)
-    (wat.type/Vector :- [:wat::fix::Edit])
-    (:wat::core::let [this (:wat::core::concat
-                             (:user::call-edit node src lines)
-                             (:user::compile-edit node types src lines))]
-      (:wat::core::if (:wat::fix::structural? node)
-        (:wat::core::concat this
-          (:user::walk-seq-edits
-            (:wat::core::ast->children node) types src lines))
+(wat.core/defn user/walk-edits
+  [node  :- wat.type/AST
+   types :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (user/quoted? node)
+    (wat.type/Vector :- [wat.fix/Edit])
+    (wat.core/let [this (wat.core/concat
+                             (user/call-edit node src lines)
+                             (user/compile-edit node types src lines))]
+      (wat.core/if (wat.fix/structural? node)
+        (wat.core/concat this
+          (user/walk-seq-edits
+            (wat.core/ast->children node) types src lines))
         this))))
 
-(:wat::core::defn :user::walk-seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   types <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::empty? items)
-    (wat.type/Vector :- [:wat::fix::Edit])
-    (:wat::core::concat
-      (:user::walk-edits (:wat::core::first items) types src lines)
-      (:user::walk-seq-edits (:wat::core::into [] (:wat::core::rest items)) types src lines))))
+(wat.core/defn user/walk-seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   types :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [wat.fix/Edit])
+  (wat.core/if (wat.core/empty? items)
+    (wat.type/Vector :- [wat.fix/Edit])
+    (wat.core/concat
+      (user/walk-edits (wat.core/first items) types src lines)
+      (user/walk-seq-edits (wat.core/into [] (wat.core/rest items)) types src lines))))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     tree  (:wat::core::match (:wat::core::read-string src)
-             [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-             [:wat::core::ReadOutcome.Malformed {:cause __cause}
-               (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     forms (:wat::core::ast->children tree)
-     types (:user::collect-types-seq forms
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     tree  (wat.core/match (wat.core/read-string src)
+             [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+             [wat.core/ReadOutcome.Malformed {:cause __cause}
+               (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     forms (wat.core/ast->children tree)
+     types (user/collect-types-seq forms
              (wat.type/Vector :- [wat.type/String]))
-     existing (:user::collect-qnames-seq forms
+     existing (user/collect-qnames-seq forms
                 (wat.type/Vector :- [wat.type/String]))]
-    (:wat::core::if (:wat::core::empty? types)
+    (wat.core/if (wat.core/empty? types)
       src
-      (:wat::core::let
-        [_comp (:wat::core::if (:user::has-compile-seq forms)
+      (wat.core/let
+        [_comp (wat.core/if (user/has-compile-seq forms)
                  nil
-                 (:wat::kernel::assertion-failed! :message "type-query-to-defquery: heretic query in a file with no compile"))
-         inserted (:user::needed-texts types existing)
+                 (wat.kernel/assertion-failed! :message "type-query-to-defquery: heretic query in a file with no compile"))
+         inserted (user/needed-texts types existing)
          ins-edits
-           (:wat::core::if (:wat::core::= inserted "")
-             (wat.type/Vector :- [:wat::fix::Edit])
-             (:wat::core::let [off (:user::last-decl-end forms lines)
-                               at  (:wat::core::if (:wat::core::= off 0)
-                                     (:wat::fix::node-end-offset
-                                       (:wat::core::first forms) lines)
+           (wat.core/if (wat.core/= inserted "")
+             (wat.type/Vector :- [wat.fix/Edit])
+             (wat.core/let [off (user/last-decl-end forms lines)
+                               at  (wat.core/if (wat.core/= off 0)
+                                     (wat.fix/node-end-offset
+                                       (wat.core/first forms) lines)
                                      off)]
-               (wat.type/Vector :- [:wat::fix::Edit]
+               (wat.type/Vector :- [wat.fix/Edit]
                  (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] at "" inserted))))
-         call-edits (:user::walk-seq-edits forms types src lines)
-         all (:wat::core::concat ins-edits call-edits)]
-        (:wat::fix::fix-text-apply src
-          (:wat::core::reverse (:wat::core::sort all)))))))
+         call-edits (user/walk-seq-edits forms types src lines)
+         all (wat.core/concat ins-edits call-edits)]
+        (wat.fix/fix-text-apply src
+          (wat.core/reverse (wat.core/sort all)))))))
 
 ;; ── driver ──────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :user::rewrite-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/rewrite-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)
-                      src  (:wat::io::read-file path)
-                      out  (:user::migrate src)]
-      (:wat::core::do
-        (:wat::io::write-file path out)
-        (:wat::kernel::println
-          (:wat::string::concat
-            (:wat::core::if (:wat::core::= src out) "[unchanged] " "[rewritten] ")
+    (wat.core/let [path (wat.core/first paths)
+                      src  (wat.io/read-file path)
+                      out  (user/migrate src)]
+      (wat.core/do
+        (wat.io/write-file path out)
+        (wat.kernel/println
+          (wat.string/concat
+            (wat.core/if (wat.core/= src out) "[unchanged] " "[rewritten] ")
             path))
-        (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
+        (user/rewrite-each (wat.core/into [] (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::rewrite-each
-    (:wat::core::match (:wat::kernel::readln)
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/rewrite-each
+    (wat.core/match (wat.kernel/readln)
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

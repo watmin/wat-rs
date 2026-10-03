@@ -27,30 +27,30 @@
 ;; rebuilt binary registers them and can answer `Some hm`). See the rider's report for what this
 ;; binary actually printed.
 
-(:wat::core::defn :user::roundtrip-option [o <- (:wat::core::Option :- [wat.type/i64])] -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::Option.Some {:value (:wat::core::Option/try o)}))
+(wat.core/defn user/roundtrip-option [o :- (wat.core/Option :- [wat.type/i64])] :- (wat.core/Option :- [wat.type/i64])
+  (wat.core/Option.Some {:value (wat.core.Option/try o)}))
 
-(:wat::core::defn :user::roundtrip-result [r <- (:wat::core::Result :- [wat.type/i64 wat.type/String])] -> (:wat::core::Result :- [wat.type/i64 wat.type/String])
-  (:wat::core::Result.Ok {:value (:wat::core::Result/try r)}))
+(wat.core/defn user/roundtrip-result [r :- (wat.core/Result :- [wat.type/i64 wat.type/String])] :- (wat.core/Result :- [wat.type/i64 wat.type/String])
+  (wat.core/Result.Ok {:value (wat.core.Result/try r)}))
 
-(:wat::core::defn :user::totality-of [name <- wat.type/keyword] -> wat.type/String
-  (:wat::core::match (:wat::runtime::metadata-of name)
-    [:wat::core::Option.Some {:value hm}
-     (:wat::core::match (:wat::core::get hm :totality)
-       [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-       [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-    [:wat::core::Option.None {} "None (not registered in this binary)"]))
+(wat.core/defn user/totality-of [name :- wat.type/keyword] :- wat.type/String
+  (wat.core/match (wat.runtime/metadata-of name)
+    [wat.core/Option.Some {:value hm}
+     (wat.core/match (wat.core/get hm :totality)
+       [wat.core/Option.Some {:value t} (wat.edn/write t)]
+       [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+    [wat.core/Option.None {} "None (not registered in this binary)"]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── section 1 — behavior unchanged ──")
-    (:wat::kernel::println (:wat::string::concat "Option/try (Some 3)  => " (:wat::edn::write (:user::roundtrip-option (:wat::core::Option.Some {:value 3})))))
-    (:wat::kernel::println (:wat::string::concat "Option/try :None     => " (:wat::edn::write (:user::roundtrip-option :wat::core::Option.None))))
-    (:wat::kernel::println (:wat::string::concat "Result/try (Ok 3)    => " (:wat::edn::write (:user::roundtrip-result (:wat::core::Result.Ok {:value 3})))))
-    (:wat::kernel::println (:wat::string::concat "Result/try (Err msg) => " (:wat::edn::write (:user::roundtrip-result (:wat::core::Result.Err {:error "boom"})))))
-    (:wat::kernel::println (:wat::string::concat "Result/expect (Ok 3) => " (:wat::edn::write (:wat::core::Result/expect (:wat::core::Result.Ok {:value 3}) "unreachable"))))
-    (:wat::kernel::println "── section 2 — metadata-of :totality (expect Partial vs. both try Total) ──")
-    (:wat::kernel::println (:wat::string::concat "Result/expect :totality => " (:user::totality-of :wat::core::Result/expect)))
-    (:wat::kernel::println (:wat::string::concat "Option/try    :totality => " (:user::totality-of :wat::core::Option/try)))
-    (:wat::kernel::println (:wat::string::concat "Result/try    :totality => " (:user::totality-of :wat::core::Result/try)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── section 1 — behavior unchanged ──")
+    (wat.kernel/println (wat.string/concat "Option/try (Some 3)  => " (wat.edn/write (user/roundtrip-option (wat.core/Option.Some {:value 3})))))
+    (wat.kernel/println (wat.string/concat "Option/try :None     => " (wat.edn/write (user/roundtrip-option wat.core/Option.None))))
+    (wat.kernel/println (wat.string/concat "Result/try (Ok 3)    => " (wat.edn/write (user/roundtrip-result (wat.core/Result.Ok {:value 3})))))
+    (wat.kernel/println (wat.string/concat "Result/try (Err msg) => " (wat.edn/write (user/roundtrip-result (wat.core/Result.Err {:error "boom"})))))
+    (wat.kernel/println (wat.string/concat "Result/expect (Ok 3) => " (wat.edn/write (wat.core.Result/expect (wat.core/Result.Ok {:value 3}) "unreachable"))))
+    (wat.kernel/println "── section 2 — metadata-of :totality (expect Partial vs. both try Total) ──")
+    (wat.kernel/println (wat.string/concat "Result/expect :totality => " (user/totality-of wat.core.Result/expect)))
+    (wat.kernel/println (wat.string/concat "Option/try    :totality => " (user/totality-of wat.core.Option/try)))
+    (wat.kernel/println (wat.string/concat "Result/try    :totality => " (user/totality-of wat.core.Result/try)))
     nil))

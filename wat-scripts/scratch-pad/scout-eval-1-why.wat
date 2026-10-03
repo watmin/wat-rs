@@ -1,11 +1,11 @@
 ;; scout-eval-1: capture the ACTUAL Err from eval-ast! on a bare fn-form.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [pred-src "(:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool (:wat::core::> n 3))"
-     form     (:wat::core::match (:wat::core::read-string pred-src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     pure     (:wat::rete::pure? form)
-     det      (:wat::rete::deterministic? form)
-     res      (:wat::eval-ast! form)]
-    (:wat::kernel::println (:wat::core::str pure))
-    (:wat::kernel::println (:wat::core::str det))
-    (:wat::kernel::println (:wat::core::str res))))
+     form     (wat.core/match (wat.core/read-string pred-src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     pure     (wat.rete/pure? form)
+     det      (wat.rete/deterministic? form)
+     res      (wat/eval-ast! form)]
+    (wat.kernel/println (wat.core/str pure))
+    (wat.kernel/println (wat.core/str det))
+    (wat.kernel/println (wat.core/str res))))

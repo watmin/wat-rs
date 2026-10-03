@@ -16,11 +16,11 @@
 ;; The deliberately-false assertion here is the POINT of the fixture, not a bug: it is the
 ;; only shape that can prove a failure is unreadable as a pass. Do not "fix" it.
 
-(:wat::test::deftest :user::verdict-wall-passes
-  (:wat::test::assert-eq (:wat::i64::+ 2 2) 4))
+(wat.test/deftest user/verdict-wall-passes
+  (wat.test/assert-eq (wat.i64/+ 2 2) 4))
 
-(:wat::test::deftest :user::verdict-wall-fails
-  (:wat::test::assert-eq (:wat::i64::+ 2 2) 4242))
+(wat.test/deftest user/verdict-wall-fails
+  (wat.test/assert-eq (wat.i64/+ 2 2) 4242))
 
-(:wat::core::defn :user::plain-value [] -> wat.type/i64
-  (:wat::i64::+ 2 5))
+(wat.core/defn user/plain-value [] :- wat.type/i64
+  (wat.i64/+ 2 5))

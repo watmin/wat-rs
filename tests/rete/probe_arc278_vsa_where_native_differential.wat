@@ -3,201 +3,201 @@
 ;; Degenerate cosine takes the CALLER's `:undefined`, not a constant.
 ;; coincident?/presence? must fire, not `compiled apply cannot dispatch`.
 
-(:wat::core::defrecord :vsa::Catalog     [name <- wat.type/String  obs <- :wat::holon::HolonAST])
-(:wat::core::defrecord :vsa::Observation [obs  <- :wat::holon::HolonAST])
-(:wat::core::defrecord :vsa::Guess       [name <- wat.type/String])
-(:wat::core::defrecord :vsa::Pair        [a <- :wat::holon::HolonAST  b <- :wat::holon::HolonAST])
-(:wat::core::defrecord :vsa::Hit         [tag <- wat.type/String])
+(wat.core/defrecord vsa/Catalog     [name :- wat.type/String  obs :- wat.holon/HolonAST])
+(wat.core/defrecord vsa/Observation [obs  :- wat.holon/HolonAST])
+(wat.core/defrecord vsa/Guess       [name :- wat.type/String])
+(wat.core/defrecord vsa/Pair        [a :- wat.holon/HolonAST  b :- wat.holon/HolonAST])
+(wat.core/defrecord vsa/Hit         [tag :- wat.type/String])
 
-(:wat::core::defn :vsa::table-of
-  [f <- [wat.type/bool :-> wat.type/bool]]
-  -> :wat::holon::HolonAST
-  (:wat::holon::to-holon
+(wat.core/defn vsa/table-of
+  [f :- [wat.type/bool :-> wat.type/bool]]
+  :- wat.holon/HolonAST
+  (wat.holon/to-holon
     (wat.type/Vector :- [wat.type/bool] (f true) (f false))))
 
-(:wat::core::defn :vsa::id-fn [] -> [wat.type/bool :-> wat.type/bool]
-  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool b))
-(:wat::core::defn :vsa::not-fn [] -> [wat.type/bool :-> wat.type/bool]
-  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool (:wat::core::if b false true)))
-(:wat::core::defn :vsa::const-true-fn [] -> [wat.type/bool :-> wat.type/bool]
-  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool true))
-(:wat::core::defn :vsa::const-false-fn [] -> [wat.type/bool :-> wat.type/bool]
-  (:wat::core::fn [b <- wat.type/bool] -> wat.type/bool false))
+(wat.core/defn vsa/id-fn [] :- [wat.type/bool :-> wat.type/bool]
+  (wat.core/fn [b :- wat.type/bool] :- wat.type/bool b))
+(wat.core/defn vsa/not-fn [] :- [wat.type/bool :-> wat.type/bool]
+  (wat.core/fn [b :- wat.type/bool] :- wat.type/bool (wat.core/if b false true)))
+(wat.core/defn vsa/const-true-fn [] :- [wat.type/bool :-> wat.type/bool]
+  (wat.core/fn [b :- wat.type/bool] :- wat.type/bool true))
+(wat.core/defn vsa/const-false-fn [] :- [wat.type/bool :-> wat.type/bool]
+  (wat.core/fn [b :- wat.type/bool] :- wat.type/bool false))
 
-(:wat::rete::defrule :vsa::classify-cosine
+(wat.rete/defrule vsa/classify-cosine
   :when
-  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
-   (:vsa::Observation (?obs :- :obs))
-   (:wat::rete::where
-     (:wat::rete::f64::>
-       (:wat::rete::holon::cosine ?obs ?cobs :undefined 0.0)
+  [(vsa/Catalog (?name :- :name) (?cobs :- :obs))
+   (vsa/Observation (?obs :- :obs))
+   (wat.rete/where
+     (wat.rete.f64/>
+       (wat.rete.holon/cosine ?obs ?cobs :undefined 0.0)
        0.9))]
   :then
-  [(:vsa::Guess :name ?name)])
+  [(vsa/Guess :name ?name)])
 
-(:wat::rete::defrule :vsa::classify-coincident
+(wat.rete/defrule vsa/classify-coincident
   :when
-  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
-   (:vsa::Observation (?obs :- :obs))
-   (:wat::rete::where (:wat::rete::holon::coincident? ?obs ?cobs))]
+  [(vsa/Catalog (?name :- :name) (?cobs :- :obs))
+   (vsa/Observation (?obs :- :obs))
+   (wat.rete/where (wat.rete.holon/coincident? ?obs ?cobs))]
   :then
-  [(:vsa::Guess :name ?name)])
+  [(vsa/Guess :name ?name)])
 
-(:wat::rete::defrule :vsa::classify-presence
+(wat.rete/defrule vsa/classify-presence
   :when
-  [(:vsa::Catalog (?name :- :name) (?cobs :- :obs))
-   (:vsa::Observation (?obs :- :obs))
-   (:wat::rete::where (:wat::rete::holon::presence? ?obs ?cobs))]
+  [(vsa/Catalog (?name :- :name) (?cobs :- :obs))
+   (vsa/Observation (?obs :- :obs))
+   (wat.rete/where (wat.rete.holon/presence? ?obs ?cobs))]
   :then
-  [(:vsa::Guess :name ?name)])
+  [(vsa/Guess :name ?name)])
 
-(:wat::rete::defrule :vsa::deg-neg1
+(wat.rete/defrule vsa/deg-neg1
   :when
-  [(:vsa::Pair (?a :- :a) (?b :- :b))
-   (:wat::rete::where
-     (:wat::rete::f64::=
-       (:wat::rete::holon::cosine ?a ?b :undefined -1.0)
+  [(vsa/Pair (?a :- :a) (?b :- :b))
+   (wat.rete/where
+     (wat.rete.f64/=
+       (wat.rete.holon/cosine ?a ?b :undefined -1.0)
        -1.0))]
   :then
-  [(:vsa::Hit :tag "neg1")])
+  [(vsa/Hit :tag "neg1")])
 
-(:wat::rete::defrule :vsa::deg-seven
+(wat.rete/defrule vsa/deg-seven
   :when
-  [(:vsa::Pair (?a :- :a) (?b :- :b))
-   (:wat::rete::where
-     (:wat::rete::f64::=
-       (:wat::rete::holon::cosine ?a ?b :undefined 7.0)
+  [(vsa/Pair (?a :- :a) (?b :- :b))
+   (wat.rete/where
+     (wat.rete.f64/=
+       (wat.rete.holon/cosine ?a ?b :undefined 7.0)
        7.0))]
   :then
-  [(:vsa::Hit :tag "seven")])
+  [(vsa/Hit :tag "seven")])
 
-(:wat::rete::defquery :vsa::q-Guess
+(wat.rete/defquery vsa/q-Guess
   :params []
-  :when [(:vsa::Guess (?name :- :name))])
+  :when [(vsa/Guess (?name :- :name))])
 
-(:wat::rete::defquery :vsa::q-Hit
+(wat.rete/defquery vsa/q-Hit
   :params []
-  :when [(:vsa::Hit (?tag :- :tag))])
+  :when [(vsa/Hit (?tag :- :tag))])
 
-(:wat::core::defn :vsa::catalog [] -> (wat.type/PersistentVector :- [:vsa::Catalog])
-  (wat.type/PersistentVector :- [:vsa::Catalog]
-    (:vsa::Catalog :name "identity"    :obs (:vsa::table-of (:vsa::id-fn)))
-    (:vsa::Catalog :name "not"         :obs (:vsa::table-of (:vsa::not-fn)))
-    (:vsa::Catalog :name "const-true"  :obs (:vsa::table-of (:vsa::const-true-fn)))
-    (:vsa::Catalog :name "const-false" :obs (:vsa::table-of (:vsa::const-false-fn)))))
+(wat.core/defn vsa/catalog [] :- (wat.type/PersistentVector :- [vsa/Catalog])
+  (wat.type/PersistentVector :- [vsa/Catalog]
+    (vsa/Catalog :name "identity"    :obs (vsa/table-of (vsa/id-fn)))
+    (vsa/Catalog :name "not"         :obs (vsa/table-of (vsa/not-fn)))
+    (vsa/Catalog :name "const-true"  :obs (vsa/table-of (vsa/const-true-fn)))
+    (vsa/Catalog :name "const-false" :obs (vsa/table-of (vsa/const-false-fn)))))
 
-(:wat::core::defn :vsa::guess-name
-  [fire    <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
-   rule    <- :wat::rete::Rule
-   mystery <- [wat.type/bool :-> wat.type/bool]]
-  -> wat.type/String
-  (:wat::core::let
-    [s0   (:wat::core::match (:wat::rete::compile-all
-            (wat.type/PersistentVector :- [:wat::rete::Rule] rule)
-            (wat.type/PersistentVector :- [:wat::rete::Query] (:vsa::q-Guess))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1   (:wat::core::match (:wat::rete::insert-all s0 (:vsa::catalog)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s2   (:wat::core::match (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
-     hits  (:wat::rete::query fired (:vsa::q-Guess))
-     n     (:wat::core::length hits)]
-    (:wat::core::if (:wat::i64::= n 1)
-      (:wat::core::Option/expect
-        (:wat::core::get (:wat::core::first hits) "?name")
+(wat.core/defn vsa/guess-name
+  [fire    :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]
+   rule    :- wat.rete/Rule
+   mystery :- [wat.type/bool :-> wat.type/bool]]
+  :- wat.type/String
+  (wat.core/let
+    [s0   (wat.core/match (wat.rete/compile-all
+            (wat.type/PersistentVector :- [wat.rete/Rule] rule)
+            (wat.type/PersistentVector :- [wat.rete/Query] (vsa/q-Guess))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s1   (wat.core/match (wat.rete/insert-all s0 (vsa/catalog)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2   (wat.core/match (wat.rete/insert s1 (vsa/Observation :obs (vsa/table-of mystery))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (fire s2) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: fixpoint round cap exceeded")])
+     hits  (wat.rete/query fired (vsa/q-Guess))
+     n     (wat.core/length hits)]
+    (wat.core/if (wat.i64/= n 1)
+      (wat.core.Option/expect
+        (wat.core/get (wat.core/first hits) "?name")
         "q-Guess: ?name")
-      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
+      (wat.string/concat "count=" (wat.i64/to-string n)))))
 
-(:wat::core::defn :vsa::deg-count
-  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
-   rule <- :wat::rete::Rule]
-  -> wat.type/i64
-  (:wat::core::let
-    [h     (:wat::holon::to-holon "some-atom")
-     other (:wat::holon::to-holon "an-entirely-different-atom")
-     zero  (:wat::holon::Blend h h 1.0 -1.0)
-     s0    (:wat::core::match (:wat::rete::compile-all
-             (wat.type/PersistentVector :- [:wat::rete::Rule] rule)
-             (wat.type/PersistentVector :- [:wat::rete::Query] (:vsa::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1    (:wat::core::match (:wat::rete::insert s0 (:vsa::Pair :a zero :b other)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (fire s1) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])]
-    (:wat::core::length (:wat::rete::query fired (:vsa::q-Hit)))))
+(wat.core/defn vsa/deg-count
+  [fire :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]
+   rule :- wat.rete/Rule]
+  :- wat.type/i64
+  (wat.core/let
+    [h     (wat.holon/to-holon "some-atom")
+     other (wat.holon/to-holon "an-entirely-different-atom")
+     zero  (wat.holon/Blend h h 1.0 -1.0)
+     s0    (wat.core/match (wat.rete/compile-all
+             (wat.type/PersistentVector :- [wat.rete/Rule] rule)
+             (wat.type/PersistentVector :- [wat.rete/Query] (vsa/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s1    (wat.core/match (wat.rete/insert s0 (vsa/Pair :a zero :b other)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (fire s1) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: fixpoint round cap exceeded")])]
+    (wat.core/length (wat.rete/query fired (vsa/q-Hit)))))
 
-(:wat::core::defn :vsa::deg-counts
-  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn vsa/deg-counts
+  [fire :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64]
-    (:vsa::deg-count fire (:vsa::deg-neg1))
-    (:vsa::deg-count fire (:vsa::deg-seven))))
+    (vsa/deg-count fire (vsa/deg-neg1))
+    (vsa/deg-count fire (vsa/deg-seven))))
 
 ;; ── cosine classify (the j2 fixture) ─────────────────────────────────────────
-(:wat::core::defn :user::oracle-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::id-fn)))
-(:wat::core::defn :user::native-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::not-fn)))
-(:wat::core::defn :user::native-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::not-fn)))
-(:wat::core::defn :user::oracle-const-true [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::const-true-fn)))
-(:wat::core::defn :user::native-const-true [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::const-true-fn)))
-(:wat::core::defn :user::oracle-const-false [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-cosine) (:vsa::const-false-fn)))
-(:wat::core::defn :user::native-const-false [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-cosine) (:vsa::const-false-fn)))
+(wat.core/defn user/oracle-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-cosine) (vsa/id-fn)))
+(wat.core/defn user/native-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-cosine) (vsa/id-fn)))
+(wat.core/defn user/oracle-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-cosine) (vsa/not-fn)))
+(wat.core/defn user/native-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-cosine) (vsa/not-fn)))
+(wat.core/defn user/oracle-const-true [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-cosine) (vsa/const-true-fn)))
+(wat.core/defn user/native-const-true [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-cosine) (vsa/const-true-fn)))
+(wat.core/defn user/oracle-const-false [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-cosine) (vsa/const-false-fn)))
+(wat.core/defn user/native-const-false [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-cosine) (vsa/const-false-fn)))
 
 ;; ── coincident? / presence? ──────────────────────────────────────────────────
-(:wat::core::defn :user::oracle-coincident-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-coincident) (:vsa::id-fn)))
-(:wat::core::defn :user::native-coincident-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-coincident) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-coincident-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-coincident) (:vsa::not-fn)))
-(:wat::core::defn :user::native-coincident-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-coincident) (:vsa::not-fn)))
-(:wat::core::defn :user::oracle-presence-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-presence) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-id [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-presence) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-presence-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules$oracle (:vsa::classify-presence) (:vsa::not-fn)))
-(:wat::core::defn :user::native-presence-not [] -> wat.type/String
-  (:vsa::guess-name :wat::rete::fire-rules (:vsa::classify-presence) (:vsa::not-fn)))
+(wat.core/defn user/oracle-coincident-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-coincident) (vsa/id-fn)))
+(wat.core/defn user/native-coincident-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-coincident) (vsa/id-fn)))
+(wat.core/defn user/oracle-coincident-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-coincident) (vsa/not-fn)))
+(wat.core/defn user/native-coincident-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-coincident) (vsa/not-fn)))
+(wat.core/defn user/oracle-presence-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-presence) (vsa/id-fn)))
+(wat.core/defn user/native-presence-id [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-presence) (vsa/id-fn)))
+(wat.core/defn user/oracle-presence-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules$oracle (vsa/classify-presence) (vsa/not-fn)))
+(wat.core/defn user/native-presence-not [] :- wat.type/String
+  (vsa/guess-name wat.rete/fire-rules (vsa/classify-presence) (vsa/not-fn)))
 
 ;; presence? is a noise-floor detector, not a 0.9 classifier — four-row catalog
 ;; can hit more than one name. Self vs orthogonal pins it is not silent-false.
-(:wat::core::defn :vsa::presence-pair
-  [fire     <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]
-   cat-name <- wat.type/String
-   cat-fn   <- [wat.type/bool :-> wat.type/bool]
-   mystery  <- [wat.type/bool :-> wat.type/bool]]
-  -> wat.type/String
-  (:wat::core::let
-    [s0    (:wat::core::match (:wat::rete::compile-all
-             (wat.type/PersistentVector :- [:wat::rete::Rule] (:vsa::classify-presence))
-             (wat.type/PersistentVector :- [:wat::rete::Query] (:vsa::q-Guess))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s1    (:wat::core::match (:wat::rete::insert s0 (:vsa::Catalog :name cat-name :obs (:vsa::table-of cat-fn))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     s2    (:wat::core::match (:wat::rete::insert s1 (:vsa::Observation :obs (:vsa::table-of mystery))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (fire s2) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])
-     hits  (:wat::rete::query fired (:vsa::q-Guess))
-     n     (:wat::core::length hits)]
-    (:wat::core::if (:wat::i64::= n 1)
-      (:wat::core::Option/expect
-        (:wat::core::get (:wat::core::first hits) "?name")
+(wat.core/defn vsa/presence-pair
+  [fire     :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]
+   cat-name :- wat.type/String
+   cat-fn   :- [wat.type/bool :-> wat.type/bool]
+   mystery  :- [wat.type/bool :-> wat.type/bool]]
+  :- wat.type/String
+  (wat.core/let
+    [s0    (wat.core/match (wat.rete/compile-all
+             (wat.type/PersistentVector :- [wat.rete/Rule] (vsa/classify-presence))
+             (wat.type/PersistentVector :- [wat.rete/Query] (vsa/q-Guess))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s1    (wat.core/match (wat.rete/insert s0 (vsa/Catalog :name cat-name :obs (vsa/table-of cat-fn))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     s2    (wat.core/match (wat.rete/insert s1 (vsa/Observation :obs (vsa/table-of mystery))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (fire s2) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: fixpoint round cap exceeded")])
+     hits  (wat.rete/query fired (vsa/q-Guess))
+     n     (wat.core/length hits)]
+    (wat.core/if (wat.i64/= n 1)
+      (wat.core.Option/expect
+        (wat.core/get (wat.core/first hits) "?name")
         "q-Guess: ?name")
-      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
+      (wat.string/concat "count=" (wat.i64/to-string n)))))
 
-(:wat::core::defn :user::oracle-presence-self [] -> wat.type/String
-  (:vsa::presence-pair :wat::rete::fire-rules$oracle "identity" (:vsa::id-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-self [] -> wat.type/String
-  (:vsa::presence-pair :wat::rete::fire-rules "identity" (:vsa::id-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::oracle-presence-orthogonal [] -> wat.type/String
-  (:vsa::presence-pair :wat::rete::fire-rules$oracle "not" (:vsa::not-fn) (:vsa::id-fn)))
-(:wat::core::defn :user::native-presence-orthogonal [] -> wat.type/String
-  (:vsa::presence-pair :wat::rete::fire-rules "not" (:vsa::not-fn) (:vsa::id-fn)))
+(wat.core/defn user/oracle-presence-self [] :- wat.type/String
+  (vsa/presence-pair wat.rete/fire-rules$oracle "identity" (vsa/id-fn) (vsa/id-fn)))
+(wat.core/defn user/native-presence-self [] :- wat.type/String
+  (vsa/presence-pair wat.rete/fire-rules "identity" (vsa/id-fn) (vsa/id-fn)))
+(wat.core/defn user/oracle-presence-orthogonal [] :- wat.type/String
+  (vsa/presence-pair wat.rete/fire-rules$oracle "not" (vsa/not-fn) (vsa/id-fn)))
+(wat.core/defn user/native-presence-orthogonal [] :- wat.type/String
+  (vsa/presence-pair wat.rete/fire-rules "not" (vsa/not-fn) (vsa/id-fn)))
 
 ;; ── degenerate cosine inside a rule ──────────────────────────────────────────
-(:wat::core::defn :user::oracle-deg [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:vsa::deg-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::native-deg [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:vsa::deg-counts :wat::rete::fire-rules))
+(wat.core/defn user/oracle-deg [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (vsa/deg-counts wat.rete/fire-rules$oracle))
+(wat.core/defn user/native-deg [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (vsa/deg-counts wat.rete/fire-rules))

@@ -1,8 +1,8 @@
 ;; tests/macros/variadic_defmacro_bad_double_rest.wat — NEGATIVE fixture for variadic_defmacro.rs
 ;; (double_rest_marker_refused_at_registration). Must fail with StartupError::Macro.
-(:wat::core::defmacro :my::bogus
-  [& & items <- (:AST :- [:wat::holon::Holons])]
-  -> (:AST :- [:wat::holon::HolonAST])
+(wat.core/defmacro my/bogus
+  [& & items :- (:AST :- [wat.holon/Holons])]
+  :- (:AST :- [wat.holon/HolonAST])
   `(wat.type/Vector :- [wat.type/i64] ~@items))
 
-(:wat::core::defn :user::main [] -> wat.type/i64 0)
+(wat.core/defn user/main [] :- wat.type/i64 0)

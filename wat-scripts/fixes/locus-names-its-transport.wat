@@ -35,153 +35,153 @@
 ;; Usage:
 ;;   printf '[…EVERY path…]\n' | cargo wat ./wat-scripts/fixes/locus-names-its-transport.wat
 
-(:wat::core::defn :user::no-edits [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/no-edits [] :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::one-edit
-  [off <- wat.type/i64 old <- wat.type/String new <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/one-edit
+  [off :- wat.type/i64 old :- wat.type/String new :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old new)))
 
 ;; leaf-named? — a symbol/keyword leaf whose ast-name is exactly `nm`.
-(:wat::core::defn :user::leaf-named?
-  [node <- wat.type/AST nm <- wat.type/String] -> wat.type/bool
-  (:wat::core::if (:wat::fix::structural? node)
+(wat.core/defn user/leaf-named?
+  [node :- wat.type/AST nm :- wat.type/String] :- wat.type/bool
+  (wat.core/if (wat.fix/structural? node)
     false
-    (:wat::core::let [k (:wat::core::ast-kind node)]
-      (:wat::core::if (:wat::core::if (:wat::core::= k "symbol") true (:wat::core::= k "keyword"))
-        (:wat::core::= (:wat::core::ast-name node) nm)
+    (wat.core/let [k (wat.core/ast-kind node)]
+      (wat.core/if (wat.core/if (wat.core/= k "symbol") true (wat.core/= k "keyword"))
+        (wat.core/= (wat.core/ast-name node) nm)
         false))))
 
 ;; locus-param-edits — walk a params vector's children pairwise; for each `<-` followed by the
 ;; bare `:wat::spawn::Locus` keyword, one replace edit on that keyword.
-(:wat::core::defn :user::locus-param-edits
-  [ps    <- (wat.type/Vector :- [wat.type/AST])
-   prev-arrow? <- wat.type/bool
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? ps)
-    (:user::no-edits)
-    (:wat::core::let [h  (:wat::core::first ps)
-                      tl (:wat::core::rest ps)
-                      here (:wat::core::if prev-arrow?
-                             (:wat::core::if (:wat::core::= (:wat::core::ast-kind h) "keyword")
-                               (:wat::core::if (:wat::core::= (:wat::core::ast-name h) ":wat::spawn::Locus")
-                                 (:wat::core::if (:wat::fix::source-matches-name? h lines src)
-                                   (:user::one-edit (:wat::fix::node-start-offset h lines)
+(wat.core/defn user/locus-param-edits
+  [ps    :- (wat.type/Vector :- [wat.type/AST])
+   prev-arrow? :- wat.type/bool
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? ps)
+    (user/no-edits)
+    (wat.core/let [h  (wat.core/first ps)
+                      tl (wat.core/rest ps)
+                      here (wat.core/if prev-arrow?
+                             (wat.core/if (wat.core/= (wat.core/ast-kind h) "keyword")
+                               (wat.core/if (wat.core/= (wat.core/ast-name h) ":wat::spawn::Locus")
+                                 (wat.core/if (wat.fix/source-matches-name? h lines src)
+                                   (user/one-edit (wat.fix/node-start-offset h lines)
                                      ":wat::spawn::Locus" "(:wat::spawn::Locus :- [T])")
-                                   (:user::no-edits))
-                                 (:user::no-edits))
-                               (:user::no-edits))
-                             (:user::no-edits))]
-      (:wat::core::concat here
-        (:user::locus-param-edits tl (:user::leaf-named? h "<-") lines src)))))
+                                   (user/no-edits))
+                                 (user/no-edits))
+                               (user/no-edits))
+                             (user/no-edits))]
+      (wat.core/concat here
+        (user/locus-param-edits tl (user/leaf-named? h "<-") lines src)))))
 
 ;; launched-4? — `(:wat::spawn::Launched :- [a b c d])`: a list, head the Launched keyword,
 ;; child[1] the `:-` operator, child[2] a 4-element vector.
-(:wat::core::defn :user::launched-4? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::= (:wat::core::length ch) 3)
-        (:wat::core::if (:user::leaf-named? (:wat::core::first ch) ":wat::spawn::Launched")
-          (:wat::core::let [v (:wat::core::nth ch 2)]
-            (:wat::core::if (:wat::core::= (:wat::core::ast-kind v) "vector")
-              (:wat::core::= (:wat::core::length (:wat::core::ast->children v)) 4)
+(wat.core/defn user/launched-4? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/= (wat.core/length ch) 3)
+        (wat.core/if (user/leaf-named? (wat.core/first ch) ":wat::spawn::Launched")
+          (wat.core/let [v (wat.core/nth ch 2)]
+            (wat.core/if (wat.core/= (wat.core/ast-kind v) "vector")
+              (wat.core/= (wat.core/length (wat.core/ast->children v)) 4)
               false))
           false)
         false))
     false))
 
 ;; binder-has-t? — does a binder vector already declare a `T`?
-(:wat::core::defn :user::binder-has-t?
-  [b <- wat.type/AST] -> wat.type/bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/bool n <- wat.type/AST] -> wat.type/bool
-      (:wat::core::if acc true (:user::leaf-named? n "T")))
+(wat.core/defn user/binder-has-t?
+  [b :- wat.type/AST] :- wat.type/bool
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/bool n :- wat.type/AST] :- wat.type/bool
+      (wat.core/if acc true (user/leaf-named? n "T")))
     false
-    (:wat::core::ast->children b)))
+    (wat.core/ast->children b)))
 
 ;; close-bracket-edit — insert ` T` just before a vector node's closing `]`.
-(:wat::core::defn :user::close-bracket-edit
-  [v <- wat.type/AST lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:user::one-edit (:wat::core::- (:wat::fix::node-end-offset v lines) 1) "]" " T]"))
+(wat.core/defn user/close-bracket-edit
+  [v :- wat.type/AST lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (user/one-edit (wat.core/- (wat.fix/node-end-offset v lines) 1) "]" " T]"))
 
 ;; defn-edits — the rule, on one `(:wat::core::defn …)` list.
-(:wat::core::defn :user::defn-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let
-    [ch      (:wat::core::ast->children node)
-     n       (:wat::core::length ch)
-     binder? (:wat::core::if (:wat::core::> n 3) (:user::leaf-named? (:wat::core::nth ch 2) ":-") false)
-     pi      (:wat::core::if binder? 4 2)
-     ok?     (:wat::core::> n (:wat::core::+ pi 2))]
-    (:wat::core::if ok?
-      (:wat::core::let
-        [name   (:wat::core::nth ch 1)
-         params (:wat::core::nth ch pi)
-         ret    (:wat::core::nth ch (:wat::core::+ pi 2))
-         p-edits (:wat::core::if (:wat::core::= (:wat::core::ast-kind params) "vector")
-                   (:user::locus-param-edits (:wat::core::ast->children params) false lines src)
-                   (:user::no-edits))]
-        (:wat::core::if (:wat::core::empty? p-edits)
-          (:user::no-edits)
-          (:wat::core::let
-            [b-edits (:wat::core::if binder?
-                       (:wat::core::if (:user::binder-has-t? (:wat::core::nth ch 3))
-                         (:wat::kernel::assertion-failed!
-                           :message (:wat::string::concat
+(wat.core/defn user/defn-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let
+    [ch      (wat.core/ast->children node)
+     n       (wat.core/length ch)
+     binder? (wat.core/if (wat.core/> n 3) (user/leaf-named? (wat.core/nth ch 2) ":-") false)
+     pi      (wat.core/if binder? 4 2)
+     ok?     (wat.core/> n (wat.core/+ pi 2))]
+    (wat.core/if ok?
+      (wat.core/let
+        [name   (wat.core/nth ch 1)
+         params (wat.core/nth ch pi)
+         ret    (wat.core/nth ch (wat.core/+ pi 2))
+         p-edits (wat.core/if (wat.core/= (wat.core/ast-kind params) "vector")
+                   (user/locus-param-edits (wat.core/ast->children params) false lines src)
+                   (user/no-edits))]
+        (wat.core/if (wat.core/empty? p-edits)
+          (user/no-edits)
+          (wat.core/let
+            [b-edits (wat.core/if binder?
+                       (wat.core/if (user/binder-has-t? (wat.core/nth ch 3))
+                         (wat.kernel/assertion-failed!
+                           :message (wat.string/concat
                                       "locus-names-its-transport: binder already declares T in "
-                                      (:wat::core::ast-name name)))
-                         (:user::close-bracket-edit (:wat::core::nth ch 3) lines))
-                       (:user::one-edit (:wat::fix::node-end-offset name lines) "" " :- [T]"))
-             r-edits (:wat::core::if (:user::launched-4? ret)
-                       (:user::close-bracket-edit (:wat::core::nth (:wat::core::ast->children ret) 2) lines)
-                       (:user::no-edits))]
-            (:wat::core::concat b-edits (:wat::core::concat p-edits r-edits)))))
-      (:user::no-edits))))
+                                      (wat.core/ast-name name)))
+                         (user/close-bracket-edit (wat.core/nth ch 3) lines))
+                       (user/one-edit (wat.fix/node-end-offset name lines) "" " :- [T]"))
+             r-edits (wat.core/if (user/launched-4? ret)
+                       (user/close-bracket-edit (wat.core/nth (wat.core/ast->children ret) 2) lines)
+                       (user/no-edits))]
+            (wat.core/concat b-edits (wat.core/concat p-edits r-edits)))))
+      (user/no-edits))))
 
 ;; walk — every list whose head is the `:wat::core::defn` keyword gets `defn-edits`; every
 ;; other structural node recurses into its children. Edits come out in ascending order.
-(:wat::core::defn :user::walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
-    (:user::no-edits)
-    (:wat::core::let [h  (:wat::core::first items)
-                      tl (:wat::core::rest items)
-                      here (:wat::core::if (:wat::fix::calls-to? h ":wat::core::defn")
-                             (:user::defn-edits h lines src)
-                             (:wat::core::if (:wat::fix::structural? h)
-                               (:user::walk (:wat::core::ast->children h) lines src)
-                               (:user::no-edits)))]
-      (:wat::core::concat here (:user::walk tl lines src)))))
+(wat.core/defn user/walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
+    (user/no-edits)
+    (wat.core/let [h  (wat.core/first items)
+                      tl (wat.core/rest items)
+                      here (wat.core/if (wat.fix/calls-to? h ":wat::core::defn")
+                             (user/defn-edits h lines src)
+                             (wat.core/if (wat.fix/structural? h)
+                               (user/walk (wat.core/ast->children h) lines src)
+                               (user/no-edits)))]
+      (wat.core/concat here (user/walk tl lines src)))))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:user::walk forms lines src)]
-    (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (user/walk forms lines src)]
+    (wat.fix/fix-text-apply src (wat.core/reverse all-edits))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

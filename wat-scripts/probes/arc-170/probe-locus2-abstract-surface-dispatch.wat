@@ -9,20 +9,20 @@
 ;;
 ;; CLAIM: (drive (Doubler) 21) == 42.
 
-(:wat::core::defsurface :probe::Runner :nature wat.type/Struct
-  :features [(run [self <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64)])
+(wat.core/defsurface probe/Runner :nature wat.type/Struct
+  :features [(run [self :- probe/Runner  n :- wat.type/i64] :- wat.type/i64)])
 
-(:wat::core::defstruct :probe::Doubler [])
-(:wat::core::extend-type :probe::Doubler :probe::Runner
-  (run [self n] (:wat::i64::* n 2)))
+(wat.core/defstruct probe/Doubler [])
+(wat.core/extend-type probe/Doubler probe/Runner
+  (run [self n] (wat.i64/* n 2)))
 
 ;; hold at the ABSTRACT surface type; dispatch on the concrete satisfier at runtime
-(:wat::core::defn :probe::drive [r <- :probe::Runner  n <- wat.type/i64] -> wat.type/i64
-  (:probe::Runner/run r n))
+(wat.core/defn probe/drive [r :- probe/Runner  n :- wat.type/i64] :- wat.type/i64
+  (probe.Runner/run r n))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [result (:probe::drive (:probe::Doubler) 21)]
-    (:wat::core::do
-      (:wat::test::assert-eq result 42)
-      (:wat::kernel::println (:wat::i64::to-string result)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [result (probe/drive (probe/Doubler) 21)]
+    (wat.core/do
+      (wat.test/assert-eq result 42)
+      (wat.kernel/println (wat.i64/to-string result)))))

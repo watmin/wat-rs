@@ -1,3 +1,3 @@
-(:wat::core::let
+(wat.core/let
   []
-  (:wat::core::typealias :diag::LetAlias wat.type/i64))
+  (wat.core/typealias diag/LetAlias wat.type/i64))

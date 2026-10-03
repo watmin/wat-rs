@@ -12,15 +12,15 @@
 ;;
 ;; Guard (must stay green): policy c — a holon record is accepted where a core :wat::core::Record is wanted.
 
-(:wat::core::defstruct  :r2::ST :- [T] [v <- :T])
-(:wat::core::defrecord  :r2::CR :- [T] [v <- :T])
-(:wat::holon::defrecord :r2::HR :- [T] [v <- :T])
+(wat.core/defstruct  r2/ST :- [T] [v :- T])
+(wat.core/defrecord  r2/CR :- [T] [v :- T])
+(wat.holon/defrecord r2/HR :- [T] [v :- T])
 
 ;; policy c (holon ⊂ core): a holon record passes where a core-record is wanted.
-(:wat::core::defn :r2::want-core [x <- wat.type/Record] -> wat.type/i64 99)
+(wat.core/defn r2/want-core [x :- wat.type/Record] :- wat.type/i64 99)
 
-(:wat::core::defn :r2::probe [] -> wat.type/i64
-  (:wat::core::let [_chk (:r2::want-core (:r2::HR :v 20))]
-    (:wat::i64::+
-      (:wat::i64::+ (:r2::CR/v (:r2::CR :v 10)) (:r2::HR/v (:r2::HR :v 20)))
-      (:r2::ST/v (:r2::ST :v 30)))))
+(wat.core/defn r2/probe [] :- wat.type/i64
+  (wat.core/let [_chk (r2/want-core (r2/HR :v 20))]
+    (wat.i64/+
+      (wat.i64/+ (r2.CR/v (r2/CR :v 10)) (r2.HR/v (r2/HR :v 20)))
+      (r2.ST/v (r2/ST :v 30)))))

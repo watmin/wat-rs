@@ -10,6 +10,6 @@
 ;;
 ;; A Vector, not a HashSet: the rendering must be ORDER-DETERMINISTIC so the row can assert
 ;; the whole value exactly instead of a loose `contains`.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [v (wat.type/Vector :- [:wat::type::Infer] (wat.core/str 1) "b")]
-    (:wat::kernel::println (:wat::core::show v))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [v (wat.type/Vector :- [wat.type/Infer] (wat.core/str 1) "b")]
+    (wat.kernel/println (wat.core/show v))))

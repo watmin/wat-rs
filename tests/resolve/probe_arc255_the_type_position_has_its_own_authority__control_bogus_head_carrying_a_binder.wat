@@ -9,5 +9,5 @@
 ;; guard is, today, the ONLY thing that refuses this program. Measured: clean main reports
 ;; `UnresolvedReferences` naming `:my::app::totally-bogus`, EXIT=1; the first strike at
 ;; stone 2 returned EXIT=0.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (my.app/totally-bogus :- [wat.type/i64] 1)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (my.app/totally-bogus :- [wat.type/i64] 1)))

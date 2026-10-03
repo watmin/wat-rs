@@ -1,8 +1,8 @@
 ;; tests/types/probe_arc237_s0_records_gate_struct.wat — T1a: macro-emitted struct synthesizes is-predicate
 
-(:wat::core::defmacro :my::defthing
-  [name <- wat.type/AST]
-  -> wat.type/AST
-  `(:wat::core::defstruct ~name [n <- wat.type/i64]))
+(wat.core/defmacro my/defthing
+  [name :- wat.type/AST]
+  :- wat.type/AST
+  `(wat.core/defstruct ~name [n :- wat.type/i64]))
 
-(:my::defthing :my::g::Widget)
+(my/defthing my.g/Widget)

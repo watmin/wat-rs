@@ -31,34 +31,34 @@
 ;; report for that transcript (pre-fix binary: misattributes to a reader's line; post-rebuild:
 ;; expected to name the declaration's own line — not measured here, no rebuild available).
 
-(:wat::core::defn :user::probe-complete
+(wat.core/defn user/probe-complete
   {:doc "Scratch probe verb — returns its argument unchanged."
    :added "1.0.0"
    :ret [wat.type/i64 "x, unchanged"]
-   :purity :wat::runtime::Purity.Pure
-   :determinism :wat::runtime::Determinism.Deterministic
-   :totality :wat::runtime::Totality.Total
-   :expand-time :wat::runtime::ExpandTime.Legal
-   :category :wat::runtime::Category.Transform
+   :purity wat.runtime/Purity.Pure
+   :determinism wat.runtime/Determinism.Deterministic
+   :totality wat.runtime/Totality.Total
+   :expand-time wat.runtime/ExpandTime.Legal
+   :category wat.runtime/Category.Transform
    :examples [["(:user::probe-complete 41)" "41"]]}
-  [x <- wat.type/i64]
-  -> wat.type/i64
+  [x :- wat.type/i64]
+  :- wat.type/i64
   x)
 
-(:wat::core::defn :user::probe-restricted
-  {:restricted-to [:user::]}
-  [x <- wat.type/i64]
-  -> wat.type/i64
+(wat.core/defn user/probe-restricted
+  {:restricted-to [user]}
+  [x :- wat.type/i64]
+  :- wat.type/i64
   x)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── probe-complete: calls fine, metadata-of decodes the axes ──")
-    (:wat::kernel::println (:wat::string::concat "call result: " (:wat::edn::write (:user::probe-complete 41))))
-    (:wat::core::match (:wat::runtime::metadata-of :user::probe-complete)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::pprintln hm)]
-      [:wat::core::Option.None {} (:wat::kernel::println "probe-complete metadata-of => NONE (unexpected)")])
-    (:wat::kernel::println "── probe-restricted: capability-only map, raw and unvalidated (STOP-3) ──")
-    (:wat::core::match (:wat::runtime::metadata-of :user::probe-restricted)
-      [:wat::core::Option.Some {:value hm} (:wat::kernel::pprintln hm)]
-      [:wat::core::Option.None {} (:wat::kernel::println "probe-restricted metadata-of => NONE (unexpected)")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── probe-complete: calls fine, metadata-of decodes the axes ──")
+    (wat.kernel/println (wat.string/concat "call result: " (wat.edn/write (user/probe-complete 41))))
+    (wat.core/match (wat.runtime/metadata-of user/probe-complete)
+      [wat.core/Option.Some {:value hm} (wat.kernel/pprintln hm)]
+      [wat.core/Option.None {} (wat.kernel/println "probe-complete metadata-of => NONE (unexpected)")])
+    (wat.kernel/println "── probe-restricted: capability-only map, raw and unvalidated (STOP-3) ──")
+    (wat.core/match (wat.runtime/metadata-of user/probe-restricted)
+      [wat.core/Option.Some {:value hm} (wat.kernel/pprintln hm)]
+      [wat.core/Option.None {} (wat.kernel/println "probe-restricted metadata-of => NONE (unexpected)")])))

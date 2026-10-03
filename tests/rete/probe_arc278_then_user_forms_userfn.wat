@@ -25,45 +25,45 @@
 ;; What actually guards a minting body: `rete_fn_body_mints`, pinned by
 ;; `probe_arc278_termination_fn_head.wat`.
 
-(:wat::core::defrecord :tf::Anchor [x <- wat.type/i64])
-(:wat::core::defrecord :tf::Rate   [count <- wat.type/i64])
+(wat.core/defrecord tf/Anchor [x :- wat.type/i64])
+(wat.core/defrecord tf/Rate   [count :- wat.type/i64])
 
-(:wat::rete::core::defn :tf::first-rate
-  [rs <- (wat.type/PersistentVector :- [:tf::Rate])]
-  -> :tf::Rate
-  (:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0)))
+(wat.rete.core/defn tf/first-rate
+  [rs :- (wat.type/PersistentVector :- [tf/Rate])]
+  :- tf/Rate
+  (wat.rete.core.PersistentVector/first rs :undefined (tf/Rate :count 0)))
 
-(:wat::rete::defrule :tf::gather
-  :when [(:tf::Anchor (?x :- :x))
-         (?rates :- (:wat::rete::acc::all) :from (:tf::Rate (?c :- :count)))]
-  :then [(:tf::first-rate ?rates)])
+(wat.rete/defrule tf/gather
+  :when [(tf/Anchor (?x :- :x))
+         (?rates :- (wat.rete.acc/all) :from (tf/Rate (?c :- :count)))]
+  :then [(tf/first-rate ?rates)])
 
-(:wat::rete::defquery :tf::q-Rate
+(wat.rete/defquery tf/q-Rate
   :params []
-  :when [(:tf::Rate (?count :- :count))])
+  :when [(tf/Rate (?count :- :count))])
 
 
-(:wat::core::defn :test::compile-tf [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all
-    (:wat::rete::collect-rules :tf)
-    (wat.type/PersistentVector :- [:wat::rete::Query] (:tf::q-Rate))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]))
+(wat.core/defn test/compile-tf [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all
+    (wat.rete/collect-rules :tf)
+    (wat.type/PersistentVector :- [wat.rete/Query] (tf/q-Rate))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]))
 
-(:wat::core::defn :test::seed-anchor-rate [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::insert s (:tf::Anchor :x 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-    (:tf::Rate :count 5)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn test/seed-anchor-rate [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/insert s (tf/Anchor :x 0)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+    (tf/Rate :count 5)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> wat.type/i64
-  (:wat::core::Option/expect
-    (:wat::core::get
-      (:wat::core::first (:wat::rete::query s (:tf::q-Rate)))
+(wat.core/defn test/count-rate [s :- wat.rete/Session] :- wat.type/i64
+  (wat.core.Option/expect
+    (wat.core/get
+      (wat.core/first (wat.rete/query s (tf/q-Rate)))
       "?count")
     "q-Rate: ?count"))
 
-(:wat::core::defn :test::run
-  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> wat.type/i64
-  (:test::count-rate (:wat::core::match (fire (:test::seed-anchor-rate (:test::compile-tf))) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: fixpoint round cap exceeded")])))
+(wat.core/defn test/run
+  [fire :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]]
+  :- wat.type/i64
+  (test/count-rate (wat.core/match (fire (test/seed-anchor-rate (test/compile-tf))) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: fixpoint round cap exceeded")])))
 
 ;; Fires via the WAT ORACLE. NOT an unconfounded witness for "a NEW fact was derived" — the
 ;; extraction-only fn returns a value structurally IDENTICAL to the accumulated input, so a plain
@@ -73,8 +73,8 @@
 ;; (impossible for `:then` before this stone), `sym.functions` resolution + `apply_function`
 ;; execute it, and the result type-checks as a fact at `build_insert_fact_call`'s runtime guard —
 ;; all without raising. See `probe_arc278_then_user_forms.rs` for what's actually asserted.
-(:wat::core::defn :user::run-first-count [] -> wat.type/i64
-  (:test::run :wat::rete::fire-rules$oracle))
+(wat.core/defn user/run-first-count [] :- wat.type/i64
+  (test/run wat.rete/fire-rules$oracle))
 
-(:wat::core::defn :user::run-first-count-native [] -> wat.type/i64
-  (:test::run :wat::rete::fire-rules))
+(wat.core/defn user/run-first-count-native [] :- wat.type/i64
+  (test/run wat.rete/fire-rules))

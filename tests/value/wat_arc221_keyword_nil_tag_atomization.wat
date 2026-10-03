@@ -4,131 +4,131 @@
 
 ;; ─── Probe 1 — keyword atom round-trip + distinctness from String ─────────────
 
-(:wat::core::defn :t::p1-same [] -> wat.type/bool
-  (:wat::core::let
-    [atom-foo1  (:wat::holon::to-holon :foo)
-     atom-foo2  (:wat::holon::to-holon :foo)]
-    (:wat::core::= atom-foo1 atom-foo2)))
+(wat.core/defn t/p1-same [] :- wat.type/bool
+  (wat.core/let
+    [atom-foo1  (wat.holon/to-holon :foo)
+     atom-foo2  (wat.holon/to-holon :foo)]
+    (wat.core/= atom-foo1 atom-foo2)))
 
-(:wat::core::defn :t::p1-diff [] -> wat.type/bool
-  (:wat::core::let
-    [atom-foo  (:wat::holon::to-holon :foo)
-     atom-bar  (:wat::holon::to-holon :bar)
-     eq        (:wat::core::= atom-foo atom-bar)]
-    (:wat::core::not eq)))
+(wat.core/defn t/p1-diff [] :- wat.type/bool
+  (wat.core/let
+    [atom-foo  (wat.holon/to-holon :foo)
+     atom-bar  (wat.holon/to-holon :bar)
+     eq        (wat.core/= atom-foo atom-bar)]
+    (wat.core/not eq)))
 
-(:wat::core::defn :t::p1-not-string [] -> wat.type/bool
-  (:wat::core::let
-    [atom-kw  (:wat::holon::to-holon :foo)
-     atom-str (:wat::holon::to-holon "foo")
-     eq       (:wat::core::= atom-kw atom-str)]
-    (:wat::core::not eq)))
+(wat.core/defn t/p1-not-string [] :- wat.type/bool
+  (wat.core/let
+    [atom-kw  (wat.holon/to-holon :foo)
+     atom-str (wat.holon/to-holon "foo")
+     eq       (wat.core/= atom-kw atom-str)]
+    (wat.core/not eq)))
 
 ;; ─── Probe 2 — nil atom round-trip + distinct from keyword :nil ──────────────
 
-(:wat::core::defn :t::p2-same [] -> wat.type/bool
-  (:wat::core::let
-    [atom-nil1  (:wat::holon::to-holon nil)
-     atom-nil2  (:wat::holon::to-holon nil)]
-    (:wat::core::= atom-nil1 atom-nil2)))
+(wat.core/defn t/p2-same [] :- wat.type/bool
+  (wat.core/let
+    [atom-nil1  (wat.holon/to-holon nil)
+     atom-nil2  (wat.holon/to-holon nil)]
+    (wat.core/= atom-nil1 atom-nil2)))
 
-(:wat::core::defn :t::p2-diff [] -> wat.type/bool
-  (:wat::core::let
-    [atom-nil  (:wat::holon::to-holon nil)
-     atom-knil (:wat::holon::to-holon :nil)
-     eq        (:wat::core::= atom-nil atom-knil)]
-    (:wat::core::not eq)))
+(wat.core/defn t/p2-diff [] :- wat.type/bool
+  (wat.core/let
+    [atom-nil  (wat.holon/to-holon nil)
+     atom-knil (wat.holon/to-holon :nil)
+     eq        (wat.core/= atom-nil atom-knil)]
+    (wat.core/not eq)))
 
 ;; ─── Probe 3 — Uuid atom round-trip — closes arc 207 ─────────────────────────
 
-(:wat::core::defn :t::p3-same [] -> wat.type/bool
-  (:wat::core::let
-    [ns    (:wat::uuid::nil)
-     u1    (:wat::uuid::v5 ns "hello")
-     u2    (:wat::uuid::v5 ns "hello")
-     a1    (:wat::holon::to-holon u1)
-     a2    (:wat::holon::to-holon u2)]
-    (:wat::core::= a1 a2)))
+(wat.core/defn t/p3-same [] :- wat.type/bool
+  (wat.core/let
+    [ns    (wat.uuid/nil)
+     u1    (wat.uuid/v5 ns "hello")
+     u2    (wat.uuid/v5 ns "hello")
+     a1    (wat.holon/to-holon u1)
+     a2    (wat.holon/to-holon u2)]
+    (wat.core/= a1 a2)))
 
-(:wat::core::defn :t::p3-diff [] -> wat.type/bool
-  (:wat::core::let
-    [ns    (:wat::uuid::nil)
-     u1    (:wat::uuid::v5 ns "hello")
-     u2    (:wat::uuid::v5 ns "world")
-     a1    (:wat::holon::to-holon u1)
-     a2    (:wat::holon::to-holon u2)
-     eq    (:wat::core::= a1 a2)]
-    (:wat::core::not eq)))
+(wat.core/defn t/p3-diff [] :- wat.type/bool
+  (wat.core/let
+    [ns    (wat.uuid/nil)
+     u1    (wat.uuid/v5 ns "hello")
+     u2    (wat.uuid/v5 ns "world")
+     a1    (wat.holon/to-holon u1)
+     a2    (wat.holon/to-holon u2)
+     eq    (wat.core/= a1 a2)]
+    (wat.core/not eq)))
 
 ;; ─── Probe 4 — (HashMap :- [keyword i64]) insert + lookup ─────────────────────────
 
-(:wat::core::defn :t::p4-a-val [] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn t/p4-a-val [] :- wat.type/i64
+  (wat.core/let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::core::assoc m :tag-a 10)
-     m3  (:wat::core::assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::core::get m3 :tag-a) 
-      [:wat::core::Option.Some {:value v} v]
+     m2  (wat.core/assoc m :tag-a 10)
+     m3  (wat.core/assoc m2 :tag-b 20)]
+    (wat.core/match (wat.core/get m3 :tag-a) 
+      [wat.core/Option.Some {:value v} v]
       [_ -1])))
 
-(:wat::core::defn :t::p4-b-val [] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn t/p4-b-val [] :- wat.type/i64
+  (wat.core/let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::core::assoc m :tag-a 10)
-     m3  (:wat::core::assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::core::get m3 :tag-b) 
-      [:wat::core::Option.Some {:value v} v]
+     m2  (wat.core/assoc m :tag-a 10)
+     m3  (wat.core/assoc m2 :tag-b 20)]
+    (wat.core/match (wat.core/get m3 :tag-b) 
+      [wat.core/Option.Some {:value v} v]
       [_ -1])))
 
-(:wat::core::defn :t::p4-len [] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn t/p4-len [] :- wat.type/i64
+  (wat.core/let
     [m   (wat.type/HashMap :- [wat.type/keyword wat.type/i64])
-     m2  (:wat::core::assoc m :tag-a 10)
-     m3  (:wat::core::assoc m2 :tag-b 20)]
-    (:wat::core::length m3)))
+     m2  (wat.core/assoc m :tag-a 10)
+     m3  (wat.core/assoc m2 :tag-b 20)]
+    (wat.core/length m3)))
 
 ;; ─── Probe 5 — (HashSet :- [keyword]) insert + contains? ───────────────────────────
 
-(:wat::core::defn :t::p5-has-foo [] -> wat.type/bool
-  (:wat::core::let
+(wat.core/defn t/p5-has-foo [] :- wat.type/bool
+  (wat.core/let
     [tags (wat.type/HashSet :- [wat.type/keyword] :foo :bar :baz)]
-    (:wat::core::contains? tags :foo)))
+    (wat.core/contains? tags :foo)))
 
-(:wat::core::defn :t::p5-has-bar [] -> wat.type/bool
-  (:wat::core::let
+(wat.core/defn t/p5-has-bar [] :- wat.type/bool
+  (wat.core/let
     [tags (wat.type/HashSet :- [wat.type/keyword] :foo :bar :baz)]
-    (:wat::core::contains? tags :bar)))
+    (wat.core/contains? tags :bar)))
 
-(:wat::core::defn :t::p5-no-unknown [] -> wat.type/bool
-  (:wat::core::let
+(wat.core/defn t/p5-no-unknown [] :- wat.type/bool
+  (wat.core/let
     [tags  (wat.type/HashSet :- [wat.type/keyword] :foo :bar :baz)
-     found (:wat::core::contains? tags :unknown)]
-    (:wat::core::not found)))
+     found (wat.core/contains? tags :unknown)]
+    (wat.core/not found)))
 
-(:wat::core::defn :t::p5-len [] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn t/p5-len [] :- wat.type/i64
+  (wat.core/let
     [tags (wat.type/HashSet :- [wat.type/keyword] :foo :bar :baz)]
-    (:wat::core::length tags)))
+    (wat.core/length tags)))
 
 ;; ─── Probe 6 — (HashMap :- [Uuid String]) insert + lookup — closes arc 207 ────────
 
-(:wat::core::defn :t::p6-retrieved [] -> wat.type/String
-  (:wat::core::let
-    [ns   (:wat::uuid::nil)
-     u1   (:wat::uuid::v5 ns "hello")
+(wat.core/defn t/p6-retrieved [] :- wat.type/String
+  (wat.core/let
+    [ns   (wat.uuid/nil)
+     u1   (wat.uuid/v5 ns "hello")
      m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
-     m2   (:wat::core::assoc m u1 "world-entry")]
-    (:wat::core::match (:wat::core::get m2 u1) 
-      [:wat::core::Option.Some {:value v} v]
+     m2   (wat.core/assoc m u1 "world-entry")]
+    (wat.core/match (wat.core/get m2 u1) 
+      [wat.core/Option.Some {:value v} v]
       [_ "NOT-FOUND"])))
 
-(:wat::core::defn :t::p6-not-found [] -> wat.type/String
-  (:wat::core::let
-    [ns   (:wat::uuid::nil)
-     u1   (:wat::uuid::v5 ns "hello")
-     u2   (:wat::uuid::v5 ns "world")
+(wat.core/defn t/p6-not-found [] :- wat.type/String
+  (wat.core/let
+    [ns   (wat.uuid/nil)
+     u1   (wat.uuid/v5 ns "hello")
+     u2   (wat.uuid/v5 ns "world")
      m    (wat.type/HashMap :- [wat.uuid/UUID wat.type/String])
-     m2   (:wat::core::assoc m u1 "hello-entry")]
-    (:wat::core::match (:wat::core::get m2 u2) 
-      [:wat::core::Option.Some {:value v} v]
+     m2   (wat.core/assoc m u1 "hello-entry")]
+    (wat.core/match (wat.core/get m2 u2) 
+      [wat.core/Option.Some {:value v} v]
       [_ "NOT-FOUND"])))

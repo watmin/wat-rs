@@ -6,62 +6,62 @@
 ;;
 ;; NO :user::main — a world-under-test needs none (freeze does not require it; cf. startup_bare, freeze.rs:738).
 
-(:wat::core::defrecord :n::A   [k <- wat.type/i64])
-(:wat::core::defrecord :n::Bad [k <- wat.type/i64])
-(:wat::core::defrecord :n::Ok  [k <- wat.type/i64])
+(wat.core/defrecord n/A   [k :- wat.type/i64])
+(wat.core/defrecord n/Bad [k :- wat.type/i64])
+(wat.core/defrecord n/Ok  [k :- wat.type/i64])
 
 ;; derive Bad for k=2 only
-(:wat::rete::defrule :n::mark-bad
-  :when [(:n::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
-  :then [(:n::Bad :k ?k)])
+(wat.rete/defrule n/mark-bad
+  :when [(n/A (?k :- :k)) (wat.rete/where (wat.rete.i64/= ?k 2))]
+  :then [(n/Bad :k ?k)])
 
 ;; Ok = A with NO Bad (negation over a DERIVED fact — needs stratification)
-(:wat::rete::defrule :n::ok
-  :when [(:n::A (?k :- :k)) (:wat::rete::not (:n::Bad (?k :- :k)))]
-  :then [(:n::Ok :k ?k)])
+(wat.rete/defrule n/ok
+  :when [(n/A (?k :- :k)) (wat.rete/not (n/Bad (?k :- :k)))]
+  :then [(n/Ok :k ?k)])
 
 ;; ── 3-STRATUM negation chain (the harder case: facts must thread across TWO negation layers) ──
 ;; A(1),A(2),A(3): Bad for k=2 (stratum 0); Warn = A with no Bad (stratum 1); Safe = A with no Warn (stratum 2).
 ;; Correct closure: Bad={2}, Warn={1,3}, Safe={2} → (Bad:1, Warn:2, Safe:1). Exercises acc-facts reconstruction:
 ;; Warn's stratum must see the derived Bad; Safe's stratum must see the derived Warn.
-(:wat::core::defrecord :n3::A    [k <- wat.type/i64])
-(:wat::core::defrecord :n3::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :n3::Warn [k <- wat.type/i64])
-(:wat::core::defrecord :n3::Safe [k <- wat.type/i64])
+(wat.core/defrecord n3/A    [k :- wat.type/i64])
+(wat.core/defrecord n3/Bad  [k :- wat.type/i64])
+(wat.core/defrecord n3/Warn [k :- wat.type/i64])
+(wat.core/defrecord n3/Safe [k :- wat.type/i64])
 
-(:wat::rete::defrule :n3::mark-bad
-  :when [(:n3::A (?k :- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
-  :then [(:n3::Bad :k ?k)])
-(:wat::rete::defrule :n3::mark-warn
-  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Bad (?k :- :k)))]
-  :then [(:n3::Warn :k ?k)])
-(:wat::rete::defrule :n3::mark-safe
-  :when [(:n3::A (?k :- :k)) (:wat::rete::not (:n3::Warn (?k :- :k)))]
-  :then [(:n3::Safe :k ?k)])
+(wat.rete/defrule n3/mark-bad
+  :when [(n3/A (?k :- :k)) (wat.rete/where (wat.rete.i64/= ?k 2))]
+  :then [(n3/Bad :k ?k)])
+(wat.rete/defrule n3/mark-warn
+  :when [(n3/A (?k :- :k)) (wat.rete/not (n3/Bad (?k :- :k)))]
+  :then [(n3/Warn :k ?k)])
+(wat.rete/defrule n3/mark-safe
+  :when [(n3/A (?k :- :k)) (wat.rete/not (n3/Warn (?k :- :k)))]
+  :then [(n3/Safe :k ?k)])
 
-(:wat::rete::defquery :n::q-Bad
+(wat.rete/defquery n/q-Bad
   :params []
-  :when [(?fact :- :n::Bad)])
+  :when [(?fact :- n/Bad)])
 
 
-(:wat::rete::defquery :n::q-Ok
+(wat.rete/defquery n/q-Ok
   :params []
-  :when [(?fact :- :n::Ok)])
+  :when [(?fact :- n/Ok)])
 
 
-(:wat::rete::defquery :n3::q-Bad
+(wat.rete/defquery n3/q-Bad
   :params []
-  :when [(?fact :- :n3::Bad)])
+  :when [(?fact :- n3/Bad)])
 
 
-(:wat::rete::defquery :n3::q-Warn
+(wat.rete/defquery n3/q-Warn
   :params []
-  :when [(?fact :- :n3::Warn)])
+  :when [(?fact :- n3/Warn)])
 
 
-(:wat::rete::defquery :n3::q-Safe
+(wat.rete/defquery n3/q-Safe
   :params []
-  :when [(?fact :- :n3::Safe)])
+  :when [(?fact :- n3/Safe)])
 
 
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
@@ -69,56 +69,56 @@
 ;; all the wat lives here, on disk. Returns the per-type counts the differential compares.
 
 ;; 2-stratum: A(1),A(2) → (Bad, Ok)
-(:wat::core::defn :n::run-counts
+(wat.core/defn n/run-counts
   ;; Arc 278 the fire-outcome wall — the fire verb it is handed now ANSWERS an outcome, so the
   ;; parameter's type says so. This is the differential's whole point: both sides are the same
   ;; TYPE, so the harness can pass either and compare like for like.
-  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [rules (:wat::rete::collect-rules :n)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:wat::core::match (:wat::rete::insert s0 (:n::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s2    (:wat::core::match (:wat::rete::insert s1 (:n::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    fired (:wat::core::match (fire s2)
-                            [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                            [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-                              (:wat::kernel::assertion-failed! :message "run-counts: memory ceiling")]
-                            [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-                              (:wat::kernel::assertion-failed! :message "run-counts: round cap")])]
+  [fire :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [rules (wat.rete/collect-rules :n)
+                    s0    (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (n/q-Bad) (n/q-Ok) (n3/q-Bad) (n3/q-Warn) (n3/q-Safe))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (wat.core/match (wat.rete/insert s0 (n/A :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s2    (wat.core/match (wat.rete/insert s1 (n/A :k 2)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    fired (wat.core/match (fire s2)
+                            [wat.rete/FireOutcome.Fired {:value __f} __f]
+                            [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+                              (wat.kernel/assertion-failed! :message "run-counts: memory ceiling")]
+                            [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+                              (wat.kernel/assertion-failed! :message "run-counts: round cap")])]
     (wat.type/PersistentVector :- [wat.type/i64]
-      (:wat::core::length (:wat::rete::query fired (:n::q-Bad)))
-      (:wat::core::length (:wat::rete::query fired (:n::q-Ok))))))
+      (wat.core/length (wat.rete/query fired (n/q-Bad)))
+      (wat.core/length (wat.rete/query fired (n/q-Ok))))))
 
 ;; 3-stratum chain: A(1),A(2),A(3) → (Bad, Warn, Safe)
-(:wat::core::defn :n3::run-counts
+(wat.core/defn n3/run-counts
   ;; Arc 278 the fire-outcome wall — the fire verb it is handed now ANSWERS an outcome, so the
   ;; parameter's type says so. This is the differential's whole point: both sides are the same
   ;; TYPE, so the harness can pass either and compare like for like.
-  [fire <- [:wat::rete::Session :-> (:wat::rete::FireOutcome :- [:wat::rete::Session])]]
-  -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let [rules (:wat::rete::collect-rules :n3)
-                    s0    (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-                    s1    (:wat::core::match (:wat::rete::insert s0 (:n3::A :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s2    (:wat::core::match (:wat::rete::insert s1 (:n3::A :k 2)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    s3    (:wat::core::match (:wat::rete::insert s2 (:n3::A :k 3)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    fired (:wat::core::match (fire s3)
-                            [:wat::rete::FireOutcome.Fired {:value __f} __f]
-                            [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-                              (:wat::kernel::assertion-failed! :message "run-counts: memory ceiling")]
-                            [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-                              (:wat::kernel::assertion-failed! :message "run-counts: round cap")])]
+  [fire :- [wat.rete/Session :-> (wat.rete/FireOutcome :- [wat.rete/Session])]]
+  :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let [rules (wat.rete/collect-rules :n3)
+                    s0    (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (n/q-Bad) (n/q-Ok) (n3/q-Bad) (n3/q-Warn) (n3/q-Safe))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+                    s1    (wat.core/match (wat.rete/insert s0 (n3/A :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s2    (wat.core/match (wat.rete/insert s1 (n3/A :k 2)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    s3    (wat.core/match (wat.rete/insert s2 (n3/A :k 3)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    fired (wat.core/match (fire s3)
+                            [wat.rete/FireOutcome.Fired {:value __f} __f]
+                            [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+                              (wat.kernel/assertion-failed! :message "run-counts: memory ceiling")]
+                            [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+                              (wat.kernel/assertion-failed! :message "run-counts: round cap")])]
     (wat.type/PersistentVector :- [wat.type/i64]
-      (:wat::core::length (:wat::rete::query fired (:n3::q-Bad)))
-      (:wat::core::length (:wat::rete::query fired (:n3::q-Warn)))
-      (:wat::core::length (:wat::rete::query fired (:n3::q-Safe))))))
+      (wat.core/length (wat.rete/query fired (n3/q-Bad)))
+      (wat.core/length (wat.rete/query fired (n3/q-Warn)))
+      (wat.core/length (wat.rete/query fired (n3/q-Safe))))))
 
 ;; just-eval entry points — thin zero-arg wrappers naming the fire verb (the only thing the
 ;; differential varies), so the Rust driver only names an entry point (no inline wat).
-(:wat::core::defn :user::n-oracle-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:n::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n-native-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:n::run-counts :wat::rete::fire-rules))
-(:wat::core::defn :user::n3-oracle-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:n3::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n3-native-counts [] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:n3::run-counts :wat::rete::fire-rules))
+(wat.core/defn user/n-oracle-counts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (n/run-counts wat.rete/fire-rules$oracle))
+(wat.core/defn user/n-native-counts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (n/run-counts wat.rete/fire-rules))
+(wat.core/defn user/n3-oracle-counts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (n3/run-counts wat.rete/fire-rules$oracle))
+(wat.core/defn user/n3-native-counts [] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (n3/run-counts wat.rete/fire-rules))

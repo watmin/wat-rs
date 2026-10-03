@@ -20,44 +20,44 @@
 ;;   no serialization) and recv's it back. Must succeed — the thread tier is NOT
 ;;   guarded (a struct over a thread peer is legitimate; same address space).
 
-(:wat::core::defstruct :w2a::S [val <- wat.type/i64])
-(:wat::core::defrecord :w2a::R [val <- wat.type/i64])
+(wat.core/defstruct w2a/S [val :- wat.type/i64])
+(wat.core/defrecord w2a/R [val :- wat.type/i64])
 
 ;; Struct probe — sends a bare struct over the wire.
-(:wat::core::defn :w2a::probe-struct [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defstruct :w2a::S [val <- wat.type/i64])
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::pprintln (:w2a::S :val 99)))))]
-    (:w2a::S/val
-      (:wat::core::match (:wat::kernel::recv p)
-        [:wat::kernel::RecvOutcome.Message {:msg m} m]
-        [:wat::kernel::RecvOutcome.Lost {:cause cause}
-          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-        [:wat::kernel::RecvOutcome.Stopped {}
-          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome.Closed {}
-          (:wat::kernel::assertion-failed! :message "recv': p closed unexpectedly")]))))
+(wat.core/defn w2a/probe-struct [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defstruct w2a/S [val :- wat.type/i64])
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/pprintln (w2a/S :val 99)))))]
+    (w2a.S/val
+      (wat.core/match (wat.kernel/recv p)
+        [wat.kernel/RecvOutcome.Message {:msg m} m]
+        [wat.kernel/RecvOutcome.Lost {:cause cause}
+          (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+        [wat.kernel/RecvOutcome.Stopped {}
+          (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+        [wat.kernel/RecvOutcome.Closed {}
+          (wat.kernel/assertion-failed! :message "recv': p closed unexpectedly")]))))
 
 ;; Record control probe — sends a base record over the wire.
-(:wat::core::defn :w2a::probe-record [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defrecord :w2a::R [val <- wat.type/i64])
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::pprintln (:w2a::R :val 42)))))]
-    (:w2a::R/val
-      (:wat::core::match (:wat::kernel::recv p)
-        [:wat::kernel::RecvOutcome.Message {:msg m} m]
-        [:wat::kernel::RecvOutcome.Lost {:cause cause}
-          (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-        [:wat::kernel::RecvOutcome.Stopped {}
-          (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-        [:wat::kernel::RecvOutcome.Closed {}
-          (:wat::kernel::assertion-failed! :message "recv': p closed unexpectedly")]))))
+(wat.core/defn w2a/probe-record [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defrecord w2a/R [val :- wat.type/i64])
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/pprintln (w2a/R :val 42)))))]
+    (w2a.R/val
+      (wat.core/match (wat.kernel/recv p)
+        [wat.kernel/RecvOutcome.Message {:msg m} m]
+        [wat.kernel/RecvOutcome.Lost {:cause cause}
+          (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+        [wat.kernel/RecvOutcome.Stopped {}
+          (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+        [wat.kernel/RecvOutcome.Closed {}
+          (wat.kernel/assertion-failed! :message "recv': p closed unexpectedly")]))))
 
 ;; ── OUTBOUND: send' guard ─────────────────────────────────────────
 ;;
@@ -70,17 +70,17 @@
 ;; Send-record control — parent send's a base record to a PROCESS child.
 ;; Must succeed (records are portable): send' returns nil. The child reads the
 ;; line raw as a String (no decode crash), keeping stdin open for the write.
-(:wat::core::defn :w2a::probe-send-record [] -> wat.type/nil
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let [_ (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])] nil))))
-     _ (:wat::core::match (:wat::kernel::send p (:w2a::R :val 42))
-         [:wat::kernel::SendOutcome.Sent {} nil]
-         [:wat::kernel::SendOutcome.HandleClosed {} nil]
-         [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil]
-         [:wat::kernel::SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
+(wat.core/defn w2a/probe-send-record [] :- wat.type/nil
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let [_ (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])] nil))))
+     _ (wat.core/match (wat.kernel/send p (w2a/R :val 42))
+         [wat.kernel/SendOutcome.Sent {} nil]
+         [wat.kernel/SendOutcome.HandleClosed {} nil]
+         [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil]
+         [wat.kernel/SendOutcome.Stopped {} nil])] ;; arc 278 #73 — fire-and-forget record send; outcome ignored uniformly regardless of cause
     nil))
 
 ;; 255.30 — a struct over a thread peer is refused. The row is

@@ -11,43 +11,43 @@
 ;; A vacuous probe (no `:user::main`) proves nothing — this file has a real `:user::main`,
 ;; printing one line per assertion so the transcript is the proof.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; ── to-string, all three scalars ──────────────────────────────────────────────
-    (:wat::kernel::println (:wat::rete::i64::to-string 42))        ;; expect "42"
-    (:wat::kernel::println (:wat::rete::f64::to-string 1.5))       ;; expect "1.5"
-    (:wat::kernel::println (:wat::rete::core::bool::to-string true))     ;; expect "true"
+    (wat.kernel/println (wat.rete.i64/to-string 42))        ;; expect "42"
+    (wat.kernel/println (wat.rete.f64/to-string 1.5))       ;; expect "1.5"
+    (wat.kernel/println (wat.rete.core.bool/to-string true))     ;; expect "true"
 
     ;; ── first, happy path, all three containers (fallback NOT taken) ────────────────
-    (:wat::kernel::println
-      (:wat::rete::core::PersistentVector/first
+    (wat.kernel/println
+      (wat.rete.core.PersistentVector/first
         (wat.type/PersistentVector :- [wat.type/i64] 7 8 9) :undefined -1))             ;; expect 7
-    (:wat::kernel::println
-      (:wat::rete::core::Vector/first
+    (wat.kernel/println
+      (wat.rete.core.Vector/first
         (wat.type/Vector :- [wat.type/i64] 7 8 9) :undefined -1))       ;; expect 7
-    (:wat::kernel::println
-      (:wat::rete::core::List/first
+    (wat.kernel/println
+      (wat.rete.core.List/first
         (wat.type/List :- [wat.type/i64] 7 8 9) :undefined -1))                      ;; expect 7
 
     ;; ── first, fallback FIRES on empty, all three containers ────────────────────────
-    (:wat::kernel::println
-      (:wat::rete::core::PersistentVector/first
+    (wat.kernel/println
+      (wat.rete.core.PersistentVector/first
         (wat.type/PersistentVector :- [wat.type/i64]) :undefined -1))                  ;; expect -1
-    (:wat::kernel::println
-      (:wat::rete::core::Vector/first
+    (wat.kernel/println
+      (wat.rete.core.Vector/first
         (wat.type/Vector :- [wat.type/i64]) :undefined -1))            ;; expect -1
-    (:wat::kernel::println
-      (:wat::rete::core::List/first
+    (wat.kernel/println
+      (wat.rete.core.List/first
         (wat.type/List :- [wat.type/i64]) :undefined -1))                           ;; expect -1
 
     ;; ── NON-VACUITY — the row that matters most: the SAME empty-container expression,
     ;; run twice, with DIFFERENT `:undefined` fallback values. A `first` fallback arm that
     ;; merely returned a constant would pass every row above; only this pair proves the
     ;; caller's actual fallback VALUE is what comes back, not a hardcoded stand-in.
-    (:wat::kernel::println
-      (:wat::rete::core::PersistentVector/first
+    (wat.kernel/println
+      (wat.rete.core.PersistentVector/first
         (wat.type/PersistentVector :- [wat.type/i64]) :undefined 0))                   ;; expect 0
-    (:wat::kernel::println
-      (:wat::rete::core::PersistentVector/first
+    (wat.kernel/println
+      (wat.rete.core.PersistentVector/first
         (wat.type/PersistentVector :- [wat.type/i64]) :undefined 99))                  ;; expect 99
     nil))

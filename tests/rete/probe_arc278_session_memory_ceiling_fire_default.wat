@@ -10,26 +10,26 @@
 ;; Keep the two files' rules IDENTICAL. If you change one, change both — their whole evidential
 ;; value is that the ONLY difference is the ceiling.
 
-(:wat::core::defrecord :fd::A [a <- wat.type/i64])
-(:wat::core::defrecord :fd::B [b <- wat.type/i64])
-(:wat::core::defrecord :fd::C [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defrecord fd/A [a :- wat.type/i64])
+(wat.core/defrecord fd/B [b :- wat.type/i64])
+(wat.core/defrecord fd/C [a :- wat.type/i64  b :- wat.type/i64])
 
-(:wat::rete::defrule :fd::cross
-  :when [(:fd::A (?x :- :a)) (:fd::B (?y :- :b))]
-  :then [(:fd::C :a ?x :b ?y)])
+(wat.rete/defrule fd/cross
+  :when [(fd/A (?x :- :a)) (fd/B (?y :- :b))]
+  :then [(fd/C :a ?x :b ?y)])
 
-(:wat::rete::defquery :fd::q :params [] :when [(?fact :- :fd::C)])
+(wat.rete/defquery fd/q :params [] :when [(?fact :- fd/C)])
 
-(:wat::core::defn :fd::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fd::A :a i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:fd::B :b i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    s (:wat::core::range 0 200)))
+(wat.core/defn fd/seed [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/insert acc (fd/A :a i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (fd/B :b i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    s (wat.core/range 0 200)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules (:wat::rete::collect-rules :fd)
-     s     (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:fd::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s     (:fd::seed s)
-     f     (:wat::core::match (:wat::rete::fire-rules s) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::kernel::println (:wat::core::length (:wat::rete::query f (:fd::q))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules (wat.rete/collect-rules :fd)
+     s     (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (fd/q))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s     (fd/seed s)
+     f     (wat.core/match (wat.rete/fire-rules s) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.kernel/println (wat.core/length (wat.rete/query f (fd/q))))))

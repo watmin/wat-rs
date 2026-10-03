@@ -20,51 +20,51 @@
 
 ;; ─── 1. expansion equivalence ──────────────────────────────────
 
-(:wat::test::deftest :wat-tests::holon::ReciprocalLog::test-expansion-matches-explicit-log
-  (:wat::core::let
+(wat.test/deftest wat-tests.holon.ReciprocalLog/test-expansion-matches-explicit-log
+  (wat.core/let
     [sugar
-      (:wat::holon::ReciprocalLog 2.0 1.5)
+      (wat.holon/ReciprocalLog 2.0 1.5)
      explicit
-      (:wat::holon::Log 1.5 0.5 2.0)]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? sugar explicit)
+      (wat.holon/Log 1.5 0.5 2.0)]
+    (wat.test/assert-eq
+      (wat.holon/coincident? sugar explicit)
       true)))
 
 ;; ─── 2. reference value = 1.0 self-coincidence ─────────────────
 
-(:wat::test::deftest :wat-tests::holon::ReciprocalLog::test-value-1-coincides-with-itself
-  (:wat::core::let
+(wat.test/deftest wat-tests.holon.ReciprocalLog/test-value-1-coincides-with-itself
+  (wat.core/let
     [a
-      (:wat::holon::ReciprocalLog 2.0 1.0)
+      (wat.holon/ReciprocalLog 2.0 1.0)
      b
-      (:wat::holon::ReciprocalLog 2.0 1.0)]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? a b)
+      (wat.holon/ReciprocalLog 2.0 1.0)]
+    (wat.test/assert-eq
+      (wat.holon/coincident? a b)
       true)))
 
 ;; ─── 3. value = n saturates distinguishably from value = 1 ─────
 
-(:wat::test::deftest :wat-tests::holon::ReciprocalLog::test-upper-bound-not-coincident-with-reference
-  (:wat::core::let
+(wat.test/deftest wat-tests.holon.ReciprocalLog/test-upper-bound-not-coincident-with-reference
+  (wat.core/let
     [ref
-      (:wat::holon::ReciprocalLog 2.0 1.0)
+      (wat.holon/ReciprocalLog 2.0 1.0)
      upper
-      (:wat::holon::ReciprocalLog 2.0 2.0)]
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? ref upper)
+      (wat.holon/ReciprocalLog 2.0 2.0)]
+    (wat.test/assert-eq
+      (wat.holon/coincident? ref upper)
       false)))
 
 ;; ─── 4. different N for same value encodes differently ─────────
 
-(:wat::test::deftest :wat-tests::holon::ReciprocalLog::test-different-n-differs-for-same-value
-  (:wat::core::let
+(wat.test/deftest wat-tests.holon.ReciprocalLog/test-different-n-differs-for-same-value
+  (wat.core/let
     [tight
-      (:wat::holon::ReciprocalLog 2.0 1.5)
+      (wat.holon/ReciprocalLog 2.0 1.5)
      wide
-      (:wat::holon::ReciprocalLog 10.0 1.5)]
+      (wat.holon/ReciprocalLog 10.0 1.5)]
     ;; At N=2, value=1.5 is near the upper saturation (75% of the
     ;; gradient). At N=10, value=1.5 is near the center (just
     ;; above value=1.0). Different positions → non-coincident.
-    (:wat::test::assert-eq
-      (:wat::holon::coincident? tight wide)
+    (wat.test/assert-eq
+      (wat.holon/coincident? tight wide)
       false)))

@@ -3,7 +3,7 @@
 ;; the sole slot inside a Vector constructor's `:-` param-spec, survive check-time as
 ;; a well-typed T, then trip `eval_vector_ctor`'s runtime match — which only accepts
 ;; WatAST::Keyword | WatAST::List for args[0], not WatAST::Vector — as MalformedForm?
-(:wat::core::def :user::main
-  (:wat::core::fn [] -> wat.type/nil
-    (:wat::kernel::println
+(wat.core/def user/main
+  (wat.core/fn [] :- wat.type/nil
+    (wat.kernel/println
       (wat.type/Vector :- [[wat.type/i64 :-> wat.type/bool]]))))

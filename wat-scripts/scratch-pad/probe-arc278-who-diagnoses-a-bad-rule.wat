@@ -18,40 +18,40 @@
 ;; same records, same shape, one unbound variable apart. If both compile, the DSL diagnoses
 ;; nothing and the claim is REFUTED. If both fail, the instrument is not isolating the mistake.
 
-(:wat::core::defrecord :usr::Temp [c <- wat.type/i64])
-(:wat::core::defrecord :usr::Hot  [c <- wat.type/i64])
+(wat.core/defrecord usr/Temp [c :- wat.type/i64])
+(wat.core/defrecord usr/Hot  [c :- wat.type/i64])
 
 ;; ── CONTROL — well-formed: `?c` is bound by the `<-` in :when and consumed in :then.
-(:wat::rete::defrule :usr::ok-rule
-  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-  :then [(:usr::Hot :c ?c)])
+(wat.rete/defrule usr/ok-rule
+  :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+  :then [(usr/Hot :c ?c)])
 
 ;; ── SUBJECT — a real user mistake: `?missing` is consumed in :then but NEVER bound in :when.
 ;; This is precisely the class the closure walker CANNOT diagnose (it does not know what a rule
 ;; is) and the rules layer CAN (it compiles them).
-(:wat::rete::defrule :usr::bad-rule
-  :when [(:usr::Temp (?c :- :c) (:wat::rete::i64::> ?c 50))]
-  :then [(:usr::Hot :c ?missing)])
+(wat.rete/defrule usr/bad-rule
+  :when [(usr/Temp (?c :- :c) (wat.rete.i64/> ?c 50))]
+  :then [(usr/Hot :c ?missing)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; ★ THE BLOCKER, CLOSED HONESTLY. The child-entry strike died because `fn-forms` raised
      ;; on `?c` while walking a rules body. `defrule` expands to a defn calling `make-rule`
      ;; with QUOTED :when/:then, so extracting a closure rooted at a rule fn is the exact
      ;; shape that failed. If this returns, the specific blocker that reverted the strike is
      ;; gone — measured, not inferred from "the floor is green" (the floor was green with the
      ;; strike reverted, so it could not have shown this either way).
-     rule-forms (:wat::kernel::fn-forms :usr::ok-rule
-                  (:wat::keyword::from-string "user::root-rule"))
-     _r  (:wat::kernel::println
-           (:wat::string::concat "fn-forms OVER A RULE FN: closure forms="
-             (:wat::i64::to-string (:wat::core::length rule-forms))))
-     ctl (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::ok-rule))
-     _a  (:wat::kernel::println "CONTROL rule built")
-     cs  (:wat::core::match (:wat::rete::compile ctl) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     _b  (:wat::kernel::println "CONTROL compiled OK — the well-formed rule passes its own gate")
-     bad (wat.type/PersistentVector :- [:wat::rete::Rule] (:usr::bad-rule))
-     _c  (:wat::kernel::println "BROKEN rule built — now compiling it")
-     bs  (:wat::core::match (:wat::rete::compile bad) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::kernel::println
+     rule-forms (wat.kernel/fn-forms usr/ok-rule
+                  (wat.keyword/from-string "user::root-rule"))
+     _r  (wat.kernel/println
+           (wat.string/concat "fn-forms OVER A RULE FN: closure forms="
+             (wat.i64/to-string (wat.core/length rule-forms))))
+     ctl (wat.type/PersistentVector :- [wat.rete/Rule] (usr/ok-rule))
+     _a  (wat.kernel/println "CONTROL rule built")
+     cs  (wat.core/match (wat.rete/compile ctl) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     _b  (wat.kernel/println "CONTROL compiled OK — the well-formed rule passes its own gate")
+     bad (wat.type/PersistentVector :- [wat.rete/Rule] (usr/bad-rule))
+     _c  (wat.kernel/println "BROKEN rule built — now compiling it")
+     bs  (wat.core/match (wat.rete/compile bad) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.kernel/println
       "BROKEN COMPILED WITHOUT RAISING — the DSL did NOT diagnose the unbound variable; the claim is REFUTED")))

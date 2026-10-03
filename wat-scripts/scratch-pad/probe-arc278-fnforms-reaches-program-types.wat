@@ -22,60 +22,60 @@
 ;; but that is a prediction, and this probe exists because a prediction is not a result. If it
 ;; raises, report the raise verbatim; that is the finding.
 
-(:wat::core::defsurface :probe::FFX :nature :wat::kernel::Peer
+(wat.core/defsurface probe/FFX :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::FFX::PingRequest [])
-   (:wat::core::defenum :probe::FFX::PingResponse :wat::enum::Pure
-     :Ok               [ok <- wat.type/bool]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.FFX/PingRequest [])
+   (wat.core/defenum probe.FFX/PingResponse wat.enum/Pure
+     :Ok               [ok :- wat.type/bool]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(ping [self <- :probe::FFX  req <- :probe::FFX::PingRequest] -> :probe::FFX::PingResponse :max-request-bytes 524288)])
+  [(ping [self :- probe/FFX  req :- probe.FFX/PingRequest] :- probe.FFX/PingResponse :max-request-bytes 524288)])
 
 ;; ★ THE SUBJECT — declared at PROGRAM level, NOT inside the surface's `:messages`. This is the
 ;; declaration that does not cross the fork today. If the closure extractor reaches it, its name
 ;; appears in the fn-forms rendering below and not in service-forms.
-(:wat::core::defenum :probe::FFXTag :wat::enum::Pure
+(wat.core/defenum probe/FFXTag wat.enum/Pure
   :Alpha []
   :Beta  [])
 
-(:wat::service::defservice :probe::ffx
-  :satisfies :probe::FFX
-  :durable   [tag <- :probe::FFXTag]
+(wat.service/defservice probe/ffx
+  :satisfies probe/FFX
+  :durable   [tag :- probe/FFXTag]
   :ephemeral []
-  :init (:wat::core::fn [record <- :probe::ffx::Record] -> :probe::ffx::State
-          (:probe::ffx::State :durable record))
+  :init (wat.core/fn [record :- probe.ffx/Record] :- probe.ffx/State
+          (probe.ffx/State :durable record))
   :impls
   [(ping [s ctx req]
-     (:wat::core::let
-       [t  (:probe::ffx::Record/tag (:probe::ffx::State/durable s))
-        ok (:wat::core::match t
-             [:probe::FFXTag.Alpha {} true]
-             [:probe::FFXTag.Beta {}  false])]
-       (:wat::service::Outcome.Reply {:state s :reply (:probe::FFX::PingResponse.Ok {:ok ok})})))])
+     (wat.core/let
+       [t  (probe.ffx.Record/tag (probe.ffx.State/durable s))
+        ok (wat.core/match t
+             [probe/FFXTag.Alpha {} true]
+             [probe/FFXTag.Beta {}  false])]
+       (wat.service/Outcome.Reply {:state s :reply (probe.FFX/PingResponse.Ok {:ok ok})})))])
 
 ;; ── render a (Vector :- [WatAST]) to one string so we can ask whether a name appears in it ───────────
-(:wat::core::defn :user::render-forms
-  [forms <- (wat.type/Vector :- [wat.type/AST])  i <- wat.type/i64  acc <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
+(wat.core/defn user/render-forms
+  [forms :- (wat.type/Vector :- [wat.type/AST])  i :- wat.type/i64  acc :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.i64/>= i (wat.core/length forms))
     acc
-    (:user::render-forms forms (:wat::i64::+ i 1)
-      (:wat::string::concat acc
-        (:wat::core::ast->source (:wat::core::nth forms i))))))
+    (user/render-forms forms (wat.i64/+ i 1)
+      (wat.string/concat acc
+        (wat.core/ast->source (wat.core/nth forms i))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [manifest  (:probe::ffx::service-forms)
-     closure   (:wat::kernel::fn-forms :probe::ffx::serve :user::shipped-serve)
-     man-src   (:user::render-forms manifest 0 "")
-     clo-src   (:user::render-forms closure  0 "")
-     _counts   (:wat::kernel::println
-                 (:wat::string::concat "COUNTS manifest="
-                   (:wat::string::concat (:wat::i64::to-string (:wat::core::length manifest))
-                     (:wat::string::concat " closure="
-                       (:wat::i64::to-string (:wat::core::length closure))))))
-     _m        (:wat::kernel::println (:wat::string::concat "MANIFEST_SRC " man-src))]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [manifest  (probe.ffx/service-forms)
+     closure   (wat.kernel/fn-forms probe.ffx/serve user/shipped-serve)
+     man-src   (user/render-forms manifest 0 "")
+     clo-src   (user/render-forms closure  0 "")
+     _counts   (wat.kernel/println
+                 (wat.string/concat "COUNTS manifest="
+                   (wat.string/concat (wat.i64/to-string (wat.core/length manifest))
+                     (wat.string/concat " closure="
+                       (wat.i64/to-string (wat.core/length closure))))))
+     _m        (wat.kernel/println (wat.string/concat "MANIFEST_SRC " man-src))]
     ;; the shell greps these two lines for the needle — a substring test wat has no verb for
     ;; (`str-in?` is (Vector :- [String]) membership, as the checker said when this probe first tried it)
-    (:wat::kernel::println (:wat::string::concat "CLOSURE_SRC " clo-src))))
+    (wat.kernel/println (wat.string/concat "CLOSURE_SRC " clo-src))))

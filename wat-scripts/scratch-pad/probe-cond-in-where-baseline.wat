@@ -15,25 +15,25 @@
 ;; `:probe::Req` fact pattern untouched. Now prints `hits=1` — core-spelled `cond` composes
 ;; correctly in a real `defrule`'s `where` too.
 
-(:wat::core::defrecord :probe::Req [a <- wat.type/bool])
-(:wat::core::defrecord :probe::Hit [a <- wat.type/bool])
+(wat.core/defrecord probe/Req [a :- wat.type/bool])
+(wat.core/defrecord probe/Hit [a :- wat.type/bool])
 
-(:wat::rete::defrule :probe::r1
+(wat.rete/defrule probe/r1
   :when
-  [(:probe::Req (?a :- :a))
-   (:wat::rete::where (:wat::rete::core::cond (?a true) (:else false)))]
+  [(probe/Req (?a :- :a))
+   (wat.rete/where (wat.rete.core/cond (?a true) (:else false)))]
   :then
-  [(:probe::Hit :a ?a)])
+  [(probe/Hit :a ?a)])
 
-(:wat::rete::defquery :probe::q-Hit
+(wat.rete/defquery probe/q-Hit
   :params []
-  :when [(?fact :- :probe::Hit)])
+  :when [(?fact :- probe/Hit)])
 
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:probe::r1))
-     staged  (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:probe::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:probe::Req :a true)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     hits    (:wat::rete::query fired (:probe::q-Hit))]
-    (:wat::kernel::println (:wat::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules   (wat.type/PersistentVector :- [wat.rete/Rule] (probe/r1))
+     staged  (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (probe/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (probe/Req :a true)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     hits    (wat.rete/query fired (probe/q-Hit))]
+    (wat.kernel/println (wat.string/concat "hits=" (wat.core/str (wat.core/length hits))))))

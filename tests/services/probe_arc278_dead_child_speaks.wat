@@ -18,17 +18,17 @@
 ;; open-surface-field level, where it belongs.)
 
 ;; the parent-only payload record — NOT baked into the forked child's registry.
-(:wat::core::defrecord :probe::Note [text <- wat.type/String])
-(:wat::core::extend-type :probe::Note :wat::query::Reason)
+(wat.core/defrecord probe/Note [text :- wat.type/String])
+(wat.core/extend-type probe/Note wat.query/Reason)
 
 ;; EXACT DATA: :user::compute returns a STRUCTURED :probe::Outcome — the RecvOutcome variant that
 ;; matched + a deterministic `reason-names-decode-failure?` bool computed IN-WAT (the per-run-variable
 ;; Failure location never leaves wat; only its boolean RESULT crosses to the .rs golden). The .rs
 ;; asserts the golden #probe/Outcome.Lost {:sentinel-present? true} exactly — mirroring probe_arc278_recv_outcome_wall.
 ;; "wat stdio is edn — assert the structure exactly" (builder; R55 REVOLVTIONE, NVLLA LARVA).
-(:wat::core::defenum :probe::Outcome :wat::enum::Pure
+(wat.core/defenum probe/Outcome wat.enum/Pure
   :Message []                                                ;; matched ::Message (.rs asserts NEVER)
-  :Lost    [reason-names-decode-failure? <- wat.type/bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
+  :Lost    [reason-names-decode-failure? :- wat.type/bool] ;; matched ::Lost — true iff the cause names the decode failure (the LAW: the reason is carried)
   :Closed  []                                                ;; matched ::Closed (the mute we killed — .rs asserts NEVER)
   ;; arc 278 #73 — a stop is NOT a close, so it does not borrow ::Closed's label. The golden is
   ;; `#probe/Outcome.Lost {:reason-names-decode-failure? true}`, so adding a variant costs the passing path nothing; what it buys
@@ -40,22 +40,22 @@
 ;; capability). `:wat::query::Reason` is baked into the child (stdlib). :probe::Note joins it by
 ;; extend-type (stone 255.48: an empty member list is not ambient satisfaction).
 ;; The surface itself crosses the fork; a CONCRETE user record placed in the field does not.
-(:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Echo :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::Echo::EchoRequest  [payload <- :wat::query::Reason])
-   (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
+  [(wat.core/defrecord probe.Echo/EchoRequest  [payload :- wat.query/Reason])
+   (wat.core/defenum probe.Echo/EchoResponse wat.enum/Pure
      :Ok              []
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
+  [(echo [self :- probe/Echo  req :- probe.Echo/EchoRequest] :- probe.Echo/EchoResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::echo
-  :satisfies :probe::Echo
+(wat.service/defservice probe/echo
+  :satisfies probe/Echo
   :durable   []
   :ephemeral []
   :impls
-  [(echo [s ctx req] (:wat::service::Outcome.Reply {:state s :reply (:probe::Echo::EchoResponse.Ok {})}))])
+  [(echo [s ctx req] (wat.service/Outcome.Reply {:state s :reply (probe.Echo/EchoResponse.Ok {})}))])
 
 ;; arc 278 recv'-wall: a peer-read yields a MATCHABLE RecvOutcome — NEVER a raise (a raise unwinds
 ;; PAST the reader, which is the mask the wall kills). The client-method (:probe::Echo/echo) SCRUBS
@@ -63,19 +63,19 @@
 ;; and MATCH the outcome, RETURNING the child's rich Reply::Failed cause as a VALUE ("unknown tag
 ;; #probe/Note ... no matching struct or enum ..."). The .rs asserts is_ok + the returned reason —
 ;; mirroring the canonical gate probe_arc278_recv_outcome_wall.
-(:wat::core::defn :user::compute [] -> :probe::Outcome
-  (:wat::core::let
-    [h    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     echo (:wat::core::match (:wat::kernel::connect (:probe::echo::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _s   (:wat::kernel::send echo
-            (:probe::Echo::Op.Echo
-              {:req (:probe::Echo::EchoRequest :payload (:probe::Note :text "boom"))}))]
-    (:wat::core::match (:wat::kernel::recv echo)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} (:probe::Outcome.Message {})]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:probe::Outcome.Lost {:reason-names-decode-failure? (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")})]
+(wat.core/defn user/compute [] :- probe/Outcome
+  (wat.core/let
+    [h    (probe.echo/start :locus (wat.spawn/process) :record (probe.echo/Record))
+     echo (wat.core/match (wat.kernel/connect (probe.echo.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _s   (wat.kernel/send echo
+            (probe.Echo/Op.Echo
+              {:req (probe.Echo/EchoRequest :payload (probe/Note :text "boom"))}))]
+    (wat.core/match (wat.kernel/recv echo)
+      [wat.kernel/RecvOutcome.Message {:msg _m} (probe/Outcome.Message {})]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (probe/Outcome.Lost {:reason-names-decode-failure? (wat.string/contains? (wat.kernel.LociDiedError/message cause) "no matching struct or enum")})]
       ;; arc 278 #73 — reported as ITSELF. This test never stops mid-read, so the arm is
       ;; unreachable today; naming it honestly is what keeps it unreachable-and-legible rather
       ;; than unreachable-and-mislabelled.
-      [:wat::kernel::RecvOutcome.Stopped {} (:probe::Outcome.Stopped {})]
-      [:wat::kernel::RecvOutcome.Closed {} (:probe::Outcome.Closed {})])))
+      [wat.kernel/RecvOutcome.Stopped {} (probe/Outcome.Stopped {})]
+      [wat.kernel/RecvOutcome.Closed {} (probe/Outcome.Closed {})])))

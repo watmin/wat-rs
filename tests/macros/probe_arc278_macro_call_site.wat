@@ -19,14 +19,14 @@
 ;;   gate refuses it in the macro body at expand → startup fails.
 ;; GREEN after: it folds to the Frame construction form → adjacent invocations differ by exactly 1.
 
-(:wat::core::defmacro :probe::here-frame [] -> wat.type/AST
-  `~(:wat::kernel::macro-call-site))
+(wat.core/defmacro probe/here-frame [] :- wat.type/AST
+  `~(wat.kernel/macro-call-site))
 
-(:wat::test::deftest :user::macro-call-site-captures-invocation-line 
-  (:wat::core::let
-    [f1  (:probe::here-frame)
-     f2  (:probe::here-frame)
+(wat.test/deftest user/macro-call-site-captures-invocation-line 
+  (wat.core/let
+    [f1  (probe/here-frame)
+     f2  (probe/here-frame)
      ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
-     l1  (:wat::kernel::Frame/line f1)
-     l2  (:wat::kernel::Frame/line f2)]
-    (:wat::test::assert-true (:wat::core::= (:wat::i64::- l2 l1) 1))))
+     l1  (wat.kernel.Frame/line f1)
+     l2  (wat.kernel.Frame/line f2)]
+    (wat.test/assert-true (wat.core/= (wat.i64/- l2 l1) 1))))

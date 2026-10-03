@@ -9,63 +9,63 @@
 
 ;; nap — "sleep", done right: select' on a one-shot after, ignore the tick.
 ;; A delay is a select (cascade-interruptible by construction); never a thread::sleep.
-(:wat::core::defn :test::timer::nap
-  [d <- :wat::time::Duration]
-  -> wat.type/nil
-  (:wat::core::match
-    (:wat::kernel::select
-      (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/nil])]
-        (:wat::kernel::after :wat::program::PeerKind.thread d nil)))
+(wat.core/defn test.timer/nap
+  [d :- wat.time/Duration]
+  :- wat.type/nil
+  (wat.core/match
+    (wat.kernel/select
+      (wat.type/Vector :- [(wat.kernel/Peer :- [wat.type/nil wat.type/nil])]
+        (wat.kernel/after wat.program/PeerKind.thread d nil)))
      
-    [:wat::spawn::ServiceEvent.Message {:idx _idx :msg _m} nil]
-    [:wat::spawn::ServiceEvent.Closed {:idx _idx} nil]
-    [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} nil]
-    [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} nil]  ;; arc 278 — unreachable for a timer
-    [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} nil]   ;; arc 278 Stone 1a — unreachable for a timer
-    [:wat::spawn::ServiceEvent.Shutdown {} nil]
-    [:wat::spawn::ServiceEvent.Connection {:peer _peer} nil]
-    [:wat::spawn::ServiceEvent.Admin {:msg _msg} nil]))
+    [wat.spawn/ServiceEvent.Message {:idx _idx :msg _m} nil]
+    [wat.spawn/ServiceEvent.Closed {:idx _idx} nil]
+    [wat.spawn/ServiceEvent.Lost {:idx _idx :cause _cause} nil]
+    [wat.spawn/ServiceEvent.Malformed {:idx _idx :cause _cause} nil]  ;; arc 278 — unreachable for a timer
+    [wat.spawn/ServiceEvent.Rejected {:idx _idx :cause _cause} nil]   ;; arc 278 Stone 1a — unreachable for a timer
+    [wat.spawn/ServiceEvent.Shutdown {} nil]
+    [wat.spawn/ServiceEvent.Connection {:peer _peer} nil]
+    [wat.spawn/ServiceEvent.Admin {:msg _msg} nil]))
 
 ;; retry-with-backoff — the dreaded pattern, as a tail-recursive re-arm of `after`.
 ;; Naps a growing delay between attempts; returns the attempt it "succeeded" on.
 ;; Each nap is a fresh one-shot `after` (periodic = re-armed one-shots, no `tick`).
-(:wat::core::defn :test::timer::retry-until
-  [target <- wat.type/i64  attempt <- wat.type/i64  millis <- wat.type/i64]
-  -> wat.type/i64
-  (:wat::core::if (:wat::i64::>= attempt target) 
+(wat.core/defn test.timer/retry-until
+  [target :- wat.type/i64  attempt :- wat.type/i64  millis :- wat.type/i64]
+  :- wat.type/i64
+  (wat.core/if (wat.i64/>= attempt target) 
     attempt
-    (:wat::core::let [_ (:test::timer::nap (:wat::time::Millisecond millis))]
-      (:test::timer::retry-until
+    (wat.core/let [_ (test.timer/nap (wat.time/Millisecond millis))]
+      (test.timer/retry-until
         target
-        (:wat::i64::+ attempt 1)
-        (:wat::i64::* millis 2)))))
+        (wat.i64/+ attempt 1)
+        (wat.i64/* millis 2)))))
 
 ;; Proof: 3 re-armed `after` naps (1ms → 2ms → 4ms backoff), succeeds on attempt 3.
-(:wat::test::deftest :wat-tests::timer::family-backoff-rides-after
+(wat.test/deftest wat-tests.timer/family-backoff-rides-after
   
-  (:wat::test::assert-eq
-    (:test::timer::retry-until 3 0 1)
+  (wat.test/assert-eq
+    (test.timer/retry-until 3 0 1)
     3))
 
 ;; timeout's heart: select' over multiple deadlines — the sooner one fires first.
 ;; The generic "work OR deadline" timeout is this exact shape with one arm a real
 ;; work-peer; two timers make it deterministic (1ms always beats 20ms). Proves
 ;; select' multiplexes N timers and returns the first-ready's message.
-(:wat::test::deftest :wat-tests::timer::first-deadline-wins
+(wat.test/deftest wat-tests.timer/first-deadline-wins
   
-  (:wat::test::assert-eq
-    (:wat::core::match
-      (:wat::kernel::select
-        (wat.type/Vector :- [(:wat::kernel::Peer :- [wat.type/nil wat.type/keyword])]
-          (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 20) :slow)
-          (:wat::kernel::after :wat::program::PeerKind.thread (:wat::time::Millisecond 1) :fast)))
+  (wat.test/assert-eq
+    (wat.core/match
+      (wat.kernel/select
+        (wat.type/Vector :- [(wat.kernel/Peer :- [wat.type/nil wat.type/keyword])]
+          (wat.kernel/after wat.program/PeerKind.thread (wat.time/Millisecond 20) :slow)
+          (wat.kernel/after wat.program/PeerKind.thread (wat.time/Millisecond 1) :fast)))
        
-      [:wat::spawn::ServiceEvent.Message {:idx _idx :msg m} m]
-      [:wat::spawn::ServiceEvent.Closed {:idx _idx} :none]
-      [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} :none]
-      [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} :none]  ;; arc 278 — unreachable for a timer
-      [:wat::spawn::ServiceEvent.Rejected {:idx _idx :cause _cause} :none]   ;; arc 278 Stone 1a — unreachable for a timer
-      [:wat::spawn::ServiceEvent.Shutdown {} :none]
-      [:wat::spawn::ServiceEvent.Connection {:peer _peer} :none]
-      [:wat::spawn::ServiceEvent.Admin {:msg _msg} :none])
+      [wat.spawn/ServiceEvent.Message {:idx _idx :msg m} m]
+      [wat.spawn/ServiceEvent.Closed {:idx _idx} :none]
+      [wat.spawn/ServiceEvent.Lost {:idx _idx :cause _cause} :none]
+      [wat.spawn/ServiceEvent.Malformed {:idx _idx :cause _cause} :none]  ;; arc 278 — unreachable for a timer
+      [wat.spawn/ServiceEvent.Rejected {:idx _idx :cause _cause} :none]   ;; arc 278 Stone 1a — unreachable for a timer
+      [wat.spawn/ServiceEvent.Shutdown {} :none]
+      [wat.spawn/ServiceEvent.Connection {:peer _peer} :none]
+      [wat.spawn/ServiceEvent.Admin {:msg _msg} :none])
     :fast))

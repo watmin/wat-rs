@@ -3,7 +3,7 @@
 ;; Loaded via startup_from_file by the #[ignore]'d sibling probe.
 ;; Currently RED (alias is HashMap-only); un-ignored + GREEN after Stone 237.7c ships.
 
-(:wat::holon::defrecord :my::HolonicVoltage [value <- wat.type/i64])
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:my::HolonicVoltage/value
-    (:wat::core::assoc (:my::HolonicVoltage :value 10) :value 42)))
+(wat.holon/defrecord my/HolonicVoltage [value :- wat.type/i64])
+(wat.core/defn user/compute [] :- wat.type/i64
+  (my.HolonicVoltage/value
+    (wat.core/assoc (my/HolonicVoltage :value 10) :value 42)))

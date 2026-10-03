@@ -94,7 +94,7 @@
 
 ;; ── the 24 hard primitives (Stone 255.67's closed set) — copied verbatim, not re-derived, so
 ;;    this codemod can never name a different "same head" than the accepted 255.67 one.
-(:wat::core::defn :t2wt::target-names [] -> (wat.type/HashSet :- [wat.type/String])
+(wat.core/defn t2wt/target-names [] :- (wat.type/HashSet :- [wat.type/String])
   (wat.type/HashSet :- [wat.type/String]
     ":wat::core::i64" ":wat::core::f64" ":wat::core::u8" ":wat::core::bigint"
     ":wat::core::rational" ":wat::core::char" ":wat::core::String" ":wat::core::bool"
@@ -104,11 +104,11 @@
     ":wat::core::PersistentVector" ":wat::core::PersistentMap" ":wat::core::Bytes"
     ":wat::WatAST"))
 
-(:wat::core::defn :t2wt::target-name? [name <- wat.type/String] -> wat.type/bool
-  (:wat::core::contains? (:t2wt::target-names) name))
+(wat.core/defn t2wt/target-name? [name :- wat.type/String] :- wat.type/bool
+  (wat.core/contains? (t2wt/target-names) name))
 
 ;; the five constructor call heads, either spelling.
-(:wat::core::defn :c69::head-names [] -> (wat.type/HashSet :- [wat.type/String])
+(wat.core/defn c69/head-names [] :- (wat.type/HashSet :- [wat.type/String])
   (wat.type/HashSet :- [wat.type/String]
     ":wat::core::PersistentVector" "wat.type/PersistentVector"
     ":wat::core::Tuple" "wat.type/Tuple"
@@ -116,33 +116,33 @@
     ":wat::core::List" "wat.type/List"
     ":wat::core::Vector" "wat.type/Vector"))
 
-(:wat::core::defn :c69::item-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::let [k (:wat::core::ast-kind n)]
-    (:wat::core::if (:wat::core::or (:wat::core::= k "keyword") (:wat::core::= k "symbol"))
-      (:wat::core::ast-name n)
+(wat.core/defn c69/item-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/let [k (wat.core/ast-kind n)]
+    (wat.core/if (wat.core/or (wat.core/= k "keyword") (wat.core/= k "symbol"))
+      (wat.core/ast-name n)
       "")))
 
 ;; is-hit? — a genuine untyped constructor-call List (SCORE-STONE-255.68's census rule).
-(:wat::core::defn :c69::is-hit? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn c69/is-hit? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::let [head  (:wat::core::first ch)
-                          hname (:c69::item-name head)]
-          (:wat::core::if (:wat::core::contains? (:c69::head-names) hname)
-            (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
+        (wat.core/let [head  (wat.core/first ch)
+                          hname (c69/item-name head)]
+          (wat.core/if (wat.core/contains? (c69/head-names) hname)
+            (wat.core/if (wat.core/< (wat.core/length ch) 2)
               true
-              (:wat::core::not (:wat::core::= (:c69::item-name (:wat::core::nth ch 1)) ":-")))
+              (wat.core/not (wat.core/= (c69/item-name (wat.core/nth ch 1)) ":-")))
             false))))
     false))
 
 ;; table-key — "L:C" for the call node's OWN span (its `(`) — how the table (built from the
 ;; checker's type record, which notes the same call-expression's own span) is keyed.
-(:wat::core::defn :c69::table-key [node <- wat.type/AST] -> wat.type/String
-  (:wat::string::concat
-    (:wat::core::str (:wat::fix::span-line node))
-    (:wat::string::concat ":" (:wat::core::str (:wat::fix::span-col node)))))
+(wat.core/defn c69/table-key [node :- wat.type/AST] :- wat.type/String
+  (wat.string/concat
+    (wat.core/str (wat.fix/span-line node))
+    (wat.string/concat ":" (wat.core/str (wat.fix/span-col node)))))
 
 ;; leaf-edit — the point edit for ONE keyword leaf found while walking an args fragment, or no
 ;; edit at all for a keyword that needs no conversion. item 3's spelling rule for "every other
@@ -160,211 +160,211 @@
 ;; bracket — so item 3's "write the definition's own parameter" means literally `:T`, not `T`.
 ;; The SAME "no edit" arm is what leaves `:-`/`:->` alone too — neither is one of the 24, so
 ;; there is nothing left for a separate marker guard to do.
-(:wat::core::defn :c69::leaf-edit
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [name (:wat::core::ast-name node)]
-    (:wat::core::if (:t2wt::target-name? name)
-      (:c69::point-edit node (:wat::core::write-forms (:wat::keyword::to-type-form node)) lines)
-      (:wat::fix::empty-edits))))
+(wat.core/defn c69/leaf-edit
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [name (wat.core/ast-name node)]
+    (wat.core/if (t2wt/target-name? name)
+      (c69/point-edit node (wat.core/write-forms (wat.keyword/to-type-form node)) lines)
+      (wat.fix/empty-edits))))
 
-(:wat::core::defn :c69::point-edit
-  [node     <- wat.type/AST
-   new-text <- wat.type/String
-   lines    <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
+(wat.core/defn c69/point-edit
+  [node     :- wat.type/AST
+   new-text :- wat.type/String
+   lines    :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [off (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off (:wat::core::ast-name node) new-text))))
+      (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off (wat.core/ast-name node) new-text))))
 
 ;; collect-edits / collect-edits-seq — every keyword leaf under a type-fragment node is a type
 ;; position (no marker/position threading needed, unlike `types-to-wat-type.wat`'s corpus-wide
 ;; walk — the WHOLE fragment IS type syntax); `:-` and the fragment's own HEAD are never visited
 ;; (the caller starts this walk at the args-VECTOR node only, never the fragment's head/marker).
-(:wat::core::defn :c69::collect-edits
-  [node  <- wat.type/AST
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:c69::collect-edits-seq (:wat::core::ast->children node) lines)
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:c69::leaf-edit node lines)
-      (:wat::fix::empty-edits))))
+(wat.core/defn c69/collect-edits
+  [node  :- wat.type/AST
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (c69/collect-edits-seq (wat.core/ast->children node) lines)
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+      (c69/leaf-edit node lines)
+      (wat.fix/empty-edits))))
 
-(:wat::core::defn :c69::collect-edits-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
-    (:wat::fix::empty-edits)
-    (:wat::core::concat
-      (:c69::collect-edits (:wat::core::first items) lines)
-      (:c69::collect-edits-seq (:wat::core::rest items) lines))))
+(wat.core/defn c69/collect-edits-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
+    (wat.fix/empty-edits)
+    (wat.core/concat
+      (c69/collect-edits (wat.core/first items) lines)
+      (c69/collect-edits-seq (wat.core/rest items) lines))))
 
 ;; rebase-edit — an edit's offset, given ABSOLUTE to the fragment text, rebased relative to the
 ;; args-vector's OWN start offset (so it can be applied to the SLICED args substring alone).
-(:wat::core::defn :c69::rebase-edit
-  [edit  <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
-   base  <- wat.type/i64]
-  -> (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+(wat.core/defn c69/rebase-edit
+  [edit  :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+   base  :- wat.type/i64]
+  :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
   (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String]
-    (:wat::core::- (:wat::core::first edit) base)
-    (:wat::core::second edit)
-    (:wat::core::third edit)))
+    (wat.core/- (wat.core/first edit) base)
+    (wat.core/second edit)
+    (wat.core/third edit)))
 
 ;; args-text — the fragment's own args-VECTOR span, re-spelled: every eligible keyword leaf
 ;; inside it is edited span-faithfully; everything else (including a non-24 type name like
 ;; `:wat::gen::Gen`, and any nested `[...]`/`(... :- [...])` structure) is BYTE-IDENTICAL to the
 ;; checker's own recorded text.
-(:wat::core::defn :c69::args-text
-  [fragment <- wat.type/AST
-   frag-src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let
-    [frag-lines (:wat::string::split frag-src "\n")
-     args-node  (:wat::core::nth (:wat::core::ast->children fragment) 2)
-     base       (:wat::fix::fix-text-offset-of (:wat::core::ast-span args-node) frag-lines)
-     args-src   (:wat::core::ast->source args-node)
-     abs-edits  (:c69::collect-edits args-node frag-lines)
-     rel-edits  (:wat::core::mapv
-                  (:wat::core::fn [e <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                    -> (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
-                    (:c69::rebase-edit e base))
+(wat.core/defn c69/args-text
+  [fragment :- wat.type/AST
+   frag-src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let
+    [frag-lines (wat.string/split frag-src "\n")
+     args-node  (wat.core/nth (wat.core/ast->children fragment) 2)
+     base       (wat.fix/fix-text-offset-of (wat.core/ast-span args-node) frag-lines)
+     args-src   (wat.core/ast->source args-node)
+     abs-edits  (c69/collect-edits args-node frag-lines)
+     rel-edits  (wat.core/mapv
+                  (wat.core/fn [e :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                    :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                    (c69/rebase-edit e base))
                   abs-edits)
-     sorted     (:wat::core::sort
-                  (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
-                                   b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                    -> wat.type/bool
-                    (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
+     sorted     (wat.core/sort
+                  (wat.core/fn [a :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                                   b :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                    :- wat.type/bool
+                    (wat.core/> (wat.core/first a) (wat.core/first b)))
                   rel-edits)]
-    (:wat::fix::fix-text-apply args-src sorted)))
+    (wat.fix/fix-text-apply args-src sorted)))
 
 ;; parse-fragment — the table's bridged `(HEAD :- [args…])` text, parsed to its own List node
 ;; (unwrapping `read-string`'s program-level Forms wrapper — the fragment is always exactly one
 ;; top-level form).
-(:wat::core::defn :c69::parse-fragment [raw <- wat.type/String] -> wat.type/AST
-  (:wat::core::let [tree (:wat::core::match (:wat::core::read-string raw)
-                            [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-                            [:wat::core::ReadOutcome.Malformed {:cause __cause}
-                              (:wat::kernel::assertion-failed! :message
-                                (:wat::string::concat "typed-constructors: unparseable table fragment: " raw))])]
-    (:wat::core::first (:wat::core::ast->children tree))))
+(wat.core/defn c69/parse-fragment [raw :- wat.type/String] :- wat.type/AST
+  (wat.core/let [tree (wat.core/match (wat.core/read-string raw)
+                            [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+                            [wat.core/ReadOutcome.Malformed {:cause __cause}
+                              (wat.kernel/assertion-failed! :message
+                                (wat.string/concat "typed-constructors: unparseable table fragment: " raw))])]
+    (wat.core/first (wat.core/ast->children tree))))
 
 ;; head-text — the call's own head, converted through the SAME door directly (never via the
 ;; table): a `:wat::core::X` keyword becomes its `to-type-form` symbol; a head already spelled
 ;; `wat.type/X` (post-255.67 corpus sites) round-trips unchanged.
-(:wat::core::defn :c69::head-text [head <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-    (:wat::core::write-forms (:wat::keyword::to-type-form head))
-    (:wat::core::write-forms head)))
+(wat.core/defn c69/head-text [head :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind head) "keyword")
+    (wat.core/write-forms (wat.keyword/to-type-form head))
+    (wat.core/write-forms head)))
 
 ;; build-edit — the one point-edit for a hit whose table lookup succeeded.
-(:wat::core::defn :c69::build-edit
-  [node  <- wat.type/AST
-   raw   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [ch   (:wat::core::ast->children node)
-                    head (:wat::core::first ch)]
-    (:wat::core::if (:wat::fix::source-matches-name? head lines src)
-      (:wat::core::let
-        [head-txt  (:c69::head-text head)
-         fragment  (:c69::parse-fragment raw)
-         args-txt  (:c69::args-text fragment raw)
-         new-text  (:wat::string::concat head-txt (:wat::string::concat " :- " args-txt))
-         off       (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
-         old-text  (:wat::core::ast-name head)]
+(wat.core/defn c69/build-edit
+  [node  :- wat.type/AST
+   raw   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [ch   (wat.core/ast->children node)
+                    head (wat.core/first ch)]
+    (wat.core/if (wat.fix/source-matches-name? head lines src)
+      (wat.core/let
+        [head-txt  (c69/head-text head)
+         fragment  (c69/parse-fragment raw)
+         args-txt  (c69/args-text fragment raw)
+         new-text  (wat.string/concat head-txt (wat.string/concat " :- " args-txt))
+         off       (wat.fix/fix-text-offset-of (wat.core/ast-span head) lines)
+         old-text  (wat.core/ast-name head)]
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
           (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text new-text)))
       ;; reader-synthesized head (source text != ast-name) — never edit it.
-      (:wat::fix::empty-edits))))
+      (wat.fix/empty-edits))))
 
 ;; maybe-edit — the edit list for one node: empty unless it is a hit AND the table has its type.
-(:wat::core::defn :c69::maybe-edit
-  [node  <- wat.type/AST
-   table <- (wat.type/HashMap :- [wat.type/String wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:c69::is-hit? node)
-    (:wat::core::match (:wat::core::get table (:c69::table-key node))
-      [:wat::core::Option.Some {:value raw} (:c69::build-edit node raw lines src)]
-      [:wat::core::Option.None {} (:wat::fix::empty-edits)])
-    (:wat::fix::empty-edits)))
+(wat.core/defn c69/maybe-edit
+  [node  :- wat.type/AST
+   table :- (wat.type/HashMap :- [wat.type/String wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (c69/is-hit? node)
+    (wat.core/match (wat.core/get table (c69/table-key node))
+      [wat.core/Option.Some {:value raw} (c69/build-edit node raw lines src)]
+      [wat.core/Option.None {} (wat.fix/empty-edits)])
+    (wat.fix/empty-edits)))
 
 ;; node-edits / walk-seq — every node in the tree; recurse into structural nodes UNCONDITIONALLY
 ;; (a hit's own children can independently hold further, unrelated hits — e.g. a
 ;; PersistentVector-of-untyped-Tuple call — each is its own census site at its own position).
-(:wat::core::defn :c69::node-edits
-  [node  <- wat.type/AST
-   table <- (wat.type/HashMap :- [wat.type/String wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::let [here (:c69::maybe-edit node table lines src)]
-    (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::concat here (:c69::walk-seq (:wat::core::ast->children node) table lines src))
+(wat.core/defn c69/node-edits
+  [node  :- wat.type/AST
+   table :- (wat.type/HashMap :- [wat.type/String wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/let [here (c69/maybe-edit node table lines src)]
+    (wat.core/if (wat.fix/structural? node)
+      (wat.core/concat here (c69/walk-seq (wat.core/ast->children node) table lines src))
       here)))
 
-(:wat::core::defn :c69::walk-seq
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   table <- (wat.type/HashMap :- [wat.type/String wat.type/String])
-   lines <- (wat.type/Vector :- [wat.type/String])
-   src   <- wat.type/String]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
-    (:wat::fix::empty-edits)
-    (:wat::core::concat
-      (:c69::node-edits (:wat::core::first items) table lines src)
-      (:c69::walk-seq (:wat::core::rest items) table lines src))))
+(wat.core/defn c69/walk-seq
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   table :- (wat.type/HashMap :- [wat.type/String wat.type/String])
+   lines :- (wat.type/Vector :- [wat.type/String])
+   src   :- wat.type/String]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
+    (wat.fix/empty-edits)
+    (wat.core/concat
+      (c69/node-edits (wat.core/first items) table lines src)
+      (c69/walk-seq (wat.core/rest items) table lines src))))
 
 ;; convert — one file's source text, fully converted against its own table (a
 ;; `HashMap<String,String>`; a file with no table entries at all still round-trips — every hit
 ;; misses its lookup and is left alone, same as an unresolved/not-checked site).
-(:wat::core::defn :c69::convert
-  [src   <- wat.type/String
-   table <- (wat.type/HashMap :- [wat.type/String wat.type/String])]
-  -> wat.type/String
-  (:wat::core::let
-    [lines  (:wat::string::split src "\n")
-     tree   (:wat::core::match (:wat::core::read-string src)
-              [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-              [:wat::core::ReadOutcome.Malformed {:cause __cause}
-                (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-     forms  (:wat::core::ast->children tree)
-     edits  (:c69::walk-seq forms table lines src)
-     sorted (:wat::core::sort
-              (:wat::core::fn [a <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
-                               b <- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-                -> wat.type/bool
-                (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
+(wat.core/defn c69/convert
+  [src   :- wat.type/String
+   table :- (wat.type/HashMap :- [wat.type/String wat.type/String])]
+  :- wat.type/String
+  (wat.core/let
+    [lines  (wat.string/split src "\n")
+     tree   (wat.core/match (wat.core/read-string src)
+              [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+              [wat.core/ReadOutcome.Malformed {:cause __cause}
+                (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+     forms  (wat.core/ast->children tree)
+     edits  (c69/walk-seq forms table lines src)
+     sorted (wat.core/sort
+              (wat.core/fn [a :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])
+                               b :- (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
+                :- wat.type/bool
+                (wat.core/> (wat.core/first a) (wat.core/first b)))
               edits)]
-    (:wat::fix::fix-text-apply src sorted)))
+    (wat.fix/fix-text-apply src sorted)))
 
 ;; ══ DRIVE — read paths (stdin, the SAME single-line protocol every recorded `wat-scripts/
 ;; fixes/*.wat` driver uses — `scripts/replay/delta.sh`/`census.sh` invoke a codemod this way
 ;; and feed it nothing else) → per path, convert against ITS OWN table entry → write ═══
-(:wat::core::defn :c69::table-for
-  [tables <- (wat.type/HashMap :- [wat.type/String (wat.type/HashMap :- [wat.type/String wat.type/String])])
-   path   <- wat.type/String]
-  -> (wat.type/HashMap :- [wat.type/String wat.type/String])
-  (:wat::core::match (:wat::core::get tables path)
-    [:wat::core::Option.Some {:value t} t]
-    [:wat::core::Option.None {} (wat.type/HashMap :- [wat.type/String wat.type/String])]))
+(wat.core/defn c69/table-for
+  [tables :- (wat.type/HashMap :- [wat.type/String (wat.type/HashMap :- [wat.type/String wat.type/String])])
+   path   :- wat.type/String]
+  :- (wat.type/HashMap :- [wat.type/String wat.type/String])
+  (wat.core/match (wat.core/get tables path)
+    [wat.core/Option.Some {:value t} t]
+    [wat.core/Option.None {} (wat.type/HashMap :- [wat.type/String wat.type/String])]))
 
-(:wat::core::defn :user::apply-each
-  [paths  <- (wat.type/Vector :- [wat.type/String])
-   tables <- (wat.type/HashMap :- [wat.type/String (wat.type/HashMap :- [wat.type/String wat.type/String])])]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths  :- (wat.type/Vector :- [wat.type/String])
+   tables :- (wat.type/HashMap :- [wat.type/String (wat.type/HashMap :- [wat.type/String wat.type/String])])]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:c69::convert (:wat::io::read-file path) (:c69::table-for tables path)))
-        (:wat::kernel::println (:wat::string::concat "[typed-constructors] " path))
-        (:user::apply-each (:wat::core::rest paths) tables)))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (c69/convert (wat.io/read-file path) (c69/table-for tables path)))
+        (wat.kernel/println (wat.string/concat "[typed-constructors] " path))
+        (user/apply-each (wat.core/rest paths) tables)))))
 
 ;; The table (item 2 — an INPUT, never committed) is not on stdin: `paths` alone travels that
 ;; way, so this codemod's invocation is the SAME `printf '[…]' | wat <codemod.wat>` shape every
@@ -372,11 +372,11 @@
 ;; to drive). The table is read from a FIXED, relative, gitignored side-channel path,
 ;; `.typed-constructors-table.edn`, written fresh before each invocation by the (uncommitted)
 ;; table-builder — never a file this codemod ships or a path baked into a committed artifact.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [paths (:wat::core::match (:wat::kernel::readln)
-             [:wat::kernel::ReadlnOutcome.Datum {:v __paths} __paths]
-             [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input (paths)")]
-             [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested (paths)")])
-     tables (:wat::edn::read (:wat::io::read-file ".typed-constructors-table.edn"))]
-    (:user::apply-each paths tables)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [paths (wat.core/match (wat.kernel/readln)
+             [wat.kernel/ReadlnOutcome.Datum {:v __paths} __paths]
+             [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input (paths)")]
+             [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested (paths)")])
+     tables (wat.edn/read (wat.io/read-file ".typed-constructors-table.edn"))]
+    (user/apply-each paths tables)))

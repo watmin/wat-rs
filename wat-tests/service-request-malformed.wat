@@ -35,25 +35,25 @@
 ;; `path` is STRUCTURED (segments — ["items" "[0]"]); `expected`/`got` are Strings (the
 ;; four-questions ruling: `got` is the EDN SHAPE that arrived, and an untyped wire value has
 ;; no declared type — structuring it would fabricate information).
-(:wat::core::defsurface :wat-tests::MalBag :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/MalBag :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- (wat.type/Vector :- [wat.type/String])])
-   (:wat::core::defenum :wat-tests::MalBag::PutResponse :wat::enum::Pure
-     :Ok               [n <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String
-                        got      <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.MalBag/PutRequest [items :- (wat.type/Vector :- [wat.type/String])])
+   (wat.core/defenum wat-tests.MalBag/PutResponse wat.enum/Pure
+     :Ok               [n :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path     :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String
+                        got      :- wat.type/String])]
   :features
-  [(put [self <- :wat-tests::MalBag  req <- :wat-tests::MalBag::PutRequest]
-     -> :wat-tests::MalBag::PutResponse :max-request-bytes 4096)])
+  [(put [self :- wat-tests/MalBag  req :- wat-tests.MalBag/PutRequest]
+     :- wat-tests.MalBag/PutResponse :max-request-bytes 4096)])
 
 ;; ── the service: the handler is UNCHANGED from the DoS reproduction ──────────────────────
 ;; It still uses the field at its declared type. That is the point: the handler is correct
 ;; against the declaration and must not have to defend itself. The wall is upstream of it.
-(:wat::service::defservice :wat-tests::mal-bag
-  :satisfies :wat-tests::MalBag
-  :durable   [n <- wat.type/i64]
+(wat.service/defservice wat-tests/mal-bag
+  :satisfies wat-tests/MalBag
+  :durable   [n :- wat.type/i64]
   :ephemeral []
   ;; NOTHING IS OPTED INTO HERE. Arc 278 Stone 1 shipped the wall behind a clause and defaulted
   ;; it off; Stone 2 annihilated the clause. This service declares a surface, a state, and a
@@ -61,79 +61,79 @@
   ;; because that is what a service IS. The two deftests below are the proof.
   :impls
   [(put [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat-tests::MalBag::PutResponse.Ok
-         {:n (:wat::string::length
-           (:wat::core::nth (:wat-tests::MalBag::PutRequest/items req) 0))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat-tests.MalBag/PutResponse.Ok
+         {:n (wat.string/length
+           (wat.core/nth (wat-tests.MalBag.PutRequest/items req) 0))})}))])
 
 ;; ── the probe verbs ──────────────────────────────────────────────────────────────────────
 ;; One call → one label. The exhaustive match is the shield: `:RequestMalformed` is a variant
 ;; the caller CANNOT ignore (arc 109 — no wildcard arm), so a refusal can never be silent.
-(:wat::core::defn :wat-tests::mal::try
-  [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
-   req <- :wat-tests::MalBag::PutRequest] -> wat.type/String
-  (:wat::core::match (:wat-tests::MalBag/put c req)
-    [:wat::kernel::RecvOutcome.Message {:msg resp}
-      (:wat::core::match resp
-        [:wat-tests::MalBag::PutResponse.Ok {:n n} "Ok"]
-        [:wat-tests::MalBag::PutResponse.RequestTooLarge {:bytes b :cap cap} "TooLarge"]
-        [:wat-tests::MalBag::PutResponse.RequestMalformed {:path path :expected expected :got got}
-          (:wat::string::concat "Malformed"
-            (:wat::string::concat (:wat::edn::write path)
-              (:wat::string::concat "/" (:wat::string::concat expected
-                (:wat::string::concat "/" got)))))])]
-    [:wat::kernel::RecvOutcome.Lost {:cause cause} "LOST"]
+(wat.core/defn wat-tests.mal/try
+  [c :- (wat.kernel/Peer :- [wat-tests.MalBag/Op wat-tests.MalBag/Reply])
+   req :- wat-tests.MalBag/PutRequest] :- wat.type/String
+  (wat.core/match (wat-tests.MalBag/put c req)
+    [wat.kernel/RecvOutcome.Message {:msg resp}
+      (wat.core/match resp
+        [wat-tests.MalBag/PutResponse.Ok {:n n} "Ok"]
+        [wat-tests.MalBag/PutResponse.RequestTooLarge {:bytes b :cap cap} "TooLarge"]
+        [wat-tests.MalBag/PutResponse.RequestMalformed {:path path :expected expected :got got}
+          (wat.string/concat "Malformed"
+            (wat.string/concat (wat.edn/write path)
+              (wat.string/concat "/" (wat.string/concat expected
+                (wat.string/concat "/" got)))))])]
+    [wat.kernel/RecvOutcome.Lost {:cause cause} "LOST"]
     ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
     ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
-    [:wat::kernel::RecvOutcome.Stopped {} "Stopped"]
-    [:wat::kernel::RecvOutcome.Closed {} "Closed"]))
+    [wat.kernel/RecvOutcome.Stopped {} "Stopped"]
+    [wat.kernel/RecvOutcome.Closed {} "Closed"]))
 
-(:wat::core::defn :wat-tests::mal::dial
-  [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]
-  -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
-  (:wat::core::match (:wat::kernel::connect a)
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}
-      (:wat::kernel::assertion-failed! :message "victim: connect REFUSED — the service is GONE (the DoS is back)")]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c}
-      (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c}
-      (:wat::kernel::assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}
-      (:wat::kernel::assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))
+(wat.core/defn wat-tests.mal/dial
+  [a :- (wat.kernel/Address :- [wat-tests.MalBag/Op wat-tests.MalBag/Reply])]
+  :- (wat.kernel/Peer :- [wat-tests.MalBag/Op wat-tests.MalBag/Reply])
+  (wat.core/match (wat.kernel/connect a)
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}
+      (wat.kernel/assertion-failed! :message "victim: connect REFUSED — the service is GONE (the DoS is back)")]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c}
+      (wat.kernel/assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")] [wat.kernel/ConnectOutcome.WrongPeer {:cause c}
+      (wat.kernel/assertion-failed! :message "victim: connect REJECTED — the service is GONE (the DoS is back)")]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}
+      (wat.kernel/assertion-failed! :message "victim: connect FAILED — the service is GONE (the DoS is back)")]))
 
 ;; The whole run, as one string: attacker-good | attacker-BAD | victim-good.
 ;; The victim's `connect'` happens AFTER the malformed frame — that dial is the assertion.
-(:wat::core::defn :wat-tests::mal::run :- [T]
-  [locus <- (:wat::spawn::Locus :- [T])] -> wat.type/String
-  (:wat::core::let
-    [h    (:wat-tests::mal-bag/start :locus locus :record (:wat-tests::mal-bag::Record :n 0))
-     good (:wat-tests::MalBag::PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
+(wat.core/defn wat-tests.mal/run :- [T]
+  [locus :- (wat.spawn/Locus :- [T])] :- wat.type/String
+  (wat.core/let
+    [h    (wat-tests.mal-bag/start :locus locus :record (wat-tests.mal-bag/Record :n 0))
+     good (wat-tests.MalBag/PutRequest :items (wat.type/Vector :- [wat.type/String] "abcd"))
      ;; the attacker's frame: correct TAG, wrong-typed BODY
-     bad  (:wat::edn::read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
-     a    (:wat-tests::mal::dial (:wat-tests::mal-bag::Handle/addr h))
-     r1   (:wat-tests::mal::try a good)
-     r2   (:wat-tests::mal::try a bad)
+     bad  (wat.edn/read "#wat-tests.MalBag/PutRequest {:items [1 2 3]}")
+     a    (wat-tests.mal/dial (wat-tests.mal-bag.Handle/addr h))
+     r1   (wat-tests.mal/try a good)
+     r2   (wat-tests.mal/try a bad)
      ;; a SECOND, INNOCENT client connects AFTER the malformed frame
-     b    (:wat-tests::mal::dial (:wat-tests::mal-bag::Handle/addr h))
-     r3   (:wat-tests::mal::try b good)
-     _    (:wat-tests::mal-bag/stop h)]
-    (:wat::string::concat r1
-      (:wat::string::concat " | " (:wat::string::concat r2
-        (:wat::string::concat " | " r3))))))
+     b    (wat-tests.mal/dial (wat-tests.mal-bag.Handle/addr h))
+     r3   (wat-tests.mal/try b good)
+     _    (wat-tests.mal-bag/stop h)]
+    (wat.string/concat r1
+      (wat.string/concat " | " (wat.string/concat r2
+        (wat.string/concat " | " r3))))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────────────────
-(:wat::test::deftest :wat-tests::service::request-malformed-on-thread
+(wat.test/deftest wat-tests.service/request-malformed-on-thread
 
-  (:wat::test::assert-eq
-    (:wat-tests::mal::run (:wat::spawn::thread))
+  (wat.test/assert-eq
+    (wat-tests.mal/run (wat.spawn/thread))
     "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))
 
 ;; ── process tier ─────────────────────────────────────────────────────────────────────────
 ;; The SAME expectation, one token apart. Tier-generality is the requirement: a Rust-side
 ;; decode fix would pass this on the process tier and fail on the thread tier, which never
 ;; decodes at all.
-(:wat::test::deftest :wat-tests::service::request-malformed-on-process
+(wat.test/deftest wat-tests.service/request-malformed-on-process
 
-  (:wat::test::assert-eq
-    (:wat-tests::mal::run (:wat::spawn::process))
+  (wat.test/assert-eq
+    (wat-tests.mal/run (wat.spawn/process))
     "Ok | Malformed[\"items\" \"[0]\"]/wat.type/String/Integer | Ok"))

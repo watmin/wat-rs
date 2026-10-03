@@ -7,17 +7,17 @@
 ;; An empty-AST Rule value is that shape, and it is writable here. If compile-all answers
 ;; `Compiled` for it, the verdict "terminates" and the verdict "was never looked at" are the same
 ;; value to every caller.
-(:wat::core::defrecord :a5::In  [v <- wat.type/i64])
+(wat.core/defrecord a5/In  [v :- wat.type/i64])
 
-(:wat::core::defn :a5::ast-less-rule [] -> :wat::rete::Rule
-  (:wat::rete::Rule :name "ast-less"
+(wat.core/defn a5/ast-less-rule [] :- wat.rete/Rule
+  (wat.rete/Rule :name "ast-less"
     :lhs (wat.type/PersistentVector :- [wat.type/AST])
     :rhs (wat.type/PersistentVector :- [wat.type/AST])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules   (wat.type/PersistentVector :- [:wat::rete::Rule] (:a5::ast-less-rule))
-     verdict (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query]))
-               [:wat::rete::CompileOutcome.Compiled {:session __s} "Compiled"]
-               [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} "MayNotTerminate"])]
-    (:wat::kernel::println verdict)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules   (wat.type/PersistentVector :- [wat.rete/Rule] (a5/ast-less-rule))
+     verdict (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query]))
+               [wat.rete/CompileOutcome.Compiled {:session __s} "Compiled"]
+               [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} "MayNotTerminate"])]
+    (wat.kernel/println verdict)))

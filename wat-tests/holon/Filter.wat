@@ -8,52 +8,52 @@
 
 ;; ─── filter-coincident gates on coincident floor ──────────────────
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-rejects-far
+(wat.test/deftest wat-tests.holon.Filter/test-filter-coincident-rejects-far
   
-  (:wat::core::let
-    [f (:wat::holon::filter-coincident)]
+  (wat.core/let
+    [f (wat.holon/filter-coincident)]
     ;; cosine 0.0 means orthogonal — far from coincident.
-    (:wat::test::assert-eq (f 0.0) false)))
+    (wat.test/assert-eq (f 0.0) false)))
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-accepts-near-one
+(wat.test/deftest wat-tests.holon.Filter/test-filter-coincident-accepts-near-one
   
-  (:wat::core::let
-    [f (:wat::holon::filter-coincident)]
+  (wat.core/let
+    [f (wat.holon/filter-coincident)]
     ;; cosine 0.9999 — very close to 1.0; (1 - cos) = 0.0001;
     ;; coincident floor at d=10000 with sigma=1 is 1/sqrt(10000) = 0.01.
     ;; 0.0001 < 0.01 → true.
-    (:wat::test::assert-eq (f 0.9999) true)))
+    (wat.test/assert-eq (f 0.9999) true)))
 
 ;; ─── filter-present gates on presence floor ───────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-present-rejects-zero
+(wat.test/deftest wat-tests.holon.Filter/test-filter-present-rejects-zero
   
-  (:wat::core::let
-    [f (:wat::holon::filter-present)]
+  (wat.core/let
+    [f (wat.holon/filter-present)]
     ;; cosine 0.0 — no signal at all; below the noise floor.
-    (:wat::test::assert-eq (f 0.0) false)))
+    (wat.test/assert-eq (f 0.0) false)))
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-present-accepts-strong
+(wat.test/deftest wat-tests.holon.Filter/test-filter-present-accepts-strong
   
-  (:wat::core::let
-    [f (:wat::holon::filter-present)]
+  (wat.core/let
+    [f (wat.holon/filter-present)]
     ;; cosine 0.9 — strong signal; well above presence floor.
-    (:wat::test::assert-eq (f 0.9) true)))
+    (wat.test/assert-eq (f 0.9) true)))
 
 ;; ─── filter-accept-any always returns true ───────────────────────
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-accept-any-on-zero
+(wat.test/deftest wat-tests.holon.Filter/test-filter-accept-any-on-zero
   
-  (:wat::core::let
-    [f (:wat::holon::filter-accept-any)]
-    (:wat::test::assert-eq (f 0.0) true)))
+  (wat.core/let
+    [f (wat.holon/filter-accept-any)]
+    (wat.test/assert-eq (f 0.0) true)))
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-accept-any-on-negative
+(wat.test/deftest wat-tests.holon.Filter/test-filter-accept-any-on-negative
   
-  (:wat::core::let
-    [f (:wat::holon::filter-accept-any)]
+  (wat.core/let
+    [f (wat.holon/filter-accept-any)]
     ;; even pathological inputs: anti-correlated cosine still passes.
-    (:wat::test::assert-eq (f -1.0) true)))
+    (wat.test/assert-eq (f -1.0) true)))
 
 ;; ─── End-to-end: filter-coincident bound at construction ────────
 ;;
@@ -62,19 +62,19 @@
 ;; put a (k, v) pair, get with no filter arg. Self-cosine is 1.0 →
 ;; filter accepts → Some.
 
-(:wat::test::deftest :wat-tests::holon::Filter::test-filter-coincident-composes-with-get
+(wat.test/deftest wat-tests.holon.Filter/test-filter-coincident-composes-with-get
   
-  (:wat::core::let
+  (wat.core/let
     [store
-      (:wat::holon::Hologram/make
-        (:wat::holon::filter-coincident))
-     k (:wat::holon::leaf :alpha)
-     v (:wat::holon::leaf :beta)
-     _ (:wat::holon::Hologram/put store k v)
+      (wat.holon.Hologram/make
+        (wat.holon/filter-coincident))
+     k (wat.holon/leaf :alpha)
+     v (wat.holon/leaf :beta)
+     _ (wat.holon.Hologram/put store k v)
      got
-      (:wat::holon::Hologram/get store k)
+      (wat.holon.Hologram/get store k)
      found
-      (:wat::core::match got 
-        [:wat::core::Option.Some {:value h} h]
-        [:wat::core::Option.None {}    (:wat::holon::leaf :unreachable)])]
-    (:wat::test::assert-eq found v)))
+      (wat.core/match got 
+        [wat.core/Option.Some {:value h} h]
+        [wat.core/Option.None {}    (wat.holon/leaf :unreachable)])]
+    (wat.test/assert-eq found v)))

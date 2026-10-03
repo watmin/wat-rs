@@ -136,7 +136,7 @@
 ;; rune:lint(rete-name-unminted) :wat::rete::core::String/starts-with? — this table's own recorded target at authoring time, superseded by the later string-verbs rehome; not re-pointed, see the header note above.
 ;; rune:lint(rete-name-unminted) :wat::rete::core::string::to-lowercase — this table's own recorded target at authoring time, superseded by the later string-verbs rehome; not re-pointed, see the header note above.
 ;; rune:lint(rete-name-unminted) :wat::rete::core::string::trim — this table's own recorded target at authoring time, superseded by the later string-verbs rehome; not re-pointed, see the header note above.
-(:wat::core::defn :user::rename-table [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+(wat.core/defn user/rename-table [] :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::and" ":wat::rete::core::and")
     (wat.type/Tuple :- [wat.type/String wat.type/String] ":wat::core::bool::to-string" ":wat::rete::core::bool::to-string")
@@ -187,112 +187,112 @@
 
 ;; rename-lookup — Some(new) if name exactly equals some pair's old; else None. No prefix/boundary
 ;; logic (unlike :wat::fix::rename-keyword-prefix) — every table entry is a WHOLE keyword name.
-(:wat::core::defn :user::rename-lookup
-  [name  <- wat.type/String
-   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
-  -> (:wat::core::Option :- [wat.type/String])
-  (:wat::core::if (:wat::core::empty? table)
-    :wat::core::Option.None
-    (:wat::core::let [pair (:wat::core::first table)
-                      old  (:wat::core::first pair)
-                      new  (:wat::core::second pair)]
-      (:wat::core::if (:wat::core::= name old)
-        (:wat::core::Option.Some {:value new})
-        (:user::rename-lookup name (:wat::core::rest table))))))
+(wat.core/defn user/rename-lookup
+  [name  :- wat.type/String
+   table :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])]
+  :- (wat.core/Option :- [wat.type/String])
+  (wat.core/if (wat.core/empty? table)
+    wat.core/Option.None
+    (wat.core/let [pair (wat.core/first table)
+                      old  (wat.core/first pair)
+                      new  (wat.core/second pair)]
+      (wat.core/if (wat.core/= name old)
+        (wat.core/Option.Some {:value new})
+        (user/rename-lookup name (wat.core/rest table))))))
 
 ;; ── inside a `where` subtree: recurse everywhere, rename any matching keyword leaf ────────────
-(:wat::core::defn :user::inside-where-edits
-  [node  <- wat.type/AST
-   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:user::inside-where-edits-walk (:wat::core::ast->children node) table lines)
-    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-      (:wat::core::match (:user::rename-lookup (:wat::core::ast-name node) table)
-        [:wat::core::Option.Some {:value new}
-          (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                            old-len (:wat::core::ast-name node)]
+(wat.core/defn user/inside-where-edits
+  [node  :- wat.type/AST
+   table :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (user/inside-where-edits-walk (wat.core/ast->children node) table lines)
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "keyword")
+      (wat.core/match (user/rename-lookup (wat.core/ast-name node) table)
+        [wat.core/Option.Some {:value new}
+          (wat.core/let [off     (wat.fix/fix-text-offset-of (wat.core/ast-span node) lines)
+                            old-len (wat.core/ast-name node)]
             (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
               (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-len new)))]
-        [:wat::core::Option.None {} (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])])
+        [wat.core/Option.None {} (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])])
       (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))))
 
-(:wat::core::defn :user::inside-where-edits-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/inside-where-edits-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   table :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::inside-where-edits (:wat::core::first items) table lines)
-      (:user::inside-where-edits-walk (:wat::core::rest items) table lines))))
+    (wat.core/concat
+      (user/inside-where-edits (wat.core/first items) table lines)
+      (user/inside-where-edits-walk (wat.core/rest items) table lines))))
 
 ;; where-list? — true iff node is a List whose head keyword is exactly ":wat::rete::where".
-(:wat::core::defn :user::where-list?
-  [node <- wat.type/AST
-   ch   <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/where-list?
+  [node :- wat.type/AST
+   ch   :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/if (wat.core/empty? ch)
       false
-      (:wat::core::let [head (:wat::core::first ch)]
-        (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-          (:wat::core::= (:wat::core::ast-name head) ":wat::rete::where")
+      (wat.core/let [head (wat.core/first ch)]
+        (wat.core/if (wat.core/= (wat.core/ast-kind head) "keyword")
+          (wat.core/= (wat.core/ast-name head) ":wat::rete::where")
           false)))
     false))
 
 ;; ── outer walk: everywhere OUTSIDE a where, no renames — only switches into inside-where-edits
 ;; when a `(:wat::rete::where …)` list is found, and only for THAT list's own children ───────────
-(:wat::core::defn :user::outer-edits
-  [node  <- wat.type/AST
-   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::fix::structural? node)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:user::where-list? node ch)
-        (:user::inside-where-edits-walk ch table lines)
-        (:user::outer-edits-walk ch table lines)))
+(wat.core/defn user/outer-edits
+  [node  :- wat.type/AST
+   table :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.fix/structural? node)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (user/where-list? node ch)
+        (user/inside-where-edits-walk ch table lines)
+        (user/outer-edits-walk ch table lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
-(:wat::core::defn :user::outer-edits-walk
-  [items <- (wat.type/Vector :- [wat.type/AST])
-   table <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? items)
+(wat.core/defn user/outer-edits-walk
+  [items :- (wat.type/Vector :- [wat.type/AST])
+   table :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? items)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::outer-edits (:wat::core::first items) table lines)
-      (:user::outer-edits-walk (:wat::core::rest items) table lines))))
+    (wat.core/concat
+      (user/outer-edits (wat.core/first items) table lines)
+      (user/outer-edits-walk (wat.core/rest items) table lines))))
 
 ;; ── per-file migrate: parse → collect scoped edits → splice ORIGINAL text (comment-faithful) ──
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    table     (:user::rename-table)
-                    all-edits (:user::outer-edits-walk forms table lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+(wat.core/defn user/migrate
+  [src :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    table     (user/rename-table)
+                    all-edits (user/outer-edits-walk forms table lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))
 
 ;; ── driver: read the EDN path vector from stdin, rewrite each file in place ───────────────────
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[rete-where-per-type-spelling] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[rete-where-per-type-spelling] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

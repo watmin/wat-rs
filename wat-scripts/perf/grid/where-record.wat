@@ -70,286 +70,286 @@
 ;;   12  combined: deep chain AND shallow field, same var               -> 44 of 200
 ;;   13  TWO vars, the SAME 2-level chain compared: u2-chain(c) > u2-chain(c2) -> 55 of 200
 
-(:wat::core::defn :wr::items [] -> wat.type/i64 200)   ;; the stream size, both sides
+(wat.core/defn wr/items [] :- wat.type/i64 200)   ;; the stream size, both sides
 
-(:wat::core::defn :wr::row-count [] -> wat.type/i64 13)
+(wat.core/defn wr/row-count [] :- wat.type/i64 13)
 
-(:wat::core::defrecord :wr::L4 [v <- wat.type/i64])
-(:wat::core::defrecord :wr::L3 [l4 <- :wr::L4  w <- wat.type/i64])
-(:wat::core::defrecord :wr::L2 [l3 <- :wr::L3  u <- wat.type/i64])
-(:wat::core::defrecord :wr::Bag
-  [items <- (wat.type/PersistentVector :- [wat.type/i64])
-   label <- wat.type/String])
-(:wat::core::defrecord :wr::Client
-  [l2   <- :wr::L2
-   rep  <- wat.type/i64
-   tags <- (wat.type/PersistentVector :- [wat.type/i64])
-   bag  <- :wr::Bag])
+(wat.core/defrecord wr/L4 [v :- wat.type/i64])
+(wat.core/defrecord wr/L3 [l4 :- wr/L4  w :- wat.type/i64])
+(wat.core/defrecord wr/L2 [l3 :- wr/L3  u :- wat.type/i64])
+(wat.core/defrecord wr/Bag
+  [items :- (wat.type/PersistentVector :- [wat.type/i64])
+   label :- wat.type/String])
+(wat.core/defrecord wr/Client
+  [l2   :- wr/L2
+   rep  :- wat.type/i64
+   tags :- (wat.type/PersistentVector :- [wat.type/i64])
+   bag  :- wr/Bag])
 
 ;; row 10's field type — Active carries a level, Pending carries a reason, Inactive is a unit variant.
-(:wat::core::defenum :wr::Status :wat::enum::Pure
-  :Active  [level <- wat.type/i64]
+(wat.core/defenum wr/Status wat.enum/Pure
+  :Active  [level :- wat.type/i64]
   :Inactive
-  :Pending [reason <- wat.type/i64])
+  :Pending [reason :- wat.type/i64])
 
-(:wat::core::defrecord :wr::Req
-  [k       <- wat.type/i64
-   client  <- :wr::Client
-   client2 <- :wr::Client
-   status  <- :wr::Status
-   note    <- (:wat::core::Option :- [wat.type/i64])])
+(wat.core/defrecord wr/Req
+  [k       :- wat.type/i64
+   client  :- wr/Client
+   client2 :- wr/Client
+   status  :- wr/Status
+   note    :- (wat.core/Option :- [wat.type/i64])])
 
-(:wat::core::defrecord :wr::Hit [k <- wat.type/i64])   ;; the single production type
+(wat.core/defrecord wr/Hit [k :- wat.type/i64])   ;; the single production type
 
 ;; ── client-of i — builds ONE Client from the four scalar formulas plus the two collection fields.
 ;; Used TWICE per Req: once for `client` (i), once for `client2` (j(i)) — same constructor, so the
 ;; two Clients are structurally identical shapes seeded from different indices, never a hand-synced
 ;; second table.
-(:wat::core::defn :wr::client-of [i <- wat.type/i64] -> :wr::Client
-  (:wat::core::let
-    [v4          (:wat::i64::mod i 9)
-     w3          (:wat::i64::+ (:wat::i64::mod i 11) 1)
-     u2          (:wat::i64::mod i 13)
-     rep         (:wat::i64::- (:wat::i64::mod i 5) 2)
-     tagslen     (:wat::i64::mod i 5)
-     bagitemslen (:wat::i64::mod i 4)
-     l4          (:wr::L4 :v v4)
-     l3          (:wr::L3 :l4 l4 :w w3)
-     l2          (:wr::L2 :l3 l3 :u u2)
-     tags        (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-                   (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 tagslen)))
-     bagitems    (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64])
-                   (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (:wat::core::range 0 bagitemslen)))
-     bag         (:wr::Bag :items bagitems :label (:wat::string::concat "b" (:wat::i64::to-string i)))]
-    (:wr::Client :l2 l2 :rep rep :tags tags :bag bag)))
+(wat.core/defn wr/client-of [i :- wat.type/i64] :- wr/Client
+  (wat.core/let
+    [v4          (wat.i64/mod i 9)
+     w3          (wat.i64/+ (wat.i64/mod i 11) 1)
+     u2          (wat.i64/mod i 13)
+     rep         (wat.i64/- (wat.i64/mod i 5) 2)
+     tagslen     (wat.i64/mod i 5)
+     bagitemslen (wat.i64/mod i 4)
+     l4          (wr/L4 :v v4)
+     l3          (wr/L3 :l4 l4 :w w3)
+     l2          (wr/L2 :l3 l3 :u u2)
+     tags        (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+                   (wat.core/into (wat.type/Vector :- [wat.type/i64]) (wat.core/range 0 tagslen)))
+     bagitems    (wat.core/into (wat.type/PersistentVector :- [wat.type/i64])
+                   (wat.core/into (wat.type/Vector :- [wat.type/i64]) (wat.core/range 0 bagitemslen)))
+     bag         (wr/Bag :items bagitems :label (wat.string/concat "b" (wat.i64/to-string i)))]
+    (wr/Client :l2 l2 :rep rep :tags tags :bag bag)))
 
 ;; row 10's field-value builder. Active/Pending are TAGGED variants, constructed POSITIONALLY
 ;; (`(:wr::Status::Active level)`), mirroring tests/types/enums_tagged_variant.wat; Inactive is a
 ;; unit variant referenced BARE (`:wr::Status::Inactive`), mirroring :wat::program::PeerKind::thread.
-(:wat::core::defn :wr::status-of [i <- wat.type/i64] -> :wr::Status
-  (:wat::core::let [m (:wat::i64::mod i 3)]
-    (:wat::core::cond
-      ((:wat::core::= m 0) (:wr::Status.Active  {:level (:wat::i64::mod i 5)}))
-      ((:wat::core::= m 1) :wr::Status.Inactive)
-      (:else               (:wr::Status.Pending {:reason (:wat::i64::mod i 4)})))))
+(wat.core/defn wr/status-of [i :- wat.type/i64] :- wr/Status
+  (wat.core/let [m (wat.i64/mod i 3)]
+    (wat.core/cond
+      ((wat.core/= m 0) (wr/Status.Active  {:level (wat.i64/mod i 5)}))
+      ((wat.core/= m 1) wr/Status.Inactive)
+      (:else               (wr/Status.Pending {:reason (wat.i64/mod i 4)})))))
 
 ;; row 11's field-value builder. None is bare (mirrors :wat::core::None used bare elsewhere); Some
 ;; wraps a value positionally.
-(:wat::core::defn :wr::note-of [i <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
-  (:wat::core::let [nm (:wat::i64::mod i 4)]
-    (:wat::core::if (:wat::core::= nm 0)
-      :wat::core::Option.None
-      (:wat::core::Option.Some {:value (:wat::i64::mod i 6)}))))
+(wat.core/defn wr/note-of [i :- wat.type/i64] :- (wat.core/Option :- [wat.type/i64])
+  (wat.core/let [nm (wat.i64/mod i 4)]
+    (wat.core/if (wat.core/= nm 0)
+      wat.core/Option.None
+      (wat.core/Option.Some {:value (wat.i64/mod i 6)}))))
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
-(:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> wat.type/bool
-  (:wat::rete::i64::> (:wr::Client/rep c) 0))
+(wat.rete.core/defn wr/rep-pos? [c :- wr/Client] :- wat.type/bool
+  (wat.rete.i64/> (wr.Client/rep c) 0))
 
 ;; row 9's contrast: the SAME constraint, but the caller reaches in and hands over a bare scalar.
-(:wat::rete::core::defn :wr::pos? [x <- wat.type/i64] -> wat.type/bool
-  (:wat::rete::i64::> x 0))
+(wat.rete.core/defn wr/pos? [x :- wat.type/i64] :- wat.type/bool
+  (wat.rete.i64/> x 0))
 
 ;; row 10's predicate over the enum field — `match` over a user-defined enum, called from `where`.
-(:wat::rete::core::defn :wr::is-risky? [st <- :wr::Status] -> wat.type/bool
-  (:wat::rete::core::match st
-    [:wr::Status.Active {:level lvl}    (:wat::rete::i64::> lvl 3)]
-    [:wr::Status.Inactive {}        false]
-    [:wr::Status.Pending {:reason reason} (:wat::rete::i64::> reason 1)]))
+(wat.rete.core/defn wr/is-risky? [st :- wr/Status] :- wat.type/bool
+  (wat.rete.core/match st
+    [wr/Status.Active {:level lvl}    (wat.rete.i64/> lvl 3)]
+    [wr/Status.Inactive {}        false]
+    [wr/Status.Pending {:reason reason} (wat.rete.i64/> reason 1)]))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
-(:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [wat.type/i64])] -> wat.type/bool
-  (:wat::rete::core::match nt
-    [:wat::core::Option.Some {:value v} (:wat::rete::i64::> v 2)]
-    [:wat::core::Option.None {}     false]))
+(wat.rete.core/defn wr/note-positive? [nt :- (wat.core/Option :- [wat.type/i64])] :- wat.type/bool
+  (wat.rete.core/match nt
+    [wat.core/Option.Some {:value v} (wat.rete.i64/> v 2)]
+    [wat.core/Option.None {}     false]))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
-(:wat::core::defn :wr::conds [] -> wat.type/AST
-  (:wat::core::quasiquote
-    (:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note))))
+(wat.core/defn wr/conds [] :- wat.type/AST
+  (wat.core/quasiquote
+    (wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note))))
 
-(:wat::core::defn :wr::ins [] -> wat.type/AST
-  (:wat::core::quasiquote (:wr::Hit ?k)))
+(wat.core/defn wr/ins [] :- wat.type/AST
+  (wat.core/quasiquote (wr/Hit ?k)))
 
 ;; ROW 1 — 2-level accessor chain. u2(i) > 8 <=> i mod 13 in {9,10,11,12} -> 60 of 200.
-(:wat::rete::defrule :wr::chain2
+(wat.rete/defrule wr/chain2
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wat.rete.i64/> (wr.L2/u (wr.Client/l2 ?c)) 8))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 2 — 3-level accessor chain. w3(i) > 7 <=> i mod 11 in {7,8,9,10} -> 72 of 200.
-(:wat::rete::defrule :wr::chain3
+(wat.rete/defrule wr/chain3
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/> (wr.L3/w (wr.L2/l3 (wr.Client/l2 ?c))) 7))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 3 — 4-level accessor chain. v4(i) > 5 <=> i mod 9 in {6,7,8} -> 66 of 200.
-(:wat::rete::defrule :wr::chain4
+(wat.rete/defrule wr/chain4
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::>
-                   (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/>
+                   (wr.L4/v (wr.L3/l4 (wr.L2/l3 (wr.Client/l2 ?c))))
                    5))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 4 — a record field that IS a collection, reached and then measured. tagslen(i) > 2
 ;; <=> i mod 5 in {3,4} -> 80 of 200.
-(:wat::rete::defrule :wr::collection
+(wat.rete/defrule wr/collection
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::> (:wat::rete::vector::length (:wr::Client/tags ?c)) 2))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/> (wat.rete.vector/length (wr.Client/tags ?c)) 2))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 5 — a record field that holds ANOTHER RECORD holding a collection: Client/bag -> Bag/items.
 ;; bagitemslen(i) > 1 <=> i mod 4 in {2,3} -> 100 of 200.
-(:wat::rete::defrule :wr::record-collection
+(wat.rete/defrule wr/record-collection
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::>
-                   (:wat::rete::vector::length (:wr::Bag/items (:wr::Client/bag ?c)))
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/>
+                   (wat.rete.vector/length (wr.Bag/items (wr.Client/bag ?c)))
                    1))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 6 — the SAME bound var, TWO DIFFERENT accessor chains, compared to each other:
 ;; rep(c) > v4-via-4-level-chain(c). rep in [-2,2], v4-chain in [0,8] -> 15 of 200.
-(:wat::rete::defrule :wr::same-var-two-chains
+(wat.rete/defrule wr/same-var-two-chains
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::>
-                   (:wr::Client/rep ?c)
-                   (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/>
+                   (wr.Client/rep ?c)
+                   (wr.L4/v (wr.L3/l4 (wr.L2/l3 (wr.Client/l2 ?c))))))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 7 — TWO DIFFERENT bound vars (?c and ?c2), the SAME one-level accessor chain off each,
 ;; compared to each other: rep(c) > rep(c2). rep(i) > rep(j(i)) -> 80 of 200.
-(:wat::rete::defrule :wr::cross-var-scalar
+(wat.rete/defrule wr/cross-var-scalar
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wat.rete.i64/> (wr.Client/rep ?c) (wr.Client/rep ?c2)))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 8 — a PURE FN taking the WHOLE RECORD and reaching inside it: (rep-pos? ?c).
 ;; rep(i) > 0 <=> i mod 5 in {3,4} -> 80 of 200.
-(:wat::rete::defrule :wr::whole-record-fn
+(wat.rete/defrule wr/whole-record-fn
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::rep-pos? ?c))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wr/rep-pos? ?c))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 9 — the CONTRAST with row 8: the CALLER reaches in and hands the fn a bare SCALAR:
 ;; (pos? (Client/rep ?c)). Same constraint, same derived set as row 8 (80 of 200) — the point is the
 ;; CALL SHAPE (record-arg vs scalar-arg), which a compiler treats very differently, not the count.
-(:wat::rete::defrule :wr::scalar-fn
+(wat.rete/defrule wr/scalar-fn
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::pos? (:wr::Client/rep ?c)))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wr/pos? (wr.Client/rep ?c)))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 10 — an ENUM/VARIANT field, matched inside a `where`: (is-risky? ?st).
 ;; m=i mod 3: m=0 needs level>3 (i mod 5 in {4}), m=1 never, m=2 needs reason>1 (i mod 4 in {2,3})
 ;; -> 46 of 200.
-(:wat::rete::defrule :wr::enum-match
+(wat.rete/defrule wr/enum-match
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::is-risky? ?st))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wr/is-risky? ?st))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 11 — an OPTION-TYPED field, matched inside a `where`: (note-positive? ?nt).
 ;; (i mod 4)==0 -> None (never); else Some(i mod 6), positive needs i mod 6 in {3,4,5} -> 82 of 200.
-(:wat::rete::defrule :wr::option-match
+(wat.rete/defrule wr/option-match
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where (:wr::note-positive? ?nt))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where (wr/note-positive? ?nt))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 12 — COMBINED: a deep chain AND a shallow field, same var, joined with `and`.
 ;; rep(i) > 0 AND v4(i) > 3 -> 44 of 200.
-(:wat::rete::defrule :wr::combined-and
+(wat.rete/defrule wr/combined-and
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::core::and
-                   (:wat::rete::i64::> (:wr::Client/rep ?c) 0)
-                   (:wat::rete::i64::>
-                     (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.core/and
+                   (wat.rete.i64/> (wr.Client/rep ?c) 0)
+                   (wat.rete.i64/>
+                     (wr.L4/v (wr.L3/l4 (wr.L2/l3 (wr.Client/l2 ?c))))
                      3)))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
 ;; ROW 13 — TWO DIFFERENT bound vars, the SAME 2-level accessor chain off each, compared:
 ;; u2-chain(c) > u2-chain(c2). u2(i) > u2(j(i)) -> 55 of 200.
-(:wat::rete::defrule :wr::cross-var-chain
+(wat.rete/defrule wr/cross-var-chain
   :when
-  [(:wr::Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (:wat::rete::where
-                 (:wat::rete::i64::>
-                   (:wr::L2/u (:wr::Client/l2 ?c))
-                   (:wr::L2/u (:wr::Client/l2 ?c2))))]
+  [(wr/Req (?k :- :k) (?c :- :client) (?c2 :- :client2) (?st :- :status) (?nt :- :note)) (wat.rete/where
+                 (wat.rete.i64/>
+                   (wr.L2/u (wr.Client/l2 ?c))
+                   (wr.L2/u (wr.Client/l2 ?c2))))]
   :then
-  [(:wr::Hit ?k)])
+  [(wr/Hit ?k)])
 
-(:wat::rete::defquery :wr::q-Hit
+(wat.rete/defquery wr/q-Hit
   :params []
-  :when [(?fact :- :wr::Hit)])
+  :when [(?fact :- wr/Hit)])
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wr::build-rules [row <- wat.type/i64] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1)  (:wr::chain2))
-      ((:wat::core::= row 2)  (:wr::chain3))
-      ((:wat::core::= row 3)  (:wr::chain4))
-      ((:wat::core::= row 4)  (:wr::collection))
-      ((:wat::core::= row 5)  (:wr::record-collection))
-      ((:wat::core::= row 6)  (:wr::same-var-two-chains))
-      ((:wat::core::= row 7)  (:wr::cross-var-scalar))
-      ((:wat::core::= row 8)  (:wr::whole-record-fn))
-      ((:wat::core::= row 9)  (:wr::scalar-fn))
-      ((:wat::core::= row 10) (:wr::enum-match))
-      ((:wat::core::= row 11) (:wr::option-match))
-      ((:wat::core::= row 12) (:wr::combined-and))
-      ((:wat::core::= row 13) (:wr::cross-var-chain))
+(wat.core/defn wr/build-rules [row :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1)  (wr/chain2))
+      ((wat.core/= row 2)  (wr/chain3))
+      ((wat.core/= row 3)  (wr/chain4))
+      ((wat.core/= row 4)  (wr/collection))
+      ((wat.core/= row 5)  (wr/record-collection))
+      ((wat.core/= row 6)  (wr/same-var-two-chains))
+      ((wat.core/= row 7)  (wr/cross-var-scalar))
+      ((wat.core/= row 8)  (wr/whole-record-fn))
+      ((wat.core/= row 9)  (wr/scalar-fn))
+      ((wat.core/= row 10) (wr/enum-match))
+      ((wat.core/= row 11) (wr/option-match))
+      ((wat.core/= row 12) (wr/combined-and))
+      ((wat.core/= row 13) (wr/cross-var-chain))
       (:else
-        (:wat::kernel::assertion-failed! :message (:wat::string::concat "where-record: unknown row " (:wat::i64::to-string row)))))))
+        (wat.kernel/assertion-failed! :message (wat.string/concat "where-record: unknown row " (wat.i64/to-string row)))))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
-(:wat::core::defn :wr::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wr/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::let [j (:wat::i64::mod (:wat::i64::+ i 97) items)]
-          (:wat::core::conj acc
-            (:wr::Req :k i
-              :client  (:wr::client-of i)
-              :client2 (:wr::client-of j)
-              :status  (:wr::status-of i)
-              :note    (:wr::note-of i)))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/let [j (wat.i64/mod (wat.i64/+ i 97) items)]
+          (wat.core/conj acc
+            (wr/Req :k i
+              :client  (wr/client-of i)
+              :client2 (wr/client-of j)
+              :status  (wr/status-of i)
+              :note    (wr/note-of i)))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
-(:wat::core::defn :wr::derived-ints
-  [fired <- :wat::rete::Session] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:wr::Hit/k f)))
-        (:wat::rete::query fired (:wr::q-Hit))))))
+(wat.core/defn wr/derived-ints
+  [fired :- wat.rete/Session] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (wr.Hit/k f)))
+        (wat.rete/query fired (wr/q-Hit))))))
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wr::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wr/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
@@ -363,32 +363,32 @@
 ;; verb (`first`/`nth`/`Option/expect`) — the seed also makes the no-"::" case return
 ;; the input UNCHANGED, and even an impossible empty split falls back to the seed
 ;; instead of raising.
-(:wat::core::defn :wr::rule-display-name
-  [full <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  seg <- wat.type/String] -> wat.type/String seg)
+(wat.core/defn wr/rule-display-name
+  [full :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  seg :- wat.type/String] :- wat.type/String seg)
     full
-    (:wat::string::split full "::")))
+    (wat.string/split full "::")))
 
-(:wat::core::defn :wr::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let
-    [rules   (:wr::build-rules row)
-     rule    (:wat::core::first rules)
-     staged  (:wr::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wr::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wr::items))
-     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     derived (:wr::derived-ints fired)
-     n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wr::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wr::render-ints derived))))))
+(wat.core/defn wr/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let
+    [rules   (wr/build-rules row)
+     rule    (wat.core/first rules)
+     staged  (wr/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wr/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wr/items))
+     fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     derived (wr/derived-ints fired)
+     n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wr/rule-display-name (wat.rete.Rule/name rule))))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wr/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wr::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wr/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wr::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wr/row-count) 1))))

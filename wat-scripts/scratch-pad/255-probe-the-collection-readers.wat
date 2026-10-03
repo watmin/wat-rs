@@ -53,68 +53,68 @@
 ;; rebuilt binary registers them and can answer `Some hm`). See the rider's report for what this
 ;; binary actually printed.
 
-(:wat::core::defn :wat-tests::255::collection-readers::nat
-  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::stream::cons i (:wat-tests::255::collection-readers::nat (:wat::core::+ i 1)))))
+(wat.core/defn wat-tests.255.collection-readers/nat
+  [i :- wat.type/i64] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.stream/cons i (wat-tests.255.collection-readers/nat (wat.core/+ i 1)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── section 1 — behaviour unchanged ──")
-    (:wat::kernel::println
-      (:wat::string::concat "assoc on HashMap             => "
-        (:wat::edn::write (:wat::core::get
-          (:wat::core::assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1) "a"))))
-    (:wat::kernel::println
-      (:wat::string::concat "conj on Vector                => "
-        (:wat::edn::write (:wat::core::conj (wat.type/Vector :- [wat.type/i64] 1 2) 3))))
-    (:wat::kernel::println
-      (:wat::string::concat "take 2 on Vector [1 2 3]      => "
-        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::take (wat.type/Vector :- [wat.type/i64] 1 2 3) 2)))))
-    (:wat::kernel::println
-      (:wat::string::concat "drop 1 on Vector [1 2 3]      => "
-        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::drop (wat.type/Vector :- [wat.type/i64] 1 2 3) 1)))))
-    (:wat::kernel::println
-      (:wat::string::concat "take 3 on an INFINITE Stream  => "
-        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::take (:wat-tests::255::collection-readers::nat 0) 3)))))
-    (:wat::kernel::println
-      (:wat::string::concat "take 2 (drop 3 INFINITE Stream) => "
-        (:wat::edn::write (:wat::core::stream->vec (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::take (:wat::core::drop (:wat-tests::255::collection-readers::nat 0) 3) 2)))))
-    (:wat::kernel::println "── section 2 — metadata-of :totality (assoc/conj Partial vs. drop/take Total) ──")
-    (:wat::kernel::println
-      (:wat::string::concat "assoc :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::assoc)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "conj  :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::conj)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "drop  :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::drop)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
-    (:wat::kernel::println
-      (:wat::string::concat "take  :totality => "
-        (:wat::core::match (:wat::runtime::metadata-of :wat::core::take)
-          [:wat::core::Option.Some {:value hm}
-           (:wat::core::match (:wat::core::get hm :totality)
-             [:wat::core::Option.Some {:value t} (:wat::edn::write t)]
-             [:wat::core::Option.None {} "registered, but no :totality key (unexpected)"])]
-          [:wat::core::Option.None {} "None (not registered in this binary)"])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── section 1 — behaviour unchanged ──")
+    (wat.kernel/println
+      (wat.string/concat "assoc on HashMap             => "
+        (wat.edn/write (wat.core/get
+          (wat.core/assoc (wat.type/HashMap :- [wat.type/String wat.type/i64]) "a" 1) "a"))))
+    (wat.kernel/println
+      (wat.string/concat "conj on Vector                => "
+        (wat.edn/write (wat.core/conj (wat.type/Vector :- [wat.type/i64] 1 2) 3))))
+    (wat.kernel/println
+      (wat.string/concat "take 2 on Vector [1 2 3]      => "
+        (wat.edn/write (wat.core/stream->vec (wat.type/Vector :- [wat.type/i64])
+          (wat.core/take (wat.type/Vector :- [wat.type/i64] 1 2 3) 2)))))
+    (wat.kernel/println
+      (wat.string/concat "drop 1 on Vector [1 2 3]      => "
+        (wat.edn/write (wat.core/stream->vec (wat.type/Vector :- [wat.type/i64])
+          (wat.core/drop (wat.type/Vector :- [wat.type/i64] 1 2 3) 1)))))
+    (wat.kernel/println
+      (wat.string/concat "take 3 on an INFINITE Stream  => "
+        (wat.edn/write (wat.core/stream->vec (wat.type/Vector :- [wat.type/i64])
+          (wat.core/take (wat-tests.255.collection-readers/nat 0) 3)))))
+    (wat.kernel/println
+      (wat.string/concat "take 2 (drop 3 INFINITE Stream) => "
+        (wat.edn/write (wat.core/stream->vec (wat.type/Vector :- [wat.type/i64])
+          (wat.core/take (wat.core/drop (wat-tests.255.collection-readers/nat 0) 3) 2)))))
+    (wat.kernel/println "── section 2 — metadata-of :totality (assoc/conj Partial vs. drop/take Total) ──")
+    (wat.kernel/println
+      (wat.string/concat "assoc :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/assoc)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "conj  :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/conj)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "drop  :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/drop)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
+    (wat.kernel/println
+      (wat.string/concat "take  :totality => "
+        (wat.core/match (wat.runtime/metadata-of wat.core/take)
+          [wat.core/Option.Some {:value hm}
+           (wat.core/match (wat.core/get hm :totality)
+             [wat.core/Option.Some {:value t} (wat.edn/write t)]
+             [wat.core/Option.None {} "registered, but no :totality key (unexpected)"])]
+          [wat.core/Option.None {} "None (not registered in this binary)"])))
     nil))

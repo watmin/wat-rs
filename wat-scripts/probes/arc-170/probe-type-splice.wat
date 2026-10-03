@@ -13,24 +13,24 @@
 ;; compares structure, skipping span — `crates/wat-reader/src/ast.rs`) against a node built by
 ;; `:wat::core::keyword-node`, never as an ast-kind/ast-name STRING pair standing in for the
 ;; node (coordinator correction, 255.76 weigh: "measuring strings is anti-wat").
-(:wat::core::defn :probe::mk :- [I]
-  [x <- :I] -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::forms
-    (:wat::core::defn :probe::inner [a <- :I] -> :I a)))
+(wat.core/defn probe/mk :- [I]
+  [x :- I] :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/forms
+    (wat.core/defn probe/inner [a :- I] :- I a)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [forms     (:probe::mk 5)
-     defn-node (:wat::core::nth forms 0)
-     ch        (:wat::core::ast->children defn-node)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [forms     (probe/mk 5)
+     defn-node (wat.core/nth forms 0)
+     ch        (wat.core/ast->children defn-node)
      ;; ch = [defn-kw, name-kw, argspec-vec, ->-sym, ret-type-kw, body]
-     argspec   (:wat::core::nth ch 2)
-     arg-ch    (:wat::core::ast->children argspec)
+     argspec   (wat.core/nth ch 2)
+     arg-ch    (wat.core/ast->children argspec)
      ;; arg-ch = [a-sym, <--sym, I-kw] (one param, flat)
-     arg-ty    (:wat::core::nth arg-ch 2)
-     ret-ty    (:wat::core::nth ch 4)
-     expected  (:wat::core::keyword-node ":I")]
-    (:wat::core::do
-      (:wat::test::assert-eq arg-ty expected)
-      (:wat::test::assert-eq ret-ty expected)
-      (:wat::kernel::println (:wat::edn::write forms)))))
+     arg-ty    (wat.core/nth arg-ch 2)
+     ret-ty    (wat.core/nth ch 4)
+     expected  (wat.core/keyword-node ":I")]
+    (wat.core/do
+      (wat.test/assert-eq arg-ty expected)
+      (wat.test/assert-eq ret-ty expected)
+      (wat.kernel/println (wat.edn/write forms)))))

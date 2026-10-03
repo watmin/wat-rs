@@ -3,9 +3,9 @@
 ;; A wall that refuses everything is not intact. The SAME symbol-spelled mention in the
 ;; SAME data position, from a caller the whitelist DOES admit, must still pass.
 
-(:wat::core::defn :my::kernel::restricted-fn
-  {:restricted-to [:my::kernel::]}
-  [x <- wat.type/i64] -> wat.type/i64 x)
+(wat.core/defn my.kernel/restricted-fn
+  {:restricted-to [my.kernel]}
+  [x :- wat.type/i64] :- wat.type/i64 x)
 
-(:wat::core::defn :my::kernel::ok-caller [] -> wat.type/AST
-  (:wat::core::quote (my.kernel/restricted-fn 7)))
+(wat.core/defn my.kernel/ok-caller [] :- wat.type/AST
+  (wat.core/quote (my.kernel/restricted-fn 7)))

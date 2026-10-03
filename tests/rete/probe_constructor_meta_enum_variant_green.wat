@@ -5,47 +5,47 @@
 ;; through both the oracle and the native kernel — the new freeze-time arity wall
 ;; (`walk_nested_constructors`, `src/rete/validate.rs`) must not reject a legal call.
 
-(:wat::core::defenum :cg::Status :wat::enum::Pure
-  :Active [level <- wat.type/i64])
+(wat.core/defenum cg/Status wat.enum/Pure
+  :Active [level :- wat.type/i64])
 
-(:wat::core::defrecord :cg::Anchor [x <- wat.type/i64])
-(:wat::core::defrecord :cg::Wrap   [s <- :cg::Status])
+(wat.core/defrecord cg/Anchor [x :- wat.type/i64])
+(wat.core/defrecord cg/Wrap   [s :- cg/Status])
 
-(:wat::rete::defrule :cg::gather
-  :when [(:cg::Anchor (?x :- :x))]
-  :then [(:cg::Wrap :s (:cg::Status.Active {:level 7}))])
+(wat.rete/defrule cg/gather
+  :when [(cg/Anchor (?x :- :x))]
+  :then [(cg/Wrap :s (cg/Status.Active {:level 7}))])
 
-(:wat::rete::defquery :cg::q-Wrap
+(wat.rete/defquery cg/q-Wrap
   :params []
-  :when [(:cg::Wrap (?s :- :s))])
+  :when [(cg/Wrap (?s :- :s))])
 
 
 ;; Fires via the WAT ORACLE.
-(:wat::core::defn :user::run-oracle [] -> wat.type/i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:cg::q-Wrap))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     session (:wat::core::match (:wat::rete::insert session (:cg::Anchor :x 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired   (:wat::core::match (:wat::rete::fire-rules$oracle session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     derived (:wat::rete::query fired (:cg::q-Wrap))
-     r       (:wat::core::first derived)
-     s       (:wat::core::Option/expect
-               (:wat::core::get r "?s")
+(wat.core/defn user/run-oracle [] :- wat.type/i64
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :cg)
+     session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (cg/q-Wrap))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     session (wat.core/match (wat.rete/insert session (cg/Anchor :x 0)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired   (wat.core/match (wat.rete/fire-rules$oracle session) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     derived (wat.rete/query fired (cg/q-Wrap))
+     r       (wat.core/first derived)
+     s       (wat.core.Option/expect
+               (wat.core/get r "?s")
                "q-Wrap: ?s")]
-    (:wat::core::match s
-      [:cg::Status.Active {:level lvl} lvl])))
+    (wat.core/match s
+      [cg/Status.Active {:level lvl} lvl])))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
-(:wat::core::defn :user::run-native [] -> wat.type/i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :cg)
-     session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:cg::q-Wrap))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     session (:wat::core::match (:wat::rete::insert session (:cg::Anchor :x 0)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired   (:wat::core::match (:wat::rete::fire-rules session) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     derived (:wat::rete::query fired (:cg::q-Wrap))
-     r       (:wat::core::first derived)
-     s       (:wat::core::Option/expect
-               (:wat::core::get r "?s")
+(wat.core/defn user/run-native [] :- wat.type/i64
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :cg)
+     session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (cg/q-Wrap))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     session (wat.core/match (wat.rete/insert session (cg/Anchor :x 0)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired   (wat.core/match (wat.rete/fire-rules session) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     derived (wat.rete/query fired (cg/q-Wrap))
+     r       (wat.core/first derived)
+     s       (wat.core.Option/expect
+               (wat.core/get r "?s")
                "q-Wrap: ?s")]
-    (:wat::core::match s
-      [:cg::Status.Active {:level lvl} lvl])))
+    (wat.core/match s
+      [cg/Status.Active {:level lvl} lvl])))

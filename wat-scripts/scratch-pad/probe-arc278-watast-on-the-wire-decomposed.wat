@@ -96,113 +96,113 @@
 ;; reader, used far beyond service dispatch, which is a materially larger change than "one arm
 ;; in one walker."
 
-(:wat::core::defsurface :probe::WireKind :nature :wat::kernel::Peer
+(wat.core/defsurface probe/WireKind :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::WireKind::EchoRequest [n <- wat.type/i64])
-   (:wat::core::defenum :probe::WireKind::EchoResponse :wat::enum::Pure
-     :Ok               [n <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])
-   (:wat::core::defrecord :probe::WireKind::CountRequest [defs <- (wat.type/Vector :- [wat.type/AST])])
-   (:wat::core::defenum :probe::WireKind::CountResponse :wat::enum::Pure
-     :Ok               [n <- wat.type/i64]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord probe.WireKind/EchoRequest [n :- wat.type/i64])
+   (wat.core/defenum probe.WireKind/EchoResponse wat.enum/Pure
+     :Ok               [n :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])
+   (wat.core/defrecord probe.WireKind/CountRequest [defs :- (wat.type/Vector :- [wat.type/AST])])
+   (wat.core/defenum probe.WireKind/CountResponse wat.enum/Pure
+     :Ok               [n :- wat.type/i64]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(echo  [self <- :probe::WireKind  req <- :probe::WireKind::EchoRequest]  -> :probe::WireKind::EchoResponse  :max-request-bytes 524288)
-   (count [self <- :probe::WireKind  req <- :probe::WireKind::CountRequest] -> :probe::WireKind::CountResponse :max-request-bytes 524288)])
+  [(echo  [self :- probe/WireKind  req :- probe.WireKind/EchoRequest]  :- probe.WireKind/EchoResponse  :max-request-bytes 524288)
+   (count [self :- probe/WireKind  req :- probe.WireKind/CountRequest] :- probe.WireKind/CountResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :probe::wirekindsvc
-  :satisfies :probe::WireKind
-  :durable   [calls <- wat.type/i64]
+(wat.service/defservice probe/wirekindsvc
+  :satisfies probe/WireKind
+  :durable   [calls :- wat.type/i64]
   :ephemeral []
-  :init (:wat::core::fn [record <- :probe::wirekindsvc::Record] -> :probe::wirekindsvc::State
-          (:probe::wirekindsvc::State :durable record))
+  :init (wat.core/fn [record :- probe.wirekindsvc/Record] :- probe.wirekindsvc/State
+          (probe.wirekindsvc/State :durable record))
   :impls
   [(echo [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::WireKind::EchoResponse.Ok {:n (:probe::WireKind::EchoRequest/n req)})}))
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.WireKind/EchoResponse.Ok {:n (probe.WireKind.EchoRequest/n req)})}))
    (count [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::WireKind::CountResponse.Ok
-         {:n (:wat::core::length (:probe::WireKind::CountRequest/defs req))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.WireKind/CountResponse.Ok
+         {:n (wat.core/length (probe.WireKind.CountRequest/defs req))})}))])
 
-(:wat::core::defn :probe::connect! [h <- :probe::wirekindsvc::Handle] -> :probe::WireKind
-  (:wat::core::match (:wat::kernel::connect (:probe::wirekindsvc::Handle/addr h))
-    [:wat::kernel::ConnectOutcome.Connected {:peer p} p]
-    [:wat::kernel::ConnectOutcome.Closed {:cause c}  (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]
-    [:wat::kernel::ConnectOutcome.Failed {:cause c}   (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))]))
+(wat.core/defn probe/connect! [h :- probe.wirekindsvc/Handle] :- probe/WireKind
+  (wat.core/match (wat.kernel/connect (probe.wirekindsvc.Handle/addr h))
+    [wat.kernel/ConnectOutcome.Connected {:peer p} p]
+    [wat.kernel/ConnectOutcome.Closed {:cause c}  (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]
+    [wat.kernel/ConnectOutcome.Failed {:cause c}   (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))]))
 
 ;; three quoted declarations — a payload with a known length of 3
-(:wat::core::defn :probe::three-forms [] -> (wat.type/Vector :- [wat.type/AST])
+(wat.core/defn probe/three-forms [] :- (wat.type/Vector :- [wat.type/AST])
   (wat.type/Vector :- [wat.type/AST]
-    (:wat::core::quote (:wat::core::defrecord :usr::A [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::B [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::C [c <- wat.type/i64]))))
+    (wat.core/quote (wat.core/defrecord usr/A [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/B [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/C [c :- wat.type/i64]))))
 
-(:wat::core::defn :probe::run-echo [] -> wat.type/nil
-  (:wat::core::let
-    [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
-     c (:probe::connect! h)]
-    (:wat::core::match (:probe::WireKind/echo c (:probe::WireKind::EchoRequest :n 7))
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::WireKind::EchoResponse.Ok {:n n}
-            (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::EchoResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::EchoResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-MALFORMED")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "CONTROL echo(i64)        => STOPPED")]
-      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")])))
+(wat.core/defn probe/run-echo [] :- wat.type/nil
+  (wat.core/let
+    [h (probe.wirekindsvc/start :locus (wat.spawn/process) :record (probe.wirekindsvc/Record :calls 0))
+     c (probe/connect! h)]
+    (wat.core/match (probe.WireKind/echo c (probe.WireKind/EchoRequest :n 7))
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.WireKind/EchoResponse.Ok {:n n}
+            (wat.kernel/println (wat.string/concat "CONTROL echo(i64)        => Ok n=" (wat.i64/to-string n)))]
+          [probe.WireKind/EchoResponse.RequestTooLarge {:bytes _b :cap _c} (wat.kernel/println "CONTROL echo(i64)        => REQUEST-TOO-LARGE")]
+          [probe.WireKind/EchoResponse.RequestMalformed {:path _p :expected _e :got _g} (wat.kernel/println "CONTROL echo(i64)        => REQUEST-MALFORMED")])]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/println (wat.string/concat "CONTROL echo(i64)        => LOST " (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/println "CONTROL echo(i64)        => STOPPED")]
+      [wat.kernel/RecvOutcome.Closed {}  (wat.kernel/println "CONTROL echo(i64)        => CLOSED")])))
 
-(:wat::core::defn :probe::run-count [] -> wat.type/nil
-  (:wat::core::let
-    [h (:probe::wirekindsvc/start :locus (:wat::spawn::process) :record (:probe::wirekindsvc::Record :calls 0))
-     c (:probe::connect! h)]
-    (:wat::core::match (:probe::WireKind/count c (:probe::WireKind::CountRequest :defs (:probe::three-forms)))
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::WireKind::CountResponse.Ok {:n n}
-            (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::CountResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::CountResponse.RequestMalformed {:path _p :expected _e :got _g} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-MALFORMED")])]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => STOPPED")]
-      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")])))
+(wat.core/defn probe/run-count [] :- wat.type/nil
+  (wat.core/let
+    [h (probe.wirekindsvc/start :locus (wat.spawn/process) :record (probe.wirekindsvc/Record :calls 0))
+     c (probe/connect! h)]
+    (wat.core/match (probe.WireKind/count c (probe.WireKind/CountRequest :defs (probe/three-forms)))
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.WireKind/CountResponse.Ok {:n n}
+            (wat.kernel/println (wat.string/concat "SUBJECT count(Vec<WatAST>) => Ok n=" (wat.i64/to-string n)))]
+          [probe.WireKind/CountResponse.RequestTooLarge {:bytes _b :cap _c} (wat.kernel/println "SUBJECT count(Vec<WatAST>) => REQUEST-TOO-LARGE")]
+          [probe.WireKind/CountResponse.RequestMalformed {:path _p :expected _e :got _g} (wat.kernel/println "SUBJECT count(Vec<WatAST>) => REQUEST-MALFORMED")])]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/println (wat.string/concat "SUBJECT count(Vec<WatAST>) => LOST " (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/println "SUBJECT count(Vec<WatAST>) => STOPPED")]
+      [wat.kernel/RecvOutcome.Closed {}  (wat.kernel/println "SUBJECT count(Vec<WatAST>) => CLOSED")])))
 
 ;; ── THE ENCODE ISOLATOR — same op, same value, THREAD locus ───────────────────────────────
 ;; A thread peer hands values across in-process; a process peer EDN-encodes them through a pipe.
 ;; thread Ok + process LOST => the defect is in WatAST's EDN encode/decode, not in the value.
 ;; both LOST                => it is not the encoding; look at the serve loop / decode path.
-(:wat::core::defn :probe::run-count-thread [] -> wat.type/nil
-  (:wat::core::let
-    [h (:probe::wirekindsvc/start :locus (:wat::spawn::thread) :record (:probe::wirekindsvc::Record :calls 0))
-     c (:probe::connect! h)]
-    (:wat::core::match (:probe::WireKind/count c (:probe::WireKind::CountRequest :defs (:probe::three-forms)))
-      [:wat::kernel::RecvOutcome.Message {:msg resp}
-        (:wat::core::match resp
-          [:probe::WireKind::CountResponse.Ok {:n n}
-            (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => Ok n=" (:wat::i64::to-string n)))]
-          [:probe::WireKind::CountResponse.RequestTooLarge {:bytes _b :cap _c} (:wat::kernel::println "ISOLATOR count THREAD      => REQUEST-TOO-LARGE")]
-          [:probe::WireKind::CountResponse.RequestMalformed {:path p :expected expected :got got}
-            (:wat::core::do
-              (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => REQUEST-MALFORMED expected=" expected " got=" got))
-              (:wat::kernel::println p))])]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => LOST " (:wat::kernel::LociDiedError/message cause)))]
-      [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED")]
-      [:wat::kernel::RecvOutcome.Closed {}  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")])))
+(wat.core/defn probe/run-count-thread [] :- wat.type/nil
+  (wat.core/let
+    [h (probe.wirekindsvc/start :locus (wat.spawn/thread) :record (probe.wirekindsvc/Record :calls 0))
+     c (probe/connect! h)]
+    (wat.core/match (probe.WireKind/count c (probe.WireKind/CountRequest :defs (probe/three-forms)))
+      [wat.kernel/RecvOutcome.Message {:msg resp}
+        (wat.core/match resp
+          [probe.WireKind/CountResponse.Ok {:n n}
+            (wat.kernel/println (wat.string/concat "ISOLATOR count THREAD      => Ok n=" (wat.i64/to-string n)))]
+          [probe.WireKind/CountResponse.RequestTooLarge {:bytes _b :cap _c} (wat.kernel/println "ISOLATOR count THREAD      => REQUEST-TOO-LARGE")]
+          [probe.WireKind/CountResponse.RequestMalformed {:path p :expected expected :got got}
+            (wat.core/do
+              (wat.kernel/println (wat.string/concat "ISOLATOR count THREAD      => REQUEST-MALFORMED expected=" expected " got=" got))
+              (wat.kernel/println p))])]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/println (wat.string/concat "ISOLATOR count THREAD      => LOST " (wat.kernel.LociDiedError/message cause)))]
+      [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/println "ISOLATOR count THREAD      => STOPPED")]
+      [wat.kernel/RecvOutcome.Closed {}  (wat.kernel/println "ISOLATOR count THREAD      => CLOSED")])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "--- what a Vector<WatAST> LOOKS like to println ---")
-    (:wat::kernel::println (:probe::three-forms))
-    (:wat::kernel::println "--- and one bare WatAST ---")
-    (:wat::kernel::println (:wat::core::quote (:wat::core::defrecord :usr::A [c <- wat.type/i64])))
-    (:probe::run-echo)
-    (:probe::run-count)
-    (:probe::run-count-thread)
-    (:wat::kernel::println "READ: echo Ok + count Ok => the wire carries WatAST. echo Ok + count LOST => it does not. echo LOST => the shape is wrong and this proves nothing.")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "--- what a Vector<WatAST> LOOKS like to println ---")
+    (wat.kernel/println (probe/three-forms))
+    (wat.kernel/println "--- and one bare WatAST ---")
+    (wat.kernel/println (wat.core/quote (wat.core/defrecord usr/A [c :- wat.type/i64])))
+    (probe/run-echo)
+    (probe/run-count)
+    (probe/run-count-thread)
+    (wat.kernel/println "READ: echo Ok + count Ok => the wire carries WatAST. echo Ok + count LOST => it does not. echo LOST => the shape is wrong and this proves nothing.")))

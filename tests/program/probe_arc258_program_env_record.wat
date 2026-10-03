@@ -5,11 +5,11 @@
 ;; :wat::program::Env is a plain flat record; user-type inheritance is rejected at parse time.
 
 ;; c01: construct base program::Env with started-at=5000, read epoch-millis of started-at.
-(:wat::core::defn :probe::c01-compute [] -> wat.type/i64
-  (:wat::time::epoch-millis
-    (:wat::program::Env/started-at
-      (:wat::program::Env
-        :started-at (:wat::time::at-millis 5000)
-        :peer-started-at (:wat::time::at-millis 0)
-        :process-id 0 :os-thread-id 0 :peer-kind :wat::program::PeerKind.process :cpu-count 1
-        :user-data (:wat::program::EmptyEnv)))))
+(wat.core/defn probe/c01-compute [] :- wat.type/i64
+  (wat.time/epoch-millis
+    (wat.program.Env/started-at
+      (wat.program/Env
+        :started-at (wat.time/at-millis 5000)
+        :peer-started-at (wat.time/at-millis 0)
+        :process-id 0 :os-thread-id 0 :peer-kind wat.program/PeerKind.process :cpu-count 1
+        :user-data (wat.program/EmptyEnv)))))

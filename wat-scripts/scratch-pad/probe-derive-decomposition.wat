@@ -16,90 +16,90 @@
 ;; stdin  = [items]   (same shape as fanout.wat: keys = items / fanout^2, fanout = 20)
 ;; stdout = one #probe/DeriveSplit EDN line. It asserts nothing; the disk decides.
 
-(:wat::core::defrecord :dd::Left  [key <- wat.type/i64  lid <- wat.type/i64])
-(:wat::core::defrecord :dd::Right [key <- wat.type/i64  rid <- wat.type/i64])
-(:wat::core::defrecord :dd::Pair  [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64])
+(wat.core/defrecord dd/Left  [key :- wat.type/i64  lid :- wat.type/i64])
+(wat.core/defrecord dd/Right [key :- wat.type/i64  rid :- wat.type/i64])
+(wat.core/defrecord dd/Pair  [key :- wat.type/i64  lid :- wat.type/i64  rid :- wat.type/i64])
 
-(:wat::core::defrecord :probe::DeriveSplit
-  [derived-count <- wat.type/i64
-   fire-ns       <- wat.type/i64
-   query-ns      <- wat.type/i64
-   map-ns        <- wat.type/i64
-   sort-ns       <- wat.type/i64
-   pvec-ns       <- wat.type/i64])
+(wat.core/defrecord probe/DeriveSplit
+  [derived-count :- wat.type/i64
+   fire-ns       :- wat.type/i64
+   query-ns      :- wat.type/i64
+   map-ns        :- wat.type/i64
+   sort-ns       :- wat.type/i64
+   pvec-ns       :- wat.type/i64])
 
-(:wat::rete::defquery :dd::q-Pair
+(wat.rete/defquery dd/q-Pair
   :params []
-  :when [(?fact :- :dd::Pair)])
+  :when [(?fact :- dd/Pair)])
 
 
-(:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn dd/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :dd::enc [key <- wat.type/i64  lid <- wat.type/i64  rid <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ (:wat::i64::+ (:wat::i64::* key 1000000) (:wat::i64::* lid 1000)) rid))
+(wat.core/defn dd/enc [key :- wat.type/i64  lid :- wat.type/i64  rid :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ (wat.i64/+ (wat.i64/* key 1000000) (wat.i64/* lid 1000)) rid))
 
-(:wat::core::defn :dd::seed-key [s <- :wat::rete::Session  k <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:dd::Left :key k :lid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:dd::Right :key k :rid f)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn dd/seed-key [s :- wat.rete/Session  k :- wat.type/i64  fanout :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  f :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/insert acc (dd/Left :key k :lid f)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (dd/Right :key k :rid f)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
     s
-    (:wat::core::range 0 fanout)))
+    (wat.core/range 0 fanout)))
 
-(:wat::core::defn :dd::seed [s <- :wat::rete::Session  keys <- wat.type/i64  fanout <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-      (:dd::seed-key acc k fanout))
+(wat.core/defn dd/seed [s :- wat.rete/Session  keys :- wat.type/i64  fanout :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+      (dd/seed-key acc k fanout))
     s
-    (:wat::core::range 0 keys)))
+    (wat.core/range 0 keys)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [params (:wat::core::match (:wat::kernel::readln )
-              [:wat::kernel::ReadlnOutcome.Datum {:v __d} __d]
-              [:wat::kernel::ReadlnOutcome.Eof {}     (:wat::kernel::assertion-failed! :message "readln: eof")]
-              [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop")])
-     items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [params (wat.core/match (wat.kernel/readln )
+              [wat.kernel/ReadlnOutcome.Datum {:v __d} __d]
+              [wat.kernel/ReadlnOutcome.Eof {}     (wat.kernel/assertion-failed! :message "readln: eof")]
+              [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop")])
+     items   (wat.core.Option/expect (wat.core/get params 0) "stdin: [items]")
      fanout  20
-     keys    (:wat::i64::/ items (:wat::i64::* fanout fanout))
-     c1      (:wat::core::quote (:dd::Left  (?k :- :key) (?l :- :lid)))
-     c2      (:wat::core::quote (:dd::Right (?k :- :key) (?r :- :rid)))
-     rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))
-     rule    (:wat::rete::Rule :name "dd" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))
-     staged  (:dd::seed (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] rule) (wat.type/PersistentVector :- [:wat::rete::Query] (:dd::q-Pair))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) keys fanout)
+     keys    (wat.i64// items (wat.i64/* fanout fanout))
+     c1      (wat.core/quote (dd/Left  (?k :- :key) (?l :- :lid)))
+     c2      (wat.core/quote (dd/Right (?k :- :key) (?r :- :rid)))
+     rhs     (wat.core/quote (dd/Pair ?k ?l ?r))
+     rule    (wat.rete/Rule :name "dd" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2) :rhs (wat.type/PersistentVector :- [wat.type/AST] rhs))
+     staged  (dd/seed (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] rule) (wat.type/PersistentVector :- [wat.rete/Query] (dd/q-Pair))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) keys fanout)
 
-     f0      (:wat::time::now)
-     fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     f1      (:wat::time::now)
+     f0      (wat.time/now)
+     fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     f1      (wat.time/now)
 
      ;; ── the derive, stage by stage ──────────────────────────────────────────────────────
      ;; NOTE: `query-by-type-string` returns a PersistentVector, and `into` has a (PV,Vector)
      ;; clause but NOT its mirror (Vector,PV) — so this cannot be materialised into a Vector
      ;; without the very asymmetry DESIGN-STONE-into-pv-from-vector.md left owed. Map directly.
-     q0      (:wat::time::now)
-     pairs   (:wat::rete::query fired (:dd::q-Pair))
-     q1      (:wat::time::now)
+     q0      (wat.time/now)
+     pairs   (wat.rete/query fired (dd/q-Pair))
+     q1      (wat.time/now)
 
-     m0      (:wat::time::now)
-     codes   (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-               (:wat::core::map
-                 (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
+     m0      (wat.time/now)
+     codes   (wat.core/into (wat.type/Vector :- [wat.type/i64])
+               (wat.core/map
+                 (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64 (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")] (dd/enc (dd.Pair/key f) (dd.Pair/lid f) (dd.Pair/rid f))))
                  pairs))
-     m1      (:wat::time::now)
+     m1      (wat.time/now)
 
-     s0      (:wat::time::now)
-     sorted  (:wat::core::sort codes)
-     s1      (:wat::time::now)
+     s0      (wat.time/now)
+     sorted  (wat.core/sort codes)
+     s1      (wat.time/now)
 
-     p0      (:wat::time::now)
-     pv      (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) sorted)
-     p1      (:wat::time::now)]
+     p0      (wat.time/now)
+     pv      (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) sorted)
+     p1      (wat.time/now)]
 
-    (:wat::kernel::println
-      (:probe::DeriveSplit
-        :derived-count (:wat::core::length pv)   ; non-vacuity: a zero here means nothing was derived
-        :fire-ns  (:dd::ns-between f0 f1)
-        :query-ns (:dd::ns-between q0 q1)
-        :map-ns   (:dd::ns-between m0 m1)
-        :sort-ns  (:dd::ns-between s0 s1)
-        :pvec-ns  (:dd::ns-between p0 p1)))))
+    (wat.kernel/println
+      (probe/DeriveSplit
+        :derived-count (wat.core/length pv)   ; non-vacuity: a zero here means nothing was derived
+        :fire-ns  (dd/ns-between f0 f1)
+        :query-ns (dd/ns-between q0 q1)
+        :map-ns   (dd/ns-between m0 m1)
+        :sort-ns  (dd/ns-between s0 s1)
+        :pvec-ns  (dd/ns-between p0 p1)))))

@@ -60,25 +60,25 @@
 ;;    which is a vacuous gate. The kwargs macro is the ONLY spelling that must have
 ;;    been registered during expansion for this body to expand at all.
 
-(:wat::core::defsurface :probe::Chan :nature :wat::kernel::Peer
+(wat.core/defsurface probe/Chan :nature wat.kernel/Peer
   :messages
   ;; `Tally` is declared HERE and nowhere else. Its kwargs companion can only exist
   ;; if the surface's hoist registered it.
-  [(:wat::core::defrecord :probe::Chan::Tally [n <- wat.type/i64])
-   (:wat::core::defrecord :probe::Chan::CountRequest [])
-   (:wat::core::defenum :probe::Chan::CountResponse :wat::enum::Pure
-     :Ok               [tally <- :probe::Chan::Tally]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String
-                        got <- wat.type/String])]
+  [(wat.core/defrecord probe.Chan/Tally [n :- wat.type/i64])
+   (wat.core/defrecord probe.Chan/CountRequest [])
+   (wat.core/defenum probe.Chan/CountResponse wat.enum/Pure
+     :Ok               [tally :- probe.Chan/Tally]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String
+                        got :- wat.type/String])]
   :features
-  [(count [self <- :probe::Chan  req <- :probe::Chan::CountRequest]
-     -> :probe::Chan::CountResponse :max-request-bytes 4096)])
+  [(count [self :- probe/Chan  req :- probe.Chan/CountRequest]
+     :- probe.Chan/CountResponse :max-request-bytes 4096)])
 
-(:wat::service::defservice :probe::chan-svc
-  :satisfies :probe::Chan
-  :durable   [seen <- wat.type/i64]
+(wat.service/defservice probe/chan-svc
+  :satisfies probe/Chan
+  :durable   [seen :- wat.type/i64]
   :ephemeral []
   :impls
   ;; ★ THE ASSERTION IS THIS BODY EXPANDING AT ALL. `(:probe::Chan::Tally :n …)` is the
@@ -86,6 +86,6 @@
   ;; hoisted. A defservice is a separate top-level form, so reaching it here means the
   ;; write crossed the boundary on the same registry instance — past `scratch.clone()`.
   [(count [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::Chan::CountResponse.Ok
-         {:tally (:probe::Chan::Tally :n (:probe::chan-svc::Record/seen (:probe::chan-svc::State/durable s)))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.Chan/CountResponse.Ok
+         {:tally (probe.Chan/Tally :n (probe.chan-svc.Record/seen (probe.chan-svc.State/durable s)))})}))])

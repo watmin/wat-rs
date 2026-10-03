@@ -47,67 +47,67 @@
 ;; `src/` flip lands SECOND. Rewriting in the other order leaves no working binary to rewrite with.
 
 ;; ── helpers (mirrored from wrap-client-method-match-in-recvoutcome.wat) ──────────
-(:wat::core::defn :user::start-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
+(wat.core/defn user/start-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> wat.type/i64
-  (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
+(wat.core/defn user/end-off [n :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- wat.type/i64
+  (wat.fix/fix-text-offset-of (wat.core/ast-end-span n) lines))
 
-(:wat::core::defn :user::kw-name [n <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
-    (:wat::core::ast-name n) ""))
+(wat.core/defn user/kw-name [n :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind n) "keyword")
+    (wat.core/ast-name n) ""))
 
 ;; arm-head-name — an arm is `(pattern body…)`; if pattern is a list, its head keyword's name.
-(:wat::core::defn :user::arm-head-name [arm <- wat.type/AST] -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind arm) "list")
-    (:wat::core::let [ch (:wat::core::ast->children arm)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/arm-head-name [arm :- wat.type/AST] :- wat.type/String
+  (wat.core/if (wat.core/= (wat.core/ast-kind arm) "list")
+    (wat.core/let [ch (wat.core/ast->children arm)]
+      (wat.core/if (wat.core/empty? ch)
         ""
-        (:wat::core::let [pat (:wat::core::first ch)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind pat) "list")
-            (:wat::core::let [pch (:wat::core::ast->children pat)]
-              (:wat::core::if (:wat::core::empty? pch) "" (:user::kw-name (:wat::core::first pch))))
-            (:user::kw-name pat)))))     ;; a UNIT-variant arm's pattern is a BARE keyword
+        (wat.core/let [pat (wat.core/first ch)]
+          (wat.core/if (wat.core/= (wat.core/ast-kind pat) "list")
+            (wat.core/let [pch (wat.core/ast->children pat)]
+              (wat.core/if (wat.core/empty? pch) "" (user/kw-name (wat.core/first pch))))
+            (user/kw-name pat)))))     ;; a UNIT-variant arm's pattern is a BARE keyword
     ""))
 
-(:wat::core::defn :user::any-arm-head-contains?
-  [arms <- (wat.type/Vector :- [wat.type/AST])  needle <- wat.type/String] -> wat.type/bool
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/bool  arm <- wat.type/AST] -> wat.type/bool
-      (:wat::core::if acc true
-        (:wat::string::contains? (:user::arm-head-name arm) needle)))
+(wat.core/defn user/any-arm-head-contains?
+  [arms :- (wat.type/Vector :- [wat.type/AST])  needle :- wat.type/String] :- wat.type/bool
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/bool  arm :- wat.type/AST] :- wat.type/bool
+      (wat.core/if acc true
+        (wat.string/contains? (user/arm-head-name arm) needle)))
     false arms))
 
 ;; read-string-call? — a list whose head keyword is exactly `:wat::core::read-string`.
-(:wat::core::defn :user::read-string-call? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/read-string-call? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::core::read-string")))
+        (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::core::read-string")))
     false))
 
 ;; already-wrapped? — a `match` whose arms already name ReadOutcome:: (our own prior output).
-(:wat::core::defn :user::already-wrapped? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
+(wat.core/defn user/already-wrapped? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/< (wat.core/length ch) 3)
         false
-        (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::first ch)) ":wat::core::match")
-          (:user::any-arm-head-contains? (:wat::core::into [] (:wat::core::drop ch 2)) "ReadOutcome::")
+        (wat.core/if (wat.core/= (user/kw-name (wat.core/first ch)) ":wat::core::match")
+          (user/any-arm-head-contains? (wat.core/into [] (wat.core/drop ch 2)) "ReadOutcome::")
           false)))
     false))
 
 ;; ── EDIT: two inserts — `(match ` before the call, the two arms + `)` after it ────
-(:wat::core::defn :user::wrap-edits
-  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/wrap-edits
+  [node :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
-    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::start-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (user/start-off node lines) ""
       "(:wat::core::match ")
-    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (:user::end-off node lines) ""
+    (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] (user/end-off node lines) ""
       " ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))")))
 
 ;; walk one node → its edits + its descendants'.
@@ -115,56 +115,56 @@
 ;; The idempotency cut lives HERE, not in the matcher: for an already-wrapped match we skip child[1]
 ;; (the scrutinee we produced last run) and walk the rest, so a read-string nested inside an ARM body
 ;; is still reachable. Skipping the whole node would strand those.
-(:wat::core::defn :user::node-edits
-  [node <- wat.type/AST  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::already-wrapped? node)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:user::seq-edits
-        (:wat::core::concat
-          (:wat::core::into [] (:wat::core::take ch 1))
-          (:wat::core::into [] (:wat::core::drop ch 2)))
+(wat.core/defn user/node-edits
+  [node :- wat.type/AST  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/already-wrapped? node)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (user/seq-edits
+        (wat.core/concat
+          (wat.core/into [] (wat.core/take ch 1))
+          (wat.core/into [] (wat.core/drop ch 2)))
         lines))
-    (:wat::core::let
-      [this (:wat::core::if (:user::read-string-call? node)
-              (:user::wrap-edits node lines)
+    (wat.core/let
+      [this (wat.core/if (user/read-string-call? node)
+              (user/wrap-edits node lines)
               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]))]
-      (:wat::core::if (:wat::fix::structural? node)
-        (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
+      (wat.core/if (wat.fix/structural? node)
+        (wat.core/concat this (user/seq-edits (wat.core/ast->children node) lines))
         this))))
 
-(:wat::core::defn :user::seq-edits
-  [items <- (wat.type/Vector :- [wat.type/AST])  lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it <- wat.type/AST]
-      -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
+(wat.core/defn user/seq-edits
+  [items :- (wat.type/Vector :- [wat.type/AST])  lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]) it :- wat.type/AST]
+      :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+      (wat.core/concat acc (user/node-edits it lines)))
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [lines (:wat::string::split src "\n")
-     forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))]))
-     eds   (:user::seq-edits forms lines)
-     rev   (:wat::core::reverse (:wat::core::sort eds))]
-    (:wat::fix::fix-text-apply src rev)))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [lines (wat.string/split src "\n")
+     forms (wat.core/ast->children (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))]))
+     eds   (user/seq-edits forms lines)
+     rev   (wat.core/reverse (wat.core/sort eds))]
+    (wat.fix/fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let
-      [path (:wat::core::first paths)
-       src  (:wat::io::read-file path)
-       out  (:user::migrate src)]
-      (:wat::core::do
-        (:wat::core::if (:wat::core::= src out)
+    (wat.core/let
+      [path (wat.core/first paths)
+       src  (wat.io/read-file path)
+       out  (user/migrate src)]
+      (wat.core/do
+        (wat.core/if (wat.core/= src out)
           nil
-          (:wat::io::write-file path out))
-        (:user::apply-each (:wat::core::into [] (:wat::core::rest paths)))))))
+          (wat.io/write-file path out))
+        (user/apply-each (wat.core/into [] (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

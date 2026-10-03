@@ -14,17 +14,17 @@
 ;; still fires for a process locus — so this file's claim is unchanged: the same peer-pid Some
 ;; branch and the same grant/revoke path execute.
 ;; CLAIM: both the process pool (pr) and the thread pool (tr) return [2 4 6 8 10].
-(:wat::core::defn :probe::double [n <- wat.type/i64] -> wat.type/i64 (:wat::i64::* n 2))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn probe/double [n :- wat.type/i64] :- wat.type/i64 (wat.i64/* n 2))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [nums (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
      expected (wat.type/Vector :- [wat.type/i64] 2 4 6 8 10)
      ;; process/grants with an EMPTY grantable vector → process locus, peer-pid Some, no-op fold
-     pr (:wat::bracket::map (:wat::spawn::process) nums :probe::double)
-     tr (:wat::bracket::map (:wat::spawn::thread) nums :probe::double)]
-    (:wat::core::do
-      (:wat::test::assert-eq pr expected)
-      (:wat::test::assert-eq tr expected)
-      (:wat::kernel::println
-        (:wat::string::concat (:wat::edn::write pr)
-          (:wat::string::concat " " (:wat::edn::write tr)))))))
+     pr (wat.bracket/map (wat.spawn/process) nums probe/double)
+     tr (wat.bracket/map (wat.spawn/thread) nums probe/double)]
+    (wat.core/do
+      (wat.test/assert-eq pr expected)
+      (wat.test/assert-eq tr expected)
+      (wat.kernel/println
+        (wat.string/concat (wat.edn/write pr)
+          (wat.string/concat " " (wat.edn/write tr)))))))

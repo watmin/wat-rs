@@ -14,29 +14,29 @@
 ;; ("sequence has fewer than 1 element(s)"), which is exactly the red this session hit in
 ;; corpus-03. Every call site is a place that can raise; every mention is not.
 
-(:wat::core::defrecord :hp::IsHead [id <- wat.type/i64])
+(wat.core/defrecord hp/IsHead [id :- wat.type/i64])
 
 ;; a node in head position — index 0 of its parent form
-(:wat::rete::defrule :hp::head
-  :when [(:wat::grep::Node (?id :- :id) (?k :- :kind) (?i :- :index))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Keyword {})))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))]
-  :then [(:hp::IsHead :id ?id)])
+(wat.rete/defrule hp/head
+  :when [(wat.grep/Node (?id :- :id) (?k :- :kind) (?i :- :index))
+         (wat.rete/where (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Keyword {})))
+         (wat.rete/where (wat.rete.i64/= ?i 0))]
+  :then [(hp/IsHead :id ?id)])
 
 ;; ...whose name is the partial verb
-(:wat::rete::defrule :hp::calls-first
-  :when [(:hp::IsHead (?id :- :id))
-         (:wat::grep::Named (?id :- :id) (?n :- :name) (:wat::rete::string::= ?n "wat.core/first"))
-         (:wat::grep::Span  (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))]
-  :then [(:wat::grep::Match
+(wat.rete/defrule hp/calls-first
+  :when [(hp/IsHead (?id :- :id))
+         (wat.grep/Named (?id :- :id) (?n :- :name) (wat.rete.string/= ?n "wat.core/first"))
+         (wat.grep/Span  (?id :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))]
+  :then [(wat.grep/Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "calls-a-partial-verb"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "verb" :value ?n)))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "verb" :value ?n)))])
 
 ;; `collect-rules` reflects the symbol table for every zero-arg fn in `hp::` whose return type is
 ;; `:wat::rete::Rule` — the marker `defrule` plants. A hand-written vector would be a second list
 ;; of the same rules, and a rule added later would silently not run.
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :hp))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :hp))

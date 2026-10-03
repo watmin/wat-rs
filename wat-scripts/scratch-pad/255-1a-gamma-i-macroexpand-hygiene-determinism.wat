@@ -14,17 +14,17 @@
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral
 ;; session tmp).
 
-(:wat::core::defmacro :probe::twice [x <- wat.type/AST] -> wat.type/AST
-  `(:wat::core::let [tmp ~x] (:wat::i64::+ tmp tmp)))
+(wat.core/defmacro probe/twice [x :- wat.type/AST] :- wat.type/AST
+  `(wat.core/let [tmp ~x] (wat.i64/+ tmp tmp)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [form1 (:wat::core::macroexpand-1 (:wat::core::quote (:probe::twice 5)))
-     form2 (:wat::core::macroexpand-1 (:wat::core::quote (:probe::twice 5)))]
-    (:wat::core::do
-      (:wat::kernel::println "form1 (write-forms):")
-      (:wat::kernel::println (:wat::core::write-forms form1))
-      (:wat::kernel::println "form2 (write-forms):")
-      (:wat::kernel::println (:wat::core::write-forms form2))
-      (:wat::kernel::println "form1 = form2 ?  (expect true if deterministic)")
-      (:wat::kernel::println (:wat::core::= form1 form2)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [form1 (wat.core/macroexpand-1 (wat.core/quote (probe/twice 5)))
+     form2 (wat.core/macroexpand-1 (wat.core/quote (probe/twice 5)))]
+    (wat.core/do
+      (wat.kernel/println "form1 (write-forms):")
+      (wat.kernel/println (wat.core/write-forms form1))
+      (wat.kernel/println "form2 (write-forms):")
+      (wat.kernel/println (wat.core/write-forms form2))
+      (wat.kernel/println "form1 = form2 ?  (expect true if deterministic)")
+      (wat.kernel/println (wat.core/= form1 form2)))))

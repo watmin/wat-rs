@@ -50,46 +50,46 @@
 
 ;; literal-replace — substring replace via split+join (no dedicated string::replace primitive
 ;; exists in wat core). `old` must be non-empty (string::split rejects an empty separator).
-(:wat::core::defn :user::literal-replace
-  [src <- wat.type/String  old <- wat.type/String  new <- wat.type/String] -> wat.type/String
-  (:wat::string::join new (:wat::string::split src old)))
+(wat.core/defn user/literal-replace
+  [src :- wat.type/String  old :- wat.type/String  new :- wat.type/String] :- wat.type/String
+  (wat.string/join new (wat.string/split src old)))
 
-(:wat::core::defn :user::migrate-field
-  [src <- wat.type/String  bare-old <- wat.type/String  bare-new <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::let
-    [kw-old  (:wat::string::concat ":" bare-old)
-     kw-new  (:wat::string::concat ":" bare-new)
-     acc-old (:wat::string::concat ":wat::program::Env/" bare-old)
-     acc-new (:wat::string::concat ":wat::program::Env/" bare-new)
-     s1      (:wat::fix::rename-symbol-exact bare-old bare-new src)
-     s2      (:wat::fix::rename-keyword-exact kw-old kw-new s1)
-     s3      (:wat::fix::rename-keyword-exact acc-old acc-new s2)
-     s4      (:user::literal-replace s3 bare-old bare-new)]
+(wat.core/defn user/migrate-field
+  [src :- wat.type/String  bare-old :- wat.type/String  bare-new :- wat.type/String]
+  :- wat.type/String
+  (wat.core/let
+    [kw-old  (wat.string/concat ":" bare-old)
+     kw-new  (wat.string/concat ":" bare-new)
+     acc-old (wat.string/concat ":wat::program::Env/" bare-old)
+     acc-new (wat.string/concat ":wat::program::Env/" bare-new)
+     s1      (wat.fix/rename-symbol-exact bare-old bare-new src)
+     s2      (wat.fix/rename-keyword-exact kw-old kw-new s1)
+     s3      (wat.fix/rename-keyword-exact acc-old acc-new s2)
+     s4      (user/literal-replace s3 bare-old bare-new)]
     s4))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [s1 (:user::migrate-field src "wat.started-at" "started-at")
-     s2 (:user::migrate-field s1  "wat.peer-started-at" "peer-started-at")
-     s3 (:user::migrate-field s2  "wat.process-id" "process-id")
-     s4 (:user::migrate-field s3  "wat.os-thread-id" "os-thread-id")
-     s5 (:user::migrate-field s4  "wat.peer-kind" "peer-kind")
-     s6 (:user::migrate-field s5  "wat.cpu-count" "cpu-count")
-     s7 (:user::migrate-field s6  "user.program" "user-data")]
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [s1 (user/migrate-field src "wat.started-at" "started-at")
+     s2 (user/migrate-field s1  "wat.peer-started-at" "peer-started-at")
+     s3 (user/migrate-field s2  "wat.process-id" "process-id")
+     s4 (user/migrate-field s3  "wat.os-thread-id" "os-thread-id")
+     s5 (user/migrate-field s4  "wat.peer-kind" "peer-kind")
+     s6 (user/migrate-field s5  "wat.cpu-count" "cpu-count")
+     s7 (user/migrate-field s6  "user.program" "user-data")]
     s7))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[env-dot-drop] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[env-dot-drop] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

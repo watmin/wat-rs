@@ -9,7 +9,7 @@
 ;; 0" gate does not require it), driven by
 ;; `tests/process/probe_arc255_75_negative_probes.rs`, asserting the TypeMismatch names
 ;; `:wat::kernel::fn-forms` and `:no::such::fn`, and that "should not reach here" never prints.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [forms (:wat::kernel::fn-forms (:wat::keyword::from-string "no::such::fn") :x)]
-    (:wat::kernel::println "should not reach here")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [forms (wat.kernel/fn-forms (wat.keyword/from-string "no::such::fn") :x)]
+    (wat.kernel/println "should not reach here")))

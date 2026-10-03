@@ -20,37 +20,37 @@
 ;;
 ;; Not a permanent fixture — delete once this stone's floor/probe evidence is recorded.
 
-(:wat::core::defn :user::pure-surface [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/pure-surface [] :- wat.type/nil
+  (wat.core/do
     ;; sort/1 — default `<` comparator (wat/core.wat's own inline fn wrapping `<`).
-    (:wat::kernel::println
-      (:wat::core::sort (wat.type/Vector :- [wat.type/i64] 3 1 2)))
+    (wat.kernel/println
+      (wat.core/sort (wat.type/Vector :- [wat.type/i64] 3 1 2)))
     ;; sort/2 — user-supplied comparator (descending), still pure ∧ deterministic.
-    (:wat::kernel::println
-      (:wat::core::sort
-        (:wat::core::fn [a <- wat.type/i64
-                         b <- wat.type/i64] -> wat.type/bool
-          (:wat::core::> a b))
+    (wat.kernel/println
+      (wat.core/sort
+        (wat.core/fn [a :- wat.type/i64
+                         b :- wat.type/i64] :- wat.type/bool
+          (wat.core/> a b))
         (wat.type/Vector :- [wat.type/i64] 3 1 2)))
     ;; sort-by — pure key fn (negation), 2-ary — the accessor-keyfn SHAPE
     ;; `wat/query/mem.wat`'s live callers use, minus the record.
-    (:wat::kernel::println
-      (:wat::core::sort-by
-        (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-          (:wat::core::- 0 x))
+    (wat.kernel/println
+      (wat.core/sort-by
+        (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+          (wat.core/- 0 x))
         (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
 
-(:wat::core::defn :user::effectful [] -> wat.type/nil
-  (:wat::core::let
-    [cmp (:wat::core::fn [a <- wat.type/i64
-                          b <- wat.type/i64] -> wat.type/bool
-           (:wat::core::do
-             (:wat::kernel::println "SIDE-EFFECT-FROM-COMPARATOR")
-             (:wat::core::< a b)))]
-    (:wat::kernel::println
-      (:wat::core::sort$native cmp (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
+(wat.core/defn user/effectful [] :- wat.type/nil
+  (wat.core/let
+    [cmp (wat.core/fn [a :- wat.type/i64
+                          b :- wat.type/i64] :- wat.type/bool
+           (wat.core/do
+             (wat.kernel/println "SIDE-EFFECT-FROM-COMPARATOR")
+             (wat.core/< a b)))]
+    (wat.kernel/println
+      (wat.core/sort$native cmp (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:user::pure-surface)
-    (:user::effectful)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (user/pure-surface)
+    (user/effectful)))

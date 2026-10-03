@@ -25,12 +25,12 @@
 ;; Hand-written equivalent: (:wat::i64::- 10 3).
 ;; Asserts: threaded result == hand-written result.
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-first-list-step
+(wat.test/deftest wat-tests.core.core-threading/thread-first-list-step
   
-  (:wat::core::let
-    [threaded (:wat::core::-> 10 (:wat::i64::- 3))
-     direct   (:wat::i64::- 10 3)]
-    (:wat::test::assert-eq threaded direct)))
+  (wat.core/let
+    [threaded (wat.core/-> 10 (wat.i64/- 3))
+     direct   (wat.i64/- 10 3)]
+    (wat.test/assert-eq threaded direct)))
 
 ;; ─── Thread-first: two list steps ────────────────────────────────────────
 ;;
@@ -39,14 +39,14 @@
 ;;   step 2: (i64::* 7 2)  = 14
 ;; Hand-written: (:wat::i64::* (:wat::i64::- 10 3) 2) = 14.
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-first-two-list-steps
+(wat.test/deftest wat-tests.core.core-threading/thread-first-two-list-steps
   
-  (:wat::core::let
-    [threaded (:wat::core::-> 10
-                (:wat::i64::- 3)
-                (:wat::i64::* 2))
-     direct   (:wat::i64::* (:wat::i64::- 10 3) 2)]
-    (:wat::test::assert-eq threaded direct)))
+  (wat.core/let
+    [threaded (wat.core/-> 10
+                (wat.i64/- 3)
+                (wat.i64/* 2))
+     direct   (wat.i64/* (wat.i64/- 10 3) 2)]
+    (wat.test/assert-eq threaded direct)))
 
 ;; ─── Thread-last: multi-arg list step ────────────────────────────────────
 ;;
@@ -54,12 +54,12 @@
 ;; Contrast with thread-first (10 - 3 = 7 vs 3 - 5 = -2).
 ;; Hand-written equivalent: (:wat::i64::- 3 5).
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-last-list-step
+(wat.test/deftest wat-tests.core.core-threading/thread-last-list-step
   
-  (:wat::core::let
-    [threaded (:wat::core::->> 5 (:wat::i64::- 3))
-     direct   (:wat::i64::- 3 5)]
-    (:wat::test::assert-eq threaded direct)))
+  (wat.core/let
+    [threaded (wat.core/->> 5 (wat.i64/- 3))
+     direct   (wat.i64/- 3 5)]
+    (wat.test/assert-eq threaded direct)))
 
 ;; ─── Thread-last: two list steps ─────────────────────────────────────────
 ;;
@@ -68,14 +68,14 @@
 ;;   step 2: (i64::* 4 3) = 12
 ;; Hand-written: (:wat::i64::* 4 (:wat::i64::+ 2 1)) = 12.
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-last-two-list-steps
+(wat.test/deftest wat-tests.core.core-threading/thread-last-two-list-steps
   
-  (:wat::core::let
-    [threaded (:wat::core::->> 1
-                (:wat::i64::+ 2)
-                (:wat::i64::* 4))
-     direct   (:wat::i64::* 4 (:wat::i64::+ 2 1))]
-    (:wat::test::assert-eq threaded direct)))
+  (wat.core/let
+    [threaded (wat.core/->> 1
+                (wat.i64/+ 2)
+                (wat.i64/* 4))
+     direct   (wat.i64/* 4 (wat.i64/+ 2 1))]
+    (wat.test/assert-eq threaded direct)))
 
 ;; ─── Thread-first vs thread-last: asymmetry proof ────────────────────────
 ;;
@@ -84,12 +84,12 @@
 ;; (->> 5 (i64::- 3)) = (i64::- 3 5) = -2
 ;; assert 2 ≠ -2 (i.e. results differ).
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-first-vs-last-asymmetry
+(wat.test/deftest wat-tests.core.core-threading/thread-first-vs-last-asymmetry
   
-  (:wat::core::let
-    [tf  (:wat::core::-> 5 (:wat::i64::- 3))
-     tl  (:wat::core::->> 5 (:wat::i64::- 3))]
-    (:wat::test::assert-eq (:wat::core::= tf tl) false)))
+  (wat.core/let
+    [tf  (wat.core/-> 5 (wat.i64/- 3))
+     tl  (wat.core/->> 5 (wat.i64/- 3))]
+    (wat.test/assert-eq (wat.core/= tf tl) false)))
 
 ;; ─── Thread-first: bare keyword step ─────────────────────────────────────
 ;;
@@ -97,15 +97,15 @@
 ;; (-> 3 :wat-tests::core::core-threading::inc1)
 ;;   => (:wat-tests::core::core-threading::inc1 3) = 4.
 
-(:wat::core::defn :wat-tests::core::core-threading::inc1
-  [x <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ x 1))
+(wat.core/defn wat-tests.core.core-threading/inc1
+  [x :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ x 1))
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-first-bare-step
+(wat.test/deftest wat-tests.core.core-threading/thread-first-bare-step
   
-  (:wat::core::let
-    [result (:wat::core::-> 3 :wat-tests::core::core-threading::inc1)]
-    (:wat::test::assert-eq result 4)))
+  (wat.core/let
+    [result (wat.core/-> 3 wat-tests.core.core-threading/inc1)]
+    (wat.test/assert-eq result 4)))
 
 ;; ─── Thread-last: bare keyword step ──────────────────────────────────────
 ;;
@@ -113,15 +113,15 @@
 ;; (->> 7 :wat-tests::core::core-threading::double)
 ;;   => (:wat-tests::core::core-threading::double 7) = 14.
 
-(:wat::core::defn :wat-tests::core::core-threading::double
-  [x <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::* x 2))
+(wat.core/defn wat-tests.core.core-threading/double
+  [x :- wat.type/i64] :- wat.type/i64
+  (wat.i64/* x 2))
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-last-bare-step
+(wat.test/deftest wat-tests.core.core-threading/thread-last-bare-step
   
-  (:wat::core::let
-    [result (:wat::core::->> 7 :wat-tests::core::core-threading::double)]
-    (:wat::test::assert-eq result 14)))
+  (wat.core/let
+    [result (wat.core/->> 7 wat-tests.core.core-threading/double)]
+    (wat.test/assert-eq result 14)))
 
 ;; ─── Realistic pipeline: WHY threading reads better ──────────────────────
 ;;
@@ -136,34 +136,34 @@
 ;; Threading wins here: reads left-to-right data-flow without mental
 ;; bracket-counting.  Both paths must equal 55.
 
-(:wat::core::defn :wat-tests::core::core-threading::square
-  [n <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::* n n))
+(wat.core/defn wat-tests.core.core-threading/square
+  [n :- wat.type/i64] :- wat.type/i64
+  (wat.i64/* n n))
 
-(:wat::core::defn :wat-tests::core::core-threading::add
-  [a <- wat.type/i64
-   b <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ a b))
+(wat.core/defn wat-tests.core.core-threading/add
+  [a :- wat.type/i64
+   b :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ a b))
 
-(:wat::test::deftest :wat-tests::core::core-threading::pipeline-sum-of-squares
+(wat.test/deftest wat-tests.core.core-threading/pipeline-sum-of-squares
   
   ;; Arc 118.2a — `map` flipped LAZY (returns Stream); `foldl` stays eager/Vector-only, so the
   ;; fold step here becomes `:wat::core::reduce` (same 3-arg shape, Stream-aware) instead —
   ;; `map` stays lazy (consumed exactly once by the fold; no materializer needed).
-  (:wat::core::let
+  (wat.core/let
     [xs      (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5)
      threaded
-       (:wat::core::->> xs
-         (:wat::core::map :wat-tests::core::core-threading::square)
-         (:wat::core::reduce :wat-tests::core::core-threading::add 0))
+       (wat.core/->> xs
+         (wat.core/map wat-tests.core.core-threading/square)
+         (wat.core/reduce wat-tests.core.core-threading/add 0))
      direct
-       (:wat::core::reduce
-         :wat-tests::core::core-threading::add
+       (wat.core/reduce
+         wat-tests.core.core-threading/add
          0
-         (:wat::core::map :wat-tests::core::core-threading::square xs))]
-    (:wat::core::do
-      (:wat::test::assert-eq threaded 55)
-      (:wat::test::assert-eq direct 55))))
+         (wat.core/map wat-tests.core.core-threading/square xs))]
+    (wat.core/do
+      (wat.test/assert-eq threaded 55)
+      (wat.test/assert-eq direct 55))))
 
 ;; ─── Zero-steps identity: -> with no steps returns acc unchanged ──────────
 ;;
@@ -171,15 +171,15 @@
 ;; The steps rest-binder is empty; foldl over empty returns acc unchanged.
 ;; Witnesses the identity law for ->.
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-first-zero-steps-identity
+(wat.test/deftest wat-tests.core.core-threading/thread-first-zero-steps-identity
   
-  (:wat::test::assert-eq (:wat::core::-> 42) 42))
+  (wat.test/assert-eq (wat.core/-> 42) 42))
 
 ;; ─── Zero-steps identity: ->> with no steps returns acc unchanged ────────
 ;;
 ;; (->> x) with no steps: foldl over empty returns the accumulator.
 ;; Symmetric identity law for ->>.
 
-(:wat::test::deftest :wat-tests::core::core-threading::thread-last-zero-steps-identity
+(wat.test/deftest wat-tests.core.core-threading/thread-last-zero-steps-identity
   
-  (:wat::test::assert-eq (:wat::core::->> 42) 42))
+  (wat.test/assert-eq (wat.core/->> 42) 42))

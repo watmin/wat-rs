@@ -23,29 +23,29 @@
 ;; becomes an ArityMismatch error value, identical in kind to row 1's. Re-run it as the
 ;; acceptance instrument; do not rewrite it.
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
-  -> wat.type/String
-  (:wat::core::match r
-    [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
-    [:wat::core::Result.Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
+(wat.core/defn probe/outcome [r :- (wat.core/Result :- [wat.type/Value wat.core/EvalError])]
+  :- wat.type/String
+  (wat.core/match r
+    [wat.core/Result.Ok {:value v}  (wat.string/concat "ok:" (wat.edn/write v))]
+    [wat.core/Result.Err {:error e} (wat.string/concat "err:" (wat.core.EvalError/message e))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; row 1 — THE CONTROL. The AST door, wrong arity: a clean ArityMismatch.
-     _01 (:wat::kernel::println
-           (:wat::string::concat "AST-door  wrong arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 20))))))
+     _01 (wat.kernel/println
+           (wat.string/concat "AST-door  wrong arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote (wat.i64/+ 20))))))
 
      ;; row 2 — the AST door with RIGHT arity, so row 3 cannot be blamed on the verb.
-     _02 (:wat::kernel::println
-           (:wat::string::concat "AST-door  right arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote (:wat::i64::+ 20 22))))))
+     _02 (wat.kernel/println
+           (wat.string/concat "AST-door  right arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote (wat.i64/+ 20 22))))))
 
      ;; row 3 — THE FINDING. Same verb, same wrong arity, through apply.
      ;; TODAY: the process dies here and rows below never print.
      ;; AFTER STONE O: prints `err::wat::i64::+: expected 2 args, got 1` — row 1's text.
-     _03 (:wat::kernel::println
-           (:wat::string::concat "value-door wrong arity: "
-             (:probe::outcome (:wat::eval-ast! (:wat::core::quote
-               (:wat::core::apply :wat::i64::+ (wat.type/Vector :- [wat.type/i64] 20)))))))]
+     _03 (wat.kernel/println
+           (wat.string/concat "value-door wrong arity: "
+             (probe/outcome (wat/eval-ast! (wat.core/quote
+               (wat.core/apply wat.i64/+ (wat.type/Vector :- [wat.type/i64] 20)))))))]
     nil))

@@ -18,58 +18,58 @@
 ;; Put under a Thermometer key at 50.0; probe with 50.01 — a structurally different HolonAST
 ;; (different literal value), coincident by cosine. If this only ever probed with the exact
 ;; stored key, it would prove nothing about the "Holographic" half of the name.
-(:wat::test::deftest :wat-tests::cache::HolographicLru::test-similarity-not-equality
-  (:wat::core::let
+(wat.test/deftest wat-tests.cache.HolographicLru/test-similarity-not-equality
+  (wat.core/let
     [store
-      (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
-     k (:wat::holon::Thermometer 50.0 0.0 100.0)
-     v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru/put store k v)
-     probe (:wat::holon::Thermometer 50.01 0.0 100.0)
-     got (:wat::cache::HolographicLru/get store probe)]
-    (:wat::test::assert-eq got (:wat::core::Option.Some {:value v}))))
+      (wat.cache.HolographicLru/new (wat.holon/filter-coincident) 10)
+     k (wat.holon/Thermometer 50.0 0.0 100.0)
+     v (wat.holon/leaf :answer-for-fifty)
+     _ (wat.cache.HolographicLru/put store k v)
+     probe (wat.holon/Thermometer 50.01 0.0 100.0)
+     got (wat.cache.HolographicLru/get store probe)]
+    (wat.test/assert-eq got (wat.core/Option.Some {:value v}))))
 
 ;; ─── ★ dual eviction — the one that catches a real bug ──────────────────────────────────────
 ;;
 ;; Capacity 2; insert 3 distinct keys — `:c` overflows the LRU and evicts `:a`. Assert `:a` is
 ;; gone from the HOLOGRAM (a `get` miss), not merely absent from the LRU's own bookkeeping. `:b`
 ;; and `:c` must still be present.
-(:wat::test::deftest :wat-tests::cache::HolographicLru::test-dual-eviction
-  (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
-     a (:wat::holon::leaf :a)
-     b (:wat::holon::leaf :b)
-     c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
-     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
-     got-a (:wat::cache::HolographicLru/get store a)
-     got-b (:wat::cache::HolographicLru/get store b)
-     got-c (:wat::cache::HolographicLru/get store c)]
-    (:wat::test::assert-eq got-a :wat::core::Option.None)
-    (:wat::test::assert-eq got-b (:wat::core::Option.Some {:value (:wat::holon::leaf :val-b)}))
-    (:wat::test::assert-eq got-c (:wat::core::Option.Some {:value (:wat::holon::leaf :val-c)}))))
+(wat.test/deftest wat-tests.cache.HolographicLru/test-dual-eviction
+  (wat.core/let
+    [store (wat.cache.HolographicLru/new (wat.holon/filter-coincident) 2)
+     a (wat.holon/leaf :a)
+     b (wat.holon/leaf :b)
+     c (wat.holon/leaf :c)
+     _ (wat.cache.HolographicLru/put store a (wat.holon/leaf :val-a))
+     _ (wat.cache.HolographicLru/put store b (wat.holon/leaf :val-b))
+     _ (wat.cache.HolographicLru/put store c (wat.holon/leaf :val-c))
+     got-a (wat.cache.HolographicLru/get store a)
+     got-b (wat.cache.HolographicLru/get store b)
+     got-c (wat.cache.HolographicLru/get store c)]
+    (wat.test/assert-eq got-a wat.core/Option.None)
+    (wat.test/assert-eq got-b (wat.core/Option.Some {:value (wat.holon/leaf :val-b)}))
+    (wat.test/assert-eq got-c (wat.core/Option.Some {:value (wat.holon/leaf :val-c)}))))
 
 ;; ─── get bumps recency — a hit feeds the LRU's ordering, not just the Hologram's ────────────
 ;;
 ;; Put A then B at cap 2; `get A` (bumping it to MRU); put C — B is evicted, not A, proving
 ;; `Hologram/find`'s matched-key return actually drives the LRU bump inside `get`.
-(:wat::test::deftest :wat-tests::cache::HolographicLru::test-get-bumps-recency
-  (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 2)
-     a (:wat::holon::leaf :a)
-     b (:wat::holon::leaf :b)
-     c (:wat::holon::leaf :c)
-     _ (:wat::cache::HolographicLru/put store a (:wat::holon::leaf :val-a))
-     _ (:wat::cache::HolographicLru/put store b (:wat::holon::leaf :val-b))
-     _ (:wat::cache::HolographicLru/get store a)
-     _ (:wat::cache::HolographicLru/put store c (:wat::holon::leaf :val-c))
-     got-a (:wat::cache::HolographicLru/get store a)
-     got-b (:wat::cache::HolographicLru/get store b)
-     got-c (:wat::cache::HolographicLru/get store c)]
-    (:wat::test::assert-eq got-a (:wat::core::Option.Some {:value (:wat::holon::leaf :val-a)}))
-    (:wat::test::assert-eq got-b :wat::core::Option.None)
-    (:wat::test::assert-eq got-c (:wat::core::Option.Some {:value (:wat::holon::leaf :val-c)}))))
+(wat.test/deftest wat-tests.cache.HolographicLru/test-get-bumps-recency
+  (wat.core/let
+    [store (wat.cache.HolographicLru/new (wat.holon/filter-coincident) 2)
+     a (wat.holon/leaf :a)
+     b (wat.holon/leaf :b)
+     c (wat.holon/leaf :c)
+     _ (wat.cache.HolographicLru/put store a (wat.holon/leaf :val-a))
+     _ (wat.cache.HolographicLru/put store b (wat.holon/leaf :val-b))
+     _ (wat.cache.HolographicLru/get store a)
+     _ (wat.cache.HolographicLru/put store c (wat.holon/leaf :val-c))
+     got-a (wat.cache.HolographicLru/get store a)
+     got-b (wat.cache.HolographicLru/get store b)
+     got-c (wat.cache.HolographicLru/get store c)]
+    (wat.test/assert-eq got-a (wat.core/Option.Some {:value (wat.holon/leaf :val-a)}))
+    (wat.test/assert-eq got-b wat.core/Option.None)
+    (wat.test/assert-eq got-c (wat.core/Option.Some {:value (wat.holon/leaf :val-c)}))))
 
 ;; ─── the Match record itself — read by name, not position ─────────────────────────────────
 ;;
@@ -79,34 +79,34 @@
 ;; matched key back by NAME (`Match/key`) — proving it is the STORED key, not the probe — and
 ;; the value by name (`Match/value`). A tuple could not express this assertion legibly; it is
 ;; the reason the record exists. Targets `Hologram/find` directly.
-(:wat::test::deftest :wat-tests::cache::HolographicLru::test-find-returns-match-record
-  (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 10)
-     k (:wat::holon::Thermometer 50.0 0.0 100.0)
-     v (:wat::holon::leaf :answer-for-fifty)
-     _ (:wat::cache::HolographicLru/put store k v)
-     probe (:wat::holon::Thermometer 50.01 0.0 100.0)
-     hologram (:wat::cache::HolographicLru/hologram store)]
-    (:wat::core::match (:wat::holon::Hologram/find hologram probe)
-      [:wat::core::Option.Some {:value m}
-        (:wat::core::let
-          [matched-key (:wat::holon::Match/key m)
-           matched-val (:wat::holon::Match/value m)]
-          (:wat::test::assert-eq matched-key k)
-          (:wat::test::assert-eq matched-val v))]
-      [:wat::core::Option.None {} (:wat::test::assert-eq :expected-a-match :got-none)])))
+(wat.test/deftest wat-tests.cache.HolographicLru/test-find-returns-match-record
+  (wat.core/let
+    [store (wat.cache.HolographicLru/new (wat.holon/filter-coincident) 10)
+     k (wat.holon/Thermometer 50.0 0.0 100.0)
+     v (wat.holon/leaf :answer-for-fifty)
+     _ (wat.cache.HolographicLru/put store k v)
+     probe (wat.holon/Thermometer 50.01 0.0 100.0)
+     hologram (wat.cache.HolographicLru/hologram store)]
+    (wat.core/match (wat.holon.Hologram/find hologram probe)
+      [wat.core/Option.Some {:value m}
+        (wat.core/let
+          [matched-key (wat.holon.Match/key m)
+           matched-val (wat.holon.Match/value m)]
+          (wat.test/assert-eq matched-key k)
+          (wat.test/assert-eq matched-val v))]
+      [wat.core/Option.None {} (wat.test/assert-eq :expected-a-match :got-none)])))
 
 ;; ─── len agrees with the bound after overflow ───────────────────────────────────────────────
 ;;
 ;; Cap 3, insert 4 distinct keys — `len` (read via the Hologram, the value-holding half) must
 ;; still report 3, proving the Hologram's population tracks the LRU's bound, not the raw put
 ;; count.
-(:wat::test::deftest :wat-tests::cache::HolographicLru::test-len-agrees-with-bound
-  (:wat::core::let
-    [store (:wat::cache::HolographicLru/new (:wat::holon::filter-coincident) 3)
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k1) (:wat::holon::leaf :v1))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k2) (:wat::holon::leaf :v2))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k3) (:wat::holon::leaf :v3))
-     _ (:wat::cache::HolographicLru/put store (:wat::holon::leaf :k4) (:wat::holon::leaf :v4))
-     n (:wat::cache::HolographicLru/len store)]
-    (:wat::test::assert-eq n 3)))
+(wat.test/deftest wat-tests.cache.HolographicLru/test-len-agrees-with-bound
+  (wat.core/let
+    [store (wat.cache.HolographicLru/new (wat.holon/filter-coincident) 3)
+     _ (wat.cache.HolographicLru/put store (wat.holon/leaf :k1) (wat.holon/leaf :v1))
+     _ (wat.cache.HolographicLru/put store (wat.holon/leaf :k2) (wat.holon/leaf :v2))
+     _ (wat.cache.HolographicLru/put store (wat.holon/leaf :k3) (wat.holon/leaf :v3))
+     _ (wat.cache.HolographicLru/put store (wat.holon/leaf :k4) (wat.holon/leaf :v4))
+     n (wat.cache.HolographicLru/len store)]
+    (wat.test/assert-eq n 3)))

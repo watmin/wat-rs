@@ -27,8 +27,8 @@
 
 (wat.core/defn user/select-empty [] :- wat.type/nil
   (wat.core/match (wat.kernel/select (user/empty-peers))
-    [:wat::spawn::ServiceEvent.Message {:idx _idx :msg _msg} nil]
-    [:wat::spawn::ServiceEvent.Closed {:idx _idx} nil]
-    [:wat::spawn::ServiceEvent.Lost {:idx _idx :cause _cause} nil]
-    [:wat::spawn::ServiceEvent.Malformed {:idx _idx :cause _cause} nil]
+    [wat.spawn/ServiceEvent.Message {:idx _idx :msg _msg} nil]
+    [wat.spawn/ServiceEvent.Closed {:idx _idx} nil]
+    [wat.spawn/ServiceEvent.Lost {:idx _idx :cause _cause} nil]
+    [wat.spawn/ServiceEvent.Malformed {:idx _idx :cause _cause} nil]
     [_ nil]))

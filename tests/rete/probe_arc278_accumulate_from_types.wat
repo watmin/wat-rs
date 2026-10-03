@@ -17,35 +17,35 @@
 ;; have; 37 `.wat` files carry a `:from` condition, 19 of them grid cells). The rows below are still
 ;; built from the spec, which is what matters here. (see DESIGN.md) — no corpus-driven method could have built this.
 
-(:wat::core::defrecord :tac::Station   [location <- wat.type/String])
-(:wat::core::defrecord :tac::Reading   [location <- wat.type/String  value <- wat.type/i64])
-(:wat::core::defrecord :tac::Threshold [min <- wat.type/i64])
+(wat.core/defrecord tac/Station   [location :- wat.type/String])
+(wat.core/defrecord tac/Reading   [location :- wat.type/String  value :- wat.type/i64])
+(wat.core/defrecord tac/Threshold [min :- wat.type/i64])
 
 ;; row 1 — a PLAIN BIND, no clauses beyond it. The shape the `:from` arm already handled.
-(:wat::rete::defrule :tac::plain-bind
-  :when [(:tac::Station (?loc :- :location))
-         (?n :- (:wat::rete::acc::count) :from (:tac::Reading (?loc :- :location)))]
+(wat.rete/defrule tac/plain-bind
+  :when [(tac/Station (?loc :- :location))
+         (?n :- (wat.rete.acc/count) :from (tac/Reading (?loc :- :location)))]
   :then [])
 
 ;; row 2 — a WELL-TYPED inline constraint inside `:from`'s inner. `?v` is bound to `:value` (i64);
 ;; `i64::>` is the matching comparator. This is exactly the shape the widened check must accept.
-(:wat::rete::defrule :tac::typed-constraint
-  :when [(:tac::Station (?loc :- :location))
-         (?n :- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc :- :location) (?v :- :value)
-                     (:wat::rete::i64::> ?v 0)))]
+(wat.rete/defrule tac/typed-constraint
+  :when [(tac/Station (?loc :- :location))
+         (?n :- (wat.rete.acc/count)
+             :from (tac/Reading (?loc :- :location) (?v :- :value)
+                     (wat.rete.i64/> ?v 0)))]
   :then [])
 
 ;; row 3 — a JOIN VARIABLE bound in an EARLIER condition (`?min`, from `:tac::Threshold`), read
 ;; FREELY (not `<-`) inside `:from`'s inner constraint. The free `?var` stays free — cross-condition
 ;; join — and only the `:field` side is schema-checked (DESIGN-rete-defrule-wall.md). A cure that
 ;; cannot resolve an earlier bind from inside the recursed `:from` walk would wrongly refuse this.
-(:wat::rete::defrule :tac::earlier-join
-  :when [(:tac::Station (?loc :- :location))
-         (:tac::Threshold (?min :- :min))
-         (?n :- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc :- :location) (?v :- :value)
-                     (:wat::rete::i64::> ?v ?min)))]
+(wat.rete/defrule tac/earlier-join
+  :when [(tac/Station (?loc :- :location))
+         (tac/Threshold (?min :- :min))
+         (?n :- (wat.rete.acc/count)
+             :from (tac/Reading (?loc :- :location) (?v :- :value)
+                     (wat.rete.i64/> ?v ?min)))]
   :then [])
 
 ;; row 4 — ⭐ NOT KNOWABLE. The right operand is a `cond` — a `Form`-class rete op whose vocabulary
@@ -60,12 +60,12 @@
 ;; still stops legal rules from compiling. This row is the only thing here that catches it.
 ;; (Compile-only, like its fence ancestor — the runtime behavior of `cond` inside a `:from` filter
 ;; is not this fixture's claim.)
-(:wat::rete::defrule :tac::not-knowable
-  :when [(:tac::Station (?loc :- :location))
-         (?n :- (:wat::rete::acc::count)
-             :from (:tac::Reading (?loc :- :location) (?v :- :value)
-                     (:wat::rete::i64::= ?v
-                       (:wat::rete::core::cond
-                         ((:wat::rete::string::= ?loc "Oslo") 10)
+(wat.rete/defrule tac/not-knowable
+  :when [(tac/Station (?loc :- :location))
+         (?n :- (wat.rete.acc/count)
+             :from (tac/Reading (?loc :- :location) (?v :- :value)
+                     (wat.rete.i64/= ?v
+                       (wat.rete.core/cond
+                         ((wat.rete.string/= ?loc "Oslo") 10)
                          (:else 999)))))]
   :then [])

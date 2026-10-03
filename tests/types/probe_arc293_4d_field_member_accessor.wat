@@ -9,13 +9,13 @@
 ;; GREEN at 293.4d: every surface member (field or method) dispatches `:Surface/name s` to
 ;; `:<T>/name` (a field auto-accessor or a method). Isolated to a record here (no extend/Vector).
 
-(:wat::core::defsurface :t::Colored
+(wat.core/defsurface t/Colored
   :nature wat.type/Struct
-  :features [color <- wat.type/String])
+  :features [color :- wat.type/String])
 
-(:wat::core::defrecord :t::Ball [color <- wat.type/String  radius <- wat.type/f64])
+(wat.core/defrecord t/Ball [color :- wat.type/String  radius :- wat.type/f64])
 
 ;; Call the FIELD member as an accessor THROUGH the surface — routes by runtime type to :t::Ball/color.
-(:wat::core::defn :t::hue [c <- :t::Colored] -> wat.type/String (:t::Colored/color c))
+(wat.core/defn t/hue [c :- t/Colored] :- wat.type/String (t.Colored/color c))
 
-(:wat::core::defn :t::probe [] -> wat.type/String (:t::hue (:t::Ball :color "red" :radius 2.0)))
+(wat.core/defn t/probe [] :- wat.type/String (t/hue (t/Ball :color "red" :radius 2.0)))

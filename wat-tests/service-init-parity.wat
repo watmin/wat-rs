@@ -14,60 +14,60 @@
 ;; ── the surface (the counter protocol, lifted) ───────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::SeededCounter :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/SeededCounter :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::SeededCounter::GetRequest  [])
-   (:wat::core::defenum :wat-tests::SeededCounter::GetResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.SeededCounter/GetRequest  [])
+   (wat.core/defenum wat-tests.SeededCounter/GetResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse :max-request-bytes 524288)])
+  [(get [self :- wat-tests/SeededCounter  req :- wat-tests.SeededCounter/GetRequest] :- wat-tests.SeededCounter/GetResponse :max-request-bytes 524288)])
 
 ;; ── the service, defined once at top-level (shared by both deftests) ──────────
 ;; :init defaults — pure-data service, ephemeral empty → default init = (fn [d <- ::Record] -> ::State (::State d))
-(:wat::service::defservice :wat-tests::seeded-counter
-  :satisfies :wat-tests::SeededCounter
-  :durable [count <- wat.type/i64]
+(wat.service/defservice wat-tests/seeded-counter
+  :satisfies wat-tests/SeededCounter
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(get [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:wat-tests::SeededCounter::GetResponse.Ok
-         {:value (:wat-tests::seeded-counter::Record/count (:wat-tests::seeded-counter::State/durable s))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (wat-tests.SeededCounter/GetResponse.Ok
+         {:value (wat-tests.seeded-counter.Record/count (wat-tests.seeded-counter.State/durable s))})}))])
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; start takes the Record (seeded-counter::Record 42); init defaults to State/new(d).
-(:wat::test::deftest :wat-tests::service::seeded-counter-on-thread
+(wat.test/deftest wat-tests.service/seeded-counter-on-thread
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::seeded-counter::Record :count 42))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::seeded-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::SeededCounter::GetResponse.Ok {:value value} value]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.seeded-counter/start :locus (wat.spawn/thread) :record (wat-tests.seeded-counter/Record :count 42))
+       c (wat.core/match (wat.kernel/connect (wat-tests.seeded-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       r (wat-tests.SeededCounter/get c (wat-tests.SeededCounter/GetRequest))]
+      (wat.core/match r [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv  
+        [wat-tests.SeededCounter/GetResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::SeededCounter::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::assertion-failed! :message "seeded-counter-get: unexpected RequestTooLarge")]
-        [:wat-tests::SeededCounter::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [wat-tests.SeededCounter/GetResponse.RequestTooLarge {:bytes bytes :cap cap}
+          (wat.kernel/assertion-failed! :message "seeded-counter-get: unexpected RequestTooLarge")]
+        [wat-tests.SeededCounter/GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
     42))
 
 ;; ── process tier — IDENTICAL except the locus token ──────────────────────────
 ;; the Record crosses the wire; init builds State child-side; State never crosses.
-(:wat::test::deftest :wat-tests::service::seeded-counter-on-process
+(wat.test/deftest wat-tests.service/seeded-counter-on-process
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h (:wat-tests::seeded-counter/start :locus (:wat::spawn::process) :record (:wat-tests::seeded-counter::Record :count 42))
-       c (:wat::core::match (:wat::kernel::connect (:wat-tests::seeded-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       r (:wat-tests::SeededCounter/get c (:wat-tests::SeededCounter::GetRequest))]
-      (:wat::core::match r [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv  
-        [:wat-tests::SeededCounter::GetResponse.Ok {:value value} value]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h (wat-tests.seeded-counter/start :locus (wat.spawn/process) :record (wat-tests.seeded-counter/Record :count 42))
+       c (wat.core/match (wat.kernel/connect (wat-tests.seeded-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       r (wat-tests.SeededCounter/get c (wat-tests.SeededCounter/GetRequest))]
+      (wat.core/match r [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv  
+        [wat-tests.SeededCounter/GetResponse.Ok {:value value} value]
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
-        [:wat-tests::SeededCounter::GetResponse.RequestTooLarge {:bytes bytes :cap cap}
-          (:wat::kernel::assertion-failed! :message "seeded-counter-get: unexpected RequestTooLarge")]
-        [:wat-tests::SeededCounter::GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
-          (:wat::kernel::assertion-failed! :message "unexpected RequestMalformed")])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")]))
+        [wat-tests.SeededCounter/GetResponse.RequestTooLarge {:bytes bytes :cap cap}
+          (wat.kernel/assertion-failed! :message "seeded-counter-get: unexpected RequestTooLarge")]
+        [wat-tests.SeededCounter/GetResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
+          (wat.kernel/assertion-failed! :message "unexpected RequestMalformed")])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")]))
     42))

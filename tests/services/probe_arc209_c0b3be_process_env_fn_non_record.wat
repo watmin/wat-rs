@@ -1,1 +1,1 @@
-(:wat::core::+ 1 2)
+(wat.core/+ 1 2)

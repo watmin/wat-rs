@@ -1,5 +1,5 @@
 ;; tuple_type_name_fqdn_pascal.wat — type_name returns FQDN PascalCase at runtime.
-(:wat::core::defn :my::compute [] -> (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
-  (:wat::core::let
+(wat.core/defn my/compute [] :- (wat.type/Tuple :- [wat.type/i64 wat.type/i64])
+  (wat.core/let
     [t (wat.type/Tuple :- [wat.type/i64 wat.type/i64] 10 20)]
     t))

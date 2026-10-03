@@ -34,29 +34,29 @@
 ;; every build, so the answer is re-proven continuously and cannot rot into a graveyard
 ;; that reads like live code. That gate is the equipment that caught R64.
 
-(:wat::core::defsurface :probe::DurableForms :nature :wat::kernel::Peer
+(wat.core/defsurface probe/DurableForms :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :probe::DurableForms::EvalSrcRequest [src <- wat.type/String])
-   (:wat::core::defenum :probe::DurableForms::EvalSrcResponse :wat::enum::Pure
-     :Ok               [out <- wat.type/String]
-     :RequestTooLarge  [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path     <- (wat.type/Vector :- [wat.type/String])
-                        expected <- wat.type/String
-                        got      <- wat.type/String])]
+  [(wat.core/defrecord probe.DurableForms/EvalSrcRequest [src :- wat.type/String])
+   (wat.core/defenum probe.DurableForms/EvalSrcResponse wat.enum/Pure
+     :Ok               [out :- wat.type/String]
+     :RequestTooLarge  [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path     :- (wat.type/Vector :- [wat.type/String])
+                        expected :- wat.type/String
+                        got      :- wat.type/String])]
   :features
-  [(eval-src [self <- :probe::DurableForms  req <- :probe::DurableForms::EvalSrcRequest]
-     -> :probe::DurableForms::EvalSrcResponse :max-request-bytes 524288)])
+  [(eval-src [self :- probe/DurableForms  req :- probe.DurableForms/EvalSrcRequest]
+     :- probe.DurableForms/EvalSrcResponse :max-request-bytes 524288)])
 
 ;; ★ THE SUBJECT — `:durable` holding a vector of FORMS.
-(:wat::service::defservice :probe::durable-forms-svc
-  :satisfies :probe::DurableForms
-  :durable   [defs <- (wat.type/Vector :- [wat.type/AST])]
+(wat.service/defservice probe/durable-forms-svc
+  :satisfies probe/DurableForms
+  :durable   [defs :- (wat.type/Vector :- [wat.type/AST])]
   :ephemeral []
   :impls
   [(eval-src [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:probe::DurableForms::EvalSrcResponse.Ok
-         {:out (:probe::DurableForms::EvalSrcRequest/src req)})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (probe.DurableForms/EvalSrcResponse.Ok
+         {:out (probe.DurableForms.EvalSrcRequest/src req)})}))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "probe-durable-forms-vector"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "probe-durable-forms-vector"))

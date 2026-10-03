@@ -1,3 +1,3 @@
-(:wat::core::defenum :u::E :wat::enum::Pure :A [x <- wat.type/i64] :B)
-(:wat::core::defn :u::g [e <- :u::E] -> wat.type/i64
-  (:wat::core::match e [:u::E.A {:x x} x] [:u::E.B {} 0]))
+(wat.core/defenum u/E wat.enum/Pure :A [x :- wat.type/i64] :B)
+(wat.core/defn u/g [e :- u/E] :- wat.type/i64
+  (wat.core/match e [u/E.A {:x x} x] [u/E.B {} 0]))

@@ -24,31 +24,31 @@
 ;; Break names a kind (BreakKind); the emitter computes the rest.
 ;; The binding VECTOR is its own dispatch target — see let-bindings.wat.
 
-(:wat::load-file! "let-bindings.wat")
+(wat/load-file! "let-bindings.wat")
 
-(:wat::rete::defrule :fmt::let-claim
-  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))]
-  :then [(:wat::fmt::Claim :form ?p)])
+(wat.rete/defrule fmt/let-claim
+  :when [(wat.grep/Node  (?h :- :id) (?p :- :parent) (?i :- :index))
+         (wat.rete/where (wat.rete.i64/= ?i 0))
+         (wat.grep/Named (?h :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.string/= ?n "wat.core/let"))]
+  :then [(wat.fmt/Claim :form ?p)])
 
-(:wat::rete::defrule :fmt::let-bindings-break
-  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
-         (:wat::grep::Node  (?b :- :id) (?p :- :parent) (?bi :- :index) (?k :- :kind))
-         (:wat::rete::where (:wat::rete::i64::= ?bi 1))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:wat::grep::NodeKind.Vector {})))]
-  :then [(:wat::fmt::Break :id ?b :kind (:wat::fmt::BreakKind.Block {}))])
+(wat.rete/defrule fmt/let-bindings-break
+  :when [(wat.grep/Node  (?h :- :id) (?p :- :parent) (?i :- :index))
+         (wat.rete/where (wat.rete.i64/= ?i 0))
+         (wat.grep/Named (?h :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.string/= ?n "wat.core/let"))
+         (wat.grep/Node  (?b :- :id) (?p :- :parent) (?bi :- :index) (?k :- :kind))
+         (wat.rete/where (wat.rete.i64/= ?bi 1))
+         (wat.rete/where (wat.rete.core.enum/= ?k (wat.grep/NodeKind.Vector {})))]
+  :then [(wat.fmt/Break :id ?b :kind (wat.fmt/BreakKind.Block {}))])
 
 ;; the BODY — every child after the binding vector — starts its own line.
-(:wat::rete::defrule :fmt::let-body-break
-  :when [(:wat::grep::Node  (?h :- :id) (?p :- :parent) (?i :- :index))
-         (:wat::rete::where (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Named (?h :- :id) (?n :- :name))
-         (:wat::rete::where (:wat::rete::string::= ?n "wat.core/let"))
-         (:wat::grep::Node  (?body :- :id) (?p :- :parent) (?bi :- :index))
-         (:wat::rete::where (:wat::rete::i64::> ?bi 1))]
-  :then [(:wat::fmt::Break :id ?body :kind (:wat::fmt::BreakKind.Block {}))])
+(wat.rete/defrule fmt/let-body-break
+  :when [(wat.grep/Node  (?h :- :id) (?p :- :parent) (?i :- :index))
+         (wat.rete/where (wat.rete.i64/= ?i 0))
+         (wat.grep/Named (?h :- :id) (?n :- :name))
+         (wat.rete/where (wat.rete.string/= ?n "wat.core/let"))
+         (wat.grep/Node  (?body :- :id) (?p :- :parent) (?bi :- :index))
+         (wat.rete/where (wat.rete.i64/> ?bi 1))]
+  :then [(wat.fmt/Break :id ?body :kind (wat.fmt/BreakKind.Block {}))])

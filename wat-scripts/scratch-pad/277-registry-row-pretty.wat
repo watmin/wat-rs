@@ -10,51 +10,51 @@
 ;; the formatter is for. Only the enumeration verbs reach them.
 ;;   Example/expr                 ->  the parsed form
 ;;   ast->source + format-source  ->  the ruled shape
-(:wat::load-file! "../fmt/rules/defn.wat")
-(:wat::load-file! "../fmt/rules/siblings.wat")
-(:wat::load-file! "../fmt/rules/match.wat")
-(:wat::load-file! "../fmt/rules/if.wat")
-(:wat::load-file! "../fmt/rules/cond.wat")
-(:wat::load-file! "../fmt/rules/let.wat")
-(:wat::load-file! "../fmt/rules/let-blank.wat")
-(:wat::load-file! "../fmt/rules/kwargs.wat")
-(:wat::load-file! "../fmt/rules/table.wat")
-(:wat::load-file! "../fmt/rules/atoms.wat")
-(:wat::load-file! "../fmt/rules/defrecord.wat")
+(wat/load-file! "../fmt/rules/defn.wat")
+(wat/load-file! "../fmt/rules/siblings.wat")
+(wat/load-file! "../fmt/rules/match.wat")
+(wat/load-file! "../fmt/rules/if.wat")
+(wat/load-file! "../fmt/rules/cond.wat")
+(wat/load-file! "../fmt/rules/let.wat")
+(wat/load-file! "../fmt/rules/let-blank.wat")
+(wat/load-file! "../fmt/rules/kwargs.wat")
+(wat/load-file! "../fmt/rules/table.wat")
+(wat/load-file! "../fmt/rules/atoms.wat")
+(wat/load-file! "../fmt/rules/defrecord.wat")
 
-(:wat::core::defn :user::widest
-  [s <- wat.type/String]
-  -> wat.type/i64
-  (:wat::core::foldl
-    (:wat::core::fn [m <- wat.type/i64  line <- wat.type/String] -> wat.type/i64
-      (:wat::core::if (:wat::i64::> (:wat::string::length line) m)
-        (:wat::string::length line)
+(wat.core/defn user/widest
+  [s :- wat.type/String]
+  :- wat.type/i64
+  (wat.core/foldl
+    (wat.core/fn [m :- wat.type/i64  line :- wat.type/String] :- wat.type/i64
+      (wat.core/if (wat.i64/> (wat.string/length line) m)
+        (wat.string/length line)
         m))
     0
-    (:wat::string::split s "\n")))
+    (wat.string/split s "\n")))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [argv  (:wat::runtime::argv)
-     want  (:wat::core::Option/expect (:wat::core::get argv 2)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [argv  (wat.runtime/argv)
+     want  (wat.core.Option/expect (wat.core/get argv 2)
              "usage: wat 277-registry-row-pretty.wat <fqdn-as-string>")
-     rules (:wat::rete::collect-rules :fmt)
-     all   (:wat::intrinsic::examples)
-     mine  (:wat::core::into (wat.type/Vector :- [:wat::intrinsic::Example])
-             (:wat::core::filter
-               (:wat::core::fn [e <- :wat::intrinsic::Example] -> wat.type/bool
-                 (:wat::core::= (:wat::keyword::to-string (:wat::intrinsic::Example/fqdn e)) want))
+     rules (wat.rete/collect-rules :fmt)
+     all   (wat.intrinsic/examples)
+     mine  (wat.core/into (wat.type/Vector :- [wat.intrinsic/Example])
+             (wat.core/filter
+               (wat.core/fn [e :- wat.intrinsic/Example] :- wat.type/bool
+                 (wat.core/= (wat.keyword/to-string (wat.intrinsic.Example/fqdn e)) want))
                all))]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/nil  e <- :wat::intrinsic::Example] -> wat.type/nil
-        (:wat::core::let
-          [src (:wat::core::ast->source (:wat::intrinsic::Example/expr e))
-           out (:wat::fmt::format-source "<registry>" src rules)]
-          (:wat::core::do
-            (:wat::kernel::println
-              (:wat::string::interpolate "SOURCE  lines=1 widest={a}   FORMATTED widest={b}"
-                :a (:wat::i64::to-string (:user::widest src))
-                :b (:wat::i64::to-string (:user::widest out))))
-            (:wat::kernel::println out))))
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/nil  e :- wat.intrinsic/Example] :- wat.type/nil
+        (wat.core/let
+          [src (wat.core/ast->source (wat.intrinsic.Example/expr e))
+           out (wat.fmt/format-source "<registry>" src rules)]
+          (wat.core/do
+            (wat.kernel/println
+              (wat.string/interpolate "SOURCE  lines=1 widest={a}   FORMATTED widest={b}"
+                :a (wat.i64/to-string (user/widest src))
+                :b (wat.i64/to-string (user/widest out))))
+            (wat.kernel/println out))))
       nil
       mine)))

@@ -19,19 +19,19 @@
 ;;           `[[feedback_a_guard_drawn_too_tight_makes_the_honest_path_noncompliant]]`
 
 ;; ROW 1 — disjoint
-(:wat::core::defclause :my::describe
-  ([x <- wat.type/i64]    -> wat.type/String "an int")
-  ([x <- wat.type/String] -> wat.type/String "a string")
-  ([x <- wat.type/bool]   -> wat.type/String "a bool"))
+(wat.core/defclause my/describe
+  ([x :- wat.type/i64]    :- wat.type/String "an int")
+  ([x :- wat.type/String] :- wat.type/String "a string")
+  ([x :- wat.type/bool]   :- wat.type/String "a bool"))
 
-(:wat::core::defn :my::describe-int    [] -> wat.type/String (:my::describe 1))
-(:wat::core::defn :my::describe-string [] -> wat.type/String (:my::describe "s"))
-(:wat::core::defn :my::describe-bool   [] -> wat.type/String (:my::describe true))
+(wat.core/defn my/describe-int    [] :- wat.type/String (my/describe 1))
+(wat.core/defn my/describe-string [] :- wat.type/String (my/describe "s"))
+(wat.core/defn my/describe-bool   [] :- wat.type/String (my/describe true))
 
 ;; ROW 2 — concrete-then-catch-all (the bracket.wat shape)
-(:wat::core::defclause :my::route
-  ([x <- wat.type/keyword] -> wat.type/String "specific")
-  ([x <- :W]                  -> wat.type/String "generic"))
+(wat.core/defclause my/route
+  ([x :- wat.type/keyword] :- wat.type/String "specific")
+  ([x :- W]                  :- wat.type/String "generic"))
 
-(:wat::core::defn :my::route-keyword [] -> wat.type/String (:my::route :a-keyword))
-(:wat::core::defn :my::route-other   [] -> wat.type/String (:my::route 7))
+(wat.core/defn my/route-keyword [] :- wat.type/String (my/route :a-keyword))
+(wat.core/defn my/route-other   [] :- wat.type/String (my/route 7))

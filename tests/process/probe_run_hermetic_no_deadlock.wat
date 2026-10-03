@@ -14,30 +14,30 @@
 
 ;; Probe 1 — clean child returns nil, prints nothing, sends nothing → recv' → Closed.
 ;; (Mirrors the old failure=None clean-exit read; completing = no hang.)
-(:wat::core::defn :probe::test::clean-exit [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil nil)))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} "UNEXPECTED-LOST"]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "closed"])))
+(wat.core/defn probe.test/clean-exit [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil nil)))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} "UNEXPECTED-LOST"]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "closed"])))
 
 ;; Probe 2 — child calls assertion-failed! → the peer CRASHES before any send →
 ;; recv' → Lost[cause] (a LociDiedError carrying the diagnostic). Returns the
 ;; death message; completing = no hang even on the failure path. (Mirrors the old
 ;; failure=Some[non-empty message] read.)
-(:wat::core::defn :probe::test::intentional-panic [] -> wat.type/String
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::assertion-failed! :message "intentional panic from probe_run_hermetic_no_deadlock"))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::LociDiedError/message cause)]
-      [:wat::kernel::RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
-      [:wat::kernel::RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))
+(wat.core/defn probe.test/intentional-panic [] :- wat.type/String
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/assertion-failed! :message "intentional panic from probe_run_hermetic_no_deadlock"))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m} "UNEXPECTED-MESSAGE"]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel.LociDiedError/message cause)]
+      [wat.kernel/RecvOutcome.Stopped {} "UNEXPECTED-STOPPED"]
+      [wat.kernel/RecvOutcome.Closed {} "UNEXPECTED-CLOSED"])))

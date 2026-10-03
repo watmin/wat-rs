@@ -22,29 +22,29 @@
 ;; Run:  ./target/release/wat --check ./wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat   # EXIT=0
 ;;       ./target/release/wat        ./wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat   # EXIT=0 (17/17 assertions pass)
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::test::assert-eq (:wat::f64::+ 1.0 2.0) 3.0)
-    (:wat::test::assert-eq (:wat::f64::- 5.0 3.0) 2.0)
-    (:wat::test::assert-eq (:wat::f64::* 3.0 4.0) 12.0)
-    (:wat::test::assert-eq (:wat::f64::/ 6.0 2.0) 3.0)
-    (:wat::test::assert-eq (:wat::f64::max 1.0 2.0) 2.0)
-    (:wat::test::assert-eq (:wat::f64::min 1.0 2.0) 1.0)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.test/assert-eq (wat.f64/+ 1.0 2.0) 3.0)
+    (wat.test/assert-eq (wat.f64/- 5.0 3.0) 2.0)
+    (wat.test/assert-eq (wat.f64/* 3.0 4.0) 12.0)
+    (wat.test/assert-eq (wat.f64// 6.0 2.0) 3.0)
+    (wat.test/assert-eq (wat.f64/max 1.0 2.0) 2.0)
+    (wat.test/assert-eq (wat.f64/min 1.0 2.0) 1.0)
 
-    (:wat::test::assert-eq (:wat::f64::< 1.0 2.0) true)
-    (:wat::test::assert-eq (:wat::f64::<= 2.0 2.0) true)
-    (:wat::test::assert-eq (:wat::f64::> 3.0 2.0) true)
-    (:wat::test::assert-eq (:wat::f64::>= 2.0 2.0) true)
-    (:wat::test::assert-eq (:wat::f64::= 2.0 2.0) true)
-    (:wat::test::assert-eq (:wat::f64::not= 2.0 3.0) true)
+    (wat.test/assert-eq (wat.f64/< 1.0 2.0) true)
+    (wat.test/assert-eq (wat.f64/<= 2.0 2.0) true)
+    (wat.test/assert-eq (wat.f64/> 3.0 2.0) true)
+    (wat.test/assert-eq (wat.f64/>= 2.0 2.0) true)
+    (wat.test/assert-eq (wat.f64/= 2.0 2.0) true)
+    (wat.test/assert-eq (wat.f64/not= 2.0 3.0) true)
 
-    (:wat::test::assert-eq (:wat::f64::abs -3.5) 3.5)
-    (:wat::test::assert-eq (:wat::f64::round 1.5 0) 2.0)
-    (:wat::test::assert-eq (:wat::f64::to-i64 3.75) (:wat::core::Option.Some {:value 3}))
-    (:wat::test::assert-eq (:wat::f64::to-string 2.5) "2.5")
-    (:wat::test::assert-eq (:wat::f64::clamp 5.0 -1.0 1.0) 1.0)
+    (wat.test/assert-eq (wat.f64/abs -3.5) 3.5)
+    (wat.test/assert-eq (wat.f64/round 1.5 0) 2.0)
+    (wat.test/assert-eq (wat.f64/to-i64 3.75) (wat.core/Option.Some {:value 3}))
+    (wat.test/assert-eq (wat.f64/to-string 2.5) "2.5")
+    (wat.test/assert-eq (wat.f64/clamp 5.0 -1.0 1.0) 1.0)
 
     ;; max-of / min-of — variadic, 4 args (> 2) so the row proves something
     ;; beyond the binary case.
-    (:wat::test::assert-eq (:wat::f64::max-of 1.0 -5.0 4.2 3.0) (:wat::core::Option.Some {:value 4.2}))
-    (:wat::test::assert-eq (:wat::f64::min-of 1.0 -5.0 4.2 3.0) (:wat::core::Option.Some {:value -5.0}))))
+    (wat.test/assert-eq (wat.f64/max-of 1.0 -5.0 4.2 3.0) (wat.core/Option.Some {:value 4.2}))
+    (wat.test/assert-eq (wat.f64/min-of 1.0 -5.0 4.2 3.0) (wat.core/Option.Some {:value -5.0}))))

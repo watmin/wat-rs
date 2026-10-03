@@ -6,11 +6,11 @@
 ;; C04: :wat::core::char (lowercase) works as type.
 
 ;; C01: bare nil as primitive VALUE (body expression)
-(:wat::core::defn :test::returns-nil [] -> wat.type/nil nil)
+(wat.core/defn test/returns-nil [] :- wat.type/nil nil)
 
 ;; C02: :wat::core::nil as TYPE in parameter/return signatures
-(:wat::core::defn :test::accepts-nil [x <- wat.type/nil] -> wat.type/nil x)
+(wat.core/defn test/accepts-nil [x :- wat.type/nil] :- wat.type/nil x)
 
 ;; C04: :wat::core::char (lowercase) as TYPE in parameter/return signatures
-(:wat::core::defn :test::needs-char-lowercase [c <- wat.type/char] -> wat.type/char c)
+(wat.core/defn test/needs-char-lowercase [c :- wat.type/char] :- wat.type/char c)
 

@@ -15,41 +15,41 @@
 ;;      connection — that absence is the whole point of the three-type split, and it is STRUCTURAL:
 ;;      there is no field to read, so asking a timer for a connection cannot be written down).
 
-(:wat::core::defn :user::self-invocation-reads-core [] -> wat.type/String
-  (:wat::core::let
-    [inv (:wat::service::SelfInvocation
-           :namespace     :probe::ticker
+(wat.core/defn user/self-invocation-reads-core [] :- wat.type/String
+  (wat.core/let
+    [inv (wat.service/SelfInvocation
+           :namespace     probe/ticker
            :operation     "-tick"
-           :invocation-id (:wat::uuid::v4)
+           :invocation-id (wat.uuid/v4)
            :start-ns      42)]
-    (:wat::service::SelfInvocation/operation inv)))
+    (wat.service.SelfInvocation/operation inv)))
 
-(:wat::core::defn :user::lifecycle-invocation-reads-core-and-conn [] -> wat.type/i64
-  (:wat::core::let
-    [inv (:wat::service::LifecycleInvocation
-           :namespace     :probe::ticker
+(wat.core/defn user/lifecycle-invocation-reads-core-and-conn [] :- wat.type/i64
+  (wat.core/let
+    [inv (wat.service/LifecycleInvocation
+           :namespace     probe/ticker
            :operation     "-on-connect"
-           :invocation-id (:wat::uuid::v4)
+           :invocation-id (wat.uuid/v4)
            :start-ns      42
            :conn-id       7)]
-    (:wat::service::LifecycleInvocation/conn-id inv)))
+    (wat.service.LifecycleInvocation/conn-id inv)))
 
-(:wat::core::defn :user::invocation-reads-core-and-conn [] -> wat.type/i64
-  (:wat::core::let
-    [inv (:wat::service::Invocation
-           :namespace     :probe::ticker
+(wat.core/defn user/invocation-reads-core-and-conn [] :- wat.type/i64
+  (wat.core/let
+    [inv (wat.service/Invocation
+           :namespace     probe/ticker
            :operation     "whoami"
-           :invocation-id (:wat::uuid::v4)
+           :invocation-id (wat.uuid/v4)
            :start-ns      42
            :conn-id       2)]
-    (:wat::i64::+
-      (:wat::service::Invocation/conn-id inv)
-      (:wat::string::length (:wat::service::Invocation/operation inv)))))
+    (wat.i64/+
+      (wat.service.Invocation/conn-id inv)
+      (wat.string/length (wat.service.Invocation/operation inv)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:user::self-invocation-reads-core)
-      (:wat::string::concat
-        (:wat::i64::to-string (:user::lifecycle-invocation-reads-core-and-conn))
-        (:wat::i64::to-string (:user::invocation-reads-core-and-conn))))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (user/self-invocation-reads-core)
+      (wat.string/concat
+        (wat.i64/to-string (user/lifecycle-invocation-reads-core-and-conn))
+        (wat.i64/to-string (user/invocation-reads-core-and-conn))))))

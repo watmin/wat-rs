@@ -50,30 +50,30 @@
 ;; has to be, because the substrate flip is live and the old form no longer type-checks. Running the
 ;; codemod over the corpus INCLUDING this file is a no-op on it.
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::fix::wrap-calls-in-match src
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.fix/wrap-calls-in-match src
     ":wat::kernel::readln"
     "ReadlnOutcome::"
     "(:wat::core::match "
     " ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! \"readln: end of input\" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! \"readln: stop requested\" :wat::core::None :wat::core::None)))"))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let
-      [path (:wat::core::first paths)
-       src  (:wat::io::read-file path)
-       out  (:user::migrate src)]
-      (:wat::core::do
-        (:wat::core::if (:wat::core::= src out)
+    (wat.core/let
+      [path (wat.core/first paths)
+       src  (wat.io/read-file path)
+       out  (user/migrate src)]
+      (wat.core/do
+        (wat.core/if (wat.core/= src out)
           nil
-          (:wat::io::write-file path out))
-        (:user::apply-each (:wat::core::into [] (:wat::core::rest paths)))))))
+          (wat.io/write-file path out))
+        (user/apply-each (wat.core/into [] (wat.core/rest paths)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}     (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}     (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

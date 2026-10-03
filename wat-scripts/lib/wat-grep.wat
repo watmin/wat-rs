@@ -28,70 +28,70 @@
 ;;
 ;; wat-grep-form-edit — a one-element Vector containing a deletion Tuple for `form`.
 ;; Covers ast-span(form) → ast-end-span(form) plus one trailing '\n' if present.
-(:wat::core::defn :user::wat-grep-form-edit
-  [form  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+(wat.core/defn user/wat-grep-form-edit
+  [form  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
   ;; old-text = fix-text-span-text over `form`'s OWN span (arc 282), plus the trailing "\n"
   ;; when present — sanctioned, not STOP-1: pred already matched `form` structurally, this
   ;; is the form's own span (never a reader-synthesized leaf's), and the deletion's subject
   ;; genuinely IS "this form, plus one trailing newline if there is one."
-  (:wat::core::let [start-span (:wat::core::ast-span form)
-                    end-span   (:wat::core::ast-end-span form)
-                    off        (:wat::fix::fix-text-offset-of start-span lines)
-                    span-text  (:wat::fix::fix-text-span-text start-span end-span lines src)
+  (wat.core/let [start-span (wat.core/ast-span form)
+                    end-span   (wat.core/ast-end-span form)
+                    off        (wat.fix/fix-text-offset-of start-span lines)
+                    span-text  (wat.fix/fix-text-span-text start-span end-span lines src)
                     ;; eat the trailing newline (if any) to avoid a dangling blank line
-                    src-len    (:wat::string::length src)
-                    end-off    (:wat::core::+ off (:wat::string::length span-text))
-                    next-is-nl (:wat::core::if (:wat::core::< end-off src-len)
-                                  (:wat::core::= (:wat::string::subs src end-off
-                                                   (:wat::core::+ end-off 1)) "\n")
+                    src-len    (wat.string/length src)
+                    end-off    (wat.core/+ off (wat.string/length span-text))
+                    next-is-nl (wat.core/if (wat.core/< end-off src-len)
+                                  (wat.core/= (wat.string/subs src end-off
+                                                   (wat.core/+ end-off 1)) "\n")
                                   false)
-                    old-text   (:wat::core::if next-is-nl (:wat::string::concat span-text "\n") span-text)]
+                    old-text   (wat.core/if next-is-nl (wat.string/concat span-text "\n") span-text)]
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
       (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text ""))))
 
 ;; ── Internal: map a vector of matched forms to deletion edits ─────────────────────────
-(:wat::core::defn :user::wat-grep-strip-edits
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? forms)
+(wat.core/defn user/wat-grep-strip-edits
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? forms)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::wat-grep-form-edit (:wat::core::first forms) src lines)
-      (:user::wat-grep-strip-edits (:wat::core::rest forms) src lines))))
+    (wat.core/concat
+      (user/wat-grep-form-edit (wat.core/first forms) src lines)
+      (user/wat-grep-strip-edits (wat.core/rest forms) src lines))))
 
 ;; ── Public: find top-level matching forms ────────────────────────────────────────────
 ;;
 ;; wat-grep — parse src, return every top-level form satisfying pred.
 ;; pred signature: WatAST -> bool.
-(:wat::core::defn :user::wat-grep
-  [src  <- wat.type/String
-   pred <- [wat.type/AST :-> wat.type/bool]]
+(wat.core/defn user/wat-grep
+  [src  :- wat.type/String
+   pred :- [wat.type/AST :-> wat.type/bool]]
   ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `(Vector :- [WatAST])`, so `filterv`.
-  -> (wat.type/Vector :- [wat.type/AST])
-  (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms (:wat::core::ast->children tree)]
-    (:wat::core::filterv pred forms)))
+  :- (wat.type/Vector :- [wat.type/AST])
+  (wat.core/let [tree  (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms (wat.core/ast->children tree)]
+    (wat.core/filterv pred forms)))
 
 ;; ── Public: delete top-level matching forms ───────────────────────────────────────────
 ;;
 ;; wat-grep-strip — parse src, collect deletion edits for every pred-matched top-level form,
 ;; apply them right-to-left. Returns the rewritten source string. Comment-faithful: only the
 ;; matched forms' character spans are deleted; everything else survives byte-identical.
-(:wat::core::defn :user::wat-grep-strip
-  [src  <- wat.type/String
-   pred <- [wat.type/AST :-> wat.type/bool]]
-  -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
+(wat.core/defn user/wat-grep-strip
+  [src  :- wat.type/String
+   pred :- [wat.type/AST :-> wat.type/bool]]
+  :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
                     ;; Arc 118.2a — `filter` flipped LAZY; `matches` feeds `wat-grep-strip-edits`
                     ;; ((Vector :- [WatAST]) param), so `filterv`.
-                    matches   (:wat::core::filterv pred forms)
-                    all-edits (:user::wat-grep-strip-edits matches src lines)
-                    rev-edits (:wat::core::reverse all-edits)]
-    (:wat::fix::fix-text-apply src rev-edits)))
+                    matches   (wat.core/filterv pred forms)
+                    all-edits (user/wat-grep-strip-edits matches src lines)
+                    rev-edits (wat.core/reverse all-edits)]
+    (wat.fix/fix-text-apply src rev-edits)))

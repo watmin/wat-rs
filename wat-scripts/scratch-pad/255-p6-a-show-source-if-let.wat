@@ -6,8 +6,8 @@
 ;;
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral session tmp).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::core::show-source :wat::core::if))
-    (:wat::kernel::println "---")
-    (:wat::kernel::println (:wat::core::show-source :wat::core::let))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.core/show-source wat.core/if))
+    (wat.kernel/println "---")
+    (wat.kernel/println (wat.core/show-source wat.core/let))))

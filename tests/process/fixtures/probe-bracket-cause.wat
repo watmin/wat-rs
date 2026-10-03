@@ -17,11 +17,11 @@
 ;; both "runner N crashed" (N is whichever worker's division-by-zero the bracket's collect-loop
 ;; observed first — not pinned to a specific index, since 3 workers race under real scheduling)
 ;; and "DivisionByZero" (the real cause, not a blind "runner crashed").
-(:wat::core::defn :probe::boom [n <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::/ n 0))
+(wat.core/defn probe/boom [n :- wat.type/i64] :- wat.type/i64
+  (wat.i64// n 0))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::bracket::map (:wat::spawn::process)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println
+    (wat.bracket/map (wat.spawn/process)
       (wat.type/Vector :- [wat.type/i64] 1 2 3)
-      :probe::boom)))
+      probe/boom)))

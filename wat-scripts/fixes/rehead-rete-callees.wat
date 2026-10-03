@@ -31,7 +31,7 @@
 ;; STRING literal, nor inline wat embedded in a Rust test string. Both are hand-check surfaces
 ;; (the 2026-07-24 class-4 lesson); the floor is what surfaces the second.
 
-(:wat::core::defn :user::targets [] -> (wat.type/Vector :- [wat.type/String])
+(wat.core/defn user/targets [] :- (wat.type/Vector :- [wat.type/String])
   (wat.type/Vector :- [wat.type/String]
     ":cg::make-rate"
     ":fix::head-keyword-str?"
@@ -71,25 +71,25 @@
     ":wsh::big?"
     ":wst::feline?"))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)
-                      src  (:wat::io::read-file path)
-                      out  (:wat::fix::rehead-rete-defn (:user::targets) src)]
-      (:wat::core::do
-        (:wat::io::write-file path out)
-        (:wat::kernel::println
-          (:wat::string::concat
-            (:wat::core::if (:wat::core::= src out) "[unchanged] " "[reheaded]  ") path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)
+                      src  (wat.io/read-file path)
+                      out  (wat.fix/rehead-rete-defn (user/targets) src)]
+      (wat.core/do
+        (wat.io/write-file path out)
+        (wat.kernel/println
+          (wat.string/concat
+            (wat.core/if (wat.core/= src out) "[unchanged] " "[reheaded]  ") path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))

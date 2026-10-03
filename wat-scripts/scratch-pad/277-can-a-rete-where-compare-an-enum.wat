@@ -16,54 +16,54 @@
 ;;   B  pattern position — the variant used as a fact-field pattern
 ;;   C  the control: the SAME shape with a String, which must pass
 
-(:wat::core::defenum :user::NodeKind :wat::enum::Pure
+(wat.core/defenum user/NodeKind wat.enum/Pure
   :List []
   :Vector []
   :Keyword [])
 
-(:wat::core::defrecord :user::EnumNode
-  [id   <- wat.type/i64
-   kind <- :user::NodeKind])
+(wat.core/defrecord user/EnumNode
+  [id   :- wat.type/i64
+   kind :- user/NodeKind])
 
-(:wat::core::defrecord :user::StrNode
-  [id   <- wat.type/i64
-   kind <- wat.type/String])
+(wat.core/defrecord user/StrNode
+  [id   :- wat.type/i64
+   kind :- wat.type/String])
 
-(:wat::core::defrecord :user::HitA [id <- wat.type/i64])
-(:wat::core::defrecord :user::HitC [id <- wat.type/i64])
+(wat.core/defrecord user/HitA [id :- wat.type/i64])
+(wat.core/defrecord user/HitC [id :- wat.type/i64])
 
 ;; ARM A — equality against a variant constructor in :where
-(:wat::rete::defrule :user::enum-eq-in-where
-  :when [(:user::EnumNode (?i :- :id) (?k :- :kind))
-         (:wat::rete::where (:wat::rete::core::enum::= ?k (:user::NodeKind.List {})))]
-  :then [(:user::HitA :id ?i)])
+(wat.rete/defrule user/enum-eq-in-where
+  :when [(user/EnumNode (?i :- :id) (?k :- :kind))
+         (wat.rete/where (wat.rete.core.enum/= ?k (user/NodeKind.List {})))]
+  :then [(user/HitA :id ?i)])
 
 ;; ARM C — the CONTROL. Same shape, String. Must pass, or the probe proves nothing.
-(:wat::rete::defrule :user::string-eq-in-where
-  :when [(:user::StrNode (?i :- :id) (?k :- :kind))
-         (:wat::rete::where (:wat::rete::string::= ?k "list"))]
-  :then [(:user::HitC :id ?i)])
+(wat.rete/defrule user/string-eq-in-where
+  :when [(user/StrNode (?i :- :id) (?k :- :kind))
+         (wat.rete/where (wat.rete.string/= ?k "list"))]
+  :then [(user/HitC :id ?i)])
 
-(:wat::rete::defquery :user::q-HitA :params [] :when [(?fact :- :user::HitA)])
-(:wat::rete::defquery :user::q-HitC :params [] :when [(?fact :- :user::HitC)])
+(wat.rete/defquery user/q-HitA :params [] :when [(?fact :- user/HitA)])
+(wat.rete/defquery user/q-HitC :params [] :when [(?fact :- user/HitC)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules    (:wat::rete::collect-rules :user)
-     template (:wat::core::match (:wat::rete::compile-all rules
-                (wat.type/PersistentVector :- [:wat::rete::Query] (:user::q-HitA) (:user::q-HitC))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     fired    (:wat::core::match (:wat::rete::fire-rules
-                (:wat::core::match (:wat::rete::insert
-                  (:wat::core::match (:wat::rete::insert
-                    (:wat::core::match (:wat::rete::insert
-                      (:wat::core::match (:wat::rete::insert template
-                        (:user::EnumNode :id 1 :kind (:user::NodeKind.List {}))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules    (wat.rete/collect-rules :user)
+     template (wat.core/match (wat.rete/compile-all rules
+                (wat.type/PersistentVector :- [wat.rete/Query] (user/q-HitA) (user/q-HitC))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     fired    (wat.core/match (wat.rete/fire-rules
+                (wat.core/match (wat.rete/insert
+                  (wat.core/match (wat.rete/insert
+                    (wat.core/match (wat.rete/insert
+                      (wat.core/match (wat.rete/insert template
+                        (user/EnumNode :id 1 :kind (user/NodeKind.List {}))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
                       ;; ★ THE DISCRIMINATOR — a NON-matching variant. If the :where is
                       ;; ignored rather than evaluated, ARM-A counts these too.
-                      (:user::EnumNode :id 3 :kind (:user::NodeKind.Vector {}))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                    (:user::EnumNode :id 4 :kind (:user::NodeKind.Keyword {}))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-                  (:user::StrNode :id 2 :kind "list")) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
-    (:wat::kernel::println
-      (:wat::string::interpolate "ARM-A-enum={a} (MUST be 1 of 3 inserted) ARM-C-string-control={c}"
-        :a (:wat::i64::to-string (:wat::core::length (:wat::rete::query fired (:user::q-HitA))))
-        :c (:wat::i64::to-string (:wat::core::length (:wat::rete::query fired (:user::q-HitC))))))))
+                      (user/EnumNode :id 3 :kind (user/NodeKind.Vector {}))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                    (user/EnumNode :id 4 :kind (user/NodeKind.Keyword {}))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+                  (user/StrNode :id 2 :kind "list")) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])]
+    (wat.kernel/println
+      (wat.string/interpolate "ARM-A-enum={a} (MUST be 1 of 3 inserted) ARM-C-string-control={c}"
+        :a (wat.i64/to-string (wat.core/length (wat.rete/query fired (user/q-HitA))))
+        :c (wat.i64/to-string (wat.core/length (wat.rete/query fired (user/q-HitC))))))))

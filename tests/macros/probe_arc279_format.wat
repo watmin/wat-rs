@@ -3,6 +3,6 @@
 ;;
 ;; Named placeholders, out-of-order kwargs, heterogeneous values (String + i64), static text.
 ;; The format call is inside a defn so it gets macro-expanded at startup.
-(:wat::core::defn :user::test-format [] -> wat.type/String
-  (:wat::core::format "{greeting}, {name}! you have {count} messages"
+(wat.core/defn user/test-format [] :- wat.type/String
+  (wat.core/format "{greeting}, {name}! you have {count} messages"
     :name "ada" :greeting "hello" :count 3))

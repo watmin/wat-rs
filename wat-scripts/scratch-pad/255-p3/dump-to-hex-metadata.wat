@@ -2,9 +2,9 @@
 ;; to confirm the SHIPPED contract: :purity/:determinism are Value::Enum
 ;; (:wat::runtime::Purity/Pure, :wat::runtime::Determinism/Deterministic), not plain
 ;; :pure/:deterministic bools. See tests/reflection/probe_arc255_ivc_metadata_plain_values.rs.
-(:wat::core::defn :user::dump-to-hex-metadata []
-  -> (:wat::core::Option :- [(wat.type/HashMap :- [wat.type/keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::bytes::to-hex))
+(wat.core/defn user/dump-to-hex-metadata []
+  :- (wat.core/Option :- [(wat.type/HashMap :- [wat.type/keyword wat.holon/HolonAST])])
+  (wat.runtime/metadata-of wat.bytes/to-hex))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:user::dump-to-hex-metadata)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (user/dump-to-hex-metadata)))

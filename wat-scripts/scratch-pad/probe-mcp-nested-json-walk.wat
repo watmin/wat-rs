@@ -16,22 +16,22 @@
 ;;
 ;; Either answer is fine; guessing between them is not. Run it and read what the checker says.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match
-      (:wat::edn::read-json
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match
+      (wat.edn/read-json
         "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"eval\",\"arguments\":{\"edn\":\"(:wat::core::+ 2 2)\"}}}")
 
-    [:wat::edn::ReadJsonOutcome.Value {:value top}
-      (:wat::core::match (:wat::core::get top "params")
-        [:wat::core::Option.Some {:value params}
-          (:wat::core::match (:wat::core::get params "arguments")
-            [:wat::core::Option.Some {:value args}
-              (:wat::core::match (:wat::core::get args "edn")
-                [:wat::core::Option.Some {:value s}
-                  (:wat::kernel::println (:wat::string::concat "WALKS -> " s))]
-                [:wat::core::Option.None {} (:wat::kernel::println "MISS at edn")])]
-            [:wat::core::Option.None {} (:wat::kernel::println "MISS at arguments")])]
-        [:wat::core::Option.None {} (:wat::kernel::println "MISS at params")])]
+    [wat.edn/ReadJsonOutcome.Value {:value top}
+      (wat.core/match (wat.core/get top "params")
+        [wat.core/Option.Some {:value params}
+          (wat.core/match (wat.core/get params "arguments")
+            [wat.core/Option.Some {:value args}
+              (wat.core/match (wat.core/get args "edn")
+                [wat.core/Option.Some {:value s}
+                  (wat.kernel/println (wat.string/concat "WALKS -> " s))]
+                [wat.core/Option.None {} (wat.kernel/println "MISS at edn")])]
+            [wat.core/Option.None {} (wat.kernel/println "MISS at arguments")])]
+        [wat.core/Option.None {} (wat.kernel/println "MISS at params")])]
 
-    [:wat::edn::ReadJsonOutcome.Malformed {:cause cause}
-      (:wat::kernel::println cause)]))
+    [wat.edn/ReadJsonOutcome.Malformed {:cause cause}
+      (wat.kernel/println cause)]))

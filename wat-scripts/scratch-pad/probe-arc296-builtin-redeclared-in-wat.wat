@@ -15,7 +15,7 @@
 ;; exists TODAY, independent of this stone: Rust believes something about this type that
 ;; wat's own reader would not.
 
-(:wat::core::defrecord :wat::kernel::Location
-  [file <- wat.type/String
-   line <- wat.type/i64
-   col  <- wat.type/i64])
+(wat.core/defrecord wat.kernel/Location
+  [file :- wat.type/String
+   line :- wat.type/i64
+   col  :- wat.type/i64])

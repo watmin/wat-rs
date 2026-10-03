@@ -10,14 +10,14 @@
 ;; GREEN at 293.4e-pre.ii: the surface method name splits to `make` + type_params `[T]` (like
 ;; `parse_defprotocol_form`), and the call-site check instantiates `T`.
 
-(:wat::core::defsurface :t::Maker
+(wat.core/defsurface t/Maker
   :nature wat.type/Struct
-  :features [(make :- [T] [self <- :t::Maker  x <- :T] -> :T)])
+  :features [(make :- [T] [self :- t/Maker  x :- T] :- T)])
 
-(:wat::core::defrecord :t::Id [tag <- wat.type/i64])
+(wat.core/defrecord t/Id [tag :- wat.type/i64])
 
 ;; extend-type impl: bare name (no `:- [T]`), bare args — exactly the Locus extend-impl shape.
-(:wat::core::extend-type :t::Id :t::Maker
+(wat.core/extend-type t/Id t/Maker
   (make [self x] x))
 
-(:wat::core::defn :t::probe [] -> wat.type/i64 (:t::Maker/make (:t::Id :tag 1) 42))
+(wat.core/defn t/probe [] :- wat.type/i64 (t.Maker/make (t/Id :tag 1) 42))

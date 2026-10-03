@@ -11,22 +11,22 @@
 ;;
 ;; READ THE EXPANDED FORM FIRST (CLAUDE.md item 4). This prints it.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rete-expanded (:wat::core::macroexpand
-                     (:wat::core::quote
-                       (:wat::rete::core::cond
-                         ((:wat::core::keyword::= :silver :gold)   0.5)
-                         ((:wat::core::keyword::= :silver :silver) 0.7)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rete-expanded (wat.core/macroexpand
+                     (wat.core/quote
+                       (wat.rete.core/cond
+                         ((wat.core.keyword/= :silver :gold)   0.5)
+                         ((wat.core.keyword/= :silver :silver) 0.7)
                          (:else                                    0.9))))
-     core-expanded (:wat::core::macroexpand
-                     (:wat::core::quote
-                       (:wat::core::cond
-                         ((:wat::core::keyword::= :silver :gold)   0.5)
-                         ((:wat::core::keyword::= :silver :silver) 0.7)
+     core-expanded (wat.core/macroexpand
+                     (wat.core/quote
+                       (wat.core/cond
+                         ((wat.core.keyword/= :silver :gold)   0.5)
+                         ((wat.core.keyword/= :silver :silver) 0.7)
                          (:else                                    0.9))))]
-    (:wat::core::do
-      (:wat::kernel::println "--- rete-spelled cond expands to: ---")
-      (:wat::kernel::println rete-expanded)
-      (:wat::kernel::println "--- core-spelled cond expands to: ---")
-      (:wat::kernel::println core-expanded))))
+    (wat.core/do
+      (wat.kernel/println "--- rete-spelled cond expands to: ---")
+      (wat.kernel/println rete-expanded)
+      (wat.kernel/println "--- core-spelled cond expands to: ---")
+      (wat.kernel/println core-expanded))))

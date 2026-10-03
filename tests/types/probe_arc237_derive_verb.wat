@@ -2,12 +2,12 @@
 ;;
 ;; Arc 237 follow-on — the user-facing :wat::core::derive verb.
 
-(:wat::core::defrecord :t::A [])
-(:wat::core::defrecord :t::B [])
+(wat.core/defrecord t/A [])
+(wat.core/defrecord t/B [])
 
-(:wat::core::derive :t::A :t::Marker)
-(:wat::core::derive :t::B :t::Marker)
+(wat.core/derive t/A t/Marker)
+(wat.core/derive t/B t/Marker)
 
-(:wat::core::defn :user::take-marker [m <- :t::Marker] -> wat.type/i64 42)
-(:wat::core::defn :user::go-a [] -> wat.type/i64 (:user::take-marker (:t::A)))
-(:wat::core::defn :user::go-b [] -> wat.type/i64 (:user::take-marker (:t::B)))
+(wat.core/defn user/take-marker [m :- t/Marker] :- wat.type/i64 42)
+(wat.core/defn user/go-a [] :- wat.type/i64 (user/take-marker (t/A)))
+(wat.core/defn user/go-b [] :- wat.type/i64 (user/take-marker (t/B)))

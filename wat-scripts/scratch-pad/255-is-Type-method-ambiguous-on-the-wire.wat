@@ -6,12 +6,12 @@
 ;;
 ;; ⛔ MEASUREMENT, never a ratchet.
 
-(:wat::core::defn :p::show [label <- wat.type/String k <- wat.type/keyword] -> wat.type/nil
-  (:wat::kernel::println (:wat::string::concat (:wat::string::concat label "  -> ") (:wat::edn::write k))))
+(wat.core/defn p/show [label :- wat.type/String k :- wat.type/keyword] :- wat.type/nil
+  (wat.kernel/println (wat.string/concat (wat.string/concat label "  -> ") (wat.edn/write k))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "-- what each live spelling becomes on the wire --")
-    (:p::show "Type::method (5 names) " :my::ns::Bytes::to-hex)
-    (:p::show "Type/method  (82 names)" :my::ns::Bytes/to-hex)
-    (:wat::kernel::println "")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "-- what each live spelling becomes on the wire --")
+    (p/show "Type::method (5 names) " my.ns.Bytes/to-hex)
+    (p/show "Type/method  (82 names)" my.ns.Bytes/to-hex)
+    (wat.kernel/println "")))

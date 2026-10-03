@@ -3,11 +3,11 @@
 ;; The SAME symbol-spelled nested quasiquote, introducing NO literal binder: it must
 ;; still register, expand and compute. A wall that refuses every symbol-spelled
 ;; quasiquote is not an intact wall.
-(:wat::core::defmacro :my::twice
-  [x <- wat.type/AST]
-  -> wat.type/AST
-  (:wat::core::if (:wat::core::= 1 1)
-    (wat.core/quasiquote (:wat::i64::+ (:wat::core::unquote x) (:wat::core::unquote x)))
+(wat.core/defmacro my/twice
+  [x :- wat.type/AST]
+  :- wat.type/AST
+  (wat.core/if (wat.core/= 1 1)
+    (wat.core/quasiquote (wat.i64/+ (wat.core/unquote x) (wat.core/unquote x)))
     `~x))
-(:wat::core::defn :user::compute [] -> wat.type/bool
-  (:wat::core::= (:my::twice 3) 6))
+(wat.core/defn user/compute [] :- wat.type/bool
+  (wat.core/= (my/twice 3) 6))

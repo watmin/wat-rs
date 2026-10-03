@@ -27,27 +27,27 @@
 ;; The def/registration seams the codemod cannot touch (Rust doc comments, the DESIGN doc) are the
 ;; manual tail; the load-bearing wat CODE is this rewrite.
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::fix::rename-keyword-prefix ":wat::kernel::StdOut'" ":wat::kernel::StdOut"
-    (:wat::fix::rename-keyword-prefix ":wat::kernel::StdErr'" ":wat::kernel::StdErr"
-      (:wat::fix::rename-keyword-prefix ":wat::kernel::StdIn'" ":wat::kernel::StdIn"
-        (:wat::fix::rename-keyword-prefix ":wat::kernel::stdout-svc'" ":wat::kernel::stdout-svc"
-          (:wat::fix::rename-keyword-prefix ":wat::kernel::stderr-svc'" ":wat::kernel::stderr-svc"
-            (:wat::fix::rename-keyword-prefix ":wat::kernel::stdin-svc'" ":wat::kernel::stdin-svc"
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.fix/rename-keyword-prefix ":wat::kernel::StdOut'" ":wat::kernel::StdOut"
+    (wat.fix/rename-keyword-prefix ":wat::kernel::StdErr'" ":wat::kernel::StdErr"
+      (wat.fix/rename-keyword-prefix ":wat::kernel::StdIn'" ":wat::kernel::StdIn"
+        (wat.fix/rename-keyword-prefix ":wat::kernel::stdout-svc'" ":wat::kernel::stdout-svc"
+          (wat.fix/rename-keyword-prefix ":wat::kernel::stderr-svc'" ":wat::kernel::stderr-svc"
+            (wat.fix/rename-keyword-prefix ":wat::kernel::stdin-svc'" ":wat::kernel::stdin-svc"
               src)))))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[reclaimed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[reclaimed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

@@ -6,22 +6,22 @@
 ;; the offending head AND axis — the identical `then-item-fence` mechanism as the GREEN worlds,
 ;; on a fn whose body does not bottom out in admitted ops.
 
-(:wat::core::defrecord :tf::In   [n <- wat.type/i64])
-(:wat::core::defrecord :tf::Rate [count <- wat.type/i64])
+(wat.core/defrecord tf/In   [n :- wat.type/i64])
+(wat.core/defrecord tf/Rate [count :- wat.type/i64])
 
-(:wat::core::defn :tf::make-rate-bad
-  [r <- :tf::Rate]
-  -> :tf::Rate
-  (:wat::core::if (:wat::core::record? (:wat::io::IOReader/open-file "x")) r r))
+(wat.core/defn tf/make-rate-bad
+  [r :- tf/Rate]
+  :- tf/Rate
+  (wat.core/if (wat.core/record? (wat.io.IOReader/open-file "x")) r r))
 
-(:wat::rete::defrule :tf::compute-bad
-  :when [(:tf::In (?n :- :n))]
-  :then [(:tf::make-rate-bad (:tf::Rate :count ?n))])
+(wat.rete/defrule tf/compute-bad
+  :when [(tf/In (?n :- :n))]
+  :then [(tf/make-rate-bad (tf/Rate :count ?n))])
 
 ;; Compiling ALONE must panic (Option/expect -> panic_any) before ever inserting/firing anything —
 ;; this is the freeze-time-only claim (BRIEF-then-user-forms.md's "Freeze-time, never fire-time").
-(:wat::core::defn :user::run-compile [] -> wat.type/i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts session)))))
+(wat.core/defn user/run-compile [] :- wat.type/i64
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :tf)
+     session (wat.core/match (wat.rete/compile rules) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts session)))))

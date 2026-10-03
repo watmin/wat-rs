@@ -34,31 +34,31 @@
 
 ;; The migration as DATA — one row per retired bare spelling, for symmetry with the
 ;; multi-row recorded migrations (rename-sort-prime-to-native.wat is the shape this mirrors).
-(:wat::core::defn :user::renames [] -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
+(wat.core/defn user/renames [] :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])])
   (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/String wat.type/String])]
     (wat.type/Tuple :- [wat.type/String wat.type/String] "Some" ":wat::core::Some")
     (wat.type/Tuple :- [wat.type/String wat.type/String] "Ok"   ":wat::core::Ok")
     (wat.type/Tuple :- [wat.type/String wat.type/String] "Err"  ":wat::core::Err")))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String
-                     pr  <- (wat.type/Tuple :- [wat.type/String wat.type/String])] -> wat.type/String
-      (:wat::fix::rename-symbol-exact (:wat::core::first pr) (:wat::core::second pr) acc))
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String
+                     pr  :- (wat.type/Tuple :- [wat.type/String wat.type/String])] :- wat.type/String
+      (wat.fix/rename-symbol-exact (wat.core/first pr) (wat.core/second pr) acc))
     src
-    (:user::renames)))
+    (user/renames)))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

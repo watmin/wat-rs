@@ -10,16 +10,16 @@
 ;; call; the prime accepts raw positional args; bare positional is a LOCATED error (see
 ;; probe_arc294_9a_kwargs_ctor_bad.wat.bad for the negative fixture).
 
-(:wat::core::defrecord :probe294a::Pair [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defrecord probe294a/Pair [a :- wat.type/i64  b :- wat.type/i64])
 
 ;; bare kwargs, declared field order (:a then :b)
-(:wat::core::defn :probe294a::mk-ab [] -> :probe294a::Pair
-  (:probe294a::Pair :a 1 :b 2))
+(wat.core/defn probe294a/mk-ab [] :- probe294a/Pair
+  (probe294a/Pair :a 1 :b 2))
 
 ;; bare kwargs, REVERSED key order — proves order-free reordering
-(:wat::core::defn :probe294a::mk-ba [] -> :probe294a::Pair
-  (:probe294a::Pair :b 2 :a 1))
+(wat.core/defn probe294a/mk-ba [] :- probe294a/Pair
+  (probe294a/Pair :b 2 :a 1))
 
 ;; the PRIME — raw positional construction, the reserved escape hatch
-(:wat::core::defn :probe294a::mk-prime [] -> :probe294a::Pair
-  (:probe294a::Pair' 1 2))
+(wat.core/defn probe294a/mk-prime [] :- probe294a/Pair
+  (probe294a/Pair' 1 2))

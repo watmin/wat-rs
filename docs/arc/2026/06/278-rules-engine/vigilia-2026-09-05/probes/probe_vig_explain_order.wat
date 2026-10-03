@@ -9,58 +9,58 @@
 ;; its attribution cannot depend on order, so a disagreement there would be a driver defect,
 ;; not this finding.
 
-(:wat::core::defrecord :vex::In   [k <- wat.type/i64])
-(:wat::core::defrecord :vex::Out  [k <- wat.type/i64])
-(:wat::core::defrecord :vex::Solo [k <- wat.type/i64])
+(wat.core/defrecord vex/In   [k :- wat.type/i64])
+(wat.core/defrecord vex/Out  [k :- wat.type/i64])
+(wat.core/defrecord vex/Solo [k :- wat.type/i64])
 
-(:wat::rete::defrule :vex::aaa  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::bbb  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ccc  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ddd  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::eee  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::fff  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::ggg  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::zzz  :when [(:vex::In (?k :- :k))] :then [(:vex::Out :k ?k)])
-(:wat::rete::defrule :vex::solo :when [(:vex::In (?k :- :k))] :then [(:vex::Solo :k ?k)])
+(wat.rete/defrule vex/aaa  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/bbb  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/ccc  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/ddd  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/eee  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/fff  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/ggg  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/zzz  :when [(vex/In (?k :- :k))] :then [(vex/Out :k ?k)])
+(wat.rete/defrule vex/solo :when [(vex/In (?k :- :k))] :then [(vex/Solo :k ?k)])
 
-(:wat::core::defn :vex::session [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert
-    (:wat::core::match (:wat::rete::compile (:wat::rete::collect-rules :vex))
-      [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-      [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-        (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-    (:vex::In :k 1))
-    [:wat::rete::InsertOutcome.Inserted {:session __x} __x]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
-      (:wat::kernel::assertion-failed! :message "insert: ceiling")]))
+(wat.core/defn vex/session [] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert
+    (wat.core/match (wat.rete/compile (wat.rete/collect-rules :vex))
+      [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+      [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+        (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+    (vex/In :k 1))
+    [wat.rete/InsertOutcome.Inserted {:session __x} __x]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c}
+      (wat.kernel/assertion-failed! :message "insert: ceiling")]))
 
-(:wat::core::defn :vex::nat [] -> :wat::rete::Explained
-  (:wat::core::match (:wat::rete::fire-rules-explain (:vex::session))
-    [:wat::rete::FireOutcome.Fired {:value __e} __e]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-      (:wat::kernel::assertion-failed! :message "ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-      (:wat::kernel::assertion-failed! :message "roundcap")]))
+(wat.core/defn vex/nat [] :- wat.rete/Explained
+  (wat.core/match (wat.rete/fire-rules-explain (vex/session))
+    [wat.rete/FireOutcome.Fired {:value __e} __e]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+      (wat.kernel/assertion-failed! :message "ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+      (wat.kernel/assertion-failed! :message "roundcap")]))
 
-(:wat::core::defn :vex::ora [] -> :wat::rete::Explained
-  (:wat::core::match (:wat::rete::fire-rules-explain$oracle (:vex::session))
-    [:wat::rete::FireOutcome.Fired {:value __e} __e]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
-      (:wat::kernel::assertion-failed! :message "ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-      (:wat::kernel::assertion-failed! :message "roundcap")]))
+(wat.core/defn vex/ora [] :- wat.rete/Explained
+  (wat.core/match (wat.rete/fire-rules-explain$oracle (vex/session))
+    [wat.rete/FireOutcome.Fired {:value __e} __e]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r}
+      (wat.kernel/assertion-failed! :message "ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+      (wat.kernel/assertion-failed! :message "roundcap")]))
 
-(:wat::core::defn :vex::rule-of [ex <- :wat::rete::Explained  f <- wat.type/Record] -> wat.type/String
-  (:wat::core::Option/expect
-    (:wat::rete::DerivationNode/rule (:wat::rete::explain ex f))
+(wat.core/defn vex/rule-of [ex :- wat.rete/Explained  f :- wat.type/Record] :- wat.type/String
+  (wat.core.Option/expect
+    (wat.rete.DerivationNode/rule (wat.rete/explain ex f))
     "no producing rule recorded for this fact"))
 
 ;; [native Out-rule, oracle Out-rule, native Solo-rule (control), oracle Solo-rule (control)]
-(:wat::core::defn :user::attribution [] -> (wat.type/Vector :- [wat.type/String])
-  (:wat::core::mapv
-    (:wat::core::fn [s <- wat.type/String] -> wat.type/String s)
+(wat.core/defn user/attribution [] :- (wat.type/Vector :- [wat.type/String])
+  (wat.core/mapv
+    (wat.core/fn [s :- wat.type/String] :- wat.type/String s)
     (wat.type/PersistentVector :- [wat.type/String]
-      (:vex::rule-of (:vex::nat) (:vex::Out :k 1))
-      (:vex::rule-of (:vex::ora) (:vex::Out :k 1))
-      (:vex::rule-of (:vex::nat) (:vex::Solo :k 1))
-      (:vex::rule-of (:vex::ora) (:vex::Solo :k 1)))))
+      (vex/rule-of (vex/nat) (vex/Out :k 1))
+      (vex/rule-of (vex/ora) (vex/Out :k 1))
+      (vex/rule-of (vex/nat) (vex/Solo :k 1))
+      (vex/rule-of (vex/ora) (vex/Solo :k 1)))))

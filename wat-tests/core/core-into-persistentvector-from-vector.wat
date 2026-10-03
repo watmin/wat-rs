@@ -25,60 +25,60 @@
 ;;
 ;; #pv[1 2] `into` [3 4] = #pv[1 2 3 4]. The RED gate from the DESIGN doc, exactly.
 
-(:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::into-pv-from-vector
+(wat.test/deftest wat-tests.core.core-into-persistentvector-from-vector/into-pv-from-vector
 
-  (:wat::core::let
+  (wat.core/let
     [to       (wat.type/PersistentVector :- [wat.type/i64] 1 2)
      from     (wat.type/Vector :- [wat.type/i64] 3 4)
-     combined (:wat::core::into to from)
+     combined (wat.core/into to from)
      expected (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)]
-    (:wat::test::assert-eq combined expected)))
+    (wat.test/assert-eq combined expected)))
 
 ;; ─── into: empty PersistentVector receiver (the exact vec->pvec shape) ───────────
 ;;
 ;; `(into (PersistentVector) v)` — the one-liner the nine grid axes now call instead of the
 ;; hand-rolled conj-fold. Proves the empty-receiver case (the actual call shape in production).
 
-(:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::into-pv-from-vector-empty-receiver
+(wat.test/deftest wat-tests.core.core-into-persistentvector-from-vector/into-pv-from-vector-empty-receiver
 
-  (:wat::core::let
+  (wat.core/let
     [empty    (wat.type/PersistentVector :- [wat.type/i64])
      from     (wat.type/Vector :- [wat.type/i64] 5 6 7)
-     combined (:wat::core::into empty from)
+     combined (wat.core/into empty from)
      expected (wat.type/PersistentVector :- [wat.type/i64] 5 6 7)]
-    (:wat::test::assert-eq combined expected)))
+    (wat.test/assert-eq combined expected)))
 
 ;; ─── into: Vector source order is preserved, not just set membership ─────────────
 
-(:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::into-pv-from-vector-order-preserved
+(wat.test/deftest wat-tests.core.core-into-persistentvector-from-vector/into-pv-from-vector-order-preserved
 
-  (:wat::core::let
+  (wat.core/let
     [to       (wat.type/PersistentVector :- [wat.type/i64])
      from     (wat.type/Vector :- [wat.type/i64] 3 1 4 1 5)
-     combined (:wat::core::into to from)
+     combined (wat.core/into to from)
      expected (wat.type/PersistentVector :- [wat.type/i64] 3 1 4 1 5)]
-    (:wat::test::assert-eq combined expected)))
+    (wat.test/assert-eq combined expected)))
 
 ;; ─── PersistentVector/concat: the PV×PV scheme (the op's OTHER clause) ───────────
 ;;
 ;; Called directly (not through `into`, which has no (PersistentVector,PersistentVector)
 ;; clause) — proves `PersistentVector/concat`'s second scheme, (PV :- [T]) × (PV :- [T]) -> (PV :- [T]).
 
-(:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::persistentvector-concat-pv-from-pv
+(wat.test/deftest wat-tests.core.core-into-persistentvector-from-vector/persistentvector-concat-pv-from-pv
 
-  (:wat::core::let
+  (wat.core/let
     [to       (wat.type/PersistentVector :- [wat.type/i64] 1 2)
      from     (wat.type/PersistentVector :- [wat.type/i64] 3 4)
-     combined (:wat::core::into to from)
+     combined (wat.core/into to from)
      expected (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4)]
-    (:wat::test::assert-eq combined expected)))
+    (wat.test/assert-eq combined expected)))
 
 ;; ─── PersistentVector/concat: length of the concatenated result ──────────────────
 
-(:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::persistentvector-concat-length
+(wat.test/deftest wat-tests.core.core-into-persistentvector-from-vector/persistentvector-concat-length
 
-  (:wat::core::let
+  (wat.core/let
     [to       (wat.type/PersistentVector :- [wat.type/i64] 1 2 3)
      from     (wat.type/Vector :- [wat.type/i64] 4 5)
-     combined (:wat::core::into to from)]
-    (:wat::test::assert-eq (:wat::core::length combined) 5)))
+     combined (wat.core/into to from)]
+    (wat.test/assert-eq (wat.core/length combined) 5)))

@@ -19,7 +19,7 @@
 ;; Run:    ./target/release/wat ./wat-scripts/scratch-pad/255-stone-a-i-i64-overflow-under-new-spelling.wat
 ;; Expect: EXIT!=0, stderr names IntegerOverflow (NOT DivisionByZero).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:wat::i64::to-string (:wat::i64::+ 9223372036854775807 1)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (wat.i64/to-string (wat.i64/+ 9223372036854775807 1)))
     nil))

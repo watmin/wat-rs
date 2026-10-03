@@ -19,47 +19,47 @@
 ;; :my::compute — read-foreign the nested-unknown EDN, navigate to the NESTED variant's name.
 ;; Proves: read-foreign builds a ForeignRecord; get reaches the :kind field; that field is
 ;; itself a ForeignVariant (recursion); its variant is :Click.
-(:wat::core::defn :my::compute [] -> wat.type/keyword
-  (:wat::core::match
-    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome.Value {:value fr}
-      (:wat::edn::ForeignVariant/variant
-        (:wat::core::Option/expect
-          (:wat::edn::ForeignRecord/get fr :kind)
+(wat.core/defn my/compute [] :- wat.type/keyword
+  (wat.core/match
+    (wat.edn/read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
+    [wat.edn/ReadForeignOutcome.Value {:value fr}
+      (wat.edn.ForeignVariant/variant
+        (wat.core.Option/expect
+          (wat.edn.ForeignRecord/get fr :kind)
           "nested :kind"))]
-    [:wat::edn::ReadForeignOutcome.Malformed {:cause _}
-      (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))
+    [wat.edn/ReadForeignOutcome.Malformed {:cause _}
+      (wat.kernel/assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))
 
 ;; :my::missing-field-is-none — get of an absent key is None, never a raise.
-(:wat::core::defn :my::missing-field-is-none [] -> wat.type/bool
-  (:wat::core::match
-    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome.Value {:value fr}
-      (:wat::core::match (:wat::edn::ForeignRecord/get fr :nope)
-        [:wat::core::Option.None {} true]
-        [:wat::core::Option.Some {:value _} false])]
-    [:wat::edn::ReadForeignOutcome.Malformed {:cause _} false]))
+(wat.core/defn my/missing-field-is-none [] :- wat.type/bool
+  (wat.core/match
+    (wat.edn/read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
+    [wat.edn/ReadForeignOutcome.Value {:value fr}
+      (wat.core/match (wat.edn.ForeignRecord/get fr :nope)
+        [wat.core/Option.None {} true]
+        [wat.core/Option.Some {:value _} false])]
+    [wat.edn/ReadForeignOutcome.Malformed {:cause _} false]))
 
 ;; :my::malformed-is-malformed — junk EDN is :Malformed, never a raise.
-(:wat::core::defn :my::malformed-is-malformed [] -> wat.type/bool
-  (:wat::core::match (:wat::edn::read-foreign "{not edn")
-    [:wat::edn::ReadForeignOutcome.Value {:value _} false]
-    [:wat::edn::ReadForeignOutcome.Malformed {:cause _} true]))
+(wat.core/defn my/malformed-is-malformed [] :- wat.type/bool
+  (wat.core/match (wat.edn/read-foreign "{not edn")
+    [wat.edn/ReadForeignOutcome.Value {:value _} false]
+    [wat.edn/ReadForeignOutcome.Malformed {:cause _} true]))
 
 ;; :my::strict-errors — the SAME input through STRICT read STILL raises UnknownTag.
 ;; The no-hidden-failures floor (R41 EGO SVM LEX) is untouched: strict is strict.
 ;; At green, `read` on the unknown tag raises → call_beside returns Err → the .rs expect_err's.
-(:wat::core::defn :my::strict-errors [] -> wat.type/Value
-  (:wat::edn::read "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}"))
+(wat.core/defn my/strict-errors [] :- wat.type/Value
+  (wat.edn/read "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}"))
 
 ;; Row 9 — names self-carried: write-pretty of the nested variant keeps :n.
-(:wat::core::defn :my::keys-survive [] -> wat.type/String
-  (:wat::core::match
-    (:wat::edn::read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
-    [:wat::edn::ReadForeignOutcome.Value {:value fr}
-      (:wat::edn::write-pretty
-        (:wat::core::Option/expect
-          (:wat::edn::ForeignRecord/get fr :kind)
+(wat.core/defn my/keys-survive [] :- wat.type/String
+  (wat.core/match
+    (wat.edn/read-foreign "#some.unknown/Rec {:kind #some.unknown/Kind.Click {:n 42}}")
+    [wat.edn/ReadForeignOutcome.Value {:value fr}
+      (wat.edn/write-pretty
+        (wat.core.Option/expect
+          (wat.edn.ForeignRecord/get fr :kind)
           "nested :kind"))]
-    [:wat::edn::ReadForeignOutcome.Malformed {:cause _}
-      (:wat::kernel::assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))
+    [wat.edn/ReadForeignOutcome.Malformed {:cause _}
+      (wat.kernel/assertion-failed! :message "read-foreign of well-formed EDN was :Malformed")]))

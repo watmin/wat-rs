@@ -17,55 +17,55 @@
 ;;
 ;; The ceiling is set ABOVE anything this can reach: a breach would short-circuit the fold and the
 ;; timing would be measuring a refusal, not a door.
-(:wat::config::rete::set-max-session-bytes! 400000000000)
+(wat.config.rete/set-max-session-bytes! 400000000000)
 
-(:wat::core::defrecord :bd::Edge [a <- wat.type/i64  b <- wat.type/i64])
-(:wat::rete::defrule :bd::noop :when [(:bd::Edge (?a :- :a))] :then [])
+(wat.core/defrecord bd/Edge [a :- wat.type/i64  b :- wat.type/i64])
+(wat.rete/defrule bd/noop :when [(bd/Edge (?a :- :a))] :then [])
 
-(:wat::core::defn :bd::compile [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :bd) (wat.type/PersistentVector :- [:wat::rete::Query]))
-    [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-      (:wat::kernel::assertion-failed! :message "bench: the rule set may not terminate")]))
+(wat.core/defn bd/compile [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :bd) (wat.type/PersistentVector :- [wat.rete/Query]))
+    [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+      (wat.kernel/assertion-failed! :message "bench: the rule set may not terminate")]))
 
 ;; `s` through the ENUM, not the `Inserted` variant: main's checker would otherwise type the
 ;; map-ctor as `InsertOutcome.Inserted` and refuse the fold below (`InsertOutcome` → `InsertOutcome`)
 ;; — same class as `probe_arc278_session_memory_ceiling_insert.wat`'s `:ins::inserted`.
-(:wat::core::defn :bd::inserted [s <- :wat::rete::Session] -> :wat::rete::InsertOutcome
-  (:wat::rete::InsertOutcome.Inserted {:session s}))
+(wat.core/defn bd/inserted [s :- wat.rete/Session] :- wat.rete/InsertOutcome
+  (wat.rete/InsertOutcome.Inserted {:session s}))
 
 ;; Stage `n` facts through the single-fact door, short-circuiting on a ceiling so a breach cannot
 ;; masquerade as a fast run.
-(:wat::core::defn :bd::stage [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::InsertOutcome
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::InsertOutcome  i <- wat.type/i64] -> :wat::rete::InsertOutcome
-      (:wat::core::match acc
-        [:wat::rete::InsertOutcome.Inserted {:session session}
-          (:wat::rete::insert session (:bd::Edge :a i :b (:wat::i64::+ i 1)))]
-        [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __s} acc]))
-    (:bd::inserted s)
-    (:wat::core::range 0 n)))
+(wat.core/defn bd/stage [s :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/InsertOutcome
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/InsertOutcome  i :- wat.type/i64] :- wat.rete/InsertOutcome
+      (wat.core/match acc
+        [wat.rete/InsertOutcome.Inserted {:session session}
+          (wat.rete/insert session (bd/Edge :a i :b (wat.i64/+ i 1)))]
+        [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __s} acc]))
+    (bd/inserted s)
+    (wat.core/range 0 n)))
 
 ;; NON-VACUITY: how many facts the block actually staged. `-1` means it refused, and any timing
 ;; from that block is measuring the wrong thing.
-(:wat::core::defn :bd::staged [o <- :wat::rete::InsertOutcome] -> wat.type/i64
-  (:wat::core::match o
-    [:wat::rete::InsertOutcome.Inserted {:session s} (:wat::core::length (:wat::rete::factbag::items (:wat::rete::Session/facts s)))]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st} -1]))
+(wat.core/defn bd/staged [o :- wat.rete/InsertOutcome] :- wat.type/i64
+  (wat.core/match o
+    [wat.rete/InsertOutcome.Inserted {:session s} (wat.core/length (wat.rete.factbag/items (wat.rete.Session/facts s)))]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __st} -1]))
 
-(:wat::core::defn :bd::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn bd/ns [t0 :- wat.time/Instant t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n  20000
-     a0 (:wat::time::now) ra (:bd::stage (:bd::compile) n) a1 (:wat::time::now)
-     b0 (:wat::time::now) rb (:bd::stage (:bd::compile) n) b1 (:wat::time::now)
-     c0 (:wat::time::now) rc (:bd::stage (:bd::compile) n) c1 (:wat::time::now)]
-    (:wat::kernel::println
-      (:wat::string::interpolate
+     a0 (wat.time/now) ra (bd/stage (bd/compile) n) a1 (wat.time/now)
+     b0 (wat.time/now) rb (bd/stage (bd/compile) n) b1 (wat.time/now)
+     c0 (wat.time/now) rc (bd/stage (bd/compile) n) c1 (wat.time/now)]
+    (wat.kernel/println
+      (wat.string/interpolate
         "n={n} STAGED a={sa} b={sb} c={sc} | ns/fact a={an} b={bn} c={cn}"
-        :n n :sa (:bd::staged ra) :sb (:bd::staged rb) :sc (:bd::staged rc)
-        :an (:wat::i64::/ (:bd::ns a0 a1) n)
-        :bn (:wat::i64::/ (:bd::ns b0 b1) n)
-        :cn (:wat::i64::/ (:bd::ns c0 c1) n)))))
+        :n n :sa (bd/staged ra) :sb (bd/staged rb) :sc (bd/staged rc)
+        :an (wat.i64// (bd/ns a0 a1) n)
+        :bn (wat.i64// (bd/ns b0 b1) n)
+        :cn (wat.i64// (bd/ns c0 c1) n)))))

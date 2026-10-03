@@ -41,68 +41,68 @@
 ;; rune:lint(red-by-design) — this file exists to PRINT two disagreeing lines; it loads and runs
 ;;    cleanly, and a reader comparing the two printed vectors is meant to find them different.
 
-(:wat::core::defrecord :d2::A    [x <- wat.type/i64])
-(:wat::core::defrecord :d2::B    [x <- wat.type/i64  y <- wat.type/i64])
-(:wat::core::defrecord :d2::Seed [y <- wat.type/i64])
-(:wat::core::defrecord :d2::C    [y <- wat.type/i64])
-(:wat::core::defrecord :d2::Out  [x <- wat.type/i64  y <- wat.type/i64])
-(:wat::core::defrecord :d2::Tally [n <- wat.type/i64])
-(:wat::core::defrecord :d2::Stale [n <- wat.type/i64])
+(wat.core/defrecord d2/A    [x :- wat.type/i64])
+(wat.core/defrecord d2/B    [x :- wat.type/i64  y :- wat.type/i64])
+(wat.core/defrecord d2/Seed [y :- wat.type/i64])
+(wat.core/defrecord d2/C    [y :- wat.type/i64])
+(wat.core/defrecord d2/Out  [x :- wat.type/i64  y :- wat.type/i64])
+(wat.core/defrecord d2/Tally [n :- wat.type/i64])
+(wat.core/defrecord d2/Stale [n :- wat.type/i64])
 
 ;; round 1 derives C — so the LAST join's right side is empty during round 1
-(:wat::rete::defrule :d2::mk-c
-  :when [(:d2::Seed (?y :- :y))]
-  :then [(:d2::C :y ?y)])
+(wat.rete/defrule d2/mk-c
+  :when [(d2/Seed (?y :- :y))]
+  :then [(d2/C :y ?y)])
 
 ;; filter -> join a -> join b
-(:wat::rete::defrule :d2::chain
-  :when [(:d2::C (?y :- :y))]
-  :then [(:d2::Out :x 1 :y ?y)])
+(wat.rete/defrule d2/chain
+  :when [(d2/C (?y :- :y))]
+  :then [(d2/Out :x 1 :y ?y)])
 
 ;; an accumulate over the derived Out — a COUNT sees doubled tokens where dedup hides doubled facts
-(:wat::rete::defrule :d2::tally
-  :when [(:d2::Seed (?y :- :y))
-         (?n :- (:wat::rete::acc::count) :from (:d2::Out))]
-  :then [(:d2::Tally :n ?n)])
+(wat.rete/defrule d2/tally
+  :when [(d2/Seed (?y :- :y))
+         (?n :- (wat.rete.acc/count) :from (d2/Out))]
+  :then [(d2/Tally :n ?n)])
 
-(:wat::rete::defrule :d2::stale
-  :when [(:d2::Tally (?n :- :n))
-         (:wat::rete::where (:wat::rete::i64::= ?n 0))]
-  :then [(:d2::Stale :n ?n)])
+(wat.rete/defrule d2/stale
+  :when [(d2/Tally (?n :- :n))
+         (wat.rete/where (wat.rete.i64/= ?n 0))]
+  :then [(d2/Stale :n ?n)])
 
-(:wat::rete::defquery :d2::q-stale :params [] :when [(?f :- :d2::Stale)])
-(:wat::rete::defquery :d2::q-out   :params [] :when [(?f :- :d2::Out)])
-(:wat::rete::defquery :d2::q-tally :params [] :when [(?f :- :d2::Tally)])
+(wat.rete/defquery d2/q-stale :params [] :when [(?f :- d2/Stale)])
+(wat.rete/defquery d2/q-out   :params [] :when [(?f :- d2/Out)])
+(wat.rete/defquery d2/q-tally :params [] :when [(?f :- d2/Tally)])
 
-(:wat::core::defn :d2::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s
-      (:d2::A :x 1) (:d2::B :x 1 :y 7) (:d2::Seed :y 7))
-    [:wat::rete::InsertOutcome.Inserted {:session __st} __st]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
-      (:wat::kernel::assertion-failed! :message "ceiling")]))
+(wat.core/defn d2/seed [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s
+      (d2/A :x 1) (d2/B :x 1 :y 7) (d2/Seed :y 7))
+    [wat.rete/InsertOutcome.Inserted {:session __st} __st]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
+      (wat.kernel/assertion-failed! :message "ceiling")]))
 
-(:wat::core::defn :d2::compile [] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :d2)
-      (wat.type/PersistentVector :- [:wat::rete::Query] (:d2::q-out) (:d2::q-tally) (:d2::q-stale)))
-    [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-      (:wat::kernel::assertion-failed! :message "terminate")]))
+(wat.core/defn d2/compile [] :- wat.rete/Session
+  (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :d2)
+      (wat.type/PersistentVector :- [wat.rete/Query] (d2/q-out) (d2/q-tally) (d2/q-stale)))
+    [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+      (wat.kernel/assertion-failed! :message "terminate")]))
 
-(:wat::core::defn :d2::counts [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn d2/counts [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64]
-    (:wat::core::length (:wat::rete::query fired (:d2::q-out)))
-    (:wat::core::length (:wat::rete::query fired (:d2::q-tally)))
-    (:wat::core::length (:wat::rete::query fired (:d2::q-stale)))))
+    (wat.core/length (wat.rete/query fired (d2/q-out)))
+    (wat.core/length (wat.rete/query fired (d2/q-tally)))
+    (wat.core/length (wat.rete/query fired (d2/q-stale)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println (:d2::counts
-      (:wat::core::match (:wat::rete::fire-rules (:d2::seed (:d2::compile)))
-        [:wat::rete::FireOutcome.Fired {:value __f} __f]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "mc")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "rc")])))
-    (:wat::kernel::println (:d2::counts
-      (:wat::core::match (:wat::rete::fire-rules$oracle (:d2::seed (:d2::compile)))
-        [:wat::rete::FireOutcome.Fired {:value __f} __f]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "mc")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "rc")])))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println (d2/counts
+      (wat.core/match (wat.rete/fire-rules (d2/seed (d2/compile)))
+        [wat.rete/FireOutcome.Fired {:value __f} __f]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "mc")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "rc")])))
+    (wat.kernel/println (d2/counts
+      (wat.core/match (wat.rete/fire-rules$oracle (d2/seed (d2/compile)))
+        [wat.rete/FireOutcome.Fired {:value __f} __f]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "mc")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "rc")])))))

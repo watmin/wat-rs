@@ -11,21 +11,21 @@
 ;; expected `(terminal-value, visit-count)` pair — `[5 2]`, the same shape the DESIGN's own
 ;; precedent measured for the bare-symbol shorthand before its retirement.
 
-(:wat::core::defn :my::test::count-visit
-  [acc <- wat.type/i64 form <- wat.type/AST step <- :wat::eval::StepResult]
-  -> (:wat::eval::WalkStep :- [wat.type/i64])
-  (:wat::eval::WalkStep.Continue {:acc (:wat::i64::+ acc 1)}))
+(wat.core/defn my.test/count-visit
+  [acc :- wat.type/i64 form :- wat.type/AST step :- wat.eval/StepResult]
+  :- (wat.eval/WalkStep :- [wat.type/i64])
+  (wat.eval/WalkStep.Continue {:acc (wat.i64/+ acc 1)}))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::match
-    (:wat::eval::walk
-      (:wat::core::quote
-        (:wat::core::match (:wat::core::Option.Some {:value 5})
-          [:wat::core::Option.Some {:value n} n]
-          [:wat::core::Option.None {} 0]))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/match
+    (wat.eval/walk
+      (wat.core/quote
+        (wat.core/match (wat.core/Option.Some {:value 5})
+          [wat.core/Option.Some {:value n} n]
+          [wat.core/Option.None {} 0]))
       0
-      :my::test::count-visit)
-    [:wat::core::Result.Ok {:value pair}
-      (:wat::kernel::println pair)]
-    [:wat::core::Result.Err {:error e}
-      (:wat::kernel::println e)]))
+      my.test/count-visit)
+    [wat.core/Result.Ok {:value pair}
+      (wat.kernel/println pair)]
+    [wat.core/Result.Err {:error e}
+      (wat.kernel/println e)]))

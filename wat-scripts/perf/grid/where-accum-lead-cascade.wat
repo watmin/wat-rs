@@ -24,51 +24,51 @@
 ;;     clojure -Sdeps '{:deps {com.cerner/clara-rules {:mvn/version "0.24.0"}}}' \
 ;;             -M wat-scripts/perf/grid/where-accum-lead-cascade.clj
 
-(:wat::core::defrecord :walc::W  [k <- wat.type/i64])
-(:wat::core::defrecord :walc::S1 [k <- wat.type/i64])
-(:wat::core::defrecord :walc::S2 [k <- wat.type/i64])
-(:wat::core::defrecord :walc::S3 [k <- wat.type/i64])
+(wat.core/defrecord walc/W  [k :- wat.type/i64])
+(wat.core/defrecord walc/S1 [k :- wat.type/i64])
+(wat.core/defrecord walc/S2 [k :- wat.type/i64])
+(wat.core/defrecord walc/S3 [k :- wat.type/i64])
 
 ;; The inert chain. Neither rule reads or writes W.
-(:wat::rete::defrule :walc::r1 :when [(:walc::S1 (?k :- :k))] :then [(:walc::S2 :k ?k)])
-(:wat::rete::defrule :walc::r2 :when [(:walc::S2 (?k :- :k))] :then [(:walc::S3 :k ?k)])
+(wat.rete/defrule walc/r1 :when [(walc/S1 (?k :- :k))] :then [(walc/S2 :k ?k)])
+(wat.rete/defrule walc/r2 :when [(walc/S2 (?k :- :k))] :then [(walc/S3 :k ?k)])
 
-(:wat::rete::defquery :walc::q-lead :params []
-  :when [(?n :- (:wat::rete::acc::count) :from (:walc::W))
-         (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
+(wat.rete/defquery walc/q-lead :params []
+  :when [(?n :- (wat.rete.acc/count) :from (walc/W))
+         (wat.rete/where (wat.rete.i64/>= ?n 2))])
 
-(:wat::rete::defquery :walc::q-W :params [] :when [(?fact :- :walc::W)])
+(wat.rete/defquery walc/q-W :params [] :when [(?fact :- walc/W)])
 
-(:wat::core::defn :walc::line [row <- wat.type/i64 name <- wat.type/String n <- wat.type/i64] -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat "row " (:wat::i64::to-string row))
-      (:wat::string::concat
-        (:wat::string::concat " " name)
-        (:wat::string::concat " n=" (:wat::i64::to-string n))))))
+(wat.core/defn walc/line [row :- wat.type/i64 name :- wat.type/String n :- wat.type/i64] :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat "row " (wat.i64/to-string row))
+      (wat.string/concat
+        (wat.string/concat " " name)
+        (wat.string/concat " n=" (wat.i64/to-string n))))))
 
-(:wat::core::defn :walc::run
-  [rules <- (wat.type/PersistentVector :- [:wat::rete::Rule])
-   q     <- :wat::rete::Query]
-  -> wat.type/i64
-  (:wat::core::length
-    (:wat::rete::query
-      (:wat::core::match (:wat::rete::fire-rules
-        (:wat::core::match (:wat::rete::insert
-          (:wat::core::match (:wat::rete::compile-all rules
-            (wat.type/PersistentVector :- [:wat::rete::Query] (:walc::q-lead) (:walc::q-W))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-          (:walc::W :k 7) (:walc::W :k 7) (:walc::S1 :k 1)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+(wat.core/defn walc/run
+  [rules :- (wat.type/PersistentVector :- [wat.rete/Rule])
+   q     :- wat.rete/Query]
+  :- wat.type/i64
+  (wat.core/length
+    (wat.rete/query
+      (wat.core/match (wat.rete/fire-rules
+        (wat.core/match (wat.rete/insert
+          (wat.core/match (wat.rete/compile-all rules
+            (wat.type/PersistentVector :- [wat.rete/Query] (walc/q-lead) (walc/q-W))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+          (walc/W :k 7) (walc/W :k 7) (walc/S1 :k 1)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
       q)))
 
 ;; Two W facts, so the count is 2 and the `>= 2` predicate holds in every row. Rows 1-3 must all
 ;; print n=1; row 4 proves the accumulate still had its facts, so a "fix" that empties the world
 ;; cannot read as agreement.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [none (wat.type/PersistentVector :- [:wat::rete::Rule])
-     d1   (wat.type/PersistentVector :- [:wat::rete::Rule] (:walc::r1))
-     d2   (wat.type/PersistentVector :- [:wat::rete::Rule] (:walc::r1) (:walc::r2))]
-    (:walc::line 1 "no-cascade"  (:walc::run none (:walc::q-lead)))
-    (:walc::line 2 "cascade-d1"  (:walc::run d1   (:walc::q-lead)))
-    (:walc::line 3 "cascade-d2"  (:walc::run d2   (:walc::q-lead)))
-    (:walc::line 4 "control-W"   (:walc::run d2   (:walc::q-W)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [none (wat.type/PersistentVector :- [wat.rete/Rule])
+     d1   (wat.type/PersistentVector :- [wat.rete/Rule] (walc/r1))
+     d2   (wat.type/PersistentVector :- [wat.rete/Rule] (walc/r1) (walc/r2))]
+    (walc/line 1 "no-cascade"  (walc/run none (walc/q-lead)))
+    (walc/line 2 "cascade-d1"  (walc/run d1   (walc/q-lead)))
+    (walc/line 3 "cascade-d2"  (walc/run d2   (walc/q-lead)))
+    (walc/line 4 "control-W"   (walc/run d2   (walc/q-W)))))

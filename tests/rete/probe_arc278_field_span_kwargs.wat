@@ -6,12 +6,12 @@
 ;; must land on `:nope`. `RhsMissingFields` rides along (the fact under-supplies `k`) and keeps
 ;; the fact form's span, which is correct for it: no single field is the mistake there.
 
-(:wat::core::defrecord :fsk::Src [k <- wat.type/i64])
-(:wat::core::defrecord :fsk::Hit [k <- wat.type/i64])
+(wat.core/defrecord fsk/Src [k :- wat.type/i64])
+(wat.core/defrecord fsk/Hit [k :- wat.type/i64])
 
-(:wat::rete::defrule :fsk::r
-  :when [(:fsk::Src (?k :- :k))]
-  :then [(:fsk::Hit :nope ?k)])
+(wat.rete/defrule fsk/r
+  :when [(fsk/Src (?k :- :k))]
+  :then [(fsk/Hit :nope ?k)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "the wall refuses before main runs"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "the wall refuses before main runs"))

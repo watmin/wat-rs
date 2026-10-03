@@ -14,71 +14,71 @@
 ;; THE CONTROL, and it is the whole point of this file: for a form ALREADY on one line the DERIVED
 ;; width must EQUAL its actual span width. Any disagreement is printed. Silence is the proof.
 
-(:wat::core::defn :wf::width [node <- wat.type/AST] -> wat.type/i64
-  (:wat::core::let [kids (:wat::core::ast->children node)]
-    (:wat::core::if (:wat::core::empty? kids)
+(wat.core/defn wf/width [node :- wat.type/AST] :- wat.type/i64
+  (wat.core/let [kids (wat.core/ast->children node)]
+    (wat.core/if (wat.core/empty? kids)
       ;; leaf — its own source text, verbatim
-      (:wat::string::length (:wat::core::ast->source node))
+      (wat.string/length (wat.core/ast->source node))
       ;; interior — 2 delimiters + Σ children + (n-1) separators  ==  Σ + n + 1
-      (:wat::core::+
-        (:wat::core::foldl
-          (:wat::core::fn [acc <- wat.type/i64 k <- wat.type/AST] -> wat.type/i64
-            (:wat::core::+ acc (:wf::width k)))
+      (wat.core/+
+        (wat.core/foldl
+          (wat.core/fn [acc :- wat.type/i64 k :- wat.type/AST] :- wat.type/i64
+            (wat.core/+ acc (wf/width k)))
           0 kids)
-        (:wat::core::+ (:wat::core::length kids) 1)))))
+        (wat.core/+ (wat.core/length kids) 1)))))
 
 ;; walk every node; report ONLY a disagreement on a single-line form.
-(:wat::core::defn :wf::check [node <- wat.type/AST path <- wat.type/String] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn wf/check [node :- wat.type/AST path :- wat.type/String] :- wat.type/i64
+  (wat.core/let
     ;; `wat/grep.wat` promises extent-of is the ONLY site that unwraps a span. Honour it.
-    [x        (:wat::grep::extent-of node)
-     line     (:wat::grep::Extent/line     x)
-     end-line (:wat::grep::Extent/end-line x)
-     col      (:wat::grep::Extent/col      x)
-     end-col  (:wat::grep::Extent/end-col  x)
-     kids     (:wat::core::ast->children node)
-     mine     (:wat::core::if (:wat::core::= line end-line)
-                (:wat::core::let [derived (:wf::width node)
-                                  actual  (:wat::core::- end-col col)]
-                  (:wat::core::if (:wat::core::= derived actual)
+    [x        (wat.grep/extent-of node)
+     line     (wat.grep.Extent/line     x)
+     end-line (wat.grep.Extent/end-line x)
+     col      (wat.grep.Extent/col      x)
+     end-col  (wat.grep.Extent/end-col  x)
+     kids     (wat.core/ast->children node)
+     mine     (wat.core/if (wat.core/= line end-line)
+                (wat.core/let [derived (wf/width node)
+                                  actual  (wat.core/- end-col col)]
+                  (wat.core/if (wat.core/= derived actual)
                     1000000
-                    (:wat::core::do
-                      (:wat::kernel::println (:wat::string::interpolate
+                    (wat.core/do
+                      (wat.kernel/println (wat.string/interpolate
                         "MISMATCH {p}:{l} derived={d} actual={a}"
-                        :p path :l (:wat::i64::to-string line)
-                        :d (:wat::i64::to-string derived) :a (:wat::i64::to-string actual)))
+                        :p path :l (wat.i64/to-string line)
+                        :d (wat.i64/to-string derived) :a (wat.i64/to-string actual)))
                       1000001)))
                 0)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64 k <- wat.type/AST] -> wat.type/i64
-        (:wat::core::+ acc (:wf::check k path)))
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64 k :- wat.type/AST] :- wat.type/i64
+        (wat.core/+ acc (wf/check k path)))
       mine kids)))
 
-(:wat::core::defn :wf::run [path <- wat.type/String] -> wat.type/i64
-  (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-    [:wat::core::ReadOutcome.Forms {:forms forms}
-      (:wat::core::foldl
-        (:wat::core::fn [acc <- wat.type/i64 f <- wat.type/AST] -> wat.type/i64
-          (:wat::core::+ acc (:wf::check f path)))
-        0 (:wat::core::ast->children forms))]
-    [:wat::core::ReadOutcome.Malformed {:cause c}
-      (:wat::kernel::assertion-failed! :message (:wat::core::Error/message c))]))
+(wat.core/defn wf/run [path :- wat.type/String] :- wat.type/i64
+  (wat.core/match (wat.core/read-string (wat.io/read-file path))
+    [wat.core/ReadOutcome.Forms {:forms forms}
+      (wat.core/foldl
+        (wat.core/fn [acc :- wat.type/i64 f :- wat.type/AST] :- wat.type/i64
+          (wat.core/+ acc (wf/check f path)))
+        0 (wat.core/ast->children forms))]
+    [wat.core/ReadOutcome.Malformed {:cause c}
+      (wat.kernel/assertion-failed! :message (wat.core.Error/message c))]))
 
-(:wat::core::defn :wf::report [path <- wat.type/String] -> wat.type/nil
-  (:wat::core::let [n       (:wf::run path)
-                    checked (:wat::i64::quot n 1000000)
-                    bad     (:wat::i64::rem  n 1000000)]
-    (:wat::kernel::println (:wat::string::interpolate
+(wat.core/defn wf/report [path :- wat.type/String] :- wat.type/nil
+  (wat.core/let [n       (wf/run path)
+                    checked (wat.i64/quot n 1000000)
+                    bad     (wat.i64/rem  n 1000000)]
+    (wat.kernel/println (wat.string/interpolate
       "{p}  single-line forms CHECKED={c}  MISMATCH={b}"
-      :p path :c (:wat::i64::to-string checked) :b (:wat::i64::to-string bad)))))
+      :p path :c (wat.i64/to-string checked) :b (wat.i64/to-string bad)))))
 
 ;; ⛔ THE CONTROL MUST BE SEEN TO FIRE. A bare "0 mismatches" is indistinguishable from
 ;; "0 forms were examined" — the vacuous green. CHECKED is printed beside it, always.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wf::report "wat/io.wat")
-    (:wf::report "wat/grep.wat")
-    (:wf::report "wat/fix.wat")
-    (:wf::report "wat/core.wat")
-    (:wf::report "wat/service.wat")
-    (:wf::report "wat/rete.wat")))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wf/report "wat/io.wat")
+    (wf/report "wat/grep.wat")
+    (wf/report "wat/fix.wat")
+    (wf/report "wat/core.wat")
+    (wf/report "wat/service.wat")
+    (wf/report "wat/rete.wat")))

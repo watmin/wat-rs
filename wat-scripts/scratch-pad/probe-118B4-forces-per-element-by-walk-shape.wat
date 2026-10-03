@@ -57,23 +57,23 @@
 ;;   systemd-run --user --scope -q -p MemoryMax=512M -p MemorySwapMax=0 timeout 60 \
 ;;     ./target/release/wat wat-scripts/scratch-pad/probe-118B4-forces-per-element-by-walk-shape.wat
 
-(:wat::core::defn :user::gen
-  [n <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::core::do
-      (:wat::kernel::println "FORCED")
-      (:wat::core::if (:wat::core::<= n 0)
-        (:wat::stream::empty)
-        (:wat::stream::cons n (:user::gen (:wat::core::- n 1)))))))
+(wat.core/defn user/gen
+  [n :- wat.type/i64] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.core/do
+      (wat.kernel/println "FORCED")
+      (wat.core/if (wat.core/<= n 0)
+        (wat.stream/empty)
+        (wat.stream/cons n (user/gen (wat.core/- n 1)))))))
 
 ;; A — next-only. One force per cell by construction. The ONLY walk shape THE WALL still permits.
-(:wat::core::defn :user::walk-a
-  [s <- (:wat::stream::Stream :- [wat.type/i64]) acc <- wat.type/i64] -> wat.type/i64
-  (:wat::core::match (:wat::stream::next s)
-    [:wat::stream::NextOutcome.Item {:value value :rest rest} (:user::walk-a rest (:wat::core::+ acc value))]
-    [:wat::stream::NextOutcome.Exhausted {} acc]))
+(wat.core/defn user/walk-a
+  [s :- (wat.stream/Stream :- [wat.type/i64]) acc :- wat.type/i64] :- wat.type/i64
+  (wat.core/match (wat.stream/next s)
+    [wat.stream/NextOutcome.Item {:value value :rest rest} (user/walk-a rest (wat.core/+ acc value))]
+    [wat.stream/NextOutcome.Exhausted {} acc]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "== A next-only")
-    (:wat::kernel::println (:user::walk-a (:user::gen 5) 0))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "== A next-only")
+    (wat.kernel/println (user/walk-a (user/gen 5) 0))))

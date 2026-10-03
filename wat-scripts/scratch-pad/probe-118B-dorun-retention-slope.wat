@@ -41,17 +41,17 @@
 
 ;; An UNBOUNDED source. Nothing is materialized: each cell is produced on force, and its tail is a
 ;; fresh thunk. `take` bounds it; `reduce` drains it.
-(:wat::core::defn :probe::counter
-  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::stream::cons i (:probe::counter (:wat::core::+ i 1)))))
+(wat.core/defn probe/counter
+  [i :- wat.type/i64] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.stream/cons i (probe/counter (wat.core/+ i 1)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n   100000
-     sum (:wat::core::reduce
-           (:wat::core::fn [acc <- wat.type/i64 x <- wat.type/i64] -> wat.type/i64
-             (:wat::core::+ acc x))
+     sum (wat.core/reduce
+           (wat.core/fn [acc :- wat.type/i64 x :- wat.type/i64] :- wat.type/i64
+             (wat.core/+ acc x))
            0
-           (:wat::core::take (:probe::counter 0) n))]
-    (:wat::kernel::println sum)))
+           (wat.core/take (probe/counter 0) n))]
+    (wat.kernel/println sum)))

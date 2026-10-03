@@ -28,54 +28,54 @@
 ;; only proves the DEGENERATE hole is faced, which was the reachable,
 ;; grounded hazard the wall exists to close.
 
-(:wat::core::defn :probe::run [] -> wat.type/nil
-  (:wat::core::let
-    [v (:wat::holon::encode (:wat::holon::to-holon "some-atom"))
+(wat.core/defn probe/run [] :- wat.type/nil
+  (wat.core/let
+    [v (wat.holon/encode (wat.holon/to-holon "some-atom"))
 
      ;; CONTROL — a vector against itself. Must be ~1.0 or this probe proves nothing.
-     self-cos (:wat::holon::cosine v v)
+     self-cos (wat.holon/cosine v v)
 
      ;; A SECOND, UNRELATED atom — its cancellation must land on the SAME value
      ;; as v's if both are genuinely the zero vector. Two non-zero vectors
      ;; derived from different atoms would never be `=`.
-     w (:wat::holon::encode (:wat::holon::to-holon "an-entirely-different-atom"))
-     v-vs-w (:wat::holon::cosine v w)
+     w (wat.holon/encode (wat.holon/to-holon "an-entirely-different-atom"))
+     v-vs-w (wat.holon/cosine v w)
 
      ;; THE CANDIDATE — v*1.0 + v*(-1.0). Every i8 cell should cancel to 0.
-     blended   (:wat::holon::vector-blend v v 1.0 -1.0)
-     blended-w (:wat::holon::vector-blend w w 1.0 -1.0)]
+     blended   (wat.holon/vector-blend v v 1.0 -1.0)
+     blended-w (wat.holon/vector-blend w w 1.0 -1.0)]
 
-    (:wat::core::match blended
-      [:wat::holon::CombineOutcome.Combined {:vector z}
-        (:wat::core::match blended-w
-          [:wat::holon::CombineOutcome.Combined {:vector zw}
-            (:wat::core::let
+    (wat.core/match blended
+      [wat.holon/CombineOutcome.Combined {:vector z}
+        (wat.core/match blended-w
+          [wat.holon/CombineOutcome.Combined {:vector zw}
+            (wat.core/let
               [;; z against a real vector, and z against itself — the two shapes
                ;; a degenerate operand can take at a comparison site.
-               z-vs-v (:wat::holon::cosine z v)
-               z-vs-z (:wat::holon::cosine z z)
+               z-vs-v (wat.holon/cosine z v)
+               z-vs-z (wat.holon/cosine z z)
                ;; THE PROOF, not the inference: if both cancellations are the
                ;; zero vector they are bit-identical. `=` on Vector is exact
                ;; element equality (runtime.rs values_equal).
-               both-zero (:wat::core::= z zw)]
-              (:wat::core::do
-                (:wat::kernel::println
-                  (wat.type/PersistentMap :- [wat.type/keyword :wat::holon::CosineOutcome]
+               both-zero (wat.core/= z zw)]
+              (wat.core/do
+                (wat.kernel/println
+                  (wat.type/PersistentMap :- [wat.type/keyword wat.holon/CosineOutcome]
                     :control-self-cos self-cos
                     :control-v-vs-w   v-vs-w
                     :zero-vs-real     z-vs-v
                     :zero-vs-zero     z-vs-z))
-                (:wat::kernel::println
+                (wat.kernel/println
                   (wat.type/PersistentMap :- [wat.type/keyword wat.type/bool] :two-cancellations-identical both-zero))))]
-          [:wat::holon::CombineOutcome.DimensionMismatch {:expected e :got g}
-            (:wat::kernel::println
+          [wat.holon/CombineOutcome.DimensionMismatch {:expected e :got g}
+            (wat.kernel/println
               (wat.type/PersistentMap :- [wat.type/keyword (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64])] :unexpected-w-mismatch
                 (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :expected e :got g)))])]
 
-      [:wat::holon::CombineOutcome.DimensionMismatch {:expected e :got g}
-        (:wat::kernel::println
+      [wat.holon/CombineOutcome.DimensionMismatch {:expected e :got g}
+        (wat.kernel/println
           (wat.type/PersistentMap :- [wat.type/keyword (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64])] :unexpected-dimension-mismatch
             (wat.type/PersistentMap :- [wat.type/keyword wat.type/i64] :expected e :got g)))])))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:probe::run))
+(wat.core/defn user/main [] :- wat.type/nil
+  (probe/run))

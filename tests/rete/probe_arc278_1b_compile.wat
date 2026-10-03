@@ -5,20 +5,20 @@
 ;; Two rules; FIRST condition identical (c1), second divergent (c2a vs c2b). Proves node SHARING
 ;; (a shared prefix collapses to one alpha + one root-join) and wired edges (the shared root-join
 ;; fans out to both divergent hash-joins).
-(:wat::core::defn :user::compile-shared-prefix [] -> wat.type/String
-  (:wat::core::let
-    [c1  (:wat::core::quote (:Temperature (= ?t :value)))
-     c2a (:wat::core::quote (:Humidity    (= ?h :value)))
-     c2b (:wat::core::quote (:Pressure    (= ?p :value)))
-     rA  (:wat::rete::Rule :name "rA" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2a) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
-     rB  (:wat::rete::Rule :name "rB" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2b) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
-     sess (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rA rB)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::rete::render-dag sess)))
+(wat.core/defn user/compile-shared-prefix [] :- wat.type/String
+  (wat.core/let
+    [c1  (wat.core/quote (:Temperature (= ?t :value)))
+     c2a (wat.core/quote (:Humidity    (= ?h :value)))
+     c2b (wat.core/quote (:Pressure    (= ?p :value)))
+     rA  (wat.rete/Rule :name "rA" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2a) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
+     rB  (wat.rete/Rule :name "rB" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1 c2b) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
+     sess (wat.core/match (wat.rete/compile (wat.type/PersistentVector :- [wat.rete/Rule] rA rB)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.rete/render-dag sess)))
 
 ;; One single-condition rule → alpha → root-join → production, fully connected.
-(:wat::core::defn :user::compile-single-rule [] -> wat.type/String
-  (:wat::core::let
-    [c1 (:wat::core::quote (:Temperature (= ?t :value)))
-     rC (:wat::rete::Rule :name "rC" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
-     sess (:wat::core::match (:wat::rete::compile (wat.type/PersistentVector :- [:wat::rete::Rule] rC)) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])]
-    (:wat::rete::render-dag sess)))
+(wat.core/defn user/compile-single-rule [] :- wat.type/String
+  (wat.core/let
+    [c1 (wat.core/quote (:Temperature (= ?t :value)))
+     rC (wat.rete/Rule :name "rC" :lhs (wat.type/PersistentVector :- [wat.type/AST] c1) :rhs (wat.type/PersistentVector :- [wat.type/AST]))
+     sess (wat.core/match (wat.rete/compile (wat.type/PersistentVector :- [wat.rete/Rule] rC)) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])]
+    (wat.rete/render-dag sess)))

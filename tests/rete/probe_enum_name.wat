@@ -1,28 +1,28 @@
 ;; POSITIVE — :wat::rete::core::variant-name in a :then, and :wat::core::variant-name
 ;; as an ordinary wat call (the core reader must stand alone).
-(:wat::core::defenum :en::K :wat::enum::Pure :Aa [] :Bb [])
-(:wat::core::defrecord :en::Box [label <- wat.type/String])
-(:wat::core::defrecord :en::Src [k <- :en::K])
+(wat.core/defenum en/K wat.enum/Pure :Aa [] :Bb [])
+(wat.core/defrecord en/Box [label :- wat.type/String])
+(wat.core/defrecord en/Src [k :- en/K])
 
-(:wat::rete::defrule :en::render
-  :when [(:en::Src (?k :- :k))]
-  :then [(:en::Box :label (:wat::rete::core::variant-name ?k))])
+(wat.rete/defrule en/render
+  :when [(en/Src (?k :- :k))]
+  :then [(en/Box :label (wat.rete.core/variant-name ?k))])
 
-(:wat::rete::defquery :en::q-Box
+(wat.rete/defquery en/q-Box
   :params []
-  :when [(:en::Box (?label :- :label))])
+  :when [(en/Box (?label :- :label))])
 
-(:wat::core::defn :user::direct [] -> wat.type/String
-  (:wat::core::variant-name (:en::K.Bb {})))
+(wat.core/defn user/direct [] :- wat.type/String
+  (wat.core/variant-name (en/K.Bb {})))
 
-(:wat::core::defn :user::via-then [] -> wat.type/String
-  (:wat::core::let
-    [rules (:wat::rete::collect-rules :en)
-     s0    (:wat::core::match (:wat::rete::insert
-             (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:en::q-Box))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-             (:en::Src :k (:en::K.Bb {}))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
-     fired (:wat::core::match (:wat::rete::fire-rules s0) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-     hits  (:wat::rete::query fired (:en::q-Box))]
-    (:wat::core::Option/expect
-      (:wat::core::get (:wat::core::first hits) "?label")
+(wat.core/defn user/via-then [] :- wat.type/String
+  (wat.core/let
+    [rules (wat.rete/collect-rules :en)
+     s0    (wat.core/match (wat.rete/insert
+             (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (en/q-Box))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+             (en/Src :k (en/K.Bb {}))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])
+     fired (wat.core/match (wat.rete/fire-rules s0) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+     hits  (wat.rete/query fired (en/q-Box))]
+    (wat.core.Option/expect
+      (wat.core/get (wat.core/first hits) "?label")
       "q-Box: ?label")))

@@ -37,127 +37,127 @@
 ;; for k >= 100, and `tag` holds the same, so field-reading selects ALL 210 while constant-reading
 ;; selects 110. One number, two readings, no overlap.
 
-(:wat::core::defenum :wik::G :wat::enum::Pure :Hi :Lo)
+(wat.core/defenum wik/G wat.enum/Pure :Hi :Lo)
 
-(:wat::core::defn :wik::items [] -> wat.type/i64 210)
+(wat.core/defn wik/items [] :- wat.type/i64 210)
 
-(:wat::core::defn :wik::row-count [] -> wat.type/i64 6)
+(wat.core/defn wik/row-count [] :- wat.type/i64 6)
 
-(:wat::core::defrecord :wik::Req
-  [k     <- wat.type/i64
-   tag   <- wat.type/keyword
-   beta  <- wat.type/keyword
-   grade <- :wik::G])
-(:wat::core::defrecord :wik::Hit [k <- wat.type/i64])
+(wat.core/defrecord wik/Req
+  [k     :- wat.type/i64
+   tag   :- wat.type/keyword
+   beta  :- wat.type/keyword
+   grade :- wik/G])
+(wat.core/defrecord wik/Hit [k :- wat.type/i64])
 
 ;; ROW 1 — INLINE keyword constant. Refused outright until 2026-08-28.
-(:wat::rete::defrule :wik::inline-kw
-  :when [(:wik::Req (?k :- :k) (:wat::rete::core::keyword::= :tag :alpha))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/inline-kw
+  :when [(wik/Req (?k :- :k) (wat.rete.core.keyword/= :tag :alpha))]
+  :then [(wik/Hit :k ?k)])
 
 ;; ROW 2 — FENCE. This position always worked, which is how the inline refusal stayed invisible.
-(:wat::rete::defrule :wik::fence-kw
-  :when [(:wik::Req (?k :- :k) (?t :- :tag))
-         (:wat::rete::where (:wat::rete::core::keyword::= ?t :alpha))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/fence-kw
+  :when [(wik/Req (?k :- :k) (?t :- :tag))
+         (wat.rete/where (wat.rete.core.keyword/= ?t :alpha))]
+  :then [(wik/Hit :k ?k)])
 
 ;; ROW 3 — INLINE enum constant. `:wik::G::Hi` carries `::` and so could NEVER have been a field
 ;; name — there was no ambiguity here to resolve, only a question nobody asked.
-(:wat::rete::defrule :wik::inline-enum
-  :when [(:wik::Req (?k :- :k) (:wat::rete::core::enum::= :grade :wik::G.Hi))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/inline-enum
+  :when [(wik/Req (?k :- :k) (wat.rete.core.enum/= :grade wik/G.Hi))]
+  :then [(wik/Hit :k ?k)])
 
 ;; ROW 4 — FENCE.
-(:wat::rete::defrule :wik::fence-enum
-  :when [(:wik::Req (?k :- :k) (?g :- :grade))
-         (:wat::rete::where (:wat::rete::core::enum::= ?g :wik::G.Hi))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/fence-enum
+  :when [(wik/Req (?k :- :k) (?g :- :grade))
+         (wat.rete/where (wat.rete.core.enum/= ?g wik/G.Hi))]
+  :then [(wik/Hit :k ?k)])
 
 ;; ROW 5 — ⛔ THE FIELD STILL WINS. `:beta` names a declared field, so this compares tag AGAINST
 ;; THE FIELD `beta` — never against the constant `:beta`. Seeded so the two readings disagree.
-(:wat::rete::defrule :wik::inline-shadow
-  :when [(:wik::Req (?k :- :k) (:wat::rete::core::keyword::= :tag :beta))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/inline-shadow
+  :when [(wik/Req (?k :- :k) (wat.rete.core.keyword/= :tag :beta))]
+  :then [(wik/Hit :k ?k)])
 
 ;; ROW 6 — FENCE, the same comparison written with binds.
-(:wat::rete::defrule :wik::fence-shadow
-  :when [(:wik::Req (?k :- :k) (?t :- :tag) (?b :- :beta))
-         (:wat::rete::where (:wat::rete::core::keyword::= ?t ?b))]
-  :then [(:wik::Hit :k ?k)])
+(wat.rete/defrule wik/fence-shadow
+  :when [(wik/Req (?k :- :k) (?t :- :tag) (?b :- :beta))
+         (wat.rete/where (wat.rete.core.keyword/= ?t ?b))]
+  :then [(wik/Hit :k ?k)])
 
-(:wat::rete::defquery :wik::q-Hit :params [] :when [(?fact :- :wik::Hit)])
+(wat.rete/defquery wik/q-Hit :params [] :when [(?fact :- wik/Hit)])
 
-(:wat::core::defn :wik::rule-for [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::cond
-    ((:wat::core::= row 1) "inline-kw")
-    ((:wat::core::= row 2) "fence-kw")
-    ((:wat::core::= row 3) "inline-enum")
-    ((:wat::core::= row 4) "fence-enum")
-    ((:wat::core::= row 5) "inline-shadow")
+(wat.core/defn wik/rule-for [row :- wat.type/i64] :- wat.type/String
+  (wat.core/cond
+    ((wat.core/= row 1) "inline-kw")
+    ((wat.core/= row 2) "fence-kw")
+    ((wat.core/= row 3) "inline-enum")
+    ((wat.core/= row 4) "fence-enum")
+    ((wat.core/= row 5) "inline-shadow")
     (:else "fence-shadow")))
 
-(:wat::core::defn :wik::rules-for [row <- wat.type/i64]
-  -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:wat::core::cond
-      ((:wat::core::= row 1) (:wik::inline-kw))
-      ((:wat::core::= row 2) (:wik::fence-kw))
-      ((:wat::core::= row 3) (:wik::inline-enum))
-      ((:wat::core::= row 4) (:wik::fence-enum))
-      ((:wat::core::= row 5) (:wik::inline-shadow))
-      (:else (:wik::fence-shadow)))))
+(wat.core/defn wik/rules-for [row :- wat.type/i64]
+  :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (wat.core/cond
+      ((wat.core/= row 1) (wik/inline-kw))
+      ((wat.core/= row 2) (wik/fence-kw))
+      ((wat.core/= row 3) (wik/inline-enum))
+      ((wat.core/= row 4) (wik/fence-enum))
+      ((wat.core/= row 5) (wik/inline-shadow))
+      (:else (wik/fence-shadow)))))
 
-(:wat::core::defn :wik::seed [session <- :wat::rete::Session  items <- wat.type/i64]
-  -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all
+(wat.core/defn wik/seed [session :- wat.rete/Session  items :- wat.type/i64]
+  :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all
     session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  i <- wat.type/i64]
-                      -> (wat.type/PersistentVector :- [wat.type/Record])
-        (:wat::core::conj acc
-          (:wik::Req
+    (wat.core/foldl
+      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  i :- wat.type/i64]
+                      :- (wat.type/PersistentVector :- [wat.type/Record])
+        (wat.core/conj acc
+          (wik/Req
             :k i
-            :tag   (:wat::core::if (:wat::i64::< i 100) :alpha :beta)
-            :beta  (:wat::core::if (:wat::i64::< i 100) :alpha :beta)
-            :grade (:wat::core::if (:wat::i64::< i 60) :wik::G.Hi :wik::G.Lo))))
+            :tag   (wat.core/if (wat.i64/< i 100) :alpha :beta)
+            :beta  (wat.core/if (wat.i64/< i 100) :alpha :beta)
+            :grade (wat.core/if (wat.i64/< i 60) wik/G.Hi wik/G.Lo))))
       (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::range 0 items))) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+      (wat.core/range 0 items))) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :wik::derived-ints [fired <- :wat::rete::Session]
-  -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::sort
-    (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-      (:wat::core::map
-        (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-          (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-            (:wik::Hit/k f)))
-        (:wat::rete::query fired (:wik::q-Hit))))))
+(wat.core/defn wik/derived-ints [fired :- wat.rete/Session]
+  :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/sort
+    (wat.core/into (wat.type/Vector :- [wat.type/i64])
+      (wat.core/map
+        (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+          (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+            (wik.Hit/k f)))
+        (wat.rete/query fired (wik/q-Hit))))))
 
-(:wat::core::defn :wik::render-ints [v <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/String
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/String  x <- wat.type/i64] -> wat.type/String
-      (:wat::string::concat acc
-        (:wat::string::concat " " (:wat::i64::to-string x))))
+(wat.core/defn wik/render-ints [v :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/String
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/String  x :- wat.type/i64] :- wat.type/String
+      (wat.string/concat acc
+        (wat.string/concat " " (wat.i64/to-string x))))
     ""
     v))
 
-(:wat::core::defn :wik::run-row [row <- wat.type/i64] -> wat.type/String
-  (:wat::core::let [rules   (:wik::rules-for row)
-                    staged  (:wik::seed (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:wik::q-Hit))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")]) (:wik::items))
-                    fired   (:wat::core::match (:wat::rete::fire-rules staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    derived (:wik::derived-ints fired)
-                    n       (:wat::core::length derived)]
-    (:wat::string::concat
-      (:wat::string::concat
-        (:wat::string::concat "row " (:wat::i64::to-string row))
-        (:wat::string::concat " " (:wik::rule-for row)))
-      (:wat::string::concat
-        (:wat::string::concat " n=" (:wat::i64::to-string n))
-        (:wat::string::concat " ->" (:wik::render-ints derived))))))
+(wat.core/defn wik/run-row [row :- wat.type/i64] :- wat.type/String
+  (wat.core/let [rules   (wik/rules-for row)
+                    staged  (wik/seed (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (wik/q-Hit))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")]) (wik/items))
+                    fired   (wat.core/match (wat.rete/fire-rules staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    derived (wik/derived-ints fired)
+                    n       (wat.core/length derived)]
+    (wat.string/concat
+      (wat.string/concat
+        (wat.string/concat "row " (wat.i64/to-string row))
+        (wat.string/concat " " (wik/rule-for row)))
+      (wat.string/concat
+        (wat.string/concat " n=" (wat.i64/to-string n))
+        (wat.string/concat " ->" (wik/render-ints derived))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- wat.type/nil  row <- wat.type/i64] -> wat.type/nil
-      (:wat::kernel::println (:wik::run-row row)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.type/nil  row :- wat.type/i64] :- wat.type/nil
+      (wat.kernel/println (wik/run-row row)))
     nil
-    (:wat::core::range 1 (:wat::i64::+ (:wik::row-count) 1))))
+    (wat.core/range 1 (wat.i64/+ (wik/row-count) 1))))

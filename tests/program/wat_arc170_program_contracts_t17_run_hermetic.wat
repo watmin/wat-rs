@@ -9,17 +9,17 @@
 ;; This defn returns the received i64 directly so the test measures the value that genuinely
 ;; crossed the wire (== 4). The peer's death (were it to die) is surfaced via the Lost arm,
 ;; NEVER swallowed.
-(:wat::core::defn :my::test::two-plus-two [] -> wat.type/i64
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::kernel::println (:wat::i64::+ 2 2)))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg m} m]
-      [:wat::kernel::RecvOutcome.Lost {:cause cause}
-        (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "two-plus-two: stop requested before child sent its value — child was ALIVE, channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "two-plus-two: child closed before sending its value")])))
+(wat.core/defn my.test/two-plus-two [] :- wat.type/i64
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.kernel/println (wat.i64/+ 2 2)))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg m} m]
+      [wat.kernel/RecvOutcome.Lost {:cause cause}
+        (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "two-plus-two: stop requested before child sent its value — child was ALIVE, channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "two-plus-two: child closed before sending its value")])))

@@ -19,69 +19,69 @@
 ;; ── the surface (the counter protocol, lifted) ───────────────────────────────
 ;; arc 278 S4c: the surface OWNS its protocol messages (:messages) so a :satisfies
 ;; service ships them across a process fork.
-(:wat::core::defsurface :wat-tests::HibCounter :nature :wat::kernel::Peer
+(wat.core/defsurface wat-tests/HibCounter :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::HibCounter::IncrementRequest  [n <- wat.type/i64])
-   (:wat::core::defenum :wat-tests::HibCounter::IncrementResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord wat-tests.HibCounter/IncrementRequest  [n :- wat.type/i64])
+   (wat.core/defenum wat-tests.HibCounter/IncrementResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(increment [self <- :wat-tests::HibCounter  req <- :wat-tests::HibCounter::IncrementRequest] -> :wat-tests::HibCounter::IncrementResponse :max-request-bytes 524288)])
+  [(increment [self :- wat-tests/HibCounter  req :- wat-tests.HibCounter/IncrementRequest] :- wat-tests.HibCounter/IncrementResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :wat-tests::hib-counter
-  :satisfies :wat-tests::HibCounter
-  :durable [count <- wat.type/i64]
+(wat.service/defservice wat-tests/hib-counter
+  :satisfies wat-tests/HibCounter
+  :durable [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(increment [s ctx req]
-     (:wat::core::let [c (:wat::i64::+
-                           (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))
-                           (:wat-tests::HibCounter::IncrementRequest/n req))]
-       (:wat::service::Outcome.Reply
-         {:state (:wat-tests::hib-counter::State :durable (:wat-tests::hib-counter::Record :count c))
-         :reply (:wat-tests::HibCounter::IncrementResponse.Ok {:value c})})))  ]
+     (wat.core/let [c (wat.i64/+
+                           (wat-tests.hib-counter.Record/count (wat-tests.hib-counter.State/durable s))
+                           (wat-tests.HibCounter.IncrementRequest/n req))]
+       (wat.service/Outcome.Reply
+         {:state (wat-tests.hib-counter/State :durable (wat-tests.hib-counter/Record :count c))
+         :reply (wat-tests.HibCounter/IncrementResponse.Ok {:value c})})))  ]
   ;; :stop projects State → i64 (the count) via State/durable
-  :stop (:wat::core::fn [s <- :wat-tests::hib-counter::State] -> wat.type/i64
-          (:wat-tests::hib-counter::Record/count (:wat-tests::hib-counter::State/durable s))))
+  :stop (wat.core/fn [s :- wat-tests.hib-counter/State] :- wat.type/i64
+          (wat-tests.hib-counter.Record/count (wat-tests.hib-counter.State/durable s))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────
 ;; 7 → hibernate (::Record snapshot, service dies) → resume fresh → +3 → stop = 10.
-(:wat::test::deftest :wat-tests::service::hibernate-resume-on-thread
+(wat.test/deftest wat-tests.service/hibernate-resume-on-thread
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::thread) :record (:wat-tests::hib-counter::Record :count 0))
-       c     (:wat::core::match (:wat::kernel::connect (:wat-tests::hib-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _     (:wat::core::match (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
-               [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-               [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-               [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-               [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       snap  (:wat-tests::hib-counter/hibernate h)
-       h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::thread) :record snap)
-       c2    (:wat::core::match (:wat::kernel::connect (:wat-tests::hib-counter::Handle/addr h2)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
-       final (:wat-tests::hib-counter/stop h2)]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h     (wat-tests.hib-counter/start :locus (wat.spawn/thread) :record (wat-tests.hib-counter/Record :count 0))
+       c     (wat.core/match (wat.kernel/connect (wat-tests.hib-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _     (wat.core/match (wat-tests.HibCounter/increment c (wat-tests.HibCounter/IncrementRequest :n 7))
+               [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+               [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+               [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+               [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       snap  (wat-tests.hib-counter/hibernate h)
+       h2    (wat-tests.hib-counter/resume :locus (wat.spawn/thread) :record snap)
+       c2    (wat.core/match (wat.kernel/connect (wat-tests.hib-counter.Handle/addr h2)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _2    (wat-tests.HibCounter/increment c2 (wat-tests.HibCounter/IncrementRequest :n 3))
+       final (wat-tests.hib-counter/stop h2)]
       final)
     10))
 
 ;; ── process tier — IDENTICAL except the locus token (the Record snapshot crosses as EDN) ──
-(:wat::test::deftest :wat-tests::service::hibernate-resume-on-process
+(wat.test/deftest wat-tests.service/hibernate-resume-on-process
   
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [h     (:wat-tests::hib-counter/start :locus (:wat::spawn::process) :record (:wat-tests::hib-counter::Record :count 0))
-       c     (:wat::core::match (:wat::kernel::connect (:wat-tests::hib-counter::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _     (:wat::core::match (:wat-tests::HibCounter/increment c (:wat-tests::HibCounter::IncrementRequest :n 7))
-               [:wat::kernel::RecvOutcome.Message {:msg _resp} nil]
-               [:wat::kernel::RecvOutcome.Lost {:cause _c} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message _c))]
-               [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-               [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])
-       snap  (:wat-tests::hib-counter/hibernate h)
-       h2    (:wat-tests::hib-counter/resume :locus (:wat::spawn::process) :record snap)
-       c2    (:wat::core::match (:wat::kernel::connect (:wat-tests::hib-counter::Handle/addr h2)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-       _2    (:wat-tests::HibCounter/increment c2 (:wat-tests::HibCounter::IncrementRequest :n 3))
-       final (:wat-tests::hib-counter/stop h2)]
+  (wat.test/assert-eq
+    (wat.core/let
+      [h     (wat-tests.hib-counter/start :locus (wat.spawn/process) :record (wat-tests.hib-counter/Record :count 0))
+       c     (wat.core/match (wat.kernel/connect (wat-tests.hib-counter.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _     (wat.core/match (wat-tests.HibCounter/increment c (wat-tests.HibCounter/IncrementRequest :n 7))
+               [wat.kernel/RecvOutcome.Message {:msg _resp} nil]
+               [wat.kernel/RecvOutcome.Lost {:cause _c} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message _c))]
+               [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+               [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])
+       snap  (wat-tests.hib-counter/hibernate h)
+       h2    (wat-tests.hib-counter/resume :locus (wat.spawn/process) :record snap)
+       c2    (wat.core/match (wat.kernel/connect (wat-tests.hib-counter.Handle/addr h2)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+       _2    (wat-tests.HibCounter/increment c2 (wat-tests.HibCounter/IncrementRequest :n 3))
+       final (wat-tests.hib-counter/stop h2)]
       final)
     10))

@@ -13,55 +13,55 @@
 ;; matched on its `RecvOutcome` (Message processes-and-recurses; Lost raises; Stopped/Closed
 ;; exit), and the `Stopped` arm added to the `send` match. Also now asserts its own claim.
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; the work-fn as a runtime anonymous block (Ruby's Parallel { |x| x*2 })
-     work       (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::* x 2))
+     work       (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 (wat.i64/* x 2))
      ;; reify it to shippable forms that define it under :probe::work in the child's fresh universe
-     work-forms (:wat::kernel::fn-forms work :probe::work)
+     work-forms (wat.kernel/fn-forms work probe/work)
      ;; assemble the child program: the reified work FIRST (so :probe::work resolves), then the
      ;; runner + child-main that reference it.
-     w (:wat::test::spawn-peer (:wat::spawn::process)
-         (:wat::core::concat
+     w (wat.test/spawn-peer (wat.spawn/process)
+         (wat.core/concat
            work-forms
-           (:wat::core::forms
-             (:wat::core::defn :probe::runner
-               [self <- (:wat::kernel::Peer :- [wat.type/i64 wat.type/i64])] -> wat.type/nil
-               (:wat::core::match (:wat::kernel::recv self)
-                 [:wat::kernel::RecvOutcome.Message {:msg item}
-                   (:wat::core::let
-                     [_ (:wat::core::match (:wat::kernel::send self (:probe::work item)) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
-                     (:probe::runner self))]
-                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                   (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                 [:wat::kernel::RecvOutcome.Stopped {} nil]
-                 [:wat::kernel::RecvOutcome.Closed {} nil]))
-             (:wat::core::defn :user::main [] -> wat.type/nil
-               (:probe::runner (:wat::program::self-peer wat.type/i64 wat.type/i64))))))
-     _ (:wat::core::match (:wat::kernel::send w 3) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
-     _ (:wat::core::match (:wat::kernel::send w 5) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
-     ra (:wat::kernel::recv w)
-     a  (:wat::core::match ra
-          [:wat::kernel::RecvOutcome.Message {:msg m} m]
-          [:wat::kernel::RecvOutcome.Lost {:cause cause}
-            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome.Stopped {}
-            (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-          [:wat::kernel::RecvOutcome.Closed {}
-            (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])
-     rb (:wat::kernel::recv w)
-     b  (:wat::core::match rb
-          [:wat::kernel::RecvOutcome.Message {:msg m} m]
-          [:wat::kernel::RecvOutcome.Lost {:cause cause}
-            (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-          [:wat::kernel::RecvOutcome.Stopped {}
-            (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-          [:wat::kernel::RecvOutcome.Closed {}
-            (:wat::kernel::assertion-failed! :message "recv': w closed unexpectedly")])]
-    (:wat::core::do
-      (:wat::kernel::println
-        (:wat::string::concat
-          (:wat::i64::to-string a)
-          (:wat::string::concat " " (:wat::i64::to-string b))))
-      (:wat::test::assert-eq a 6)
-      (:wat::test::assert-eq b 10))))
+           (wat.core/forms
+             (wat.core/defn probe/runner
+               [self :- (wat.kernel/Peer :- [wat.type/i64 wat.type/i64])] :- wat.type/nil
+               (wat.core/match (wat.kernel/recv self)
+                 [wat.kernel/RecvOutcome.Message {:msg item}
+                   (wat.core/let
+                     [_ (wat.core/match (wat.kernel/send self (probe/work item)) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
+                     (probe/runner self))]
+                 [wat.kernel/RecvOutcome.Lost {:cause cause}
+                   (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+                 [wat.kernel/RecvOutcome.Stopped {} nil]
+                 [wat.kernel/RecvOutcome.Closed {} nil]))
+             (wat.core/defn user/main [] :- wat.type/nil
+               (probe/runner (wat.program/self-peer wat.type/i64 wat.type/i64))))))
+     _ (wat.core/match (wat.kernel/send w 3) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])
+     _ (wat.core/match (wat.kernel/send w 5) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])
+     ra (wat.kernel/recv w)
+     a  (wat.core/match ra
+          [wat.kernel/RecvOutcome.Message {:msg m} m]
+          [wat.kernel/RecvOutcome.Lost {:cause cause}
+            (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+          [wat.kernel/RecvOutcome.Stopped {}
+            (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+          [wat.kernel/RecvOutcome.Closed {}
+            (wat.kernel/assertion-failed! :message "recv': w closed unexpectedly")])
+     rb (wat.kernel/recv w)
+     b  (wat.core/match rb
+          [wat.kernel/RecvOutcome.Message {:msg m} m]
+          [wat.kernel/RecvOutcome.Lost {:cause cause}
+            (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+          [wat.kernel/RecvOutcome.Stopped {}
+            (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+          [wat.kernel/RecvOutcome.Closed {}
+            (wat.kernel/assertion-failed! :message "recv': w closed unexpectedly")])]
+    (wat.core/do
+      (wat.kernel/println
+        (wat.string/concat
+          (wat.i64/to-string a)
+          (wat.string/concat " " (wat.i64/to-string b))))
+      (wat.test/assert-eq a 6)
+      (wat.test/assert-eq b 10))))

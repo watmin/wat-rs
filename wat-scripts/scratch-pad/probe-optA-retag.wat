@@ -24,163 +24,163 @@
 ;;   checker/runtime names exactly where — before the macro is built on top.
 
 ;; ── the SURFACE op/reply (the ONLY thing a client can construct — the wire type) ─────────────────
-(:wat::core::defenum :probe-retag::Surface::Op :wat::enum::Pure
+(wat.core/defenum probe-retag.Surface/Op wat.enum/Pure
   :Ping [])
-(:wat::core::defenum :probe-retag::Surface::Reply :wat::enum::Pure
+(wat.core/defenum probe-retag.Surface/Reply wat.enum/Pure
   :Pong [])
 
 ;; ── the SVC op SUPERSET (surface :Ping counterpart + the internal :Tick) — the serve-loop's O ────
-(:wat::core::defenum :probe-retag::Svc::Op :wat::enum::Pure
+(wat.core/defenum probe-retag.Svc/Op wat.enum/Pure
   :Ping []
   :Tick [])
 
 ;; ── THREAD tier ──────────────────────────────────────────────────────────────────────────────────
 ;; serve threads: saw-tick? + the client's idx (-1 = not yet connected). Replies :Pong to the client
 ;; ONLY once BOTH the timer's :Tick and the client's (re-tagged) :Ping have been delivered by poll'.
-(:wat::core::defn :probe-retag::serve-thread
-  [self        <- (:wat::kernel::Peer :- [wat.type/nil wat.type/nil])
-   l           <- (:wat::kernel::Listener :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply])
-   selectables <- (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
-   saw-tick    <- wat.type/bool
-   client-idx  <- wat.type/i64]
-  -> wat.type/nil
-  (:wat::core::match (:wat::kernel::poll self l selectables) 
-    [:wat::spawn::ServiceEvent.Shutdown {} nil]
-    [:wat::spawn::ServiceEvent.Connection {:peer peer}
-      (:probe-retag::serve-thread self l (:wat::core::conj selectables peer) saw-tick client-idx)]
-    [:wat::spawn::ServiceEvent.Message {:idx idx :msg op}
+(wat.core/defn probe-retag/serve-thread
+  [self        :- (wat.kernel/Peer :- [wat.type/nil wat.type/nil])
+   l           :- (wat.kernel/Listener :- [probe-retag.Surface/Op probe-retag.Surface/Reply])
+   selectables :- (wat.type/Vector :- [(wat.kernel/Peer :- [probe-retag.Surface/Reply probe-retag.Svc/Op])])
+   saw-tick    :- wat.type/bool
+   client-idx  :- wat.type/i64]
+  :- wat.type/nil
+  (wat.core/match (wat.kernel/poll self l selectables) 
+    [wat.spawn/ServiceEvent.Shutdown {} nil]
+    [wat.spawn/ServiceEvent.Connection {:peer peer}
+      (probe-retag/serve-thread self l (wat.core/conj selectables peer) saw-tick client-idx)]
+    [wat.spawn/ServiceEvent.Message {:idx idx :msg op}
       ;; ⛔ THE RE-TAG: a client op arrives Surface-tagged; embed it into the Svc::Op superset. A
       ;; timer's already-Svc::Op::Tick passes through unchanged.
-      (:wat::core::match
-          (:wat::kernel::retag-op op :probe-retag::Surface::Op :probe-retag::Svc::Op)
+      (wat.core/match
+          (wat.kernel/retag-op op probe-retag.Surface/Op probe-retag.Svc/Op)
           
         ;; the TIMER delivered its :Tick (an internal op — passed through the re-tag):
-        [:probe-retag::Svc::Op.Tick {}
-          (:wat::core::if (:wat::i64::>= client-idx 0)
-            (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+        [probe-retag.Svc/Op.Tick {}
+          (wat.core/if (wat.i64/>= client-idx 0)
+            (wat.core/let
+              [_ (wat.core/match (wat.kernel/send (wat.core/nth selectables client-idx) (probe-retag.Surface/Reply.Pong {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
               nil)
-            (:probe-retag::serve-thread self l selectables true client-idx))]
+            (probe-retag/serve-thread self l selectables true client-idx))]
         ;; the CLIENT delivered its :Ping (a SURFACE op — RE-TAGGED to Svc::Op::Ping):
-        [:probe-retag::Svc::Op.Ping {}
-          (:wat::core::if saw-tick
-            (:wat::core::let
-              [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+        [probe-retag.Svc/Op.Ping {}
+          (wat.core/if saw-tick
+            (wat.core/let
+              [_ (wat.core/match (wat.kernel/send (wat.core/nth selectables idx) (probe-retag.Surface/Reply.Pong {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
               nil)
-            (:probe-retag::serve-thread self l selectables saw-tick idx))])]
-    [:wat::spawn::ServiceEvent.Closed {:idx idx}
-      (:probe-retag::serve-thread self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-    [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
-      (:probe-retag::serve-thread self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-    [:wat::spawn::ServiceEvent.Malformed {:idx idx :cause _cause}
-      (:probe-retag::serve-thread self l selectables saw-tick client-idx)]
-    [:wat::spawn::ServiceEvent.Rejected {:idx idx :cause _cause}
-      (:probe-retag::serve-thread self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-    [:wat::spawn::ServiceEvent.Admin {:msg _m}
-      (:probe-retag::serve-thread self l selectables saw-tick client-idx)]))
+            (probe-retag/serve-thread self l selectables saw-tick idx))])]
+    [wat.spawn/ServiceEvent.Closed {:idx idx}
+      (probe-retag/serve-thread self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+    [wat.spawn/ServiceEvent.Lost {:idx idx :cause _cause}
+      (probe-retag/serve-thread self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+    [wat.spawn/ServiceEvent.Malformed {:idx idx :cause _cause}
+      (probe-retag/serve-thread self l selectables saw-tick client-idx)]
+    [wat.spawn/ServiceEvent.Rejected {:idx idx :cause _cause}
+      (probe-retag/serve-thread self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+    [wat.spawn/ServiceEvent.Admin {:msg _m}
+      (probe-retag/serve-thread self l selectables saw-tick client-idx)]))
 
-(:wat::core::defn :probe-retag::thread-mix [] -> :probe-retag::Surface::Reply
-  (:wat::core::let
-    [pair (:wat::kernel::listener (:wat::spawn::thread) :probe-retag::Surface::Op :probe-retag::Surface::Reply)
-     l    (:wat::spawn::Bound/listener pair)
-     addr (:wat::spawn::Bound/address pair)
-     _svc (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- (:wat::kernel::Peer :- [wat.type/nil wat.type/nil])]
-              -> wat.type/nil
-              (:wat::core::let
-                [t (:wat::kernel::after :wat::program::PeerKind.thread
-                     (:wat::time::Millisecond 5) (:probe-retag::Svc::Op.Tick {}))]
-                (:probe-retag::serve-thread self l
-                  (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
+(wat.core/defn probe-retag/thread-mix [] :- probe-retag.Surface/Reply
+  (wat.core/let
+    [pair (wat.kernel/listener (wat.spawn/thread) probe-retag.Surface/Op probe-retag.Surface/Reply)
+     l    (wat.spawn.Bound/listener pair)
+     addr (wat.spawn.Bound/address pair)
+     _svc (wat.test/spawn-peer (wat.spawn/thread)
+            (wat.core/fn [self :- (wat.kernel/Peer :- [wat.type/nil wat.type/nil])]
+              :- wat.type/nil
+              (wat.core/let
+                [t (wat.kernel/after wat.program/PeerKind.thread
+                     (wat.time/Millisecond 5) (probe-retag.Svc/Op.Tick {}))]
+                (probe-retag/serve-thread self l
+                  (wat.type/Vector :- [(wat.kernel/Peer :- [probe-retag.Surface/Reply probe-retag.Svc/Op])] t)
                   false -1))))
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
-     r    (:wat::core::match (:wat::kernel::recv c)
-            [:wat::kernel::RecvOutcome.Message {:msg m} m]
-            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': c closed")])]
+     c    (wat.core/match (wat.kernel/connect addr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _    (wat.core/match (wat.kernel/send c (probe-retag.Surface/Op.Ping {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])
+     r    (wat.core/match (wat.kernel/recv c)
+            [wat.kernel/RecvOutcome.Message {:msg m} m]
+            [wat.kernel/RecvOutcome.Lost {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+            [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
+            [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': c closed")])]
     r))
 
 ;; ── PROCESS tier — IDENTICAL shape, forked child universe. The child re-declares Surface + Svc
 ;; (a process fork is a separate address space; the real defservice ships the surface via the
 ;; manifest + synthesizes Svc::Op) and sends its Address' UP the lineage self-peer. ────────────────
-(:wat::core::defn :probe-retag::process-mix [] -> :probe-retag::Surface::Reply
-  (:wat::core::let
-    [svc  (:wat::test::spawn-peer (:wat::spawn::process)
-            (:wat::core::forms
-              (:wat::core::defenum :probe-retag::Surface::Op :wat::enum::Pure
+(wat.core/defn probe-retag/process-mix [] :- probe-retag.Surface/Reply
+  (wat.core/let
+    [svc  (wat.test/spawn-peer (wat.spawn/process)
+            (wat.core/forms
+              (wat.core/defenum probe-retag.Surface/Op wat.enum/Pure
                 :Ping [])
-              (:wat::core::defenum :probe-retag::Surface::Reply :wat::enum::Pure
+              (wat.core/defenum probe-retag.Surface/Reply wat.enum/Pure
                 :Pong [])
-              (:wat::core::defenum :probe-retag::Svc::Op :wat::enum::Pure
+              (wat.core/defenum probe-retag.Svc/Op wat.enum/Pure
                 :Ping []
                 :Tick [])
-              (:wat::core::defn :probe-retag::serve-proc
-                [self        <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) wat.type/nil])
-                 l           <- (:wat::kernel::Listener :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply])
-                 selectables <- (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])])
-                 saw-tick    <- wat.type/bool
-                 client-idx  <- wat.type/i64]
-                -> wat.type/nil
-                (:wat::core::match (:wat::kernel::poll self l selectables) 
-                  [:wat::spawn::ServiceEvent.Shutdown {} nil]
-                  [:wat::spawn::ServiceEvent.Connection {:peer peer}
-                    (:probe-retag::serve-proc self l (:wat::core::conj selectables peer) saw-tick client-idx)]
-                  [:wat::spawn::ServiceEvent.Message {:idx idx :msg op}
-                    (:wat::core::match
-                        (:wat::kernel::retag-op op :probe-retag::Surface::Op :probe-retag::Svc::Op)
+              (wat.core/defn probe-retag/serve-proc
+                [self        :- (wat.kernel/Peer :- [(wat.kernel/Address :- [probe-retag.Surface/Op probe-retag.Surface/Reply]) wat.type/nil])
+                 l           :- (wat.kernel/Listener :- [probe-retag.Surface/Op probe-retag.Surface/Reply])
+                 selectables :- (wat.type/Vector :- [(wat.kernel/Peer :- [probe-retag.Surface/Reply probe-retag.Svc/Op])])
+                 saw-tick    :- wat.type/bool
+                 client-idx  :- wat.type/i64]
+                :- wat.type/nil
+                (wat.core/match (wat.kernel/poll self l selectables) 
+                  [wat.spawn/ServiceEvent.Shutdown {} nil]
+                  [wat.spawn/ServiceEvent.Connection {:peer peer}
+                    (probe-retag/serve-proc self l (wat.core/conj selectables peer) saw-tick client-idx)]
+                  [wat.spawn/ServiceEvent.Message {:idx idx :msg op}
+                    (wat.core/match
+                        (wat.kernel/retag-op op probe-retag.Surface/Op probe-retag.Svc/Op)
                         
-                      [:probe-retag::Svc::Op.Tick {}
-                        (:wat::core::if (:wat::i64::>= client-idx 0)
-                          (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+                      [probe-retag.Svc/Op.Tick {}
+                        (wat.core/if (wat.i64/>= client-idx 0)
+                          (wat.core/let
+                            [_ (wat.core/match (wat.kernel/send (wat.core/nth selectables client-idx) (probe-retag.Surface/Reply.Pong {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
                             nil)
-                          (:probe-retag::serve-proc self l selectables true client-idx))]
-                      [:probe-retag::Svc::Op.Ping {}
-                        (:wat::core::if saw-tick
-                          (:wat::core::let
-                            [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables idx) (:probe-retag::Surface::Reply.Pong {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])]
+                          (probe-retag/serve-proc self l selectables true client-idx))]
+                      [probe-retag.Svc/Op.Ping {}
+                        (wat.core/if saw-tick
+                          (wat.core/let
+                            [_ (wat.core/match (wat.kernel/send (wat.core/nth selectables idx) (probe-retag.Surface/Reply.Pong {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])]
                             nil)
-                          (:probe-retag::serve-proc self l selectables saw-tick idx))])]
-                  [:wat::spawn::ServiceEvent.Closed {:idx idx}
-                    (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-                  [:wat::spawn::ServiceEvent.Lost {:idx idx :cause _cause}
-                    (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-                  [:wat::spawn::ServiceEvent.Malformed {:idx idx :cause _cause}
-                    (:probe-retag::serve-proc self l selectables saw-tick client-idx)]
-                  [:wat::spawn::ServiceEvent.Rejected {:idx idx :cause _cause}
-                    (:probe-retag::serve-proc self l (:wat::seq::remove-at selectables idx) saw-tick client-idx)]
-                  [:wat::spawn::ServiceEvent.Admin {:msg _m}
-                    (:probe-retag::serve-proc self l selectables saw-tick client-idx)]))
-              (:wat::core::defn :user::main [] -> wat.type/nil
-                (:wat::core::let
-                  [b2   (:wat::kernel::listener (:wat::spawn::process) :probe-retag::Surface::Op :probe-retag::Surface::Reply)
-                   self (:wat::program::self-peer (:wat::kernel::Address :- [:probe-retag::Surface::Op :probe-retag::Surface::Reply]) wat.type/nil)
-                   _sa  (:wat::kernel::send self (:wat::spawn::Bound/address b2))
-                   t    (:wat::kernel::after :wat::program::PeerKind.process
-                          (:wat::time::Millisecond 5) (:probe-retag::Svc::Op.Tick {}))]
-                  (:probe-retag::serve-proc self (:wat::spawn::Bound/listener b2)
-                    (wat.type/Vector :- [(:wat::kernel::Peer :- [:probe-retag::Surface::Reply :probe-retag::Svc::Op])] t)
+                          (probe-retag/serve-proc self l selectables saw-tick idx))])]
+                  [wat.spawn/ServiceEvent.Closed {:idx idx}
+                    (probe-retag/serve-proc self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+                  [wat.spawn/ServiceEvent.Lost {:idx idx :cause _cause}
+                    (probe-retag/serve-proc self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+                  [wat.spawn/ServiceEvent.Malformed {:idx idx :cause _cause}
+                    (probe-retag/serve-proc self l selectables saw-tick client-idx)]
+                  [wat.spawn/ServiceEvent.Rejected {:idx idx :cause _cause}
+                    (probe-retag/serve-proc self l (wat.seq/remove-at selectables idx) saw-tick client-idx)]
+                  [wat.spawn/ServiceEvent.Admin {:msg _m}
+                    (probe-retag/serve-proc self l selectables saw-tick client-idx)]))
+              (wat.core/defn user/main [] :- wat.type/nil
+                (wat.core/let
+                  [b2   (wat.kernel/listener (wat.spawn/process) probe-retag.Surface/Op probe-retag.Surface/Reply)
+                   self (wat.program/self-peer (wat.kernel/Address :- [probe-retag.Surface/Op probe-retag.Surface/Reply]) wat.type/nil)
+                   _sa  (wat.kernel/send self (wat.spawn.Bound/address b2))
+                   t    (wat.kernel/after wat.program/PeerKind.process
+                          (wat.time/Millisecond 5) (probe-retag.Svc/Op.Tick {}))]
+                  (probe-retag/serve-proc self (wat.spawn.Bound/listener b2)
+                    (wat.type/Vector :- [(wat.kernel/Peer :- [probe-retag.Surface/Reply probe-retag.Svc/Op])] t)
                     false -1)))))
-     addr (:wat::core::match (:wat::kernel::recv svc)
-            [:wat::kernel::RecvOutcome.Message {:msg m} m]
-            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': svc closed")])
-     c    (:wat::core::match (:wat::kernel::connect addr) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     _    (:wat::core::match (:wat::kernel::send c (:probe-retag::Surface::Op.Ping {})) [:wat::kernel::SendOutcome.Sent {} nil] [:wat::kernel::SendOutcome.HandleClosed {} nil] [:wat::kernel::SendOutcome.Stopped {} nil] [:wat::kernel::SendOutcome.Closed {:cause _c} nil] [:wat::kernel::SendOutcome.Failed {:cause _c} nil])
-     r    (:wat::core::match (:wat::kernel::recv c)
-            [:wat::kernel::RecvOutcome.Message {:msg m} m]
-            [:wat::kernel::RecvOutcome.Lost {:cause cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-            [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
-            [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': c closed")])]
+     addr (wat.core/match (wat.kernel/recv svc)
+            [wat.kernel/RecvOutcome.Message {:msg m} m]
+            [wat.kernel/RecvOutcome.Lost {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+            [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; svc was ALIVE and the channel open")]
+            [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': svc closed")])
+     c    (wat.core/match (wat.kernel/connect addr) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     _    (wat.core/match (wat.kernel/send c (probe-retag.Surface/Op.Ping {})) [wat.kernel/SendOutcome.Sent {} nil] [wat.kernel/SendOutcome.HandleClosed {} nil] [wat.kernel/SendOutcome.Stopped {} nil] [wat.kernel/SendOutcome.Closed {:cause _c} nil] [wat.kernel/SendOutcome.Failed {:cause _c} nil])
+     r    (wat.core/match (wat.kernel/recv c)
+            [wat.kernel/RecvOutcome.Message {:msg m} m]
+            [wat.kernel/RecvOutcome.Lost {:cause cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+            [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; c was ALIVE and the channel open")]
+            [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': c closed")])]
     r))
 
 ;; ── the assertion — BOTH tiers: the client's RE-TAGGED :Ping AND the timer's pass-through :Tick ────
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::core::match (:probe-retag::thread-mix) 
-      [:probe-retag::Surface::Reply.Pong {} (:wat::kernel::println "thread: Pong — re-tagged client :Ping + pass-through timer :Tick both dispatched")])
-    (:wat::core::match (:probe-retag::process-mix) 
-      [:probe-retag::Surface::Reply.Pong {} (:wat::kernel::println "process: Pong — re-tagged client :Ping + pass-through timer :Tick both dispatched")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.core/match (probe-retag/thread-mix) 
+      [probe-retag.Surface/Reply.Pong {} (wat.kernel/println "thread: Pong — re-tagged client :Ping + pass-through timer :Tick both dispatched")])
+    (wat.core/match (probe-retag/process-mix) 
+      [probe-retag.Surface/Reply.Pong {} (wat.kernel/println "process: Pong — re-tagged client :Ping + pass-through timer :Tick both dispatched")])))

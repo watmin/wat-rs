@@ -9,29 +9,29 @@
 ;; Only :wat::core::defstruct forms are read by the Clojure scanner.
 ;; Function definitions, macros, etc. are silently skipped.
 
-(:wat::core::defstruct :enterprise::config::SizeAdjust
-  [asset    <- wat.type/keyword
-   factor   <- wat.type/f64
-   reason   <- wat.type/String])
+(wat.core/defstruct enterprise.config/SizeAdjust
+  [asset    :- wat.type/keyword
+   factor   :- wat.type/f64
+   reason   :- wat.type/String])
 
-(:wat::core::defstruct :enterprise::observer::market::TradeSignal
-  [asset       <- wat.type/keyword
-   side        <- wat.type/keyword
-   size        <- wat.type/f64
-   confidence  <- wat.type/f64
-   proposed-at <- :wat::time::Instant])
+(wat.core/defstruct enterprise.observer.market/TradeSignal
+  [asset       :- wat.type/keyword
+   side        :- wat.type/keyword
+   size        :- wat.type/f64
+   confidence  :- wat.type/f64
+   proposed-at :- wat.time/Instant])
 
-(:wat::core::defstruct :enterprise::treasury::events::Fill
-  [order-id     <- wat.type/i64
-   asset        <- wat.type/keyword
-   filled-size  <- wat.type/f64
-   filled-price <- wat.type/f64])
+(wat.core/defstruct enterprise.treasury.events/Fill
+  [order-id     :- wat.type/i64
+   asset        :- wat.type/keyword
+   filled-size  :- wat.type/f64
+   filled-price :- wat.type/f64])
 
 ;; A function definition — should be ignored by the scanner.
-(:wat::core::defn :enterprise::observer::market::TradeSignal/show
-  [sig <- :enterprise::observer::market::TradeSignal]
-  -> wat.type/String
-  (:wat::core::format "[{asset}] {side} @ {size}"
-    :asset (:enterprise::observer::market::TradeSignal/asset sig)
-    :side (:enterprise::observer::market::TradeSignal/side sig)
-    :size (:enterprise::observer::market::TradeSignal/size sig)))
+(wat.core/defn enterprise.observer.market.TradeSignal/show
+  [sig :- enterprise.observer.market/TradeSignal]
+  :- wat.type/String
+  (wat.core/format "[{asset}] {side} @ {size}"
+    :asset (enterprise.observer.market.TradeSignal/asset sig)
+    :side (enterprise.observer.market.TradeSignal/side sig)
+    :size (enterprise.observer.market.TradeSignal/size sig)))

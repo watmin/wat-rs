@@ -22,130 +22,130 @@
 ;; meet on one index and the probe measures nothing (that vacuous partition is recorded in
 ;; `src/rete/kernel/tests/right_index_counter_invariant.rs`).
 
-(:wat::core::defrecord :d2p::A [k <- wat.type/i64  v <- wat.type/i64])
-(:wat::core::defrecord :d2p::B [k <- wat.type/i64])
-(:wat::core::defrecord :d2p::C [k <- wat.type/i64])
-(:wat::core::defrecord :d2p::D [k <- wat.type/i64])
-(:wat::core::defrecord :d2p::M [k <- wat.type/i64])
-(:wat::core::defrecord :d2p::Hit  [k <- wat.type/i64])
-(:wat::core::defrecord :d2p::Hit2 [k <- wat.type/i64])
+(wat.core/defrecord d2p/A [k :- wat.type/i64  v :- wat.type/i64])
+(wat.core/defrecord d2p/B [k :- wat.type/i64])
+(wat.core/defrecord d2p/C [k :- wat.type/i64])
+(wat.core/defrecord d2p/D [k :- wat.type/i64])
+(wat.core/defrecord d2p/M [k :- wat.type/i64])
+(wat.core/defrecord d2p/Hit  [k :- wat.type/i64])
+(wat.core/defrecord d2p/Hit2 [k :- wat.type/i64])
 
-(:wat::rete::defrule :d2p::derive-a
-  :when [(:d2p::M (?k :- :k))]
-  :then [(:d2p::A ?k (:wat::rete::i64::+ ?k 1 :undefined 0))])
+(wat.rete/defrule d2p/derive-a
+  :when [(d2p/M (?k :- :k))]
+  :then [(d2p/A ?k (wat.rete.i64/+ ?k 1 :undefined 0))])
 
-(:wat::rete::defrule :d2p::derive-b
-  :when [(:d2p::M (?k :- :k))]
-  :then [(:d2p::B ?k)])
+(wat.rete/defrule d2p/derive-b
+  :when [(d2p/M (?k :- :k))]
+  :then [(d2p/B ?k)])
 
-(:wat::rete::defrule :d2p::derive-c
-  :when [(:d2p::M (?k :- :k))]
-  :then [(:d2p::C ?k)])
+(wat.rete/defrule d2p/derive-c
+  :when [(d2p/M (?k :- :k))]
+  :then [(d2p/C ?k)])
 
-(:wat::rete::defrule :d2p::derive-d
-  :when [(:d2p::M (?k :- :k))]
-  :then [(:d2p::D ?k)])
+(wat.rete/defrule d2p/derive-d
+  :when [(d2p/M (?k :- :k))]
+  :then [(d2p/D ?k)])
 
-(:wat::rete::defrule :d2p::chain
-  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k :- :k))
-         (:d2p::C (?k :- :k))]
-  :then [(:d2p::Hit ?k)])
+(wat.rete/defrule d2p/chain
+  :when [(d2p/A (?k :- :k) (?v :- :v) (wat.rete.i64/> ?v 0))
+         (d2p/B (?k :- :k))
+         (d2p/C (?k :- :k))]
+  :then [(d2p/Hit ?k)])
 
-(:wat::rete::defrule :d2p::chain2
-  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k :- :k))
-         (:d2p::D (?k :- :k))]
-  :then [(:d2p::Hit2 ?k)])
+(wat.rete/defrule d2p/chain2
+  :when [(d2p/A (?k :- :k) (?v :- :v) (wat.rete.i64/> ?v 0))
+         (d2p/B (?k :- :k))
+         (d2p/D (?k :- :k))]
+  :then [(d2p/Hit2 ?k)])
 
 ;; The FACT observable — deduped by `seen_insert`, so blind to multiplicity by construction.
-(:wat::rete::defquery :d2p::q-hit  :params [] :when [(:d2p::Hit  (?k :- :k))])
-(:wat::rete::defquery :d2p::q-hit2 :params [] :when [(:d2p::Hit2 (?k :- :k))])
+(wat.rete/defquery d2p/q-hit  :params [] :when [(d2p/Hit  (?k :- :k))])
+(wat.rete/defquery d2p/q-hit2 :params [] :when [(d2p/Hit2 (?k :- :k))])
 
 ;; ★ The TOKEN observable — this `:when` mirrors `chain`'s own join chain, so a doubled right
 ;; bucket yields a doubled row count here even though the fact set is unchanged.
-(:wat::rete::defquery :d2p::q-chain
+(wat.rete/defquery d2p/q-chain
   :params []
-  :when [(:d2p::A (?k :- :k) (?v :- :v) (:wat::rete::i64::> ?v 0))
-         (:d2p::B (?k :- :k))
-         (:d2p::C (?k :- :k))])
+  :when [(d2p/A (?k :- :k) (?v :- :v) (wat.rete.i64/> ?v 0))
+         (d2p/B (?k :- :k))
+         (d2p/C (?k :- :k))])
 
-(:wat::core::defn :d2p::ins-a [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s (:d2p::A :k k :v (:wat::i64::+ k 1))) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert a: ceiling")]))
-(:wat::core::defn :d2p::ins-b [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s (:d2p::B k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert b: ceiling")]))
-(:wat::core::defn :d2p::ins-c [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s (:d2p::C k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert c: ceiling")]))
-(:wat::core::defn :d2p::ins-m [s <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s (:d2p::M k)) [:wat::rete::InsertOutcome.Inserted {:session __x} __x] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "insert m: ceiling")]))
+(wat.core/defn d2p/ins-a [s :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s (d2p/A :k k :v (wat.i64/+ k 1))) [wat.rete/InsertOutcome.Inserted {:session __x} __x] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (wat.kernel/assertion-failed! :message "insert a: ceiling")]))
+(wat.core/defn d2p/ins-b [s :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s (d2p/B k)) [wat.rete/InsertOutcome.Inserted {:session __x} __x] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (wat.kernel/assertion-failed! :message "insert b: ceiling")]))
+(wat.core/defn d2p/ins-c [s :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s (d2p/C k)) [wat.rete/InsertOutcome.Inserted {:session __x} __x] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (wat.kernel/assertion-failed! :message "insert c: ceiling")]))
+(wat.core/defn d2p/ins-m [s :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s (d2p/M k)) [wat.rete/InsertOutcome.Inserted {:session __x} __x] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (wat.kernel/assertion-failed! :message "insert m: ceiling")]))
 
-(:wat::core::defn :d2p::wave1 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-      (:d2p::ins-c (:d2p::ins-b (:d2p::ins-a acc k) k) k))
+(wat.core/defn d2p/wave1 [s :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+      (d2p/ins-c (d2p/ins-b (d2p/ins-a acc k) k) k))
     s
-    (:wat::core::range 0 n)))
+    (wat.core/range 0 n)))
 
-(:wat::core::defn :d2p::wave2 [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- wat.type/i64] -> :wat::rete::Session
-      (:d2p::ins-m acc k))
+(wat.core/defn d2p/wave2 [s :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  k :- wat.type/i64] :- wat.rete/Session
+      (d2p/ins-m acc k))
     s
-    (:wat::core::range n (:wat::i64::* n 2))))
+    (wat.core/range n (wat.i64/* n 2))))
 
-(:wat::core::defn :d2p::seed [s <- :wat::rete::Session  n <- wat.type/i64] -> :wat::rete::Session
-  (:d2p::wave2 (:d2p::wave1 s n) n))
+(wat.core/defn d2p/seed [s :- wat.rete/Session  n :- wat.type/i64] :- wat.rete/Session
+  (d2p/wave2 (d2p/wave1 s n) n))
 
-(:wat::core::defn :d2p::rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule]
-    (:d2p::derive-a) (:d2p::derive-b) (:d2p::derive-c) (:d2p::derive-d)
-    (:d2p::chain) (:d2p::chain2)))
+(wat.core/defn d2p/rules [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule]
+    (d2p/derive-a) (d2p/derive-b) (d2p/derive-c) (d2p/derive-d)
+    (d2p/chain) (d2p/chain2)))
 
-(:wat::core::defn :d2p::queries [] -> (wat.type/PersistentVector :- [:wat::rete::Query])
-  (wat.type/PersistentVector :- [:wat::rete::Query] (:d2p::q-hit) (:d2p::q-hit2) (:d2p::q-chain)))
+(wat.core/defn d2p/queries [] :- (wat.type/PersistentVector :- [wat.rete/Query])
+  (wat.type/PersistentVector :- [wat.rete/Query] (d2p/q-hit) (d2p/q-hit2) (d2p/q-chain)))
 
-(:wat::core::defn :d2p::fresh [n <- wat.type/i64] -> :wat::rete::Session
-  (:d2p::seed
-    (:wat::core::match (:wat::rete::compile-all (:d2p::rules) (:d2p::queries))
-      [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-      [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
+(wat.core/defn d2p/fresh [n :- wat.type/i64] :- wat.rete/Session
+  (d2p/seed
+    (wat.core/match (wat.rete/compile-all (d2p/rules) (d2p/queries))
+      [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+      [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "compile: may not terminate")])
     n))
 
-(:wat::core::defn :d2p::fire-native [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules (:d2p::fresh n))
-    [:wat::rete::FireOutcome.Fired {:value __f} __f]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")]))
+(wat.core/defn d2p/fire-native [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules (d2p/fresh n))
+    [wat.rete/FireOutcome.Fired {:value __f} __f]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :d2p::fire-oracle [n <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules$oracle (:d2p::fresh n))
-    [:wat::rete::FireOutcome.Fired {:value __f} __f]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "fire: round cap")]))
+(wat.core/defn d2p/fire-oracle [n :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules$oracle (d2p/fresh n))
+    [wat.rete/FireOutcome.Fired {:value __f} __f]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "fire: ceiling")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "fire: round cap")]))
 
-(:wat::core::defn :d2p::line
-  [label <- wat.type/String  hits <- wat.type/i64  hits2 <- wat.type/i64  rows <- wat.type/i64]
-  -> wat.type/nil
-  (:wat::kernel::println
-    (:wat::string::concat
-      (:wat::string::concat label " Hit=")
-      (:wat::string::concat
-        (:wat::i64::to-string hits)
-        (:wat::string::concat
-          (:wat::string::concat " Hit2=" (:wat::i64::to-string hits2))
-          (:wat::string::concat " chain-rows=" (:wat::i64::to-string rows)))))))
+(wat.core/defn d2p/line
+  [label :- wat.type/String  hits :- wat.type/i64  hits2 :- wat.type/i64  rows :- wat.type/i64]
+  :- wat.type/nil
+  (wat.kernel/println
+    (wat.string/concat
+      (wat.string/concat label " Hit=")
+      (wat.string/concat
+        (wat.i64/to-string hits)
+        (wat.string/concat
+          (wat.string/concat " Hit2=" (wat.i64/to-string hits2))
+          (wat.string/concat " chain-rows=" (wat.i64/to-string rows)))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n 6
-     nat (:d2p::fire-native n)
-     ora (:d2p::fire-oracle n)]
-    (:wat::core::do
-      (:d2p::line "native"
-        (:wat::core::length (:wat::rete::query nat (:d2p::q-hit)))
-        (:wat::core::length (:wat::rete::query nat (:d2p::q-hit2)))
-        (:wat::core::length (:wat::rete::query nat (:d2p::q-chain))))
-      (:d2p::line "oracle"
-        (:wat::core::length (:wat::rete::query ora (:d2p::q-hit)))
-        (:wat::core::length (:wat::rete::query ora (:d2p::q-hit2)))
-        (:wat::core::length (:wat::rete::query ora (:d2p::q-chain)))))))
+     nat (d2p/fire-native n)
+     ora (d2p/fire-oracle n)]
+    (wat.core/do
+      (d2p/line "native"
+        (wat.core/length (wat.rete/query nat (d2p/q-hit)))
+        (wat.core/length (wat.rete/query nat (d2p/q-hit2)))
+        (wat.core/length (wat.rete/query nat (d2p/q-chain))))
+      (d2p/line "oracle"
+        (wat.core/length (wat.rete/query ora (d2p/q-hit)))
+        (wat.core/length (wat.rete/query ora (d2p/q-hit2)))
+        (wat.core/length (wat.rete/query ora (d2p/q-chain)))))))

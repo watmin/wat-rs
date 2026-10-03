@@ -12,8 +12,8 @@
 ;;
 ;; STATUS: RED until 294.b lands (the source reader has no `#tag <form>` dispatch
 ;; yet — only `#{`). GREEN target: cosine of a literal with itself → 1.0.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::pprintln
-    (:wat::holon::cosine
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/pprintln
+    (wat.holon/cosine
       #holon {:kw ["a" "b"] true #{1 :foo "bar"} 3.0 nil}
       #holon {:kw ["a" "b"] true #{1 :foo "bar"} 3.0 nil})))

@@ -13,28 +13,28 @@
 ;; The `i64::>` clause on the same condition is the CONTROL: it must render normally, so a payload
 ;; of length 2 with one real form and one marker is the whole verdict.
 
-(:wat::core::defenum :d6t::Grade :wat::enum::Pure
+(wat.core/defenum d6t/Grade wat.enum/Pure
   :Rejected []
-  :Scored   [points <- wat.type/i64])
+  :Scored   [points :- wat.type/i64])
 
-(:wat::core::defrecord :d6t::Reading [n <- wat.type/i64  grade <- :d6t::Grade])
-(:wat::core::defrecord :d6t::Hit     [n <- wat.type/i64])
+(wat.core/defrecord d6t/Reading [n :- wat.type/i64  grade :- d6t/Grade])
+(wat.core/defrecord d6t/Hit     [n :- wat.type/i64])
 
-(:wat::rete::defrule :d6t::hit
+(wat.rete/defrule d6t/hit
   :when
-  [(:d6t::Reading (?n :- :n) (?g :- :grade)
-                  (:wat::rete::i64::> ?n 5)
-                  (:wat::rete::core::enum::not= ?g :d6t::Grade.Rejected))]
+  [(d6t/Reading (?n :- :n) (?g :- :grade)
+                  (wat.rete.i64/> ?n 5)
+                  (wat.rete.core.enum/not= ?g d6t/Grade.Rejected))]
   :then
-  [(:d6t::Hit :n ?n)])
+  [(d6t/Hit :n ?n)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :d6t)
-     session (:wat::core::match (:wat::rete::compile rules) [:wat::rete::CompileOutcome.Compiled {:session __s} __s] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (:wat::kernel::assertion-failed! :message "may not terminate")])
-     session (:wat::core::match (:wat::rete::insert session (:d6t::Reading :n 9 :grade (:d6t::Grade.Scored {:points 7}))) [:wat::rete::InsertOutcome.Inserted {:session __st} __st] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (:wat::kernel::assertion-failed! :message "ceiling")])
-     fired   (:wat::core::match (:wat::rete::fire-rules-explain session) [:wat::rete::FireOutcome.Fired {:value __e} __e] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (:wat::kernel::assertion-failed! :message "ceiling")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (:wat::kernel::assertion-failed! :message "roundcap")])
-     node    (:wat::rete::explain fired (:d6t::Hit :n 9))
-     steps   (:wat::rete::DerivationNode/via node)]
-    (:wat::kernel::println
-      (:wat::rete::DerivationStep/constraints (:wat::core::first steps)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules   (wat.rete/collect-rules :d6t)
+     session (wat.core/match (wat.rete/compile rules) [wat.rete/CompileOutcome.Compiled {:session __s} __s] [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f} (wat.kernel/assertion-failed! :message "may not terminate")])
+     session (wat.core/match (wat.rete/insert session (d6t/Reading :n 9 :grade (d6t/Grade.Scored {:points 7}))) [wat.rete/InsertOutcome.Inserted {:session __st} __st] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __l :used __u :staged __c} (wat.kernel/assertion-failed! :message "ceiling")])
+     fired   (wat.core/match (wat.rete/fire-rules-explain session) [wat.rete/FireOutcome.Fired {:value __e} __e] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r} (wat.kernel/assertion-failed! :message "ceiling")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s} (wat.kernel/assertion-failed! :message "roundcap")])
+     node    (wat.rete/explain fired (d6t/Hit :n 9))
+     steps   (wat.rete.DerivationNode/via node)]
+    (wat.kernel/println
+      (wat.rete.DerivationStep/constraints (wat.core/first steps)))))

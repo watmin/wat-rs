@@ -3,13 +3,13 @@
 ;;
 ;; A program-body macro: top-level let computes the temp via fresh-symbol, then a quasiquote
 ;; tail uses it as a binder AND a reference. The caller binds t=5, macro's fresh t=100 → 105.
-(:wat::core::defmacro :test::add-via-fresh
-  [x <- wat.type/AST]
-  -> wat.type/AST
-  (:wat::core::let
-    [t (:wat::core::fresh-symbol "t")]
-    `(:wat::core::let [~t 100] (:wat::i64::+ ~t ~x))))
+(wat.core/defmacro test/add-via-fresh
+  [x :- wat.type/AST]
+  :- wat.type/AST
+  (wat.core/let
+    [t (wat.core/fresh-symbol "t")]
+    `(wat.core/let [~t 100] (wat.i64/+ ~t ~x))))
 
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let [t 5] (:test::add-via-fresh t)))
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let [t 5] (test/add-via-fresh t)))
 

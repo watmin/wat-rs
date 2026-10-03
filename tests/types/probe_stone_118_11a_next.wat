@@ -13,41 +13,41 @@
 ;; given, so a single `next` on `(map f v)` must print exactly one line.
 
 ;; Row 1 — (next <3-element stream>) -> Item, value = first element.
-(:wat::core::defn :probe::row1 [] -> (:wat::stream::NextOutcome :- [wat.type/i64])
-  (:wat::stream::next
-    (:wat::stream::cons 1
-      (:wat::stream::cons 2
-        (:wat::stream::cons 3
-          (:wat::stream::empty))))))
+(wat.core/defn probe/row1 [] :- (wat.stream/NextOutcome :- [wat.type/i64])
+  (wat.stream/next
+    (wat.stream/cons 1
+      (wat.stream/cons 2
+        (wat.stream/cons 3
+          (wat.stream/empty))))))
 
 ;; Row 2 — (next <exhausted stream>) -> Exhausted.
-(:wat::core::defn :probe::row2 [] -> (:wat::stream::NextOutcome :- [wat.type/i64])
-  (:wat::stream::next (:wat::stream::empty)))
+(wat.core/defn probe/row2 [] :- (wat.stream/NextOutcome :- [wat.type/i64])
+  (wat.stream/next (wat.stream/empty)))
 
 ;; Row 4 — pulling `rest` from row 1's Item and calling `next` again yields the SECOND element.
-(:wat::core::defn :probe::row4 [] -> (:wat::stream::NextOutcome :- [wat.type/i64])
-  (:wat::core::match (:probe::row1)
-    [:wat::stream::NextOutcome.Item {:value value :rest rest} (:wat::stream::next rest)]
-    [:wat::stream::NextOutcome.Exhausted {}
-      (:wat::kernel::assertion-failed! :message "row1 must be Item — row4 fixture is broken")]))
+(wat.core/defn probe/row4 [] :- (wat.stream/NextOutcome :- [wat.type/i64])
+  (wat.core/match (probe/row1)
+    [wat.stream/NextOutcome.Item {:value value :rest rest} (wat.stream/next rest)]
+    [wat.stream/NextOutcome.Exhausted {}
+      (wat.kernel/assertion-failed! :message "row1 must be Item — row4 fixture is broken")]))
 
 ;; Row 3 — with a printing `f`, ONE `next` on `(map f v)` prints EXACTLY ONE LINE.
 ;; `f` prints "CALLED" (via the primed `:wat::kernel::println`, which requires a running
 ;; program — hence the subprocess) once per invocation, then returns its arg unchanged. A single
 ;; `:wat::stream::next` call on `(map f v)` — never a second one — is the entire probe.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [v (:wat::stream::cons 1
-         (:wat::stream::cons 2
-           (:wat::stream::cons 3
-             (:wat::stream::empty))))
-     f (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64
-         (:wat::core::do
-           (:wat::kernel::println "CALLED")
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [v (wat.stream/cons 1
+         (wat.stream/cons 2
+           (wat.stream/cons 3
+             (wat.stream/empty))))
+     f (wat.core/fn [x :- wat.type/i64] :- wat.type/i64
+         (wat.core/do
+           (wat.kernel/println "CALLED")
            x))
-     mapped (:wat::core::map f v)
-     r (:wat::stream::next mapped)]
-    (:wat::core::match r
-      [:wat::stream::NextOutcome.Item {:value value :rest rest} nil]
-      [:wat::stream::NextOutcome.Exhausted {}
-        (:wat::kernel::assertion-failed! :message "row3: next on (map f v) must be Item")])))
+     mapped (wat.core/map f v)
+     r (wat.stream/next mapped)]
+    (wat.core/match r
+      [wat.stream/NextOutcome.Item {:value value :rest rest} nil]
+      [wat.stream/NextOutcome.Exhausted {}
+        (wat.kernel/assertion-failed! :message "row3: next on (map f v) must be Item")])))

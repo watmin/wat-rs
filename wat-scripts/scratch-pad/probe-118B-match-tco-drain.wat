@@ -18,19 +18,19 @@
 
 ;; The MIGRATED shape stone B would give `stream->pvec`: one `next` per element (one force),
 ;; both halves bound by the match, tail-recursive in the Item arm.
-(:wat::core::defn :probe::drain-next
-  [acc <- (wat.type/PersistentVector :- [wat.type/i64])
-   s   <- (:wat::stream::Stream :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::match (:wat::stream::next s)
-    [:wat::stream::NextOutcome.Item {:value value :rest rest}
-      (:probe::drain-next (:wat::core::conj acc value) rest)]
-    [:wat::stream::NextOutcome.Exhausted {} acc]))
+(wat.core/defn probe/drain-next
+  [acc :- (wat.type/PersistentVector :- [wat.type/i64])
+   s   :- (wat.stream/Stream :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/match (wat.stream/next s)
+    [wat.stream/NextOutcome.Item {:value value :rest rest}
+      (probe/drain-next (wat.core/conj acc value) rest)]
+    [wat.stream/NextOutcome.Exhausted {} acc]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [n      200000
-     s      (:wat::core::map
-              (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
-              (:wat::core::range 0 n))
-     out    (:probe::drain-next (wat.type/PersistentVector :- [wat.type/i64]) s)]
-    (:wat::kernel::println (:wat::core::length out))))
+     s      (wat.core/map
+              (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x)
+              (wat.core/range 0 n))
+     out    (probe/drain-next (wat.type/PersistentVector :- [wat.type/i64]) s)]
+    (wat.kernel/println (wat.core/length out))))

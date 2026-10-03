@@ -5,8 +5,8 @@
 ;; RED at HEAD: parse_defsurface (surface.rs:322) hand-matches :struct / :record / :holon-record,
 ;; so `:nature :wat::core::Record` is a MalformedDecl → this world fails to start.
 ;; GREEN once :nature routes through Nature::from_root_keyword (accepts the nature-root symbol).
-(:wat::core::defrecord :env::Rec [host <- wat.type/String])
-(:wat::core::defsurface :env::Portable :nature wat.type/Record :features [])
-(:wat::core::extend-type :env::Rec :env::Portable)
-(:wat::core::defn :env::take [p <- :env::Portable] -> wat.type/i64 42)
-(:wat::core::defn :env::feed [] -> wat.type/i64 (:env::take (:env::Rec :host "h")))
+(wat.core/defrecord env/Rec [host :- wat.type/String])
+(wat.core/defsurface env/Portable :nature wat.type/Record :features [])
+(wat.core/extend-type env/Rec env/Portable)
+(wat.core/defn env/take [p :- env/Portable] :- wat.type/i64 42)
+(wat.core/defn env/feed [] :- wat.type/i64 (env/take (env/Rec :host "h")))

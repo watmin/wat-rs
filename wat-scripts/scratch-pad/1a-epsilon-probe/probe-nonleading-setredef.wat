@@ -2,7 +2,7 @@
 ;; does collect_entry_file_inner's "every setter precedes every non-setter"
 ;; discipline reject this, or does it fall through as an ordinary top-level
 ;; form processed later by register_runtime_defs_form?
-(:wat::core::defn :user::helper [] -> wat.type/i64 42)
-(:wat::config::set-redef! true)
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "reached main"))
+(wat.core/defn user/helper [] :- wat.type/i64 42)
+(wat.config/set-redef! true)
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "reached main"))

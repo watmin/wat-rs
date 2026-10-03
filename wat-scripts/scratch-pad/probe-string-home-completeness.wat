@@ -26,12 +26,12 @@
 ;; negative control was run beside it and is recorded here rather than shipped, because a
 ;; raising body cannot live under the wat-scripts loader gate:
 ;;   (:wat::string::definitely-not-a-verb "") -> UnknownFunction, so the probe CAN fail.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-      [a (:wat::kernel::println (:wat::string::concat "ab" "cd"))
-       b (:wat::kernel::println (:wat::string::starts-with? "abcd" "ab"))
-       c (:wat::kernel::println (:wat::string::ends-with? "abcd" "cd"))
-       d (:wat::kernel::println (:wat::string::contains? "abcd" "bc"))
-       e (:wat::kernel::println (:wat::string::empty? ""))
-       f (:wat::kernel::println (:wat::string::empty? "x"))]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+      [a (wat.kernel/println (wat.string/concat "ab" "cd"))
+       b (wat.kernel/println (wat.string/starts-with? "abcd" "ab"))
+       c (wat.kernel/println (wat.string/ends-with? "abcd" "cd"))
+       d (wat.kernel/println (wat.string/contains? "abcd" "bc"))
+       e (wat.kernel/println (wat.string/empty? ""))
+       f (wat.kernel/println (wat.string/empty? "x"))]
       nil))

@@ -9,11 +9,11 @@
 ;;
 ;; Scratch, per holon/CLAUDE.md's `.wat` scratch convention (not the ephemeral session tmp).
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── metadata-of :wat::keyword::from-string (it IS registered) ──")
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::keyword::from-string))
-    (:wat::kernel::println "── let-bound call head, forced NotCallable (it STAMPS RuntimeBuilt) ──")
-    (:wat::core::let
-        [head (:wat::keyword::from-string "ns::nonexistent-verb")]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── metadata-of :wat::keyword::from-string (it IS registered) ──")
+    (wat.kernel/pprintln (wat.runtime/metadata-of wat.keyword/from-string))
+    (wat.kernel/println "── let-bound call head, forced NotCallable (it STAMPS RuntimeBuilt) ──")
+    (wat.core/let
+        [head (wat.keyword/from-string "ns::nonexistent-verb")]
         (head 1 2))))

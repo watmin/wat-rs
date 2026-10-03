@@ -17,40 +17,40 @@
 ;; Model: the P2 evidence fixture `signal_user1_delivers_child_observes_flag.wat`
 ;; (spawn/signal/send/recv shape, deleted with this commit) +
 ;; wat-tests/spawn/recv-budget-override.wat (the deftest + spawn-peer + assert idiom).
-(:wat::test::deftest :wat-tests::process::signal-user2-and-hangup-independent
-  (:wat::test::assert-eq
-    (:wat::core::let
-      [child (:wat::test::spawn-peer (:wat::spawn::process)
-               (:wat::core::forms
-                 (:wat::core::defn :user::main [] -> wat.type/nil
-                   (:wat::core::let
-                     [n (:wat::core::match (:wat::kernel::readln)
-                          [:wat::kernel::ReadlnOutcome.Datum {:v d} d]
-                          [:wat::kernel::ReadlnOutcome.Eof {}
-                            (:wat::kernel::assertion-failed! :message "unexpected eof")]
-                          [:wat::kernel::ReadlnOutcome.Stopped {}
-                            (:wat::kernel::assertion-failed! :message "unexpected stop")])]
-                     (:wat::kernel::println
-                       (wat.type/Vector :- [wat.type/bool] (:wat::kernel::sigusr2?) (:wat::kernel::sighup?)))))))]
-      (:wat::core::match (:wat::kernel::signal child :wat::kernel::Signal.User2)
-        [:wat::kernel::SignalOutcome.Delivered {}
-          (:wat::core::match (:wat::kernel::send child 0)
-            [:wat::kernel::SendOutcome.Sent {}
-              (:wat::core::match (:wat::kernel::recv child)
-                [:wat::kernel::RecvOutcome.Message {:msg m} m]
-                [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message cause))]
-                [:wat::kernel::RecvOutcome.Stopped {}
-                  (:wat::kernel::assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
-                [:wat::kernel::RecvOutcome.Closed {}
-                  (:wat::kernel::assertion-failed! :message "recv: child closed unexpectedly")])]
-            [:wat::kernel::SendOutcome.HandleClosed {}
-              (:wat::kernel::assertion-failed! :message "send: child closed unexpectedly")]
-            [:wat::kernel::SendOutcome.Stopped {}
-              (:wat::kernel::assertion-failed! :message "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
-            [:wat::kernel::SendOutcome.Closed {:cause cause}
-              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))] [:wat::kernel::SendOutcome.Failed {:cause cause}
-              (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))])]
-        [:wat::kernel::SignalOutcome.Failed {:cause cause}
-          (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message cause))]))
+(wat.test/deftest wat-tests.process/signal-user2-and-hangup-independent
+  (wat.test/assert-eq
+    (wat.core/let
+      [child (wat.test/spawn-peer (wat.spawn/process)
+               (wat.core/forms
+                 (wat.core/defn user/main [] :- wat.type/nil
+                   (wat.core/let
+                     [n (wat.core/match (wat.kernel/readln)
+                          [wat.kernel/ReadlnOutcome.Datum {:v d} d]
+                          [wat.kernel/ReadlnOutcome.Eof {}
+                            (wat.kernel/assertion-failed! :message "unexpected eof")]
+                          [wat.kernel/ReadlnOutcome.Stopped {}
+                            (wat.kernel/assertion-failed! :message "unexpected stop")])]
+                     (wat.kernel/println
+                       (wat.type/Vector :- [wat.type/bool] (wat.kernel/sigusr2?) (wat.kernel/sighup?)))))))]
+      (wat.core/match (wat.kernel/signal child wat.kernel/Signal.User2)
+        [wat.kernel/SignalOutcome.Delivered {}
+          (wat.core/match (wat.kernel/send child 0)
+            [wat.kernel/SendOutcome.Sent {}
+              (wat.core/match (wat.kernel/recv child)
+                [wat.kernel/RecvOutcome.Message {:msg m} m]
+                [wat.kernel/RecvOutcome.Lost {:cause cause}
+                  (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message cause))]
+                [wat.kernel/RecvOutcome.Stopped {}
+                  (wat.kernel/assertion-failed! :message "recv: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
+                [wat.kernel/RecvOutcome.Closed {}
+                  (wat.kernel/assertion-failed! :message "recv: child closed unexpectedly")])]
+            [wat.kernel/SendOutcome.HandleClosed {}
+              (wat.kernel/assertion-failed! :message "send: child closed unexpectedly")]
+            [wat.kernel/SendOutcome.Stopped {}
+              (wat.kernel/assertion-failed! :message "send: stopped — the substrate was asked to stop; the child was ALIVE and the channel open")]
+            [wat.kernel/SendOutcome.Closed {:cause cause}
+              (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))] [wat.kernel/SendOutcome.Failed {:cause cause}
+              (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))])]
+        [wat.kernel/SignalOutcome.Failed {:cause cause}
+          (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message cause))]))
     (wat.type/Vector :- [wat.type/bool] true false)))

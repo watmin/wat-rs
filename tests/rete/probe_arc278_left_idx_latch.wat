@@ -16,90 +16,90 @@
 ;; whole chain and its catch-up builds left_idx. It must be 2 on both engines: it proves
 ;; the fixture really reaches a second round with a non-empty dr and a non-empty old_left.
 
-(:wat::core::defrecord :vlx::A  [k <- wat.type/i64  g <- wat.type/String])
-(:wat::core::defrecord :vlx::A2 [k <- wat.type/i64])
-(:wat::core::defrecord :vlx::B  [k <- wat.type/i64])
-(:wat::core::defrecord :vlx::C  [k <- wat.type/i64  v <- wat.type/i64])
-(:wat::core::defrecord :vlx::T  [k <- wat.type/i64])
-(:wat::core::defrecord :vlx::OutW [v <- wat.type/i64])
-(:wat::core::defrecord :vlx::OutP [v <- wat.type/i64])
-(:wat::core::defrecord :vlx::A3 [k <- wat.type/i64])
-(:wat::core::defrecord :vlx::Neg [k <- wat.type/i64])
-(:wat::core::defrecord :vlx::OutN [v <- wat.type/i64])
+(wat.core/defrecord vlx/A  [k :- wat.type/i64  g :- wat.type/String])
+(wat.core/defrecord vlx/A2 [k :- wat.type/i64])
+(wat.core/defrecord vlx/B  [k :- wat.type/i64])
+(wat.core/defrecord vlx/C  [k :- wat.type/i64  v :- wat.type/i64])
+(wat.core/defrecord vlx/T  [k :- wat.type/i64])
+(wat.core/defrecord vlx/OutW [v :- wat.type/i64])
+(wat.core/defrecord vlx/OutP [v :- wat.type/i64])
+(wat.core/defrecord vlx/A3 [k :- wat.type/i64])
+(wat.core/defrecord vlx/Neg [k :- wat.type/i64])
+(wat.core/defrecord vlx/OutN [v :- wat.type/i64])
 
 ;; Derives a SECOND C for a key round 1 already joined — one round later.
-(:wat::rete::defrule :vlx::derive-c
-  :when [(:vlx::T (?k :- :k))]
-  :then [(:vlx::C :k ?k :v 20)])
+(wat.rete/defrule vlx/derive-c
+  :when [(vlx/T (?k :- :k))]
+  :then [(vlx/C :k ?k :v 20)])
 
 ;; THE SUBJECT: guard, then two fact conditions.
-(:wat::rete::defrule :vlx::main-where
-  :when [(:vlx::A (?k :- :k) (?g :- :g) (:wat::rete::string::= ?g "yes"))
-         (:vlx::B (?k :- :k))
-         (:vlx::C (?k :- :k) (?v :- :v))]
-  :then [(:vlx::OutW :v ?v)])
+(wat.rete/defrule vlx/main-where
+  :when [(vlx/A (?k :- :k) (?g :- :g) (wat.rete.string/= ?g "yes"))
+         (vlx/B (?k :- :k))
+         (vlx/C (?k :- :k) (?v :- :v))]
+  :then [(vlx/OutW :v ?v)])
 
 ;; THE CONTROL: same three facts, no guard.
-(:wat::rete::defrule :vlx::main-plain
-  :when [(:vlx::A2 (?k :- :k))
-         (:vlx::B (?k :- :k))
-         (:vlx::C (?k :- :k) (?v :- :v))]
-  :then [(:vlx::OutP :v ?v)])
+(wat.rete/defrule vlx/main-plain
+  :when [(vlx/A2 (?k :- :k))
+         (vlx/B (?k :- :k))
+         (vlx/C (?k :- :k) (?v :- :v))]
+  :then [(vlx/OutP :v ?v)])
 
 ;; THE SECOND SUBJECT: the filter is a `:not`, not a `:where`. Pass 3.6 walks
 ;; `filter_or_acc` = Test | Negation | Exists | Accumulate, so a `:not` followed by two
 ;; fact conditions reaches the same `keyed_join_persistent` latch.
-(:wat::rete::defrule :vlx::main-not
-  :when [(:vlx::A3 (?k :- :k))
-         (:wat::rete::not (:vlx::Neg (?k :- :k)))
-         (:vlx::B (?k :- :k))
-         (:vlx::C (?k :- :k) (?v :- :v))]
-  :then [(:vlx::OutN :v ?v)])
+(wat.rete/defrule vlx/main-not
+  :when [(vlx/A3 (?k :- :k))
+         (wat.rete/not (vlx/Neg (?k :- :k)))
+         (vlx/B (?k :- :k))
+         (vlx/C (?k :- :k) (?v :- :v))]
+  :then [(vlx/OutN :v ?v)])
 
-(:wat::rete::defquery :vlx::q-n :params [] :when [(?f :- :vlx::OutN)])
-(:wat::rete::defquery :vlx::q-w :params [] :when [(?f :- :vlx::OutW)])
-(:wat::rete::defquery :vlx::q-p :params [] :when [(?f :- :vlx::OutP)])
-(:wat::rete::defquery :vlx::q-c :params [] :when [(?f :- :vlx::C)])
+(wat.rete/defquery vlx/q-n :params [] :when [(?f :- vlx/OutN)])
+(wat.rete/defquery vlx/q-w :params [] :when [(?f :- vlx/OutW)])
+(wat.rete/defquery vlx/q-p :params [] :when [(?f :- vlx/OutP)])
+(wat.rete/defquery vlx/q-c :params [] :when [(?f :- vlx/C)])
 
-(:wat::core::defn :vlx::ins [s <- :wat::rete::Session f <- wat.type/Record] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert s f)
-    [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
-      (:wat::kernel::assertion-failed! :message "insert: ceiling")]))
+(wat.core/defn vlx/ins [s :- wat.rete/Session f :- wat.type/Record] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert s f)
+    [wat.rete/InsertOutcome.Inserted {:session __staged} __staged]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
+      (wat.kernel/assertion-failed! :message "insert: ceiling")]))
 
-(:wat::core::defn :vlx::staged [] -> :wat::rete::Session
-  (:vlx::ins (:vlx::ins (:vlx::ins (:vlx::ins (:vlx::ins
-    (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :vlx)
-      (wat.type/PersistentVector :- [:wat::rete::Query] (:vlx::q-w) (:vlx::q-p) (:vlx::q-c) (:vlx::q-n)))
-      [:wat::rete::CompileOutcome.Compiled {:session __session} __session]
-      [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
-        (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-    (:vlx::A :k 1 :g "yes")) (:vlx::A2 :k 1)) (:vlx::B :k 1)) (:vlx::C :k 1 :v 10)) (:vlx::T :k 1)))
+(wat.core/defn vlx/staged [] :- wat.rete/Session
+  (vlx/ins (vlx/ins (vlx/ins (vlx/ins (vlx/ins
+    (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :vlx)
+      (wat.type/PersistentVector :- [wat.rete/Query] (vlx/q-w) (vlx/q-p) (vlx/q-c) (vlx/q-n)))
+      [wat.rete/CompileOutcome.Compiled {:session __session} __session]
+      [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type}
+        (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+    (vlx/A :k 1 :g "yes")) (vlx/A2 :k 1)) (vlx/B :k 1)) (vlx/C :k 1 :v 10)) (vlx/T :k 1)))
 
-(:wat::core::defn :vlx::staged2 [] -> :wat::rete::Session
-  (:vlx::ins (:vlx::staged) (:vlx::A3 :k 1)))
+(wat.core/defn vlx/staged2 [] :- wat.rete/Session
+  (vlx/ins (vlx/staged) (vlx/A3 :k 1)))
 
-(:wat::core::defn :vlx::counts [s <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
+(wat.core/defn vlx/counts [s :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
   (wat.type/PersistentVector :- [wat.type/i64]
-    (:wat::core::length (:wat::rete::query s (:vlx::q-w)))
-    (:wat::core::length (:wat::rete::query s (:vlx::q-p)))
-    (:wat::core::length (:wat::rete::query s (:vlx::q-c)))
-    (:wat::core::length (:wat::rete::query s (:vlx::q-n)))))
+    (wat.core/length (wat.rete/query s (vlx/q-w)))
+    (wat.core/length (wat.rete/query s (vlx/q-p)))
+    (wat.core/length (wat.rete/query s (vlx/q-c)))
+    (wat.core/length (wat.rete/query s (vlx/q-n)))))
 
 ;; [guard-chain, no-guard-control, C population] x [native, oracle]
-(:wat::core::defn :user::native-and-oracle [] -> (wat.type/Vector :- [wat.type/i64])
-  (:wat::core::mapv
-    (:wat::core::fn [n <- wat.type/i64] -> wat.type/i64 n)
-    (:wat::core::into
-      (:vlx::counts (:wat::core::match (:wat::rete::fire-rules (:vlx::staged2))
-        [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-          (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-          (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
-      (:vlx::counts (:wat::core::match (:wat::rete::fire-rules$oracle (:vlx::staged2))
-        [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-          (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-          (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))
+(wat.core/defn user/native-and-oracle [] :- (wat.type/Vector :- [wat.type/i64])
+  (wat.core/mapv
+    (wat.core/fn [n :- wat.type/i64] :- wat.type/i64 n)
+    (wat.core/into
+      (vlx/counts (wat.core/match (wat.rete/fire-rules (vlx/staged2))
+        [wat.rete/FireOutcome.Fired {:value __fired} __fired]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+          (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+          (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+      (vlx/counts (wat.core/match (wat.rete/fire-rules$oracle (vlx/staged2))
+        [wat.rete/FireOutcome.Fired {:value __fired} __fired]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+          (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+          (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])))))

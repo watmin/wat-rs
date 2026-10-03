@@ -21,11 +21,11 @@
 
 ;; peers held at the ABSTRACT Peer' type — the shape the bracket's collect-loop wants
 ;; ((Vector :- [(Peer' :- [(:wat::core::Tuple :- [:wat::core::i64 I]) (:wat::core::Tuple :- [:wat::core::i64 O])])])). Positionally identical to (Thread' :- [(:wat::core::Tuple :- [:wat::core::i64 I]) (:wat::core::Tuple :- [:wat::core::i64 O])]).
-(:wat::core::defn :probe::sel
-  [peers <- (wat.type/Vector :- [(:wat::kernel::Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])])]
-  -> wat.type/nil
-  (:wat::core::let [_ev (:wat::kernel::select peers)]
+(wat.core/defn probe/sel
+  [peers :- (wat.type/Vector :- [(wat.kernel/Peer :- [(wat.type/Tuple :- [wat.type/i64 wat.type/i64]) (wat.type/Tuple :- [wat.type/i64 wat.type/i64])])])]
+  :- wat.type/nil
+  (wat.core/let [_ev (wat.kernel/select peers)]
     nil))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "ok"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "ok"))

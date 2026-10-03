@@ -17,35 +17,35 @@
 ;; Core types the bare tagged keyword honestly as the CONSTRUCTOR it is and refuses. Rete's prefix
 ;; shortcut is what makes it LESS correct than core for the same input.
 
-(:wat::core::defenum :tg::P :wat::enum::Pure :Hi [n <- wat.type/i64])
-(:wat::core::defrecord :tg::Req [k <- wat.type/i64  grade <- :tg::P])
-(:wat::core::defrecord :tg::Hit [k <- wat.type/i64])
+(wat.core/defenum tg/P wat.enum/Pure :Hi [n :- wat.type/i64])
+(wat.core/defrecord tg/Req [k :- wat.type/i64  grade :- tg/P])
+(wat.core/defrecord tg/Hit [k :- wat.type/i64])
 
 ;; The constraint names the tagged variant BARE — there is no such value.
-(:wat::rete::defrule :tg::good
-  :when [(:tg::Req (?k :- :k) (:wat::rete::core::enum::= :grade :tg::P.Hi))]
-  :then [(:tg::Hit :k ?k)])
+(wat.rete/defrule tg/good
+  :when [(tg/Req (?k :- :k) (wat.rete.core.enum/= :grade tg/P.Hi))]
+  :then [(tg/Hit :k ?k)])
 
-(:wat::rete::defquery :tg::q :params [] :when [(?f :- :tg::Hit)])
+(wat.rete/defquery tg/q :params [] :when [(?f :- tg/Hit)])
 
-(:wat::core::defn :tg::fire [] -> wat.type/i64
-  (:wat::core::let
-    [s0 (:wat::core::match (:wat::rete::compile-all (:wat::rete::collect-rules :tg) (wat.type/PersistentVector :- [:wat::rete::Query] (:tg::q)))
-          [:wat::rete::CompileOutcome.Compiled {:session __s} __s]
-          [:wat::rete::CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
-            (:wat::kernel::assertion-failed! :message "compile: may not terminate")])
-     s1 (:wat::core::match (:wat::rete::insert s0 (:tg::Req :k 1 :grade (:tg::P.Hi {:n 7})) (:tg::Req :k 2 :grade (:tg::P.Hi {:n 9})))
-          [:wat::rete::InsertOutcome.Inserted {:session __st} __st]
-          [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
-            (:wat::kernel::assertion-failed! :message "insert: ceiling")])]
-    (:wat::core::length (:wat::rete::query
-      (:wat::core::match (:wat::rete::fire-rules s1)
-        [:wat::rete::FireOutcome.Fired {:value __f} __f]
-        [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
-          (:wat::kernel::assertion-failed! :message "fire: ceiling")]
-        [:wat::rete::FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
-          (:wat::kernel::assertion-failed! :message "fire: round cap")])
-      (:tg::q)))))
+(wat.core/defn tg/fire [] :- wat.type/i64
+  (wat.core/let
+    [s0 (wat.core/match (wat.rete/compile-all (wat.rete/collect-rules :tg) (wat.type/PersistentVector :- [wat.rete/Query] (tg/q)))
+          [wat.rete/CompileOutcome.Compiled {:session __s} __s]
+          [wat.rete/CompileOutcome.MayNotTerminate {:rule __r :fact-type __f}
+            (wat.kernel/assertion-failed! :message "compile: may not terminate")])
+     s1 (wat.core/match (wat.rete/insert s0 (tg/Req :k 1 :grade (tg/P.Hi {:n 7})) (tg/Req :k 2 :grade (tg/P.Hi {:n 9})))
+          [wat.rete/InsertOutcome.Inserted {:session __st} __st]
+          [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __a :used __b :staged __c}
+            (wat.kernel/assertion-failed! :message "insert: ceiling")])]
+    (wat.core/length (wat.rete/query
+      (wat.core/match (wat.rete/fire-rules s1)
+        [wat.rete/FireOutcome.Fired {:value __f} __f]
+        [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __l :used __u :rounds __r2}
+          (wat.kernel/assertion-failed! :message "fire: ceiling")]
+        [wat.rete/FireOutcome.RoundCapExceeded {:cap __c :still-deriving __s}
+          (wat.kernel/assertion-failed! :message "fire: round cap")])
+      (tg/q)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:tg::fire)))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (tg/fire)))

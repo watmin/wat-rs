@@ -47,29 +47,29 @@
 
 ;; literal-replace — substring replace via split+join (no dedicated string::replace primitive exists
 ;; in wat core). `old` must be non-empty (string::split rejects an empty separator).
-(:wat::core::defn :user::literal-replace
-  [src <- wat.type/String  old <- wat.type/String  new <- wat.type/String] -> wat.type/String
-  (:wat::string::join new (:wat::string::split src old)))
+(wat.core/defn user/literal-replace
+  [src :- wat.type/String  old :- wat.type/String  new :- wat.type/String] :- wat.type/String
+  (wat.string/join new (wat.string/split src old)))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let
-    [src1 (:wat::fix::rename-keyword-exact
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let
+    [src1 (wat.fix/rename-keyword-exact
             ":wat::kernel::LociDiedError::Shutdown" ":wat::kernel::LociDiedError::Stopped" src)
-     src2 (:user::literal-replace src1 "WRONG:Shutdown" "WRONG:Stopped")
-     src3 (:user::literal-replace src2 "LociDiedError::Shutdown" "LociDiedError::Stopped")]
+     src2 (user/literal-replace src1 "WRONG:Shutdown" "WRONG:Stopped")
+     src3 (user/literal-replace src2 "LociDiedError::Shutdown" "LociDiedError::Stopped")]
     src3))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[shutdown->stopped] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[shutdown->stopped] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

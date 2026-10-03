@@ -50,27 +50,27 @@
 ;; the CLOJURE SPELLING — the one a Clojure programmer writes by reflex. It is exactly the form
 ;; the wire refuses.
 
-(:wat::core::defn :probe::eval-symbol-head [] -> wat.type/i64
+(wat.core/defn probe/eval-symbol-head [] :- wat.type/i64
   (wat.core/+ 2 2))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
     ;; (1) does it evaluate? if normalize rewrites the head, this is 4.
-    (:wat::kernel::println
-      (:wat::string::concat "1. (wat.core/+ 2 2) evaluates to "
-        (:wat::i64::to-string (:probe::eval-symbol-head))))
+    (wat.kernel/println
+      (wat.string/concat "1. (wat.core/+ 2 2) evaluates to "
+        (wat.i64/to-string (probe/eval-symbol-head))))
 
     ;; (2) what is it as data? THE load-bearing line — a symbol head or a normalized keyword?
-    (:wat::kernel::println "2. quoted, as EDN:")
-    (:wat::kernel::println (:wat::core::quote (wat.core/+ 2 2)))
+    (wat.kernel/println "2. quoted, as EDN:")
+    (wat.kernel/println (wat.core/quote (wat.core/+ 2 2)))
 
     ;; (3) does the wire's typed door accept it as a WatAST?
-    (:wat::kernel::println "3. edn::validate against :wat::WatAST:")
-    (:wat::core::match
-      (:wat::edn::validate (:wat::core::quote (wat.core/+ 2 2)) wat.type/AST)
-      [:wat::edn::Validation.Valid {} (:wat::kernel::println "   VALID")]
-      [:wat::edn::Validation.Invalid {:path path :expected expected :got got}
-        (:wat::core::do
-          (:wat::kernel::println
-            (:wat::string::concat "   INVALID expected=" expected " got=" got))
-          (:wat::kernel::println path))])))
+    (wat.kernel/println "3. edn::validate against :wat::WatAST:")
+    (wat.core/match
+      (wat.edn/validate (wat.core/quote (wat.core/+ 2 2)) wat.type/AST)
+      [wat.edn/Validation.Valid {} (wat.kernel/println "   VALID")]
+      [wat.edn/Validation.Invalid {:path path :expected expected :got got}
+        (wat.core/do
+          (wat.kernel/println
+            (wat.string/concat "   INVALID expected=" expected " got=" got))
+          (wat.kernel/println path))])))

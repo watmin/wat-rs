@@ -33,118 +33,118 @@
 ;; Usage (stdin = an i64 vector [items]; stdout = one #grid/Result EDN line):
 ;;   echo '[5]' | cargo run --release --bin wat -- ./wat-scripts/perf/grid/userfn-head.wat
 
-(:wat::core::defrecord :ufh::Src  [k <- wat.type/i64])
-(:wat::core::defrecord :ufh::Bad  [k <- wat.type/i64])
-(:wat::core::defrecord :ufh::Rate [count <- wat.type/i64])
-(:wat::core::defrecord :ufh::Out  [n <- wat.type/i64])
+(wat.core/defrecord ufh/Src  [k :- wat.type/i64])
+(wat.core/defrecord ufh/Bad  [k :- wat.type/i64])
+(wat.core/defrecord ufh/Rate [count :- wat.type/i64])
+(wat.core/defrecord ufh/Out  [n :- wat.type/i64])
 
-(:wat::core::defrecord :grid::Result
-  [axis      <- wat.type/String
-   size      <- (wat.type/PersistentVector :- [wat.type/i64])
-   derived   <- (wat.type/PersistentVector :- [wat.type/i64])
-   native-ns      <- wat.type/i64
-   oracle-derived <- (wat.type/PersistentVector :- [wat.type/i64])
-   oracle-ns      <- wat.type/i64])
+(wat.core/defrecord grid/Result
+  [axis      :- wat.type/String
+   size      :- (wat.type/PersistentVector :- [wat.type/i64])
+   derived   :- (wat.type/PersistentVector :- [wat.type/i64])
+   native-ns      :- wat.type/i64
+   oracle-derived :- (wat.type/PersistentVector :- [wat.type/i64])
+   oracle-ns      :- wat.type/i64])
 
-(:wat::rete::core::defn :ufh::mk-rate
-  [k <- wat.type/i64]
-  -> :ufh::Rate
-  (:ufh::Rate :count k))
+(wat.rete.core/defn ufh/mk-rate
+  [k :- wat.type/i64]
+  :- ufh/Rate
+  (ufh/Rate :count k))
 
-(:wat::rete::defrule :ufh::bad
-  :when [(:ufh::Src (?k :- :k))
-         (:wat::rete::where (:wat::rete::i64::= ?k -1))]
-  :then [(:ufh::Bad :k ?k)])
+(wat.rete/defrule ufh/bad
+  :when [(ufh/Src (?k :- :k))
+         (wat.rete/where (wat.rete.i64/= ?k -1))]
+  :then [(ufh/Bad :k ?k)])
 
-(:wat::rete::defrule :ufh::via
-  :when [(:ufh::Src (?k :- :k))
-         (:wat::rete::not (:ufh::Bad (?k :- :k)))]
-  :then [(:ufh::mk-rate ?k)])
+(wat.rete/defrule ufh/via
+  :when [(ufh/Src (?k :- :k))
+         (wat.rete/not (ufh/Bad (?k :- :k)))]
+  :then [(ufh/mk-rate ?k)])
 
-(:wat::rete::defrule :ufh::out
-  :when [(:ufh::Rate (?n :- :count))]
-  :then [(:ufh::Out :n ?n)])
+(wat.rete/defrule ufh/out
+  :when [(ufh/Rate (?n :- :count))]
+  :then [(ufh/Out :n ?n)])
 
-(:wat::rete::defquery :ufh::q-Rate
+(wat.rete/defquery ufh/q-Rate
   :params []
-  :when [(?fact :- :ufh::Rate)])
+  :when [(?fact :- ufh/Rate)])
 
 
-(:wat::rete::defquery :ufh::q-Out
+(wat.rete/defquery ufh/q-Out
   :params []
-  :when [(?fact :- :ufh::Out)])
+  :when [(?fact :- ufh/Out)])
 
 
-(:wat::core::defn :ufh::build-rules [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (wat.type/PersistentVector :- [:wat::rete::Rule] (:ufh::bad) (:ufh::via) (:ufh::out)))
+(wat.core/defn ufh/build-rules [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.type/PersistentVector :- [wat.rete/Rule] (ufh/bad) (ufh/via) (ufh/out)))
 
-(:wat::core::defn :ufh::empty-records [] -> (wat.type/PersistentVector :- [wat.type/Record])
+(wat.core/defn ufh/empty-records [] :- (wat.type/PersistentVector :- [wat.type/Record])
   (wat.type/PersistentVector :- [wat.type/Record]))
 
-(:wat::core::defn :ufh::seed-facts [items <- wat.type/i64] -> (wat.type/PersistentVector :- [wat.type/Record])
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- (wat.type/PersistentVector :- [wat.type/Record])  k <- wat.type/i64]
-                    -> (wat.type/PersistentVector :- [wat.type/Record])
-      (:wat::core::conj acc (:ufh::Src :k k)))
-    (:ufh::empty-records)
-    (:wat::core::range 0 items)))
+(wat.core/defn ufh/seed-facts [items :- wat.type/i64] :- (wat.type/PersistentVector :- [wat.type/Record])
+  (wat.core/foldl
+    (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/Record])  k :- wat.type/i64]
+                    :- (wat.type/PersistentVector :- [wat.type/Record])
+      (wat.core/conj acc (ufh/Src :k k)))
+    (ufh/empty-records)
+    (wat.core/range 0 items)))
 
-(:wat::core::defn :ufh::seed [session <- :wat::rete::Session  items <- wat.type/i64] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::insert-all session (:ufh::seed-facts items))
-    [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged]
-    [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
-     (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+(wat.core/defn ufh/seed [session :- wat.rete/Session  items :- wat.type/i64] :- wat.rete/Session
+  (wat.core/match (wat.rete/insert-all session (ufh/seed-facts items))
+    [wat.rete/InsertOutcome.Inserted {:session __staged} __staged]
+    [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count}
+     (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
 
-(:wat::core::defn :ufh::fire [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::match (:wat::rete::fire-rules s)
-    [:wat::rete::FireOutcome.Fired {:value __fired} __fired]
-    [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
-     (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
-    [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
-     (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
+(wat.core/defn ufh/fire [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/match (wat.rete/fire-rules s)
+    [wat.rete/FireOutcome.Fired {:value __fired} __fired]
+    [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds}
+     (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")]
+    [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still}
+     (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")]))
 
-(:wat::core::defn :ufh::enc [kind <- wat.type/i64  id <- wat.type/i64] -> wat.type/i64
-  (:wat::i64::+ (:wat::i64::* kind 1000000000000000) id))
+(wat.core/defn ufh/enc [kind :- wat.type/i64  id :- wat.type/i64] :- wat.type/i64
+  (wat.i64/+ (wat.i64/* kind 1000000000000000) id))
 
-(:wat::core::defn :ufh::vec->pvec [v <- (wat.type/Vector :- [wat.type/i64])] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::into (wat.type/PersistentVector :- [wat.type/i64]) v))
+(wat.core/defn ufh/vec->pvec [v :- (wat.type/Vector :- [wat.type/i64])] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/into (wat.type/PersistentVector :- [wat.type/i64]) v))
 
 ;; derived-vector — sorted, NOT deduped. Every Rate AND every Out.
 ;; Pre-cure oracle is Rate-only (Out dropped). Post-cure both. Empty is a third failure.
-(:wat::core::defn :ufh::derived-vector [fired <- :wat::rete::Session] -> (wat.type/PersistentVector :- [wat.type/i64])
-  (:wat::core::let
-    [c0 (:wat::core::into (wat.type/Vector :- [wat.type/i64])
-          (:wat::core::map
-            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-                (:ufh::enc 0 (:ufh::Rate/count f))))
-            (:wat::rete::query fired (:ufh::q-Rate))))
-     c1 (:wat::core::into c0
-          (:wat::core::map
-            (:wat::core::fn [p <- wat.type/PersistentMap] -> wat.type/i64
-              (:wat::core::let [f (:wat::core::Option/expect (:wat::core::get p "?fact") "query: ?fact")]
-                (:ufh::enc 1 (:ufh::Out/n f))))
-            (:wat::rete::query fired (:ufh::q-Out))))]
-    (:ufh::vec->pvec (:wat::core::sort c1))))
+(wat.core/defn ufh/derived-vector [fired :- wat.rete/Session] :- (wat.type/PersistentVector :- [wat.type/i64])
+  (wat.core/let
+    [c0 (wat.core/into (wat.type/Vector :- [wat.type/i64])
+          (wat.core/map
+            (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+              (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+                (ufh/enc 0 (ufh.Rate/count f))))
+            (wat.rete/query fired (ufh/q-Rate))))
+     c1 (wat.core/into c0
+          (wat.core/map
+            (wat.core/fn [p :- wat.type/PersistentMap] :- wat.type/i64
+              (wat.core/let [f (wat.core.Option/expect (wat.core/get p "?fact") "query: ?fact")]
+                (ufh/enc 1 (ufh.Out/n f))))
+            (wat.rete/query fired (ufh/q-Out))))]
+    (ufh/vec->pvec (wat.core/sort c1))))
 
-(:wat::core::defn :ufh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> wat.type/i64
-  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+(wat.core/defn ufh/ns-between [t0 :- wat.time/Instant  t1 :- wat.time/Instant] :- wat.type/i64
+  (wat.i64/- (wat.time/epoch-nanos t1) (wat.time/epoch-nanos t0)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])
-                    items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
-                    rules   (:ufh::build-rules)
-                    session (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:ufh::q-Rate) (:ufh::q-Out))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let [params  (wat.core/match (wat.kernel/readln ) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])
+                    items   (wat.core.Option/expect (wat.core/get params 0) "stdin: [items]")
+                    rules   (ufh/build-rules)
+                    session (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (ufh/q-Rate) (ufh/q-Out))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
                     ;; Variable MUST be named `staged` so GRID_SKIP_ORACLE / axes_live rewrite
                     ;; `fire-rules$oracle staged` and not a first-fire leftover.
-                    staged  (:ufh::seed session items)
-                    n0      (:wat::time::now)
-                    fired   (:ufh::fire staged)
-                    n1      (:wat::time::now)
-                    derived (:ufh::derived-vector fired)
-                    nat-ns  (:ufh::ns-between n0 n1)
-                    o0      (:wat::time::now)
-                    ofired  (:wat::core::match (:wat::rete::fire-rules$oracle staged) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-                    o1      (:wat::time::now)]
-    (:wat::kernel::println
-      (:grid::Result :axis "userfn-head" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (:ufh::derived-vector ofired) :oracle-ns (:ufh::ns-between o0 o1)))))
+                    staged  (ufh/seed session items)
+                    n0      (wat.time/now)
+                    fired   (ufh/fire staged)
+                    n1      (wat.time/now)
+                    derived (ufh/derived-vector fired)
+                    nat-ns  (ufh/ns-between n0 n1)
+                    o0      (wat.time/now)
+                    ofired  (wat.core/match (wat.rete/fire-rules$oracle staged) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+                    o1      (wat.time/now)]
+    (wat.kernel/println
+      (grid/Result :axis "userfn-head" :size (wat.type/PersistentVector :- [wat.type/i64] items) :derived derived :native-ns nat-ns :oracle-derived (ufh/derived-vector ofired) :oracle-ns (ufh/ns-between o0 o1)))))

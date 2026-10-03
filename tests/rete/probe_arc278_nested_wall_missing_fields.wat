@@ -7,13 +7,13 @@
 ;; Its span is the whole nested form, not any one keyword — deliberately, and asserted so: "missing
 ;; `y`" is a property of the form, not of a field in it.
 
-(:wat::core::defrecord :nwm::Src   [k <- wat.type/i64])
-(:wat::core::defrecord :nwm::Inner [x <- wat.type/i64  y <- wat.type/i64])
-(:wat::core::defrecord :nwm::Outer [k <- wat.type/i64  inner <- :nwm::Inner])
+(wat.core/defrecord nwm/Src   [k :- wat.type/i64])
+(wat.core/defrecord nwm/Inner [x :- wat.type/i64  y :- wat.type/i64])
+(wat.core/defrecord nwm/Outer [k :- wat.type/i64  inner :- nwm/Inner])
 
-(:wat::rete::defrule :nwm::r
-  :when [(:nwm::Src (?k :- :k))]
-  :then [(:nwm::Outer :k ?k :inner (:nwm::Inner :x ?k))])
+(wat.rete/defrule nwm/r
+  :when [(nwm/Src (?k :- :k))]
+  :then [(nwm/Outer :k ?k :inner (nwm/Inner :x ?k))])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "the wall refuses before main runs"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "the wall refuses before main runs"))

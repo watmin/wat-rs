@@ -29,51 +29,51 @@
 ;; ─── (2) + (3): ONE clause, lazy producer, recursing on a Stream through a Seqable param ─────
 ;; This is exactly what `keep` / `map-indexed` / `dedupe` / `distinct` / `interpose` become in B2.
 ;; Under the old world this needs FIVE defclause arms plus a `-stream` twin.
-(:wat::core::defn :probe::keep-one :- [T U]
-  [f    <- [T :-> (:wat::core::Option :- [U])]
-   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
-  (:wat::stream::lazy
-    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      [:wat::stream::NextOutcome.Item {:value value :rest rest}
-        (:wat::core::match (f value)
+(wat.core/defn probe/keep-one :- [T U]
+  [f    :- [T :-> (wat.core/Option :- [U])]
+   coll :- (wat.core/Seqable :- [T])] :- (wat.stream/Stream :- [U])
+  (wat.stream/lazy
+    (wat.core/match (wat.stream/next (wat.core.Seqable/seq coll))
+      [wat.stream/NextOutcome.Item {:value value :rest rest}
+        (wat.core/match (f value)
           ;; ★ (3) — `rest` is a (Stream :- [T]), handed to a (Seqable :- [T]) parameter, recursively.
-          [:wat::core::Option.Some {:value v} (:wat::stream::cons v (:probe::keep-one f rest))]
-          [:wat::core::Option.None {} (:probe::keep-one f rest)])]
-      [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
+          [wat.core/Option.Some {:value v} (wat.stream/cons v (probe/keep-one f rest))]
+          [wat.core/Option.None {} (probe/keep-one f rest)])]
+      [wat.stream/NextOutcome.Exhausted {} (wat.stream/empty)])))
 
 ;; A STATE-CARRYING producer — the harder half of the family (`keep-indexed`, `map-indexed`,
 ;; `dedupe`, `distinct` all thread an accumulator across the walk). Same crux, plus a threaded arg.
-(:wat::core::defn :probe::index-one :- [T]
-  [idx  <- wat.type/i64
-   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
-      [:wat::stream::NextOutcome.Item {:value value :rest rest}
-        (:wat::stream::cons idx (:probe::index-one (:wat::core::+ idx 1) rest))]
-      [:wat::stream::NextOutcome.Exhausted {} (:wat::stream::empty)])))
+(wat.core/defn probe/index-one :- [T]
+  [idx  :- wat.type/i64
+   coll :- (wat.core/Seqable :- [T])] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.core/match (wat.stream/next (wat.core.Seqable/seq coll))
+      [wat.stream/NextOutcome.Item {:value value :rest rest}
+        (wat.stream/cons idx (probe/index-one (wat.core/+ idx 1) rest))]
+      [wat.stream/NextOutcome.Exhausted {} (wat.stream/empty)])))
 
 ;; An unbounded source — proves the migrated shape stays LAZY (termination is the assertion).
-(:wat::core::defn :probe::nat
-  [i <- wat.type/i64] -> (:wat::stream::Stream :- [wat.type/i64])
-  (:wat::stream::lazy
-    (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
+(wat.core/defn probe/nat
+  [i :- wat.type/i64] :- (wat.stream/Stream :- [wat.type/i64])
+  (wat.stream/lazy
+    (wat.stream/cons i (probe/nat (wat.core/+ i 1)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [keep-even (:wat::core::fn [x <- wat.type/i64] -> (:wat::core::Option :- [wat.type/i64])
-                 (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2))
-                   (:wat::core::Option.Some {:value x})
-                   :wat::core::Option.None))]
-    (:wat::core::do
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [keep-even (wat.core/fn [x :- wat.type/i64] :- (wat.core/Option :- [wat.type/i64])
+                 (wat.core/if (wat.core/= 0 (wat.core/mod x 2))
+                   (wat.core/Option.Some {:value x})
+                   wat.core/Option.None))]
+    (wat.core/do
       ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
-      (:wat::kernel::println
-        (:wat::string::join " | "
+      (wat.kernel/println
+        (wat.string/join " | "
           (wat.type/Vector :- [wat.type/String]
-            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (wat.string/join "," (wat.core/into [] (probe/keep-one keep-even
               (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))))
-            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (wat.string/join "," (wat.core/into [] (probe/keep-one keep-even
               (wat.type/PersistentVector :- [wat.type/i64] 1 2 3 4 5))))
-            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (wat.string/join "," (wat.core/into [] (probe/keep-one keep-even
               (wat.type/List :- [wat.type/i64] 1 2 3 4 5))))
             ;; 4th slot: a CONCRETE (Stream :- [i64]). It was `(Seqable/seq (Vector …))` while this
             ;; probe was B2's RED gate; that form is still RED, but for an UNRELATED reason —
@@ -82,15 +82,15 @@
             ;; Isolated: a concrete `(Stream :- [i64])` from an ordinary defn satisfies `(Seqable :- [i64])`
             ;; fine. Changed to the concrete form so this probe measures B1a and not #95 —
             ;; the #95 instance is recorded in MEASURED-118.B1a, not silently dropped.
-            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::map (:wat::core::fn [x <- wat.type/i64] -> wat.type/i64 x)
+            (wat.string/join "," (wat.core/into [] (probe/keep-one keep-even
+              (wat.core/map (wat.core/fn [x :- wat.type/i64] :- wat.type/i64 x)
                 (wat.type/Vector :- [wat.type/i64] 1 2 3 4 5))))))))
       ;; state-carrying, over a List. Expect 0,1,2,3,4
-      (:wat::kernel::println
-        (:wat::string::join ","
-          (:wat::core::into [] (:probe::index-one 0 (wat.type/List :- [wat.type/i64] 9 9 9 9 9)))))
+      (wat.kernel/println
+        (wat.string/join ","
+          (wat.core/into [] (probe/index-one 0 (wat.type/List :- [wat.type/i64] 9 9 9 9 9)))))
       ;; LAZINESS over an INFINITE source through the migrated shape. Expect 0,2,4 — and it must
       ;; TERMINATE; an eager collapse here would hang rather than print.
-      (:wat::kernel::println
-        (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::take (:probe::keep-one keep-even (:probe::nat 0)) 3)))))))
+      (wat.kernel/println
+        (wat.string/join ","
+          (wat.core/into [] (wat.core/take (probe/keep-one keep-even (probe/nat 0)) 3)))))))

@@ -21,61 +21,61 @@
 
 ;; ─── i64 equality ───────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-i64-equal
   
-  (:wat::test::assert-eq (:wat::core::= 1 1) true))
+  (wat.test/assert-eq (wat.core/= 1 1) true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-i64-not-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-i64-not-equal
   
-  (:wat::test::assert-eq (:wat::core::= 1 2) false))
+  (wat.test/assert-eq (wat.core/= 1 2) false))
 
 ;; ─── f64 equality ───────────────────────────────────────────────────────
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-f64-equal
   
-  (:wat::test::assert-eq (:wat::core::= 1.5 1.5) true))
+  (wat.test/assert-eq (wat.core/= 1.5 1.5) true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-f64-not-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-f64-not-equal
   
-  (:wat::test::assert-eq (:wat::core::= 1.5 2.5) false))
+  (wat.test/assert-eq (wat.core/= 1.5 2.5) false))
 
 ;; ─── String equality ────────────────────────────────────────────────────
 ;;
 ;; Mirrors poly_eq_strings_still_works from the retired Rust file.
 ;; Same-type string equality works via the = intrinsic.
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-string-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-string-equal
   
-  (:wat::test::assert-eq (:wat::core::= "a" "a") true))
+  (wat.test/assert-eq (wat.core/= "a" "a") true))
 
-(:wat::test::deftest :wat-tests::core::core-equality::eq-string-not-equal
+(wat.test/deftest wat-tests.core.core-equality/eq-string-not-equal
   
-  (:wat::test::assert-eq (:wat::core::= "a" "b") false))
+  (wat.test/assert-eq (wat.core/= "a" "b") false))
 
 ;; ─── i64 equality via typed helper ──────────────────────────────────────
 ;;
 ;; Mirrors typed_strict_i64_eq_homogeneous_works. A typed wrapper with
 ;; i64-param bindings enforces same-type equality at the call site.
 
-(:wat::core::defn :wat-tests::core::core-equality::eq-i64
-  [a <- wat.type/i64
-   b <- wat.type/i64]
-  -> wat.type/bool
-  (:wat::core::= a b))
+(wat.core/defn wat-tests.core.core-equality/eq-i64
+  [a :- wat.type/i64
+   b :- wat.type/i64]
+  :- wat.type/bool
+  (wat.core/= a b))
 
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-works
+(wat.test/deftest wat-tests.core.core-equality/typed-i64-eq-homogeneous-works
   
-  (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64 3 3) true))
+  (wat.test/assert-eq (wat-tests.core.core-equality/eq-i64 3 3) true))
 
-(:wat::core::defn :wat-tests::core::core-equality::eq-i64-b
-  [a <- wat.type/i64
-   b <- wat.type/i64]
-  -> wat.type/bool
-  (:wat::core::= a b))
+(wat.core/defn wat-tests.core.core-equality/eq-i64-b
+  [a :- wat.type/i64
+   b :- wat.type/i64]
+  :- wat.type/bool
+  (wat.core/= a b))
 
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-homogeneous-false
+(wat.test/deftest wat-tests.core.core-equality/typed-i64-eq-homogeneous-false
   
-  (:wat::test::assert-eq (:wat-tests::core::core-equality::eq-i64-b 3 4) false))
+  (wat.test/assert-eq (wat-tests.core.core-equality/eq-i64-b 3 4) false))
 
 ;; ─── REJECTION: cross-type equality → check-time type error ─────────────
 ;;
@@ -97,12 +97,12 @@
 ;; invisible to that sweep because it sat under an arc-170 `ignore` marker. A suppressed
 ;; test is invisible to the migration that owns it — it kept accusing the substrate of a
 ;; defect the substrate does not have. Flipped now to the shipped contract.
-(:wat::test::deftest :wat-tests::core::core-equality::typed-i64-eq-mixed-numeric-is-false
+(wat.test/deftest wat-tests.core.core-equality/typed-i64-eq-mixed-numeric-is-false
 
-  (:wat::core::match (:wat::test::run-hermetic (:wat::test::assert-false (:wat::core::= 3 3.0)))
-    [:wat::kernel::RunResult.Passed {} nil]
-    [:wat::kernel::RunResult.Failed {:failure _f}
-      (:wat::kernel::assertion-failed! :message "expected mixed-numeric = to check clean and evaluate FALSE (arc 300 C5 + C4 category-aware =)")]))
+  (wat.core/match (wat.test/run-hermetic (wat.test/assert-false (wat.core/= 3 3.0)))
+    [wat.kernel/RunResult.Passed {} nil]
+    [wat.kernel/RunResult.Failed {:failure _f}
+      (wat.kernel/assertion-failed! :message "expected mixed-numeric = to check clean and evaluate FALSE (arc 300 C5 + C4 category-aware =)")]))
 
 ;; ─── REJECTION: direct cross-type = → check-time type error ─────────────
 ;;
@@ -112,19 +112,19 @@
 ;; 13-failing list — the correct new behaviour is rejection.
 
 
-(:wat::test::deftest :wat-tests::core::core-equality::cross-type-eq-rejected
+(wat.test/deftest wat-tests.core.core-equality/cross-type-eq-rejected
   
-  (:wat::core::let
-    [p (:wat::test::spawn-peer (:wat::spawn::process)
+  (wat.core/let
+    [p (wat.test/spawn-peer (wat.spawn/process)
          ;; rune:lint(nested-program, expected) — test(deftest_wat_tests_core_core_equality_cross_type_eq_rejected)
-         (:wat::core::forms
-           (:wat::core::defn :user::main [] -> wat.type/nil
-             (:wat::core::let [b (:wat::core::= 1 1.5)] b))))]
-    (:wat::core::match (:wat::kernel::recv p)
-      [:wat::kernel::RecvOutcome.Message {:msg _m}
-        (:wat::kernel::assertion-failed! :message "expected check-time type error for (= 1 1.5)")]
-      [:wat::kernel::RecvOutcome.Lost {:cause _cause} nil]
-      [:wat::kernel::RecvOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
-      [:wat::kernel::RecvOutcome.Closed {}
-        (:wat::kernel::assertion-failed! :message "expected check-time type error for (= 1 1.5)")])))
+         (wat.core/forms
+           (wat.core/defn user/main [] :- wat.type/nil
+             (wat.core/let [b (wat.core/= 1 1.5)] b))))]
+    (wat.core/match (wat.kernel/recv p)
+      [wat.kernel/RecvOutcome.Message {:msg _m}
+        (wat.kernel/assertion-failed! :message "expected check-time type error for (= 1 1.5)")]
+      [wat.kernel/RecvOutcome.Lost {:cause _cause} nil]
+      [wat.kernel/RecvOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")]
+      [wat.kernel/RecvOutcome.Closed {}
+        (wat.kernel/assertion-failed! :message "expected check-time type error for (= 1 1.5)")])))

@@ -57,77 +57,77 @@
 ;; forms-expanded, same declarations.
 
 ;; ── SUBJECT payload — the helper is named, so it ships ─────────────────────────────────
-(:wat::core::defn :probe::payload-complete [] -> (wat.type/Vector :- [wat.type/AST])
+(wat.core/defn probe/payload-complete [] :- (wat.type/Vector :- [wat.type/AST])
   (wat.type/Vector :- [wat.type/AST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
-    (:wat::core::quote
-      (:wat::rete::core::defn :usr::big? [n <- wat.type/i64] -> wat.type/bool
-        (:wat::rete::i64::> n 100)))
-    (:wat::core::quote
-      (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
-        :then [(:usr::Hot :c ?c)]))))
+    (wat.core/quote (wat.core/defrecord usr/Temp [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/Hot  [c :- wat.type/i64]))
+    (wat.core/quote
+      (wat.rete.core/defn usr/big? [n :- wat.type/i64] :- wat.type/bool
+        (wat.rete.i64/> n 100)))
+    (wat.core/quote
+      (wat.rete/defrule usr/rule-userfn
+        :when [(usr/Temp (?c :- :c)) (wat.rete/where (usr/big? ?c))]
+        :then [(usr/Hot :c ?c)]))))
 
 ;; ── CONTROL payload — byte-identical except `:usr::big?` is NOT named ──────────────────
-(:wat::core::defn :probe::payload-missing-helper [] -> (wat.type/Vector :- [wat.type/AST])
+(wat.core/defn probe/payload-missing-helper [] :- (wat.type/Vector :- [wat.type/AST])
   (wat.type/Vector :- [wat.type/AST]
-    (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- wat.type/i64]))
-    (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- wat.type/i64]))
-    (:wat::core::quote
-      (:wat::rete::defrule :usr::rule-userfn
-        :when [(:usr::Temp (?c :- :c)) (:wat::rete::where (:usr::big? ?c))]
-        :then [(:usr::Hot :c ?c)]))))
+    (wat.core/quote (wat.core/defrecord usr/Temp [c :- wat.type/i64]))
+    (wat.core/quote (wat.core/defrecord usr/Hot  [c :- wat.type/i64]))
+    (wat.core/quote
+      (wat.rete/defrule usr/rule-userfn
+        :when [(usr/Temp (?c :- :c)) (wat.rete/where (usr/big? ?c))]
+        :then [(usr/Hot :c ?c)]))))
 
 ;; ── the evaluand — reflect the rules OUT of the shipped world, fire, count ─────────────
 ;; `collect-rules` is the existing namespace reflection (src/rete/collect.rs:50) — the far
 ;; side never names a rule, it asks the world it was handed. 150 > 100, so a correct run
 ;; derives exactly one `:usr::Hot`.
-(:wat::core::defn :probe::evaluand [] -> wat.type/AST
-  (:wat::core::quote
-    (:wat::core::length
-      (:wat::rete::query
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert
-            (:wat::core::match (:wat::rete::compile-all
-              (:wat::rete::collect-rules :usr)
-              (wat.type/PersistentVector :- [:wat::rete::Query]
-                (:wat::rete::make-query "usr::Hot"
-                  (:wat::core::quote [])
-                  (:wat::core::quote [(:usr::Hot)])))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-            (:usr::Temp :c 150)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-        (:wat::rete::make-query "usr::Hot"
-          (:wat::core::quote [])
-          (:wat::core::quote [(:usr::Hot)]))))))
+(wat.core/defn probe/evaluand [] :- wat.type/AST
+  (wat.core/quote
+    (wat.core/length
+      (wat.rete/query
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert
+            (wat.core/match (wat.rete/compile-all
+              (wat.rete/collect-rules :usr)
+              (wat.type/PersistentVector :- [wat.rete/Query]
+                (wat.rete/make-query "usr::Hot"
+                  (wat.core/quote [])
+                  (wat.core/quote [(usr/Hot)])))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+            (usr/Temp :c 150)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+        (wat.rete/make-query "usr::Hot"
+          (wat.core/quote [])
+          (wat.core/quote [(usr/Hot)]))))))
 
 ;; ── run one payload and name which arm fired ──────────────────────────────────────────
-(:wat::core::defn :probe::run
-  [label <- wat.type/String
-   defs  <- (wat.type/Vector :- [wat.type/AST])]
-  -> wat.type/nil
-  (:wat::core::match (:wat::eval-with-defs! (:probe::evaluand) defs)
+(wat.core/defn probe/run
+  [label :- wat.type/String
+   defs  :- (wat.type/Vector :- [wat.type/AST])]
+  :- wat.type/nil
+  (wat.core/match (wat/eval-with-defs! (probe/evaluand) defs)
 
-    [:wat::eval::FormOutcome.Declared {}
-      (:wat::kernel::println (:wat::string::concat label " => DECLARED (the evaluand is an expression; this arm means the probe is wrong)"))]
+    [wat.eval/FormOutcome.Declared {}
+      (wat.kernel/println (wat.string/concat label " => DECLARED (the evaluand is an expression; this arm means the probe is wrong)"))]
 
-    [:wat::eval::FormOutcome.Evaluated {:value v}
-      (:wat::kernel::println
-        (:wat::string::concat label " => EVALUATED derived="
-          (:wat::i64::to-string v)))]
+    [wat.eval/FormOutcome.Evaluated {:value v}
+      (wat.kernel/println
+        (wat.string/concat label " => EVALUATED derived="
+          (wat.i64/to-string v)))]
 
-    [:wat::eval::FormOutcome.CheckFailed {:cause cause}
-      (:wat::core::do
-        (:wat::kernel::println (:wat::string::concat label " => CHECK-FAILED (static; nothing ran)"))
-        (:wat::kernel::println cause))]
+    [wat.eval/FormOutcome.CheckFailed {:cause cause}
+      (wat.core/do
+        (wat.kernel/println (wat.string/concat label " => CHECK-FAILED (static; nothing ran)"))
+        (wat.kernel/println cause))]
 
-    [:wat::eval::FormOutcome.Raised {:cause cause}
-      (:wat::core::do
-        (:wat::kernel::println (:wat::string::concat label " => RAISED (dynamic)"))
-        (:wat::kernel::println cause))]))
+    [wat.eval/FormOutcome.Raised {:cause cause}
+      (wat.core/do
+        (wat.kernel/println (wat.string/concat label " => RAISED (dynamic)"))
+        (wat.kernel/println cause))]))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:probe::run "SUBJECT (helper IN payload)" (:probe::payload-complete))
-    (:probe::run "CONTROL (helper OMITTED)   " (:probe::payload-missing-helper))
-    (:wat::kernel::println
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (probe/run "SUBJECT (helper IN payload)" (probe/payload-complete))
+    (probe/run "CONTROL (helper OMITTED)   " (probe/payload-missing-helper))
+    (wat.kernel/println
       "READ: SUBJECT EVALUATED derived=1 AND CONTROL CHECK-FAILED => a declared payload carries the where-body dep, with zero inference. Any other pairing refutes it.")))

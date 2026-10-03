@@ -2,10 +2,10 @@
 ;; slurped via startup_beside(file!()).
 ;;
 ;; Two defns: one on PersistentVector (the disconfirm), one on std Vector (regression guard).
-(:wat::core::defn :test::pv-nth [] -> wat.type/i64
-  (:wat::core::nth
-    (:wat::core::conj (wat.type/PersistentVector :- [wat.type/i64]) 7)
+(wat.core/defn test/pv-nth [] :- wat.type/i64
+  (wat.core/nth
+    (wat.core/conj (wat.type/PersistentVector :- [wat.type/i64]) 7)
     0))
 
-(:wat::core::defn :test::vec-nth [] -> wat.type/i64
-  (:wat::core::nth (wat.type/Vector :- [wat.type/i64] 10 20 30) 1))
+(wat.core/defn test/vec-nth [] :- wat.type/i64
+  (wat.core/nth (wat.type/Vector :- [wat.type/i64] 10 20 30) 1))

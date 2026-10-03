@@ -4,48 +4,48 @@
 ;; Negative (startup-fail) cases are in sibling *.wat.bad files.
 
 ;; GATE 1 — defclause supports & rest-binders in args-vec
-(:wat::core::defclause :my::g1-sum-all
-  ([first <- wat.type/i64
-    & rest <- (wat.type/Vector :- [wat.type/i64])] -> wat.type/i64
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- wat.type/i64
-                       n <- wat.type/i64] -> wat.type/i64
-        (:wat::i64::+ acc n))
+(wat.core/defclause my/g1-sum-all
+  ([first :- wat.type/i64
+    & rest :- (wat.type/Vector :- [wat.type/i64])] :- wat.type/i64
+    (wat.core/foldl
+      (wat.core/fn [acc :- wat.type/i64
+                       n :- wat.type/i64] :- wat.type/i64
+        (wat.i64/+ acc n))
       first
       rest)))
-(:wat::core::defn :user::gate-1-sum-all [] -> wat.type/i64 (:my::g1-sum-all 1 2 3 4))
+(wat.core/defn user/gate-1-sum-all [] :- wat.type/i64 (my/g1-sum-all 1 2 3 4))
 
 ;; GATE 2 — defclause first-match dispatches by arg-<--Type (no :guard)
-(:wat::core::defclause :my::g2-label
-  ([x <- wat.type/i64] -> wat.type/String "i64")
-  ([x <- wat.type/f64] -> wat.type/String "f64"))
-(:wat::core::defn :user::gate-2-dispatch [] -> wat.type/String (:my::g2-label 42))
+(wat.core/defclause my/g2-label
+  ([x :- wat.type/i64] :- wat.type/String "i64")
+  ([x :- wat.type/f64] :- wat.type/String "f64"))
+(wat.core/defn user/gate-2-dispatch [] :- wat.type/String (my/g2-label 42))
 
 ;; GATE 3 — 0-ary clause body literal 0 infers as :i64
-(:wat::core::defclause :my::g3-default
-  ([] -> wat.type/i64 0))
-(:wat::core::defn :user::gate-3-zero-ary [] -> wat.type/i64 (:my::g3-default))
+(wat.core/defclause my/g3-default
+  ([] :- wat.type/i64 0))
+(wat.core/defn user/gate-3-zero-ary [] :- wat.type/i64 (my/g3-default))
 
 ;; GATE 4a — i64 ordering primitives
-(:wat::core::defn :user::gate-4a-lt [] -> wat.type/bool (:wat::i64::< 1 2))
-(:wat::core::defn :user::gate-4a-gt [] -> wat.type/bool (:wat::i64::> 5 3))
+(wat.core/defn user/gate-4a-lt [] :- wat.type/bool (wat.i64/< 1 2))
+(wat.core/defn user/gate-4a-gt [] :- wat.type/bool (wat.i64/> 5 3))
 
 ;; GATE 4b — f64 NaN ordering (0.0 / 0.0 produces NaN; 1.0 < NaN is false per IEEE 754)
-(:wat::core::defn :user::gate-4b-nan [] -> wat.type/bool
-  (:wat::f64::< 1.0 (:wat::f64::/ 0.0 0.0)))
+(wat.core/defn user/gate-4b-nan [] :- wat.type/bool
+  (wat.f64/< 1.0 (wat.f64// 0.0 0.0)))
 
 ;; REGRESSION — existing arithmetic + ordering behavior
-(:wat::core::defn :user::regression-i64-2ary [] -> wat.type/i64 (:wat::core::+ 1 2))
-(:wat::core::defn :user::regression-f64-2ary [] -> wat.type/f64 (:wat::core::+ 1.0 2.0))
-(:wat::core::defn :user::regression-variadic-3 [] -> wat.type/i64 (:wat::core::+ 1 2 3))
-(:wat::core::defn :user::regression-minus-negate [] -> wat.type/i64 (:wat::core::- 5))
-(:wat::core::defn :user::regression-lt [] -> wat.type/bool (:wat::core::< 1 2))
+(wat.core/defn user/regression-i64-2ary [] :- wat.type/i64 (wat.core/+ 1 2))
+(wat.core/defn user/regression-f64-2ary [] :- wat.type/f64 (wat.core/+ 1.0 2.0))
+(wat.core/defn user/regression-variadic-3 [] :- wat.type/i64 (wat.core/+ 1 2 3))
+(wat.core/defn user/regression-minus-negate [] :- wat.type/i64 (wat.core/- 5))
+(wat.core/defn user/regression-lt [] :- wat.type/bool (wat.core/< 1 2))
 
 ;; MINT-CONFIRMERS — new primitives minted as part of Stone 237.8b
-(:wat::core::defn :user::mint-i64-lte-boundary [] -> wat.type/bool (:wat::i64::<= 5 5))
-(:wat::core::defn :user::mint-i64-lte-false [] -> wat.type/bool (:wat::i64::<= 5 3))
-(:wat::core::defn :user::mint-f64-lt [] -> wat.type/bool (:wat::f64::< 1.0 2.0))
-(:wat::core::defn :user::mint-f64-gte [] -> wat.type/bool (:wat::f64::>= 5.0 5.0))
-(:wat::core::defn :user::mint-not-eq [] -> wat.type/bool (:wat::core::not= 1 2))
-(:wat::core::defn :user::mint-plus-zero-ary [] -> wat.type/i64 (:wat::core::+))
-(:wat::core::defn :user::mint-star-zero-ary [] -> wat.type/i64 (:wat::core::*))
+(wat.core/defn user/mint-i64-lte-boundary [] :- wat.type/bool (wat.i64/<= 5 5))
+(wat.core/defn user/mint-i64-lte-false [] :- wat.type/bool (wat.i64/<= 5 3))
+(wat.core/defn user/mint-f64-lt [] :- wat.type/bool (wat.f64/< 1.0 2.0))
+(wat.core/defn user/mint-f64-gte [] :- wat.type/bool (wat.f64/>= 5.0 5.0))
+(wat.core/defn user/mint-not-eq [] :- wat.type/bool (wat.core/not= 1 2))
+(wat.core/defn user/mint-plus-zero-ary [] :- wat.type/i64 (wat.core/+))
+(wat.core/defn user/mint-star-zero-ary [] :- wat.type/i64 (wat.core/*))

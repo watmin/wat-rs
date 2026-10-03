@@ -3,10 +3,10 @@
 ;; BEFORE the stone: SIGSEGV — eval_tail has no arm for a ClauseSet head, so it
 ;; falls to `_ => eval_inner` and recurses on the real stack.
 ;; AFTER: must print 200000, matching its plain-`defn` twin.
-(:wat::core::defclause :probe::countdown
-  ([n <- wat.type/i64 acc <- wat.type/i64] -> wat.type/i64
-    (:wat::core::if (:wat::core::= n 0)
+(wat.core/defclause probe/countdown
+  ([n :- wat.type/i64 acc :- wat.type/i64] :- wat.type/i64
+    (wat.core/if (wat.core/= n 0)
       acc
-      (:probe::countdown (:wat::core::- n 1) (:wat::core::+ acc 1)))))
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println (:probe::countdown 200000 0)))
+      (probe/countdown (wat.core/- n 1) (wat.core/+ acc 1)))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println (probe/countdown 200000 0)))

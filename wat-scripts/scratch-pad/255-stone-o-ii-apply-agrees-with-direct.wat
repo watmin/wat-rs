@@ -10,59 +10,59 @@
 ;; itself, never with the leading args, so a fn/accumulator arg sits outside it exactly as
 ;; it does in the corpus (`wat/spawn.wat:502`, `arc109-2iii-fn-bracket-destinations.wat`).
 
-(:wat::core::defn :probe::outcome [r <- (:wat::core::Result :- [wat.type/Value :wat::core::EvalError])]
-  -> wat.type/String
-  (:wat::core::match r
-    [:wat::core::Result.Ok {:value v}  (:wat::string::concat "ok:" (:wat::edn::write v))]
-    [:wat::core::Result.Err {:error e} (:wat::string::concat "err:" (:wat::core::EvalError/message e))]))
+(wat.core/defn probe/outcome [r :- (wat.core/Result :- [wat.type/Value wat.core/EvalError])]
+  :- wat.type/String
+  (wat.core/match r
+    [wat.core/Result.Ok {:value v}  (wat.string/concat "ok:" (wat.edn/write v))]
+    [wat.core/Result.Err {:error e} (wat.string/concat "err:" (wat.core.EvalError/message e))]))
 
-(:wat::core::defn :probe::agree [name   <- wat.type/String
-                                 direct <- wat.type/AST
-                                 thru   <- wat.type/AST]
-  -> wat.type/nil
-  (:wat::core::let
-    [d (:probe::outcome (:wat::eval-ast! direct))
-     a (:probe::outcome (:wat::eval-ast! thru))
-     tag (:wat::core::if (:wat::core::= d a) "MATCH" "MISMATCH")]
-    (:wat::kernel::println
-      (:wat::string::concat name "  DIRECT=" d "  APPLY=" a "  [" tag "]"))))
+(wat.core/defn probe/agree [name   :- wat.type/String
+                                 direct :- wat.type/AST
+                                 thru   :- wat.type/AST]
+  :- wat.type/nil
+  (wat.core/let
+    [d (probe/outcome (wat/eval-ast! direct))
+     a (probe/outcome (wat/eval-ast! thru))
+     tag (wat.core/if (wat.core/= d a) "MATCH" "MISMATCH")]
+    (wat.kernel/println
+      (wat.string/concat name "  DIRECT=" d "  APPLY=" a "  [" tag "]"))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; zero-arg identity — the defclause's own identity element, through apply.
-     _01 (:probe::agree "+  zero-arg identity   "
-           (:wat::core::quote (:wat::core::+))
-           (:wat::core::quote (:wat::core::apply :wat::core::+ (wat.type/Vector :- [wat.type/i64]))))
+     _01 (probe/agree "+  zero-arg identity   "
+           (wat.core/quote (wat.core/+))
+           (wat.core/quote (wat.core/apply wat.core/+ (wat.type/Vector :- [wat.type/i64]))))
 
      ;; 3-arg variadic — the reason apply exists.
-     _02 (:probe::agree "+  3-arg variadic      "
-           (:wat::core::quote (:wat::core::+ 1 2 3))
-           (:wat::core::quote (:wat::core::apply :wat::core::+ (wat.type/Vector :- [wat.type/i64] 1 2 3))))
+     _02 (probe/agree "+  3-arg variadic      "
+           (wat.core/quote (wat.core/+ 1 2 3))
+           (wat.core/quote (wat.core/apply wat.core/+ (wat.type/Vector :- [wat.type/i64] 1 2 3))))
 
-     _03 (:probe::agree "*  3-arg variadic      "
-           (:wat::core::quote (:wat::core::* 2 3 4))
-           (:wat::core::quote (:wat::core::apply :wat::core::* (wat.type/Vector :- [wat.type/i64] 2 3 4))))
+     _03 (probe/agree "*  3-arg variadic      "
+           (wat.core/quote (wat.core/* 2 3 4))
+           (wat.core/quote (wat.core/apply wat.core/* (wat.type/Vector :- [wat.type/i64] 2 3 4))))
 
-     _04 (:probe::agree "-  left-fold           "
-           (:wat::core::quote (:wat::core::- 10 1 2))
-           (:wat::core::quote (:wat::core::apply :wat::core::- (wat.type/Vector :- [wat.type/i64] 10 1 2))))
+     _04 (probe/agree "-  left-fold           "
+           (wat.core/quote (wat.core/- 10 1 2))
+           (wat.core/quote (wat.core/apply wat.core/- (wat.type/Vector :- [wat.type/i64] 10 1 2))))
 
      ;; past arithmetic — sort, into, filterv.
-     _05 (:probe::agree "sort  1-ary            "
-           (:wat::core::quote (:wat::core::sort (wat.type/Vector :- [wat.type/i64] 3 1 2)))
-           (:wat::core::quote (:wat::core::apply :wat::core::sort
+     _05 (probe/agree "sort  1-ary            "
+           (wat.core/quote (wat.core/sort (wat.type/Vector :- [wat.type/i64] 3 1 2)))
+           (wat.core/quote (wat.core/apply wat.core/sort
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 3 1 2)))))
 
-     _06 (:probe::agree "into  (leading + spread)"
-           (:wat::core::quote (:wat::core::into (wat.type/Vector :- [wat.type/i64]) (wat.type/Vector :- [wat.type/i64] 1 2 3)))
-           (:wat::core::quote (:wat::core::apply :wat::core::into (wat.type/Vector :- [wat.type/i64])
+     _06 (probe/agree "into  (leading + spread)"
+           (wat.core/quote (wat.core/into (wat.type/Vector :- [wat.type/i64]) (wat.type/Vector :- [wat.type/i64] 1 2 3)))
+           (wat.core/quote (wat.core/apply wat.core/into (wat.type/Vector :- [wat.type/i64])
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2 3)))))
 
-     _07 (:probe::agree "filterv  (leading + spread)"
-           (:wat::core::quote (:wat::core::filterv
-             (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::> x 1))
+     _07 (probe/agree "filterv  (leading + spread)"
+           (wat.core/quote (wat.core/filterv
+             (wat.core/fn [x :- wat.type/i64] :- wat.type/bool (wat.core/> x 1))
              (wat.type/Vector :- [wat.type/i64] 1 2 3)))
-           (:wat::core::quote (:wat::core::apply :wat::core::filterv
-             (:wat::core::fn [x <- wat.type/i64] -> wat.type/bool (:wat::core::> x 1))
+           (wat.core/quote (wat.core/apply wat.core/filterv
+             (wat.core/fn [x :- wat.type/i64] :- wat.type/bool (wat.core/> x 1))
              (wat.type/Vector :- [(wat.type/Vector :- [wat.type/i64])] (wat.type/Vector :- [wat.type/i64] 1 2 3)))))]
     nil))

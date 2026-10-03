@@ -10,32 +10,32 @@
 ;; `(:user::req-n)` constructs + matches that exact synthesized variant and round-trips 7 through
 ;; it — the program only type-checks/evals if the acronym casing carried through both the surface's
 ;; S1 synthesis and the service's `:impls` op-name derivation (the two paths must agree).
-(:wat::string::declare-acronyms :my::aws::Waf ["ACL"])
+(wat.string/declare-acronyms my.aws/Waf ["ACL"])
 
-(:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer
+(wat.core/defsurface my.aws/Waf :nature wat.kernel/Peer
   :messages
-  [(:wat::core::defrecord :my::aws::Waf::CreateWebACLRequest  [n     <- wat.type/i64])
-   (:wat::core::defenum :my::aws::Waf::CreateWebACLResponse :wat::enum::Pure
-     :Ok              [value <- wat.type/i64]
-     :RequestTooLarge [bytes <- wat.type/i64  cap <- wat.type/i64]
-     :RequestMalformed [path <- (wat.type/Vector :- [wat.type/String])  expected <- wat.type/String  got <- wat.type/String])]
+  [(wat.core/defrecord my.aws.Waf/CreateWebACLRequest  [n     :- wat.type/i64])
+   (wat.core/defenum my.aws.Waf/CreateWebACLResponse wat.enum/Pure
+     :Ok              [value :- wat.type/i64]
+     :RequestTooLarge [bytes :- wat.type/i64  cap :- wat.type/i64]
+     :RequestMalformed [path :- (wat.type/Vector :- [wat.type/String])  expected :- wat.type/String  got :- wat.type/String])]
   :features
-  [(create-web-acl [self <- :my::aws::Waf  req <- :my::aws::Waf::CreateWebACLRequest]
-                   -> :my::aws::Waf::CreateWebACLResponse :max-request-bytes 524288)])
+  [(create-web-acl [self :- my.aws/Waf  req :- my.aws.Waf/CreateWebACLRequest]
+                   :- my.aws.Waf/CreateWebACLResponse :max-request-bytes 524288)])
 
-(:wat::service::defservice :my::waf
-  :satisfies :my::aws::Waf
-  :durable   [count <- wat.type/i64]
+(wat.service/defservice my/waf
+  :satisfies my.aws/Waf
+  :durable   [count :- wat.type/i64]
   :ephemeral []
   :impls
   [(create-web-acl [s ctx req]
-     (:wat::service::Outcome.Reply {:state s
-       :reply (:my::aws::Waf::CreateWebACLResponse.Ok {:value (:my::waf::Record/count (:my::waf::State/durable s))})}))])
+     (wat.service/Outcome.Reply {:state s
+       :reply (my.aws.Waf/CreateWebACLResponse.Ok {:value (my.waf.Record/count (my.waf.State/durable s))})}))])
 
 ;; Prove the surface synthesized `:my::aws::Waf::Op::CreateWebACL` (acronym-cased). Constructing
 ;; and matching that EXACT variant type-checks + evals ONLY if S1 threaded the `ACL` acronym; with
 ;; the pre-fix `&[]` it would be `::Op::CreateWebAcl` and this name would not resolve.
-(:wat::core::defn :user::req-n [] -> wat.type/i64
-  (:wat::core::match (:my::aws::Waf::Op.CreateWebACL {:req (:my::aws::Waf::CreateWebACLRequest :n 7)})
+(wat.core/defn user/req-n [] :- wat.type/i64
+  (wat.core/match (my.aws.Waf/Op.CreateWebACL {:req (my.aws.Waf/CreateWebACLRequest :n 7)})
     
-    [:my::aws::Waf::Op.CreateWebACL {:req req} (:my::aws::Waf::CreateWebACLRequest/n req)]))
+    [my.aws.Waf/Op.CreateWebACL {:req req} (my.aws.Waf.CreateWebACLRequest/n req)]))

@@ -16,29 +16,29 @@
 ;;   1 MiB · 4 MiB · 16 MiB -> refused at the FIRE door;  64 MiB · 256 MiB -> completes.
 ;; 16 MiB sits inside the refusing band with the 400 inserts nowhere near it, and the non-vacuity
 ;; row below runs the same workload at the DEFAULT ceiling, where it must complete.
-(:wat::config::rete::set-max-session-bytes! 16777216)
+(wat.config.rete/set-max-session-bytes! 16777216)
 
-(:wat::core::defrecord :fd::A [a <- wat.type/i64])
-(:wat::core::defrecord :fd::B [b <- wat.type/i64])
-(:wat::core::defrecord :fd::C [a <- wat.type/i64  b <- wat.type/i64])
+(wat.core/defrecord fd/A [a :- wat.type/i64])
+(wat.core/defrecord fd/B [b :- wat.type/i64])
+(wat.core/defrecord fd/C [a :- wat.type/i64  b :- wat.type/i64])
 
-(:wat::rete::defrule :fd::cross
-  :when [(:fd::A (?x :- :a)) (:fd::B (?y :- :b))]
-  :then [(:fd::C :a ?x :b ?y)])
+(wat.rete/defrule fd/cross
+  :when [(fd/A (?x :- :a)) (fd/B (?y :- :b))]
+  :then [(fd/C :a ?x :b ?y)])
 
-(:wat::rete::defquery :fd::q :params [] :when [(?fact :- :fd::C)])
+(wat.rete/defquery fd/q :params [] :when [(?fact :- fd/C)])
 
-(:wat::core::defn :fd::seed [s <- :wat::rete::Session] -> :wat::rete::Session
-  (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::rete::Session  i <- wat.type/i64] -> :wat::rete::Session
-      (:wat::core::match (:wat::rete::insert (:wat::core::match (:wat::rete::insert acc (:fd::A :a i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (:fd::B :b i)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
-    s (:wat::core::range 0 200)))
+(wat.core/defn fd/seed [s :- wat.rete/Session] :- wat.rete/Session
+  (wat.core/foldl
+    (wat.core/fn [acc :- wat.rete/Session  i :- wat.type/i64] :- wat.rete/Session
+      (wat.core/match (wat.rete/insert (wat.core/match (wat.rete/insert acc (fd/A :a i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]) (fd/B :b i)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")]))
+    s (wat.core/range 0 200)))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
-    [rules (:wat::rete::collect-rules :fd)
-     s     (:wat::core::match (:wat::rete::compile-all rules (wat.type/PersistentVector :- [:wat::rete::Query] (:fd::q))) [:wat::rete::CompileOutcome.Compiled {:session __session} __session] [:wat::rete::CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (:wat::kernel::assertion-failed! :message "compile: the rule set may not terminate")])
-     s     (:fd::seed s)]
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
+    [rules (wat.rete/collect-rules :fd)
+     s     (wat.core/match (wat.rete/compile-all rules (wat.type/PersistentVector :- [wat.rete/Query] (fd/q))) [wat.rete/CompileOutcome.Compiled {:session __session} __session] [wat.rete/CompileOutcome.MayNotTerminate {:rule __rule :fact-type __fact-type} (wat.kernel/assertion-failed! :message "compile: the rule set may not terminate")])
+     s     (fd/seed s)]
     ;; ⛔ THIS FIXTURE MATCHES THE ARM AND PRINTS ITS FIELDS — it is NOT codemod material, and the
     ;; codemod's generic `assertion-failed!` arms were UNDONE here on purpose. The whole point of
     ;; this gate is that a ceiling breach is a VALUE carrying `limit`, `used` and `rounds`; an arm
@@ -48,17 +48,17 @@
     ;; It prints one line per field so the Rust gate can pin each exactly. The `Fired` arm prints a
     ;; count instead, which is what makes the NON-VACUITY twin meaningful: the same program under a
     ;; default ceiling takes the other arm and prints 40000.
-    (:wat::core::match (:wat::rete::fire-rules s)
-      [:wat::rete::FireOutcome.Fired {:value fired}
-        (:wat::kernel::println (:wat::core::length (:wat::rete::query fired (:fd::q))))]
-      [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit limit :used used :rounds rounds}
-        (:wat::core::do
-          (:wat::kernel::println "ARM MemoryCeilingExceeded")
-          (:wat::kernel::println limit)
-          (:wat::kernel::println used)
-          (:wat::kernel::println rounds))]
-      [:wat::rete::FireOutcome.RoundCapExceeded {:cap cap :still-deriving still-deriving}
-        (:wat::core::do
-          (:wat::kernel::println "ARM RoundCapExceeded")
-          (:wat::kernel::println cap)
-          (:wat::kernel::println still-deriving))])))
+    (wat.core/match (wat.rete/fire-rules s)
+      [wat.rete/FireOutcome.Fired {:value fired}
+        (wat.kernel/println (wat.core/length (wat.rete/query fired (fd/q))))]
+      [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit limit :used used :rounds rounds}
+        (wat.core/do
+          (wat.kernel/println "ARM MemoryCeilingExceeded")
+          (wat.kernel/println limit)
+          (wat.kernel/println used)
+          (wat.kernel/println rounds))]
+      [wat.rete/FireOutcome.RoundCapExceeded {:cap cap :still-deriving still-deriving}
+        (wat.core/do
+          (wat.kernel/println "ARM RoundCapExceeded")
+          (wat.kernel/println cap)
+          (wat.kernel/println still-deriving))])))

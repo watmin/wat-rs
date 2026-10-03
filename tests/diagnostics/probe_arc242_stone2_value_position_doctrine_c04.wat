@@ -1,1 +1,1 @@
-(:wat::core::defn :test::f [] -> wat.type/i64 42)
+(wat.core/defn test/f [] :- wat.type/i64 42)

@@ -16,23 +16,23 @@
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/cache.wat" …]\n' | ./target/release/wat ./wat-scripts/fixes/type-member-colon-to-slash.wat
 
-(:wat::core::defn :user::apply-renames
-  [pairs <- (wat.type/Vector :- [(wat.type/Vector :- [wat.type/String])])
-   src   <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::empty? pairs)
+(wat.core/defn user/apply-renames
+  [pairs :- (wat.type/Vector :- [(wat.type/Vector :- [wat.type/String])])
+   src   :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.core/empty? pairs)
     src
-    (:wat::core::let [p (:wat::core::first pairs)]
-      (:user::apply-renames
-        (:wat::core::rest pairs)
-        (:wat::fix::rename-keyword-exact
-          (:wat::core::first p)
-          (:wat::core::second p)
+    (wat.core/let [p (wat.core/first pairs)]
+      (user/apply-renames
+        (wat.core/rest pairs)
+        (wat.fix/rename-keyword-exact
+          (wat.core/first p)
+          (wat.core/second p)
           src)))))
 
-(:wat::core::defn :user::migrate
-  [src <- wat.type/String] -> wat.type/String
-  (:user::apply-renames
+(wat.core/defn user/migrate
+  [src :- wat.type/String] :- wat.type/String
+  (user/apply-renames
     [[":wat::core::Bytes::to-hex" ":wat::core::Bytes/to-hex"]
      [":wat::core::Bytes::from-hex" ":wat::core::Bytes/from-hex"]
      [":wat::kernel::HandlePool::new" ":wat::kernel::HandlePool/new"]
@@ -82,20 +82,20 @@
      [":wat-tests::holon::Reject::project-bundle-or-fail" ":wat-tests::holon::Reject/project-bundle-or-fail"]]
     src))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path
-          (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[renamed] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path
+          (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[renamed] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

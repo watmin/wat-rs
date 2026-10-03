@@ -12,21 +12,21 @@
 ;; every child (src/stdlib.rs), so the child needs NOTHING re-shipped; the reserved-prefix
 ;; gate must let the child's benign re-declaration of those baked forms through (the
 ;; idempotent-before-gate reorder).
-(:wat::core::defn :user::compute [] -> wat.type/i64
-  (:wat::core::let
-    [h          (:wat::query::mem-store/start :locus (:wat::spawn::process)
-                  :record (:wat::query::mem-store::Record :rows (wat.type/PersistentVector :- [:wat::query::StoredRow])))
-     store      (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) [:wat::kernel::ConnectOutcome.Connected {:peer p} p] [:wat::kernel::ConnectOutcome.Closed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Undialable {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.WrongPeer {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))] [:wat::kernel::ConnectOutcome.Failed {:cause c} (:wat::kernel::assertion-failed! :message (:wat::kernel::Failure/message c))])
-     empty-ik   (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey])
-     ik-a       (wat.type/HashMap :- [wat.type/String :wat::query::IndexKey]
-                  "by-v" (:wat::query::IndexKey :ipk "u#1" :isk "v1"))
-     input-rows (wat.type/Vector :- [:wat::query::StoredRow]
-                  (:wat::query::StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
-                  (:wat::query::StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik))
-     _put       (:wat::query::Store/put store (:wat::query::Store::PutRequest input-rows))
-     scan-resp  (:wat::query::Store/scan store
-                  (:wat::query::Store::ScanRequest
-                    :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 10 :cursor :wat::core::Option.None))]
-    (:wat::core::match scan-resp [:wat::kernel::RecvOutcome.Message {:msg __recv} (:wat::core::match __recv 
-      [:wat::query::Store::ScanResponse.Success {:rows rows :cursor _cursor} (:wat::core::count rows)]
-      [_ -1])] [:wat::kernel::RecvOutcome.Lost {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::kernel::LociDiedError/message __cause))] [:wat::kernel::RecvOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [:wat::kernel::RecvOutcome.Closed {} (:wat::kernel::assertion-failed! :message "recv': peer closed")])))
+(wat.core/defn user/compute [] :- wat.type/i64
+  (wat.core/let
+    [h          (wat.query.mem-store/start :locus (wat.spawn/process)
+                  :record (wat.query.mem-store/Record :rows (wat.type/PersistentVector :- [wat.query/StoredRow])))
+     store      (wat.core/match (wat.kernel/connect (wat.query.mem-store.Handle/addr h)) [wat.kernel/ConnectOutcome.Connected {:peer p} p] [wat.kernel/ConnectOutcome.Closed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Undialable {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.WrongPeer {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))] [wat.kernel/ConnectOutcome.Failed {:cause c} (wat.kernel/assertion-failed! :message (wat.kernel.Failure/message c))])
+     empty-ik   (wat.type/HashMap :- [wat.type/String wat.query/IndexKey])
+     ik-a       (wat.type/HashMap :- [wat.type/String wat.query/IndexKey]
+                  "by-v" (wat.query/IndexKey :ipk "u#1" :isk "v1"))
+     input-rows (wat.type/Vector :- [wat.query/StoredRow]
+                  (wat.query/StoredRow :pk "u#1" :sk "a" :data "{:v 1}" :index-keys ik-a)
+                  (wat.query/StoredRow :pk "u#1" :sk "b" :data "{:v 2}" :index-keys empty-ik))
+     _put       (wat.query.Store/put store (wat.query.Store/PutRequest input-rows))
+     scan-resp  (wat.query.Store/scan store
+                  (wat.query.Store/ScanRequest
+                    :pk "u#1" :sk-lo "a" :sk-hi "z" :limit 10 :cursor wat.core/Option.None))]
+    (wat.core/match scan-resp [wat.kernel/RecvOutcome.Message {:msg __recv} (wat.core/match __recv 
+      [wat.query.Store/ScanResponse.Success {:rows rows :cursor _cursor} (wat.core/count rows)]
+      [_ -1])] [wat.kernel/RecvOutcome.Lost {:cause __cause} (wat.kernel/assertion-failed! :message (wat.kernel.LociDiedError/message __cause))] [wat.kernel/RecvOutcome.Stopped {} (wat.kernel/assertion-failed! :message "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open")] [wat.kernel/RecvOutcome.Closed {} (wat.kernel/assertion-failed! :message "recv': peer closed")])))

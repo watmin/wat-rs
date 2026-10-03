@@ -6,33 +6,33 @@
 ;; to anything — or removed — and every other test would still pass, which is the vacuous-gate
 ;; shape this arc keeps pulling out. The refusal here is CORRECT: "provably finite" is not the
 ;; same claim as "safe to admit", and the cap is where those two part company.
-(:wat::core::defrecord :tl::Wide [f0 <- wat.type/bool  f1 <- wat.type/bool  f2 <- wat.type/bool  f3 <- wat.type/bool  f4 <- wat.type/bool  f5 <- wat.type/bool  f6 <- wat.type/bool  f7 <- wat.type/bool  f8 <- wat.type/bool  f9 <- wat.type/bool  f10 <- wat.type/bool  f11 <- wat.type/bool  f12 <- wat.type/bool  f13 <- wat.type/bool  f14 <- wat.type/bool  f15 <- wat.type/bool  f16 <- wat.type/bool  f17 <- wat.type/bool  f18 <- wat.type/bool  f19 <- wat.type/bool])
+(wat.core/defrecord tl/Wide [f0 :- wat.type/bool  f1 :- wat.type/bool  f2 :- wat.type/bool  f3 :- wat.type/bool  f4 :- wat.type/bool  f5 :- wat.type/bool  f6 :- wat.type/bool  f7 :- wat.type/bool  f8 :- wat.type/bool  f9 :- wat.type/bool  f10 :- wat.type/bool  f11 :- wat.type/bool  f12 :- wat.type/bool  f13 :- wat.type/bool  f14 :- wat.type/bool  f15 :- wat.type/bool  f16 :- wat.type/bool  f17 :- wat.type/bool  f18 :- wat.type/bool  f19 :- wat.type/bool])
 
-(:wat::rete::defrule :tl::flip
-  :when  [(:tl::Wide (?b0 :- :f0) (?b1 :- :f1) (?b2 :- :f2) (?b3 :- :f3) (?b4 :- :f4) (?b5 :- :f5) (?b6 :- :f6) (?b7 :- :f7) (?b8 :- :f8) (?b9 :- :f9) (?b10 :- :f10) (?b11 :- :f11) (?b12 :- :f12) (?b13 :- :f13) (?b14 :- :f14) (?b15 :- :f15) (?b16 :- :f16) (?b17 :- :f17) (?b18 :- :f18) (?b19 :- :f19))]
-  :then  [(:tl::Wide :f0 (:wat::rete::core::not ?b0) :f1 (:wat::rete::core::not ?b1) :f2 (:wat::rete::core::not ?b2) :f3 (:wat::rete::core::not ?b3) :f4 (:wat::rete::core::not ?b4) :f5 (:wat::rete::core::not ?b5) :f6 (:wat::rete::core::not ?b6) :f7 (:wat::rete::core::not ?b7) :f8 (:wat::rete::core::not ?b8) :f9 (:wat::rete::core::not ?b9) :f10 (:wat::rete::core::not ?b10) :f11 (:wat::rete::core::not ?b11) :f12 (:wat::rete::core::not ?b12) :f13 (:wat::rete::core::not ?b13) :f14 (:wat::rete::core::not ?b14) :f15 (:wat::rete::core::not ?b15) :f16 (:wat::rete::core::not ?b16) :f17 (:wat::rete::core::not ?b17) :f18 (:wat::rete::core::not ?b18) :f19 (:wat::rete::core::not ?b19))])
+(wat.rete/defrule tl/flip
+  :when  [(tl/Wide (?b0 :- :f0) (?b1 :- :f1) (?b2 :- :f2) (?b3 :- :f3) (?b4 :- :f4) (?b5 :- :f5) (?b6 :- :f6) (?b7 :- :f7) (?b8 :- :f8) (?b9 :- :f9) (?b10 :- :f10) (?b11 :- :f11) (?b12 :- :f12) (?b13 :- :f13) (?b14 :- :f14) (?b15 :- :f15) (?b16 :- :f16) (?b17 :- :f17) (?b18 :- :f18) (?b19 :- :f19))]
+  :then  [(tl/Wide :f0 (wat.rete.core/not ?b0) :f1 (wat.rete.core/not ?b1) :f2 (wat.rete.core/not ?b2) :f3 (wat.rete.core/not ?b3) :f4 (wat.rete.core/not ?b4) :f5 (wat.rete.core/not ?b5) :f6 (wat.rete.core/not ?b6) :f7 (wat.rete.core/not ?b7) :f8 (wat.rete.core/not ?b8) :f9 (wat.rete.core/not ?b9) :f10 (wat.rete.core/not ?b10) :f11 (wat.rete.core/not ?b11) :f12 (wat.rete.core/not ?b12) :f13 (wat.rete.core/not ?b13) :f14 (wat.rete.core/not ?b14) :f15 (wat.rete.core/not ?b15) :f16 (wat.rete.core/not ?b16) :f17 (wat.rete.core/not ?b17) :f18 (wat.rete.core/not ?b18) :f19 (wat.rete.core/not ?b19))])
 
-(:wat::rete::defquery :tl::q :params [] :when [(?fact :- :tl::Wide)])
+(wat.rete/defquery tl/q :params [] :when [(?fact :- tl/Wide)])
 
-(:wat::core::defn :user::main [] -> wat.type/nil
+(wat.core/defn user/main [] :- wat.type/nil
   ;; ⛔ THE COMPILE MATCH IS HOISTED AND ITS ARM PRINTS — hand-faced, NOT codemod'd. The
   ;; corpus codemod collapses `MayNotTerminate` to an `assertion-failed!` message, which is
   ;; right for a fixture that merely must not proceed and WRONG here: this gate exists to
   ;; pin the verdict's `rule` and `fact-type`, and a message string throws both away.
-  (:wat::core::match (:wat::rete::compile-all (wat.type/PersistentVector :- [:wat::rete::Rule] (:tl::flip))
-              (wat.type/PersistentVector :- [:wat::rete::Query] (:tl::q)))
-    [:wat::rete::CompileOutcome.Compiled {:session __session}
-      (:wat::kernel::println
-    (:wat::core::length
-      (:wat::rete::query
-        (:wat::core::match (:wat::rete::fire-rules
-          (:wat::core::match (:wat::rete::insert
+  (wat.core/match (wat.rete/compile-all (wat.type/PersistentVector :- [wat.rete/Rule] (tl/flip))
+              (wat.type/PersistentVector :- [wat.rete/Query] (tl/q)))
+    [wat.rete/CompileOutcome.Compiled {:session __session}
+      (wat.kernel/println
+    (wat.core/length
+      (wat.rete/query
+        (wat.core/match (wat.rete/fire-rules
+          (wat.core/match (wat.rete/insert
             __session
-            (:tl::Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true)) [:wat::rete::InsertOutcome.Inserted {:session __staged} __staged] [:wat::rete::InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (:wat::kernel::assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [:wat::rete::FireOutcome.Fired {:value __fired} __fired] [:wat::rete::FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (:wat::kernel::assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [:wat::rete::FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (:wat::kernel::assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
-        (:tl::q))))]
-    [:wat::rete::CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
-      (:wat::core::do
-        (:wat::kernel::println "ARM MayNotTerminate")
-        (:wat::kernel::println rule)
-        (:wat::kernel::println fact-type))]))
+            (tl/Wide :f0 true :f1 true :f2 true :f3 true :f4 true :f5 true :f6 true :f7 true :f8 true :f9 true :f10 true :f11 true :f12 true :f13 true :f14 true :f15 true :f16 true :f17 true :f18 true :f19 true)) [wat.rete/InsertOutcome.Inserted {:session __staged} __staged] [wat.rete/InsertOutcome.MemoryCeilingExceeded {:limit __limit :used __used :staged __count} (wat.kernel/assertion-failed! :message "insert: session memory ceiling exceeded while staging")])) [wat.rete/FireOutcome.Fired {:value __fired} __fired] [wat.rete/FireOutcome.MemoryCeilingExceeded {:limit __limit :used __used :rounds __rounds} (wat.kernel/assertion-failed! :message "fire-rules: session memory ceiling exceeded")] [wat.rete/FireOutcome.RoundCapExceeded {:cap __cap :still-deriving __still} (wat.kernel/assertion-failed! :message "fire-rules: fixpoint round cap exceeded")])
+        (tl/q))))]
+    [wat.rete/CompileOutcome.MayNotTerminate {:rule rule :fact-type fact-type}
+      (wat.core/do
+        (wat.kernel/println "ARM MayNotTerminate")
+        (wat.kernel/println rule)
+        (wat.kernel/println fact-type))]))
 

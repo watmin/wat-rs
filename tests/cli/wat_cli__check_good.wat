@@ -9,5 +9,5 @@
 ;; is the bare `nil` literal"), which `()` had been silently dodging simply
 ;; by not being a `WatAST::NilLit` node. A real (harmless, --check never
 ;; runs it) body keeps this a well-formed program instead.
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::kernel::println "check-good"))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.kernel/println "check-good"))

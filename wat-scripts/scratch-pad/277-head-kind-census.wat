@@ -24,17 +24,17 @@
 ;; "computed head", and so did the first element of every vector and map. It reported 9,115
 ;; list-heads, which is NOT the number of forms head-dispatch cannot reach.
 ;; v2 joins the PARENT's kind and reports it, so a call can be told from an arm.
-(:wat::rete::defrule :hk::head-kind
-  :when [(:wat::grep::Node   (?p :- :id) (?pk :- :kind))
-         (:wat::grep::Node   (?h :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind) (:wat::rete::i64::= ?i 0))
-         (:wat::grep::Span   (?h :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
-         (:wat::grep::Source (?f :- :file))]
-  :then [(:wat::grep::Match
+(wat.rete/defrule hk/head-kind
+  :when [(wat.grep/Node   (?p :- :id) (?pk :- :kind))
+         (wat.grep/Node   (?h :- :id) (?p :- :parent) (?i :- :index) (?k :- :kind) (wat.rete.i64/= ?i 0))
+         (wat.grep/Span   (?h :- :id) (?l :- :line) (?c :- :col) (?el :- :end-line) (?ec :- :end-col))
+         (wat.grep/Source (?f :- :file))]
+  :then [(wat.grep/Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "head-kind"
-           :captures (:wat::rete::core::PersistentVector
-                       (:wat::grep::Capture :name "kind" :value (:wat::rete::core::variant-name ?k))
-                       (:wat::grep::Capture :name "pkind" :value (:wat::rete::core::variant-name ?pk))))])
+           :captures (wat.rete.core/PersistentVector
+                       (wat.grep/Capture :name "kind" :value (wat.rete.core/variant-name ?k))
+                       (wat.grep/Capture :name "pkind" :value (wat.rete.core/variant-name ?pk))))])
 
-(:wat::core::defn :user::grep [] -> (wat.type/PersistentVector :- [:wat::rete::Rule])
-  (:wat::rete::collect-rules :hk))
+(wat.core/defn user/grep [] :- (wat.type/PersistentVector :- [wat.rete/Rule])
+  (wat.rete/collect-rules :hk))

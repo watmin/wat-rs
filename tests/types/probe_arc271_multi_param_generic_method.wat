@@ -2,12 +2,12 @@
 ;;
 ;; Arc 271 — MULTI-type-param generic surface methods.
 
-(:wat::core::defsurface :t::Combiner :nature wat.type/Struct
-  :features [(combine :- [A B] [self <- :t::Combiner  x <- :A  y <- :B] -> :A)])
+(wat.core/defsurface t/Combiner :nature wat.type/Struct
+  :features [(combine :- [A B] [self :- t/Combiner  x :- A  y :- B] :- A)])
 
-(:wat::core::defrecord :t::C [])
-(:wat::core::extend-type :t::C :t::Combiner (combine [self x y] x))
+(wat.core/defrecord t/C [])
+(wat.core/extend-type t/C t/Combiner (combine [self x y] x))
 
-(:wat::core::defn :user::go [] -> wat.type/i64
-  (:t::Combiner/combine (:t::C) 5 "hi"))
+(wat.core/defn user/go [] :- wat.type/i64
+  (t.Combiner/combine (t/C) 5 "hi"))
 

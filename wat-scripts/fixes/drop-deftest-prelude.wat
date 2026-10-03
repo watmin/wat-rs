@@ -22,14 +22,14 @@
 ;;   printf '["tests/..." ...]\n' | ./target/release/wat ./wat-scripts/fixes/drop-deftest-prelude.wat
 
 ;; deftest-head? — a List whose head keyword name is one of the four deftest variants.
-(:wat::core::defn :user::deftest-head? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn user/deftest-head? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/empty? ch)
         false
-        (:wat::core::let [head (:wat::core::first ch)]
-          (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
-            (:wat::fix::str-in? (:wat::core::ast-name head)
+        (wat.core/let [head (wat.core/first ch)]
+          (wat.core/if (wat.core/= (wat.core/ast-kind head) "keyword")
+            (wat.fix/str-in? (wat.core/ast-name head)
               (wat.type/Vector :- [wat.type/String]
                 ":wat::test::deftest"
                 ":wat::test::deftest'"
@@ -39,9 +39,9 @@
     false))
 
 ;; empty-list? — an empty `()` list node (the prelude slot to drop).
-(:wat::core::defn :user::empty-list? [node <- wat.type/AST] -> wat.type/bool
-  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
-    (:wat::core::empty? (:wat::core::ast->children node))
+(wat.core/defn user/empty-list? [node :- wat.type/AST] :- wat.type/bool
+  (wat.core/if (wat.core/= (wat.core/ast-kind node) "list")
+    (wat.core/empty? (wat.core/ast->children node))
     false))
 
 ;; form-edits — 0-or-1 deletion edit for one top-level form: fires only on a deftest head
@@ -50,24 +50,24 @@
 ;; sanctioned: empty-list? already verified the node's identity structurally (its
 ;; ast->children is empty), so the deletion's subject genuinely IS the span, whatever
 ;; whitespace it does or doesn't contain between the parens.
-(:wat::core::defn :user::form-edits
-  [node  <- wat.type/AST
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:user::deftest-head? node)
-    (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::< (:wat::core::count ch) 4)
+(wat.core/defn user/form-edits
+  [node  :- wat.type/AST
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (user/deftest-head? node)
+    (wat.core/let [ch (wat.core/ast->children node)]
+      (wat.core/if (wat.core/< (wat.core/count ch) 4)
         (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-        (:wat::core::let [prelude (:wat::core::nth ch 2)]
-          (:wat::core::if (:user::empty-list? prelude)
+        (wat.core/let [prelude (wat.core/nth ch 2)]
+          (wat.core/if (user/empty-list? prelude)
             ;; delete ONLY the `()` token span (prelude-start .. prelude-end); surrounding
             ;; whitespace + any body doc-comment between `()` and the body survive intact
             ;; (the residual blank line is wat-fmt's job — never eat a comment).
-            (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span prelude) lines)
-                              old-text (:wat::fix::fix-text-span-text
-                                         (:wat::core::ast-span prelude)
-                                         (:wat::core::ast-end-span prelude)
+            (wat.core/let [off      (wat.fix/fix-text-offset-of (wat.core/ast-span prelude) lines)
+                              old-text (wat.fix/fix-text-span-text
+                                         (wat.core/ast-span prelude)
+                                         (wat.core/ast-end-span prelude)
                                          lines src)]
               (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])]
                 (wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String] off old-text "")))
@@ -75,33 +75,33 @@
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])))
 
 ;; scan — collect edits across every top-level form (ascending offset order).
-(:wat::core::defn :user::scan
-  [forms <- (wat.type/Vector :- [wat.type/AST])
-   src   <- wat.type/String
-   lines <- (wat.type/Vector :- [wat.type/String])]
-  -> (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-  (:wat::core::if (:wat::core::empty? forms)
+(wat.core/defn user/scan
+  [forms :- (wat.type/Vector :- [wat.type/AST])
+   src   :- wat.type/String
+   lines :- (wat.type/Vector :- [wat.type/String])]
+  :- (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
+  (wat.core/if (wat.core/empty? forms)
     (wat.type/Vector :- [(wat.type/Tuple :- [wat.type/i64 wat.type/String wat.type/String])])
-    (:wat::core::concat
-      (:user::form-edits (:wat::core::first forms) src lines)
-      (:user::scan (:wat::core::rest forms) src lines))))
+    (wat.core/concat
+      (user/form-edits (wat.core/first forms) src lines)
+      (user/scan (wat.core/rest forms) src lines))))
 
-(:wat::core::defn :user::migrate [src <- wat.type/String] -> wat.type/String
-  (:wat::core::let [lines     (:wat::string::split src "\n")
-                    tree      (:wat::core::match (:wat::core::read-string src) [:wat::core::ReadOutcome.Forms {:forms __forms} __forms] [:wat::core::ReadOutcome.Malformed {:cause __cause} (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])
-                    forms     (:wat::core::ast->children tree)
-                    all-edits (:user::scan forms src lines)]
-    (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
+(wat.core/defn user/migrate [src :- wat.type/String] :- wat.type/String
+  (wat.core/let [lines     (wat.string/split src "\n")
+                    tree      (wat.core/match (wat.core/read-string src) [wat.core/ReadOutcome.Forms {:forms __forms} __forms] [wat.core/ReadOutcome.Malformed {:cause __cause} (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])
+                    forms     (wat.core/ast->children tree)
+                    all-edits (user/scan forms src lines)]
+    (wat.fix/fix-text-apply src (wat.core/reverse all-edits))))
 
-(:wat::core::defn :user::apply-each
-  [paths <- (wat.type/Vector :- [wat.type/String])] -> wat.type/nil
-  (:wat::core::if (:wat::core::empty? paths)
+(wat.core/defn user/apply-each
+  [paths :- (wat.type/Vector :- [wat.type/String])] :- wat.type/nil
+  (wat.core/if (wat.core/empty? paths)
     nil
-    (:wat::core::let [path (:wat::core::first paths)]
-      (:wat::core::do
-        (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::string::concat "[drop-prelude] " path))
-        (:user::apply-each (:wat::core::rest paths))))))
+    (wat.core/let [path (wat.core/first paths)]
+      (wat.core/do
+        (wat.io/write-file path (user/migrate (wat.io/read-file path)))
+        (wat.kernel/println (wat.string/concat "[drop-prelude] " path))
+        (user/apply-each (wat.core/rest paths))))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:user::apply-each (:wat::core::match (:wat::kernel::readln) [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum] [:wat::kernel::ReadlnOutcome.Eof {} (:wat::kernel::assertion-failed! :message "readln: end of input")] [:wat::kernel::ReadlnOutcome.Stopped {} (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (user/apply-each (wat.core/match (wat.kernel/readln) [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum] [wat.kernel/ReadlnOutcome.Eof {} (wat.kernel/assertion-failed! :message "readln: end of input")] [wat.kernel/ReadlnOutcome.Stopped {} (wat.kernel/assertion-failed! :message "readln: stop requested")])))

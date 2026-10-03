@@ -1,7 +1,7 @@
 ;; T21: outer let binds n=100; match arm's Some-pattern shadows n; None arm uses outer n.
-(:wat::core::defn :my::shadow-test [opt <- (:wat::core::Option :- [wat.type/i64])] -> wat.type/i64
-  (:wat::core::let
+(wat.core/defn my/shadow-test [opt :- (wat.core/Option :- [wat.type/i64])] :- wat.type/i64
+  (wat.core/let
               [n 100]
-              (:wat::core::match opt 
-                [:wat::core::Option.Some {:value n} n]
-                [:wat::core::Option.None {}     n])))
+              (wat.core/match opt 
+                [wat.core/Option.Some {:value n} n]
+                [wat.core/Option.None {}     n])))

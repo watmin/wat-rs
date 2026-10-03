@@ -20,31 +20,31 @@
 ;;    plumbing accept this shape TODAY, on whatever binary is currently on
 ;;    disk (no rebuild needed) — this is what was actually run and verified
 ;;    by the rider (2026-08-30); see the report for the transcript.
-(:wat::core::defn :probe::capitalize-like
+(wat.core/defn probe/capitalize-like
   {:doc "Upcase the first character of a segment, keeping the rest unchanged."
    :added "1.0.0"
    :ret [wat.type/String "the segment with its first character upcased"]
-   :purity :wat::runtime::Purity.Pure
-   :determinism :wat::runtime::Determinism.Deterministic
-   :totality :wat::runtime::Totality.Total
-   :expand-time :wat::runtime::ExpandTime.Legal
-   :category :wat::runtime::Category.Transform
+   :purity wat.runtime/Purity.Pure
+   :determinism wat.runtime/Determinism.Deterministic
+   :totality wat.runtime/Totality.Total
+   :expand-time wat.runtime/ExpandTime.Legal
+   :category wat.runtime/Category.Transform
    :args [[w wat.type/String "the segment to capitalize"]]
    :examples [["(:probe::capitalize-like \"object\")" "\"Object\""]]}
-  [w <- wat.type/String]
-  -> wat.type/String
-  (:wat::core::if (:wat::core::= (:wat::string::length w) 0)
+  [w :- wat.type/String]
+  :- wat.type/String
+  (wat.core/if (wat.core/= (wat.string/length w) 0)
     w
-    (:wat::string::concat
-      (:wat::string::to-uppercase (:wat::string::subs w 0 1))
-      (:wat::string::subs w 1 (:wat::string::length w)))))
+    (wat.string/concat
+      (wat.string/to-uppercase (wat.string/subs w 0 1))
+      (wat.string/subs w 1 (wat.string/length w)))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::do
-    (:wat::kernel::println "── the walked verb: :wat::string::capitalize ──")
-    (:wat::kernel::println (:wat::string::capitalize "object"))
-    (:wat::kernel::println (:wat::string::capitalize ""))
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :wat::string::capitalize))
-    (:wat::kernel::println "── structural regression check (no rebuild needed): :probe::capitalize-like ──")
-    (:wat::kernel::println (:probe::capitalize-like "object"))
-    (:wat::kernel::pprintln (:wat::runtime::metadata-of :probe::capitalize-like))))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/do
+    (wat.kernel/println "── the walked verb: :wat::string::capitalize ──")
+    (wat.kernel/println (wat.string/capitalize "object"))
+    (wat.kernel/println (wat.string/capitalize ""))
+    (wat.kernel/pprintln (wat.runtime/metadata-of wat.string/capitalize))
+    (wat.kernel/println "── structural regression check (no rebuild needed): :probe::capitalize-like ──")
+    (wat.kernel/println (probe/capitalize-like "object"))
+    (wat.kernel/pprintln (wat.runtime/metadata-of probe/capitalize-like))))

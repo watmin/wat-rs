@@ -28,33 +28,33 @@
 ;; pattern binds `?gr`. If BOTH raise, `matches?` is not the discriminator and this instrument is
 ;; measuring something else. If NEITHER raised BEFORE the fix, the defect was not here.
 
-(:wat::core::defstruct :probe::Paper
-  [grace-residue <- wat.type/f64])
+(wat.core/defstruct probe/Paper
+  [grace-residue :- wat.type/f64])
 
 ;; ── the CONTROL: no matches?, no pattern, no DSL tokens ─────────────────────────────────────
-(:wat::core::defn :probe::control [p <- :probe::Paper] -> wat.type/bool
-  (:wat::f64::< (:probe::Paper/grace-residue p) 5.0))
+(wat.core/defn probe/control [p :- probe/Paper] :- wat.type/bool
+  (wat.f64/< (probe.Paper/grace-residue p) 5.0))
 
 ;; ── the SUBJECT: identical shipping, but the body holds a `matches?`. `=` and `<` here are
 ;; PATTERN GRAMMAR owned by check.rs's `infer_form_matches` walker — not call heads — and `?gr`
 ;; is bound by the pattern, not by any enclosing scope. Reading any of them as code is the bug.
-(:wat::core::defn :probe::subject [p <- :probe::Paper] -> wat.type/bool
-  (:wat::form::matches? p
-    (:probe::Paper (= ?gr :grace-residue) (< ?gr 5.0))))
+(wat.core/defn probe/subject [p :- probe/Paper] :- wat.type/bool
+  (wat.form/matches? p
+    (probe/Paper (= ?gr :grace-residue) (< ?gr 5.0))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::let
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/let
     [;; ARM 1 — the control. A closure comes back.
-     ctl (:wat::kernel::fn-forms :probe::control
-           (:wat::keyword::from-string "user::root-ctl"))
-     _c  (:wat::kernel::println
-           (:wat::string::concat "CONTROL forms="
-             (:wat::i64::to-string (:wat::core::length ctl))))
+     ctl (wat.kernel/fn-forms probe/control
+           (wat.keyword/from-string "user::root-ctl"))
+     _c  (wat.kernel/println
+           (wat.string/concat "CONTROL forms="
+             (wat.i64/to-string (wat.core/length ctl))))
      ;; ARM 2 — the subject. This raised before the fix, naming `=` from inside the pattern.
-     sub (:wat::kernel::fn-forms :probe::subject
-           (:wat::keyword::from-string "user::root-sub"))
-     _s  (:wat::kernel::println
-           (:wat::string::concat "SUBJECT forms="
-             (:wat::i64::to-string (:wat::core::length sub))))]
-    (:wat::kernel::println
+     sub (wat.kernel/fn-forms probe/subject
+           (wat.keyword/from-string "user::root-sub"))
+     _s  (wat.kernel/println
+           (wat.string/concat "SUBJECT forms="
+             (wat.i64/to-string (wat.core/length sub))))]
+    (wat.kernel/println
       "PASS — both arms extracted; a matches? PATTERN is DATA to the closure walker, not code")))

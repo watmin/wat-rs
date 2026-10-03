@@ -34,59 +34,59 @@
 ;; Usage:
 ;;   printf '["wat/seq.wat"]\n' | ./target/release/wat wat-scripts/scratch-pad/census-defclause-arm-overlap.wat
 
-(:wat::core::defn :census::head-of [form <- wat.type/AST] -> wat.type/String
-  (:wat::core::let [ch (:wat::core::ast->children form)]
-    (:wat::core::if (:wat::core::empty? ch) "" (:wat::core::ast->source (:wat::core::first ch)))))
+(wat.core/defn census/head-of [form :- wat.type/AST] :- wat.type/String
+  (wat.core/let [ch (wat.core/ast->children form)]
+    (wat.core/if (wat.core/empty? ch) "" (wat.core/ast->source (wat.core/first ch)))))
 
 ;; The declared types of a binder vector: every token that FOLLOWS a `<-`.
-(:wat::core::defn :census::types-after-arrows
-  [toks <- (wat.type/Vector :- [wat.type/String])] -> wat.type/String
-  (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq toks))
-    [:wat::stream::NextOutcome.Item {:value t :rest rest}
-      (:wat::core::if (:wat::core::= t "<-")
-        (:wat::core::match (:wat::stream::next rest)
-          [:wat::stream::NextOutcome.Item {:value ty :rest more}
-            (:wat::string::concat
-              (:wat::string::concat ty " ~ ")
-              (:census::types-after-arrows (:wat::core::into [] more)))]
-          [:wat::stream::NextOutcome.Exhausted {} "<MISSING-TYPE>"])
-        (:census::types-after-arrows (:wat::core::into [] rest)))]
-    [:wat::stream::NextOutcome.Exhausted {} ""]))
+(wat.core/defn census/types-after-arrows
+  [toks :- (wat.type/Vector :- [wat.type/String])] :- wat.type/String
+  (wat.core/match (wat.stream/next (wat.core.Seqable/seq toks))
+    [wat.stream/NextOutcome.Item {:value t :rest rest}
+      (wat.core/if (wat.core/= t "<-")
+        (wat.core/match (wat.stream/next rest)
+          [wat.stream/NextOutcome.Item {:value ty :rest more}
+            (wat.string/concat
+              (wat.string/concat ty " ~ ")
+              (census/types-after-arrows (wat.core/into [] more)))]
+          [wat.stream/NextOutcome.Exhausted {} "<MISSING-TYPE>"])
+        (census/types-after-arrows (wat.core/into [] rest)))]
+    [wat.stream/NextOutcome.Exhausted {} ""]))
 
 ;; Does this arm carry a `:guard`? (top-level tokens of the arm form)
-(:wat::core::defn :census::has-guard? [arm <- wat.type/AST] -> wat.type/bool
-  (:wat::core::reduce
-    (:wat::core::fn [acc <- wat.type/bool c <- wat.type/AST] -> wat.type/bool
-      (:wat::core::or acc (:wat::core::= (:wat::core::ast->source c) ":guard")))
+(wat.core/defn census/has-guard? [arm :- wat.type/AST] :- wat.type/bool
+  (wat.core/reduce
+    (wat.core/fn [acc :- wat.type/bool c :- wat.type/AST] :- wat.type/bool
+      (wat.core/or acc (wat.core/= (wat.core/ast->source c) ":guard")))
     false
-    (:wat::core::ast->children arm)))
+    (wat.core/ast->children arm)))
 
-(:wat::core::defn :census::report-arm
-  [path <- wat.type/String name <- wat.type/String arm <- wat.type/AST] -> wat.type/nil
-  (:wat::core::let
-    [ch     (:wat::core::into [] (:wat::core::ast->children arm))
-     binder (:wat::core::if (:wat::core::empty? ch)
+(wat.core/defn census/report-arm
+  [path :- wat.type/String name :- wat.type/String arm :- wat.type/AST] :- wat.type/nil
+  (wat.core/let
+    [ch     (wat.core/into [] (wat.core/ast->children arm))
+     binder (wat.core/if (wat.core/empty? ch)
               (wat.type/Vector :- [wat.type/String])
-              (:wat::core::into []
-                (:wat::core::map (:wat::core::fn [t <- wat.type/AST] -> wat.type/String
-                                   (:wat::core::ast->source t))
-                  (:wat::core::ast->children (:wat::core::first ch)))))
-     guard  (:wat::core::if (:census::has-guard? arm) "yes" "no")]
-    (:wat::kernel::println
-      (:wat::string::concat
-        (:wat::string::concat
-          (:wat::string::concat
-            (:wat::string::concat (:wat::string::concat path " || CLAUSE ") name)
+              (wat.core/into []
+                (wat.core/map (wat.core/fn [t :- wat.type/AST] :- wat.type/String
+                                   (wat.core/ast->source t))
+                  (wat.core/ast->children (wat.core/first ch)))))
+     guard  (wat.core/if (census/has-guard? arm) "yes" "no")]
+    (wat.kernel/println
+      (wat.string/concat
+        (wat.string/concat
+          (wat.string/concat
+            (wat.string/concat (wat.string/concat path " || CLAUSE ") name)
             " | GUARD ") guard)
-        (:wat::string::concat " | TYPES " (:census::types-after-arrows binder))))))
+        (wat.string/concat " | TYPES " (census/types-after-arrows binder))))))
 
-(:wat::core::defn :census::walk [path <- wat.type/String form <- wat.type/AST] -> wat.type/nil
-  (:wat::core::do
-    (:wat::core::if (:wat::core::= (:census::head-of form) ":wat::core::defclause")
-      (:wat::core::let
-        [ch   (:wat::core::into [] (:wat::core::ast->children form))
-         name (:wat::core::if (:wat::core::< (:wat::core::length ch) 2) "<anon>"
-                (:wat::core::ast->source (:wat::core::nth ch 1)))
+(wat.core/defn census/walk [path :- wat.type/String form :- wat.type/AST] :- wat.type/nil
+  (wat.core/do
+    (wat.core/if (wat.core/= (census/head-of form) ":wat::core::defclause")
+      (wat.core/let
+        [ch   (wat.core/into [] (wat.core/ast->children form))
+         name (wat.core/if (wat.core/< (wat.core/length ch) 2) "<anon>"
+                (wat.core/ast->source (wat.core/nth ch 1)))
          ;; ⚠ AN ARM IS NOT "EVERY CHILD PAST THE NAME". A `defclause` may carry a SHARED return
          ;; type on its head line — `(defclause :p05::pick -> :i64 (arm) (arm))` — and a naive
          ;; `drop 2` then counts `->` and `:i64` as arms. That produced two bogus EMPTY-typed rows
@@ -94,41 +94,41 @@
          ;; what exposed it. An ARM is a child that HAS children AND whose first child is a BINDER
          ;; VECTOR — detected by that child's source carrying a `[`. `->` and a bare type keyword
          ;; have no children at all, so both fall out.
-         arms (:wat::core::into []
-                (:wat::core::filter
-                  (:wat::core::fn [c <- wat.type/AST] -> wat.type/bool
-                    (:wat::core::let [cc (:wat::core::into [] (:wat::core::ast->children c))]
-                      (:wat::core::if (:wat::core::empty? cc)
+         arms (wat.core/into []
+                (wat.core/filter
+                  (wat.core/fn [c :- wat.type/AST] :- wat.type/bool
+                    (wat.core/let [cc (wat.core/into [] (wat.core/ast->children c))]
+                      (wat.core/if (wat.core/empty? cc)
                         false
-                        (:wat::string::contains?
-                          (:wat::core::ast->source (:wat::core::first cc)) "["))))
-                  (:wat::core::into [] (:wat::core::drop ch 2))))]
+                        (wat.string/contains?
+                          (wat.core/ast->source (wat.core/first cc)) "["))))
+                  (wat.core/into [] (wat.core/drop ch 2))))]
         ;; No arm INDEX is emitted: the rows come out in declaration order, which IS the arm
         ;; order, and that order is the only thing first-match-wins dispatch depends on.
-        (:wat::core::run!
-          (:wat::core::fn [a <- wat.type/AST] -> wat.type/nil (:census::report-arm path name a))
+        (wat.core/run!
+          (wat.core/fn [a :- wat.type/AST] :- wat.type/nil (census/report-arm path name a))
           arms))
       nil)
-    (:wat::core::run!
-      (:wat::core::fn [c <- wat.type/AST] -> wat.type/nil (:census::walk path c))
-      (:wat::core::into [] (:wat::core::ast->children form)))))
+    (wat.core/run!
+      (wat.core/fn [c :- wat.type/AST] :- wat.type/nil (census/walk path c))
+      (wat.core/into [] (wat.core/ast->children form)))))
 
-(:wat::core::defn :census::file [path <- wat.type/String] -> wat.type/nil
-  (:wat::core::run!
-    (:wat::core::fn [f <- wat.type/AST] -> wat.type/nil (:census::walk path f))
-    (:wat::core::into []
-      (:wat::core::ast->children
-        (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
-          [:wat::core::ReadOutcome.Forms {:forms __forms} __forms]
-          [:wat::core::ReadOutcome.Malformed {:cause __cause}
-            (:wat::kernel::assertion-failed! :message (:wat::core::Error/message __cause))])))))
+(wat.core/defn census/file [path :- wat.type/String] :- wat.type/nil
+  (wat.core/run!
+    (wat.core/fn [f :- wat.type/AST] :- wat.type/nil (census/walk path f))
+    (wat.core/into []
+      (wat.core/ast->children
+        (wat.core/match (wat.core/read-string (wat.io/read-file path))
+          [wat.core/ReadOutcome.Forms {:forms __forms} __forms]
+          [wat.core/ReadOutcome.Malformed {:cause __cause}
+            (wat.kernel/assertion-failed! :message (wat.core.Error/message __cause))])))))
 
-(:wat::core::defn :user::main [] -> wat.type/nil
-  (:wat::core::run!
-    (:wat::core::fn [p <- wat.type/String] -> wat.type/nil (:census::file p))
-    (:wat::core::match (:wat::kernel::readln )
-      [:wat::kernel::ReadlnOutcome.Datum {:v __datum} __datum]
-      [:wat::kernel::ReadlnOutcome.Eof {}
-        (:wat::kernel::assertion-failed! :message "readln: end of input")]
-      [:wat::kernel::ReadlnOutcome.Stopped {}
-        (:wat::kernel::assertion-failed! :message "readln: stop requested")])))
+(wat.core/defn user/main [] :- wat.type/nil
+  (wat.core/run!
+    (wat.core/fn [p :- wat.type/String] :- wat.type/nil (census/file p))
+    (wat.core/match (wat.kernel/readln )
+      [wat.kernel/ReadlnOutcome.Datum {:v __datum} __datum]
+      [wat.kernel/ReadlnOutcome.Eof {}
+        (wat.kernel/assertion-failed! :message "readln: end of input")]
+      [wat.kernel/ReadlnOutcome.Stopped {}
+        (wat.kernel/assertion-failed! :message "readln: stop requested")])))
