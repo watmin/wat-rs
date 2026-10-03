@@ -151,3 +151,56 @@ RC=0
 That is the same 6394 the brief names. Clippy of the cure tree, `cargo clippy --release --all-targets -- -D warnings`: `Finished release profile [optimized] target(s) in 12.51s`, RC=0 (`/tmp/g1-clippy-cure.log`). This score commit is the document. It does not change code, and it was not floored.
 
 `4f8f551ea` is the cutover. `54e2d948d` is the cure. Local `main`, not pushed. 5c-ii, 5c-iii, and 5c-iv are unstarted.
+
+## Amend 3: the proofs are tests
+
+Continues at `e0daeb4d4`. The pins and the respell are `9162b9f40`. The floor cure is `d3dc12bbc`.
+
+### Pinned values
+
+`tests/cli/probe_stone_25586_one_name.wat` returns `:probe::pins`, a vector of `label` plus `(:wat::core::str value)`. The rust test `one_name_replacements_return_the_pinned_values` compares that vector to 68 strings. Those strings were measured by `./target/release/wat /tmp/g1-pins.wat` twice; the two outputs were identical (`diff` RC=0). HashMap and HashSet renders of more than one entry follow hash order, so those pins are `length` and `get` / `contains?`. One-entry renders are pinned whole.
+
+Measured, among the 68: PersistentMap dissoc of `"a"` is `#wat.core/PersistentMap {}`; keys of that one-entry map are `["a"]`; values are `[1]`. `into` of Vector `[1]` and Vector `[2]` is `[1 2]`; Vector `[1]` and PersistentVector `[2]` is `[1 2]`; PersistentVector `[1]` and Vector `[2]` is `#wat.core/PersistentVector [1 2]`; two PersistentVectors `[1]` and `[2]` are `#wat.core/PersistentVector [1 2]`. `contains?` of Vector `[1 2]` on `1` is `true` and on `9` is `false`. `contains?` of HashSet `{1}` is the same pair. `contains?` of HashMap `{"a" 1}` on the key `"a"` is `true` and on `"z"` is `false`. `get` hit is `#wat.core/Option.Some {:value 1}`; miss is `#wat.core/Option.None {}`. List conj of `1` onto `(2)` is `(1 2)`.
+
+The same vector pins the new homes. `wat.bytes/to-hex` of bytes 255, 0, 16 is `ff0010`. `wat.bytes/from-hex` of `"ff0010"` is `#wat.core/Option.Some {:value [255 0 16]}`. `wat.record/field-at` of `(:probe::PinRec :sk 9)` at 0 is `9`. `wat.record/same-data?` of two records with `:sk 9` is `true`, and against `:sk 8` is `false`. `wat.core/assoc` of `(:probe::PinRec :sk 1)` at `:sk` to `9` is `#probe/PinRec {:sk 9}`. `(wat.type/List :- [wat.type/i64] 1 2)` is `(1 2)`. `(wat.type/char "a")` is `\a`.
+
+The R-a service renames (`cache-svc`, `hologram-svc`, `pcache`, `mal`, `barebox`, `t::svc`, `t::worker`) are not container operations. They are not in this vector.
+
+### Retirement
+
+`wat::retirement_table_pairs_for_gate` walks `RETIREMENT_TABLE`. `stone_rows_are_refused_naming_their_replacement` keeps rows whose retired name starts with `:wat::hashmap::`, `:wat::map::`, `:wat::vec::`, `:wat::vector::`, `:wat::hashset::`, `:wat::linkedlist::`, `:wat::core::Bytes/`, `:wat::core::Record/field-at`, `:wat::core::Record/same-data?`, or `:wat::core::Record/assoc`. The filter saw at least 43. Each probe is a real `wat` process calling the retired name, and the output contains `is retired` and the table's replacement string.
+
+### R-a
+
+`startup_from_file` of `tests/types/probe_diagnostic_defprotocol_dispatch_p1.wat` does not contain `:myapp::Formattable`. `startup_from_file` of `wat-tests/holon/Reject.wat` does not contain `:wat-tests::holon::Reject`. Both loads succeeded. Those three names respell `/` to `::` in the probes, in `Reject.wat`, and in the mapping. The table is now 67 pairs.
+
+The member-join wall still uses the Pascal-and-lowercase shape as the candidate filter. The decision is `TypeEnv::contains` on the parent, from `startup_from_file` of the file that holds the call. `:wat::core::Option::expect` is a member join against the stdlib registry. `:myapp::Formattable::format` is not. A candidate file that will not load fails the test, because the registry was not asked.
+
+### Census, clippy, floors
+
+Do not re-run the red floor.
+
+Census after the pins were tracked: `.census/2026-10-03T04-29-41Z.txt`, 2286 files, `0:2076, 1:208, 101:2`. Against `.census/2026-10-03T03-58-35Z.txt`: no rc flips, one new file `tests/cli/probe_stone_25586_one_name.wat` at rc 0. `census-diff: no STOP-8`, DIFF_RC=0. The cure commit changes no `.wat`.
+
+Clippy of the cure tree, `cargo clippy --release --all-targets -- -D warnings`: `Finished release profile [optimized] target(s) in 12.64s`, RC=0 (`/tmp/g1-clippy-amend3c.log`).
+
+`9162b9f40` is red. `.floor/2026-10-03T04-30-42Z`, log `/tmp/g1-floor-amend3.log`:
+
+```
+Summary [ 400.551s] 6397 tests run: 6395 passed (29 slow), 1 failed, 1 timed out, 24 skipped
+RC=100
+```
+
+Two arms, both cured in `d3dc12bbc`:
+
+1. `no_loose_string_assert::tests_carry_no_loose_string_assert` — `tests/lint/one_member_join.rs:89` and `:98`. The panic is `LOOSE STRING ASSERTIONS — 2 site(s)`. Those lines called `TypeEnv::contains` inside `assert!`. The asks now sit on their own statements. The lint re-run is `ok. 1 passed`, RC=0 (`/tmp/g1-loose2.log`).
+2. `probe_stone_25586_retirement::stone_rows_are_refused_naming_their_replacement` — `TIMEOUT [  30.024s]`. Isolated the same test is `finished in 16.28s` (`/tmp/g1-retire-iso.log`). The default kill is 30s. The override is warn 60s / kill 120s.
+
+`d3dc12bbc` is green. `.floor/2026-10-03T04-41-21Z`, log `/tmp/g1-floor-amend3b.log`:
+
+```
+Summary [ 404.574s] 6397 tests run: 6397 passed (29 slow), 24 skipped
+RC=0
+```
+
+6394 at the previous green floor, 6397 here. The three new tests are the pin vector, the registry query, and the retirement-row walk. This score commit is the document. It was not floored. Not pushed. 5c-ii, 5c-iii, and 5c-iv are unstarted.
