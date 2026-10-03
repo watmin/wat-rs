@@ -190,13 +190,19 @@ fn g1_declaration_is_the_list() {
 /// which a (variant, field) pair keyed on ONE name cannot express): exceptions between
 /// `to_record`'s render and `WatError::error_edn()`'s wire, applied wherever that shape
 /// occurs — enumerated here by (variant, field) so an unlisted difference still goes RED.
+///
+/// Strike B2, item 5: `NoMatchingClause.attempted-clauses` used to be listed here too
+/// (`ClauseAttempt`'s nested `ClauseFailureReason` variant tag rode flat on the old
+/// wire, dotted in `to_record()`) — RETIRED once `error_edn()`'s
+/// `clause_failure_reason_to_edn` started emitting the same dotted tag `to_record()`
+/// always did (`src/edn/error.rs`); the two writers agree now, so the field is caught
+/// by the generic byte-equality check below, not an exception.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum ExceptionClass {
-    /// The old wire carried this payload untagged (`ValueSnapshot`) or under
-    /// the wrong namespace (`ClauseAttempt`'s nested `ClauseFailureReason`
-    /// variant tag, flat `wat.kernel/<Variant>` -> dotted
-    /// `wat.kernel/ClauseFailureReason.<Variant>`); the record declares it,
-    /// so it renders tagged/dotted now.
+    /// The old wire carried this payload untagged (`ValueSnapshot`), or `ReteCeiling.
+    /// ceiling`'s own variant tag was already tagged (flat) and only its namespace-
+    /// qualification changed (flat -> dotted); the record declares it, so it renders
+    /// tagged/dotted now.
     Retag,
 }
 
@@ -226,7 +232,6 @@ const G2_EXCEPTIONS: &[(&str, &str, ExceptionClass)] = &[
     ("TypeMismatch", "got", ExceptionClass::Retag),
     ("BadCondition", "got", ExceptionClass::Retag),
     ("NoMatchingClause", "called-args", ExceptionClass::Retag),
-    ("NoMatchingClause", "attempted-clauses", ExceptionClass::Retag),
     ("PostconditionFailed", "returned-value", ExceptionClass::Retag),
     // `ReteCeiling.ceiling` was ALREADY tagged on the old wire (the derive's own
     // `#[to_edn(namespace = RUNTIME)]` on the nested `ReteCeiling` enum) — the
@@ -356,6 +361,89 @@ fn g2_record_agrees_with_wire() {
             let old_v = find_field(&wire_fields, field).unwrap_or_else(|| panic!("{variant}: wire has no field `{field}` to retag"));
             let new_v = find_field(&actual_fields, field).unwrap_or_else(|| panic!("{variant}: to_record() has no field `{field}` to retag"));
             assert_retagged(variant, field, old_v, new_v);
+        }
+    }
+}
+
+// ─── Excursus 003 strike B2, GB2a — ClauseFailureReason is dotted on the WIRE ─────
+//
+// `g2_record_agrees_with_wire` (above) proves `error_edn()` and `to_record()` now
+// agree byte-for-byte on `attempted-clauses` (the stale G2_EXCEPTIONS entry for it is
+// gone). This gate is the independent, direct proof item 5's target asks for: drive
+// `error_edn()` (the WIRE writer, `clause_failure_reason_to_edn`) for each of
+// `ClauseFailureReason`'s three variants, and assert — without reference to
+// `to_record()` at all — that the tag is `#wat.kernel/ClauseFailureReason.<Variant>`
+// and decodes, through the GENERAL tag-driven decoder (`edn_to_value`), typed AS THE
+// ENUM (`Value::Enum` with `type_path == ":wat::kernel::ClauseFailureReason"`), not a
+// generic untyped map.
+//
+// Mutation (strike report): revert `clause_failure_reason_to_edn`'s `ArityMismatch` arm
+// from `edn_tag_dotted("ClauseFailureReason", "ArityMismatch", ...)` back to the old
+// `tagged("ArityMismatch", ...)` (flat) — this gate goes RED for that one variant
+// (`split_variant_tag_name` finds no `.` and `edn_to_value` falls back to a generic
+// untagged-map-shaped decode, so the `Value::Enum` assertion fails), while the other
+// two variants stay green: proof the gate is reading the ACTUAL writer, not a
+// structural accident.
+#[test]
+fn gate_gb2a_clause_failure_reason_wire_is_dotted() {
+    let types = TypeEnv::with_builtins();
+
+    let cases: [(&str, ClauseFailureReason); 3] = [
+        ("ArityMismatch", ClauseFailureReason::ArityMismatch { expected: 2, got: 1 }),
+        (
+            "ArgTypeMismatch",
+            ClauseFailureReason::ArgTypeMismatch {
+                position: 0,
+                expected: "string".into(),
+                got: "i64".into(),
+            },
+        ),
+        ("GuardFalse", ClauseFailureReason::GuardFalse),
+    ];
+
+    for (variant_name, reason) in cases {
+        let err = RuntimeError::new(
+            s(),
+            RuntimeErrorKind::NoMatchingClause {
+                name: ":user::f".into(),
+                called_arity: 1,
+                called_args: vec![snap(Value::i64(1))],
+                attempted_clauses: Box::new(vec![ClauseAttempt {
+                    clause_index: 0,
+                    declared_arity: 1,
+                    declared_arg_types: vec!["i64".into()],
+                    failure_reason: reason,
+                }]),
+            },
+        );
+        let wire = err.error_edn();
+        let (_, wire_fields) = as_tagged_map(&wire);
+        let attempted = find_field(&wire_fields, "attempted-clauses")
+            .unwrap_or_else(|| panic!("{variant_name}: wire has no attempted-clauses"));
+        let OwnedValue::Vector(attempts) = attempted else {
+            panic!("{variant_name}: attempted-clauses must be a vector, got {attempted:?}");
+        };
+        let (_, attempt_fields) = as_tagged_map(&attempts[0]);
+        let reason_v = find_field(&attempt_fields, "failure-reason")
+            .unwrap_or_else(|| panic!("{variant_name}: ClauseAttempt has no failure-reason"));
+
+        let (reason_tag, _) = as_tagged_map(reason_v);
+        assert_eq!(reason_tag.namespace(), "wat.kernel", "{variant_name}: namespace must stay wat.kernel");
+        assert_eq!(
+            reason_tag.name(),
+            format!("ClauseFailureReason.{variant_name}"),
+            "{variant_name}: wire tag must be dotted #wat.kernel/ClauseFailureReason.{variant_name}, \
+             not the flat #wat.kernel/{variant_name}"
+        );
+
+        let decoded = edn_to_value(reason_v, Some(&types), None)
+            .unwrap_or_else(|e| panic!("{variant_name}: dotted wire tag must decode: {e:?}"));
+        match decoded {
+            Value::Enum(ev) => {
+                assert_eq!(ev.type_path, ":wat::kernel::ClauseFailureReason", "{variant_name}: must decode AS THE ENUM");
+                assert_eq!(ev.variant_name, variant_name);
+            }
+            other => panic!("{variant_name}: expected Value::Enum, got {other:?}"),
         }
     }
 }

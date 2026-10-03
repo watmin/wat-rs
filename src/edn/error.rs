@@ -26,6 +26,7 @@
 use std::borrow::Cow;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
+use crate::edn::contract::edn_tag_dotted;
 use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, ValueSnapshot};
 use crate::value::Provenance;
 use crate::span::Span;
@@ -192,27 +193,40 @@ fn clause_attempt_to_edn(attempt: &ClauseAttempt) -> OwnedValue {
 
 /// Stone 237.4 — serialize a [`ClauseFailureReason`] to a tagged EDN value.
 ///
-/// Each variant renders as `#wat.kernel/<VariantName> {<fields>}`:
-/// - `ArityMismatch` → `#wat.kernel/ArityMismatch {:expected N :got N}`
-/// - `ArgTypeMismatch` → `#wat.kernel/ArgTypeMismatch {:position N :expected "..." :got "..."}`
-/// - `GuardFalse` → `#wat.kernel/GuardFalse nil`
+/// Excursus 003 strike B2, item 5: `ClauseFailureReason` is a genuine wat `defenum`
+/// (`:wat::kernel::ClauseFailureReason`, `wat/kernel/diagnostics.wat`), so its variants
+/// carry the DOTTED tag `#wat.kernel/ClauseFailureReason.<Variant>` here too — matching
+/// `RuntimeError::to_record`'s own writer (`clause_failure_reason_value`,
+/// `src/value/runtime_records.rs`), which already rendered dotted via the registered
+/// enum. The two writers used to disagree (this one was flat); both now call the SAME
+/// dot-join (`edn_tag_dotted` → `wat_edn::Tag::enum_variant`, the same helper
+/// `#[to_edn(qualified)]` emits), closing the gap step 3a's comment named:
+/// - `ArityMismatch` → `#wat.kernel/ClauseFailureReason.ArityMismatch {:expected N :got N}`
+/// - `ArgTypeMismatch` → `#wat.kernel/ClauseFailureReason.ArgTypeMismatch {:position N :expected "..." :got "..."}`
+/// - `GuardFalse` → `#wat.kernel/ClauseFailureReason.GuardFalse {}`
 fn clause_failure_reason_to_edn(reason: &ClauseFailureReason) -> OwnedValue {
     match reason {
         ClauseFailureReason::ArityMismatch { expected, got } => {
-            tagged("ArityMismatch", OwnedValue::Map(vec![
+            edn_tag_dotted("ClauseFailureReason", "ArityMismatch", OwnedValue::Map(vec![
                 (kw("expected"), OwnedValue::Integer(*expected as i64)),
                 (kw("got"), OwnedValue::Integer(*got as i64)),
             ]))
         }
         ClauseFailureReason::ArgTypeMismatch { position, expected, got } => {
-            tagged("ArgTypeMismatch", OwnedValue::Map(vec![
+            edn_tag_dotted("ClauseFailureReason", "ArgTypeMismatch", OwnedValue::Map(vec![
                 (kw("position"), OwnedValue::Integer(*position as i64)),
                 (kw("expected"), str_val(expected)),
                 (kw("got"), str_val(got)),
             ]))
         }
         ClauseFailureReason::GuardFalse => {
-            tagged("GuardFalse", OwnedValue::Nil)
+            // A unit variant's body is `{}`, never a bare `nil` (arc 278 A.0 — a
+            // bare-nil tagged body is retired; `coerce_enum_path`'s
+            // `EnumVariant::Unit` arm refuses anything else). The old FLAT
+            // `#wat.kernel/GuardFalse` predates that convention and got away with
+            // `nil` because nothing decoded it typed; the dotted form must match
+            // what `to_record()`'s own Unit-variant render already produces.
+            edn_tag_dotted("ClauseFailureReason", "GuardFalse", OwnedValue::Map(Vec::new()))
         }
     }
 }

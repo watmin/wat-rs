@@ -55,18 +55,22 @@
 ;; Mirror `crate::value::value::ClauseAttempt` / `ClauseFailureReason`
 ;; (`src/value/value.rs:500`/`:513`). Declared HERE, in `:wat::kernel::`, on the
 ;; builder's ruling (2026-09-26): they already ship on the wire as
-;; `#wat.kernel/ClauseAttempt` / `#wat.kernel/<Reason>` (`src/edn/error.rs`'s
-;; hand-written `clause_attempt_to_edn`/`clause_failure_reason_to_edn`), so they
-;; keep that namespace rather than moving to `:wat::runtime::` alongside the
-;; `RuntimeErrorKind` records that reference them (`NoMatchingClause`,
-;; `wat/runtime-errors.wat`). Declaring them here only gains the enum-variant
-;; tags their reason gets a dotted enum name (`#wat.kernel/ClauseFailureReason.
-;; ArityMismatch` instead of the flat `#wat.kernel/ArityMismatch`) when
-;; constructed through THIS declaration (`RuntimeError::to_record`) — the
-;; existing hand-written writer above is untouched and keeps emitting the flat
-;; form; the four `probe_arc237_stone4_*`/`probe_arc298_3_*` goldens that assert
-;; it are unaffected (verified: they read through `clause_attempt_to_edn` and
-;; `wat_edn::parse_owned`, neither of which this declaration touches).
+;; `#wat.kernel/ClauseAttempt` / `#wat.kernel/ClauseFailureReason.<Variant>`
+;; (`src/edn/error.rs`'s hand-written `clause_attempt_to_edn`/
+;; `clause_failure_reason_to_edn`), so they keep that namespace rather than
+;; moving to `:wat::runtime::` alongside the `RuntimeErrorKind` records that
+;; reference them (`NoMatchingClause`, `wat/runtime-errors.wat`).
+;;
+;; ⛔ EXCURSUS 003 STRIKE B2, item 5 — CLOSED. This comment used to note a gap:
+;; `RuntimeError::to_record` rendered `failure-reason` dotted (via this
+;; declaration), while `error_edn()`'s hand-written `clause_failure_reason_to_edn`
+;; kept emitting the flat `#wat.kernel/<Variant>` form — the two writers
+;; disagreed. Both now call the SAME dot-join (`edn_tag_dotted` /
+;; `wat_edn::Tag::enum_variant`, `src/edn/contract.rs` — the helper
+;; `#[to_edn(qualified)]` also emits), so `error_edn()`'s wire and `to_record()`'s
+;; render are byte-identical for this field; `probe_excursus003_step3a_wat_records
+;; .rs`'s G2 gate no longer lists `("NoMatchingClause", "attempted-clauses")` as
+;; an exception (the generic byte-equality check now covers it).
 ;;
 ;; Per-clause failure reason for `defclause` dispatch — WHY a single clause was
 ;; skipped, not just THAT none matched (arc 233 errors-as-teaching-values).

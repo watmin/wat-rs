@@ -13,7 +13,7 @@
       :clause-index 0
       :declared-arity 2
       :declared-arg-types ["i64" "i64"]
-      :failure-reason #wat.kernel/ArityMismatch {
+      :failure-reason #wat.kernel/ClauseFailureReason.ArityMismatch {
         :expected 2
         :got 1
       }
@@ -22,7 +22,7 @@
       :clause-index 1
       :declared-arity 1
       :declared-arg-types ["String"]
-      :failure-reason #wat.kernel/ArgTypeMismatch {
+      :failure-reason #wat.kernel/ClauseFailureReason.ArgTypeMismatch {
         :position 0
         :expected "String"
         :got "i64"

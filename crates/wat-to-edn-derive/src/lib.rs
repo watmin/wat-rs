@@ -213,6 +213,18 @@ fn derive_edn_schema(input: &DeriveInput) -> TokenStream2 {
         Ok(a)  => a,
         Err(e) => return e,
     };
+    if enum_attr.qualified {
+        return syn::Error::new_spanned(
+            &input.ident,
+            "#[to_edn(qualified)] is not supported with #[derive(Edn)]: the round-trip \
+             registration (`EdnSchema`/`reconstruct_record`, `src/edn/render.rs`) only ever \
+             looks up a FLAT tag name; a dotted `Enum.Variant` tag under that path would never \
+             resolve. A `qualified` sum type decodes through its wat `defenum` registration \
+             (`wat_enum_register_from!`/`coerce_enum_path`) instead — use plain \
+             #[derive(ToEdn)] for it, not #[derive(Edn)].",
+        )
+        .to_compile_error();
+    }
     let namespace_tokens: TokenStream2 = match enum_attr.namespace {
         Some(path) => quote! { #path },
         None       => quote! { "wat.kernel" },
@@ -434,6 +446,14 @@ struct EnumAttr {
     /// resolves to the namespace string used for every variant's EDN tag.
     /// Absent → defaults to the back-compat `"wat.kernel"` literal.
     namespace: Option<syn::Path>,
+    /// `qualified` (Strike B2): a sum type's variants carry DOTTED tags —
+    /// `#<ns>/<Enum>.<Variant>` — instead of the legacy flat `#<ns>/<Variant>`.
+    /// Required for any Rust enum a wat `defenum` declares (a `defenum`'s decoder,
+    /// `coerce_enum_path`/`split_variant_tag_name` in `src/edn/render.rs`, only
+    /// ever consults the dotted branch; an undotted tag it emits would never
+    /// resolve). Absent → back-compat flat tags (a plain kind-enum with no wat
+    /// `defenum` counterpart).
+    qualified: bool,
 }
 
 /// Field-level `#[to_edn(...)]` annotations, collected from all `#[to_edn]`
@@ -473,13 +493,76 @@ struct ComputedVia {
 
 // ── Enum attribute parser ─────────────────────────────────────────────────────
 
-/// Parse all `#[to_edn(...)]` attributes on the ENUM itself into an `EnumAttr`.
+/// Discriminated output of one enum-level `#[to_edn(...)]` directive parse.
+enum EnumDirective {
+    Namespace(syn::Path),
+    Qualified,
+}
+
+/// Parse one comma-separated directive inside an enum-level `#[to_edn(...)]`.
 ///
-/// Allowed form:
+/// Allowed forms:
 /// - `namespace = <path>` → the Rust path to the namespace const (e.g. `crate::error_ns::CHECK`).
 ///   Value MUST be a bare path (ident or `a::b::c`); a string literal is rejected.
+/// - `qualified` (bare word, Strike B2) → dotted `#<ns>/<Enum>.<Variant>` tags.
+fn parse_enum_directive(stream: syn::parse::ParseStream) -> syn::Result<EnumDirective> {
+    let ident: syn::Ident = stream.parse().map_err(|e| {
+        syn::Error::new(
+            e.span(),
+            "#[to_edn(...)] on an enum: expected a directive name; \
+             allowed enum-level directives: namespace, qualified",
+        )
+    })?;
+
+    if ident == "qualified" {
+        if !stream.is_empty() && !stream.peek(syn::Token![,]) {
+            return Err(syn::Error::new(
+                stream.span(),
+                "#[to_edn(qualified)] takes no value; write it bare (e.g. #[to_edn(qualified)])",
+            ));
+        }
+        return Ok(EnumDirective::Qualified);
+    }
+
+    if ident != "namespace" {
+        return Err(syn::Error::new(
+            ident.span(),
+            format!(
+                "unknown #[to_edn(...)] directive `{}` on enum; \
+                 allowed enum-level directives: namespace, qualified",
+                ident
+            ),
+        ));
+    }
+    stream.parse::<syn::Token![=]>()?;
+    // Value MUST be a bare path — reject string literal explicitly.
+    if stream.peek(syn::LitStr) {
+        let lit: syn::LitStr = stream.parse().unwrap();
+        return Err(syn::Error::new_spanned(
+            lit,
+            "#[to_edn(namespace = ...)] value must be a bare path \
+             (e.g. crate::error_ns::CHECK), not a string literal; \
+             inline string literals are forbidden to close the smuggle hole",
+        ));
+    }
+    let path: syn::Path = stream.parse().map_err(|e| {
+        syn::Error::new(
+            e.span(),
+            "#[to_edn(namespace = ...)] value must be a bare path \
+             (e.g. crate::error_ns::CHECK)",
+        )
+    })?;
+    Ok(EnumDirective::Namespace(path))
+}
+
+/// Parse all `#[to_edn(...)]` attributes on the ENUM itself into an `EnumAttr`.
+///
+/// Each attribute instance may carry one or more comma-separated directives
+/// (e.g. `#[to_edn(namespace = crate::error_ns::CHECK, qualified)]`), mirroring
+/// the field/variant parsers below.
 fn parse_enum_attrs(input: &DeriveInput) -> Result<EnumAttr, TokenStream2> {
     let mut namespace: Option<syn::Path> = None;
+    let mut qualified = false;
 
     for attr in &input.attrs {
         // rune:lint(one-variant-separator, not-a-name) — `attr` is `syn::Attribute`; `.path()`
@@ -488,70 +571,52 @@ fn parse_enum_attrs(input: &DeriveInput) -> Result<EnumAttr, TokenStream2> {
         if !attr.path().is_ident("to_edn") {
             continue;
         }
-        // parse_args_with parses the tokens inside `#[to_edn(...)]`.
-        struct NamespaceParse(syn::Path);
-        impl syn::parse::Parse for NamespaceParse {
-            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-                let ident: syn::Ident = input.parse().map_err(|e| {
-                    syn::Error::new(
-                        e.span(),
-                        "#[to_edn(...)] on an enum: expected a directive name; \
-                         allowed enum-level directive: namespace",
-                    )
-                })?;
-                if ident != "namespace" {
-                    return Err(syn::Error::new(
-                        ident.span(),
-                        format!(
-                            "unknown #[to_edn(...)] directive `{}` on enum; \
-                             allowed enum-level directive: namespace",
-                            ident
-                        ),
-                    ));
+
+        let directives = attr
+            .parse_args_with(|stream: syn::parse::ParseStream| {
+                let mut out = Vec::new();
+                loop {
+                    out.push(parse_enum_directive(stream)?);
+                    if stream.peek(syn::Token![,]) {
+                        stream.parse::<syn::Token![,]>()?;
+                        if stream.is_empty() {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
                 }
-                input.parse::<syn::Token![=]>()?;
-                // Value MUST be a bare path — reject string literal explicitly.
-                if input.peek(syn::LitStr) {
-                    let lit: syn::LitStr = input.parse().unwrap();
-                    return Err(syn::Error::new_spanned(
-                        lit,
-                        "#[to_edn(namespace = ...)] value must be a bare path \
-                         (e.g. crate::error_ns::CHECK), not a string literal; \
-                         inline string literals are forbidden to close the smuggle hole",
-                    ));
+                Ok(out)
+            })
+            .map_err(|e| e.to_compile_error())?;
+
+        for directive in directives {
+            match directive {
+                EnumDirective::Namespace(path) => {
+                    if namespace.is_some() {
+                        return Err(syn::Error::new_spanned(
+                            attr,
+                            "duplicate `namespace` in #[to_edn(...)] on enum",
+                        )
+                        .to_compile_error());
+                    }
+                    namespace = Some(path);
                 }
-                let path: syn::Path = input.parse().map_err(|e| {
-                    syn::Error::new(
-                        e.span(),
-                        "#[to_edn(namespace = ...)] value must be a bare path \
-                         (e.g. crate::error_ns::CHECK)",
-                    )
-                })?;
-                if !input.is_empty() {
-                    return Err(syn::Error::new(
-                        input.span(),
-                        "#[to_edn(namespace = ...)] expects a bare path only; \
-                         trailing tokens are forbidden",
-                    ));
+                EnumDirective::Qualified => {
+                    if qualified {
+                        return Err(syn::Error::new_spanned(
+                            attr,
+                            "duplicate `qualified` in #[to_edn(...)] on enum",
+                        )
+                        .to_compile_error());
+                    }
+                    qualified = true;
                 }
-                Ok(NamespaceParse(path))
             }
         }
-
-        let parsed = attr
-            .parse_args::<NamespaceParse>()
-            .map_err(|e| e.to_compile_error())?;
-        if namespace.is_some() {
-            return Err(syn::Error::new_spanned(
-                attr,
-                "duplicate `namespace` in #[to_edn(...)] on enum",
-            )
-            .to_compile_error());
-        }
-        namespace = Some(parsed.0);
     }
 
-    Ok(EnumAttr { namespace })
+    Ok(EnumAttr { namespace, qualified })
 }
 
 // ── Field attribute parser ────────────────────────────────────────────────────
@@ -1051,6 +1116,15 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
         Data::Enum(e) => e,
         // ── STRUCT: a struct → ONE tagged record #<ns>/<Name> {fields}. ──
         Data::Struct(data_struct) => {
+            if enum_attr.qualified {
+                return syn::Error::new_spanned(
+                    name,
+                    "#[to_edn(qualified)] is a sum-type (enum) directive — it dot-joins a \
+                     variant onto its enum's own name, and a struct has no variants; drop \
+                     `qualified` on a struct derive",
+                )
+                .to_compile_error();
+            }
             let named = match &data_struct.fields {
                 Fields::Named(f) => &f.named,
                 _ => {
@@ -1100,6 +1174,20 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
 
     // ── Build one match arm per variant ─────────────────────────────────────
     let mut arms: Vec<TokenStream2> = Vec::new();
+
+    // Strike B2 `qualified`: every variant's tag is either the legacy flat
+    // `::wat_edn::Tag::ns(ns, "Variant")` or the dotted sum-type form
+    // `::wat_edn::Tag::enum_variant(ns, "Enum", "Variant")` — ONE decision, made
+    // once here, not re-derived at each of the four variant-shape call sites below.
+    let enum_name_str = name.to_string();
+    let qualified = enum_attr.qualified;
+    let tag_expr_for = |variant_name_str: &str| -> TokenStream2 {
+        if qualified {
+            quote! { ::wat_edn::Tag::enum_variant(#namespace_tokens, #enum_name_str, #variant_name_str) }
+        } else {
+            quote! { ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str) }
+        }
+    };
 
     for variant in &data_enum.variants {
         let variant_ident = &variant.ident;
@@ -1228,6 +1316,7 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                         }
                     });
 
+                let tag_expr = tag_expr_for(&variant_name_str);
                 arms.push(quote! {
                     Self::#variant_ident { #(#field_idents,)* } => {
                         #[allow(unused_imports)]
@@ -1243,7 +1332,7 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                         // 3. Append computed via field (elide on None).
                         #computed_via_push
                         ::wat_edn::OwnedValue::Tagged(
-                            ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
+                            #tag_expr,
                             ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(__fields))
                         )
                     }
@@ -1305,12 +1394,13 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                         }
                     });
 
+                let tag_expr = tag_expr_for(&variant_name_str);
                 if literal_pushes.is_empty() && computed_via_push.is_none() {
                     // Fast path: no attrs, no mutable Vec needed.
                     arms.push(quote! {
                         Self::#variant_ident => {
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
+                                #tag_expr,
                                 ::std::boxed::Box::new(
                                     ::wat_edn::OwnedValue::Map(::std::vec::Vec::new())
                                 )
@@ -1327,7 +1417,7 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                             #(#literal_pushes)*
                             #computed_via_push
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
+                                #tag_expr,
                                 ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(__fields))
                             )
                         }
@@ -1387,13 +1477,14 @@ fn derive_to_edn_inner(input: DeriveInput) -> TokenStream2 {
                     } else {
                         quote! { __0.to_edn() }
                     };
+                    let tag_expr = tag_expr_for(&variant_name_str);
 
                     arms.push(quote! {
                         Self::#variant_ident(__0) => {
                             #[allow(unused_imports)]
                             use ::wat_edn::ToEdn as _ToEdnTrait;
                             ::wat_edn::OwnedValue::Tagged(
-                                ::wat_edn::Tag::ns(#namespace_tokens, #variant_name_str),
+                                #tag_expr,
                                 ::std::boxed::Box::new(::wat_edn::OwnedValue::Map(
                                     ::std::vec![
                                         (

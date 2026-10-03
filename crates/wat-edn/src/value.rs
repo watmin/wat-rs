@@ -449,6 +449,30 @@ impl Tag {
     pub fn name(&self) -> &str {
         &self.name
     }
+
+    /// Build a sum-type variant tag: `#<namespace>/<enum_name>.<variant_name>`.
+    ///
+    /// Excursus 003 strike B2 — THE canonical dot-join for a sum type's wire tag.
+    /// `#[derive(ToEdn)]`'s `qualified` directive (`wat-to-edn-derive`) emits a call
+    /// to this exact function; a hand-written `ToEdn` impl that cannot use the derive
+    /// (a type with casts/custom field handling the derive does not support) calls it
+    /// too, so there is exactly ONE place the `Enum.Variant` dot-join shape lives on
+    /// the write side. Panics on an invalid namespace/name (same contract as
+    /// [`Tag::ns`]); `enum_name`/`variant_name` are always Rust identifiers at the
+    /// call site, never user input.
+    ///
+    /// Mirrors (same wire FORMAT, independent implementation — `wat_edn` does not
+    /// depend on `wat_reader`) `wat_reader::identifier::compose_variant_render`, the
+    /// decode-side/registered-type helper `src/edn/render.rs`'s `variant_tag` uses to
+    /// build the identical tag from a wat `TypeEnv` type path at runtime.
+    #[track_caller]
+    pub fn enum_variant(
+        namespace: impl AsRef<str>,
+        enum_name: impl AsRef<str>,
+        variant_name: impl AsRef<str>,
+    ) -> Self {
+        Self::ns(namespace, format!("{}.{}", enum_name.as_ref(), variant_name.as_ref()))
+    }
 }
 
 // ─── Display ────────────────────────────────────────────────────

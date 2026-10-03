@@ -179,6 +179,22 @@ pub(crate) fn edn_tag(variant: &str, body: OwnedValue) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns(crate::error_ns::KERNEL, variant), Box::new(body))
 }
 
+/// `#wat.kernel/<enum>.<variant> <body>` — the kernel-namespaced DOTTED sum-type tag
+/// (excursus 003 strike B2). For a hand-written `ToEdn`-style writer serializing a sum
+/// type that already has a wat `defenum` counterpart (so its variants must carry a
+/// dotted tag to resolve through `coerce_enum_path`/`split_variant_tag_name`,
+/// `src/edn/render.rs`) but cannot use `#[derive(ToEdn)]`'s `qualified` directive
+/// (the writer predates it, or needs custom per-field handling the derive does not
+/// support). Calls the SAME dot-join `#[to_edn(qualified)]` emits
+/// (`wat_edn::Tag::enum_variant`) — one place the `Enum.Variant` shape lives on the
+/// write side, not a hand-rolled `format!` copy.
+pub(crate) fn edn_tag_dotted(enum_name: &str, variant: &str, body: OwnedValue) -> OwnedValue {
+    OwnedValue::Tagged(
+        Tag::enum_variant(crate::error_ns::KERNEL, enum_name, variant),
+        Box::new(body),
+    )
+}
+
 /// A keyword EDN value (`:name`). Accepts a dynamic string.
 pub(crate) fn edn_kw(name: &str) -> OwnedValue {
     OwnedValue::Keyword(Keyword::new(name))

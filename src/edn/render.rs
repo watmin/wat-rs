@@ -6614,6 +6614,71 @@ mod tests {
         );
     }
 
+    // ─── Excursus 003 strike B2 — `#[to_edn(qualified)]` dot-joins, and decodes ──────
+    //
+    // `qualified` is new with this strike (`crates/wat-to-edn-derive/src/lib.rs`); no
+    // production sum type has adopted it yet (see the strike report — EnsureFnInvalidReason
+    // / LoadFetchError / HashError stay flat this strike), so this throwaway, test-only
+    // enum is its ONE exercising proof: the derive WRITES `#<ns>/<Enum>.<Variant>` (never
+    // hand-rolled here — `B2QualifiedProbe::to_edn()` is 100% derive-generated), and the
+    // EXISTING `defenum` decoder (`coerce_enum_path`, registered via a plain `EnumDef` —
+    // the same shape `wat_enum_register_from!` builds from a wat `defenum`) reads the
+    // dotted tag back typed AS THE ENUM, not as a generic map.
+    const B2_TEST_NS: &str = "test.b2";
+
+    #[derive(Debug, wat_edn::ToEdn)]
+    #[to_edn(namespace = B2_TEST_NS, qualified)]
+    enum B2QualifiedProbe {
+        Unit,
+        Fields { x: i64, y: String },
+    }
+
+    #[test]
+    fn b2_qualified_directive_writes_dotted_and_decodes_as_the_enum() {
+        use crate::types::{EnumDef, EnumVariant, Purity, TypeDef, TypeEnv};
+        use wat_edn::ToEdn;
+
+        let mut types = TypeEnv::new();
+        types
+            .register(TypeDef::Enum(EnumDef {
+                name: ":test::b2::B2QualifiedProbe".to_string(),
+                type_params: vec![],
+                purity: Purity::Pure,
+                variants: vec![
+                    EnumVariant::Unit("Unit".to_string()),
+                    EnumVariant::Tagged {
+                        name: "Fields".to_string(),
+                        fields: vec![
+                            ("x".into(), TypeExpr::Path(":wat::core::i64".into())),
+                            ("y".into(), TypeExpr::Path(":wat::core::String".into())),
+                        ],
+                    },
+                ],
+            }))
+            .expect("register :test::b2::B2QualifiedProbe");
+
+        let cases: [(B2QualifiedProbe, &str); 2] = [
+            (B2QualifiedProbe::Unit, "B2QualifiedProbe.Unit"),
+            (B2QualifiedProbe::Fields { x: 7, y: "hi".to_string() }, "B2QualifiedProbe.Fields"),
+        ];
+        for (value, expected_name) in cases {
+            let edn = value.to_edn();
+            let tag = match &edn {
+                OwnedValue::Tagged(tag, _) => tag,
+                other => panic!("expected a Tagged value, got {other:?}"),
+            };
+            assert_eq!(tag.namespace(), "test.b2", "namespace is the derive's own, unchanged by `qualified`");
+            assert_eq!(tag.name(), expected_name, "`qualified` must dot-join Enum.Variant, not emit the flat Variant");
+
+            let target = TypeExpr::Path(":test::b2::B2QualifiedProbe".to_string());
+            let decoded = edn_to_typed_value_inner(&target, &edn, Some(&types), None)
+                .unwrap_or_else(|e| panic!("a dotted `qualified` tag must decode AS THE ENUM: {e:?}"));
+            assert!(matches!(decoded, Value::Enum(_)), "decode must produce Value::Enum, got {decoded:?}");
+            let reencoded = value_to_edn_with(&decoded, Some(&types)).expect("decoded value must re-encode");
+            assert_eq!(reencoded, edn, "decoded value must re-encode byte-identical to what the derive wrote");
+        }
+    }
+
     // ─── Arc 294.k — tag_from_type_path / struct_tag_for: raise, don't fabricate ───
     //
     // Both functions used to fabricate a placeholder "no-home" namespace for a type
