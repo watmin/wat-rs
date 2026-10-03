@@ -285,3 +285,101 @@ Pre-delta on the unconverted tree, binary `/tmp/wat-pristine-25587`, list sha `d
 ## STOP
 
 STOP-3. Fifteen mechanisms, the table above, no cure. The floor log is `.floor/2026-10-03T06-32-08Z/`.
+
+## Amend — group A, and the cost
+
+The amend is `d66138c46`. Group A is cured, each mechanism in its own commit, probe in that commit. Group B was left standing. 5c-iii, 5c-iv, and 5d are unstarted. No timeout was raised. The temporary phase timers used for the profile were removed before the floor; they are not in the tree.
+
+### What each cure changed
+
+- **#1** `977efcbfd`. A symbol declaration name registers as its canonical identity, for every declaration form the door covers.
+- **#2** `1600e83b6`. `wat.core/def` in expression position takes the same freeze/eval skip as `:wat::core::def`. The heresy ledger missed the old keyword compares: `matches!` is not a recorded compare, both floor sites sit in `mod tests`, and `head_of` had no `:wat::` literal.
+- **#3** `bad14adb4`. `cond-is-fact-bind` now recognizes a symbol type by canonical identity, so the accumulate branch at `wat/rete/compile.wat:576` no longer takes `first` of the atom. On this floor `wat_grep::g3_malformed_file_is_loud_and_nonzero` passes. On `.floor/2026-10-03T06-32-08Z` that test died at `tests/cli/wat_grep.rs:105` with `malformed :wat::core::first form` at `wat/rete/compile.wat:576`.
+- **#6** `731e24740`. The service died before the client ever asserted. The death, from the pre-cure eprintln that was reverted before the commit (`/tmp/g1-a6.log`):
+
+```
+A6-CRASH runtime [#wat.kernel/LociDiedError.RuntimeError {:message "#wat.runtime/UnknownFunction {:message \"unknown function: :rust::sqlite::Connection::select is not registered in the rust-deps registry\" :location #wat.core/Span {:file \"wat/sqlite.wat\" :line 158 :col 21 ...
+```
+
+`reconstruct_call_path` wrote `:rust::sqlite::Connection::select` because `Connection` is not a `TypeEnv` type. The registry key is `:rust::sqlite::Connection/select`. The client panic stayed `"disconnected"` at `tests/rete/probe_arc278_sqlite_store_differential.wat:58` (`:probe::expect-scan`). Journal thread and process failed the same death and pass after the same helper. The client view stays scrubbed.
+
+- **#8** `6cb520c3e`. The closure-extraction collector keeps a symbol `wat.core/structtype` under the canonical type name. t3 Point, t5 Config, and t11 Tree pass.
+- **#11** `a4e155089`. `expand_once` expands a symbol `wat.core/defstruct` the way it already expanded the keyword. The kwargs record name was already `:t::work::Kwargs`; the one-step walk had been dropping the unexpanded symbol.
+- **#9** has no cure commit. After #1, the negative-probe module passed. On this floor the module is PASS, including `cap2_peer_pid_on_unified_peer_is_an_honest_error` and `m1_addr_roundtrip_is_refused_by_the_capability_wall`.
+
+### The cost
+
+The pre-cure converted test binary (23550584 bytes, Oct 2 23:32, matching `50f4c0a52`) was overwritten. There is no preserved copy, so this table has no pre-cure converted column. `/tmp/wat-pristine-25587` (23635912 bytes, Oct 2 22:15) is an ELF CLI from before the draw and cannot run these lib tests. The unconverted column is the rust at `731e24740` with `wat/` from the draw `e08fe7349`, in the worktree `/tmp/wat-cost-unconv`. Both columns use that same rust. The clock is nextest's own `Summary` line (one test, 6426 skipped). All 24 runs returned RC=0. None was killed.
+
+Shard 2 was the reachability workload because on `.floor/2026-10-03T06-32-08Z` it completed (`PASS [  28.650s]`) while shard 0 timed out at 30.015s and shard 1 at 30.033s. Shards 3, 4, and 5 also completed on that floor (28.978s, 29.275s, 29.255s). The other heavy test is `rete::kernel::tests::rank_and_instrument::keyed_gather_visits_match_the_keyed_prediction`, which the green floor `.floor/2026-10-03T05-24-19Z` marked SLOW and passed in 16.074s.
+
+| run | shard 2 unconverted | shard 2 converted | keyed unconverted | keyed converted |
+|---:|---:|---:|---:|---:|
+| 1 | 9.772 | 14.499 | 7.738 | 11.419 |
+| 2 | 9.791 | 14.492 | 7.679 | 11.220 |
+| 3 | 9.699 | 14.406 | 7.651 | 11.371 |
+| 4 | 9.664 | 14.552 | 7.606 | 11.272 |
+| 5 | 9.695 | 14.462 | 7.610 | 11.298 |
+| 6 | 9.620 | 14.461 | 7.596 | 11.402 |
+| sum | 58.241 | 85.872 | 45.880 | 67.982 |
+| mean | 9.707 | 14.312 | 7.647 | 11.330 |
+
+Ratios of the sums: shard 2 is 85.872/58.241 = 1.474. keyed_gather is 67.982/45.880 = 1.482. The slowdown is still there after group A. It gets its own stone. This amend does not cure it.
+
+`perf` is not installed (`command -v perf` empty; no `/usr/bin/perf`). The profile is one extra converted shard-2 run with the existing pass-order names plus temporary durations. `Summary [  14.404s]`, RC=0. Printed totals: `startup_ns=13857220245`, `apply_ns=39281472`. Phase nanoseconds, longest first:
+
+| phase | ns |
+|---|---:|
+| 4-register-defmacros | 6927731123 |
+| 8-check-program | 3362114410 |
+| 7-normalize-stored-function-bodies | 1292046863 |
+| 7.7-normalize-stored-function-bodies | 556239200 |
+| 3-resolve-loads | 481242103 |
+| 7-resolve-references | 350162499 |
+| 6-register-stdlib-defines | 268647951 |
+| 6-register-defines | 200267055 |
+| 9-freeze | 148426742 |
+| 5-register-stdlib-types | 107638063 |
+| 4-register-stdlib-defmacros | 104778237 |
+| 4-expand-all | 39060527 |
+| 5-register-types | 13173494 |
+| 7-normalize-symbol-refs | 3487355 |
+| 1-parse | 1780814 |
+| 3b-extract-rete-defn-names | 85308 |
+| 2-collect-entry-file | 55272 |
+
+The phase sum is 13856937016 ns. Startup minus that sum is 283229 ns. The hot region is the span opened by `record("4-register-defmacros")` at `src/freeze/env.rs:423` and closed by `record("4-expand-all")` at line 476: 6.928 s of 13.857 s of startup. The calls inside that span, in order, are `register_defmacros`, `register_aggregate_kwargs_companions`, `seed_declared_type_names` twice, `preregister_acronyms`, and `expand_all_with` of the stdlib. The timer does not split them. `4-expand-all` itself, the user `expand_all`, is 0.039 s. `8-check-program` is the next region, 3.362 s; on this run a temporary `9-freeze` record sat immediately before `FrozenWorld::freeze`, so that bucket is `check_program`. `apply_function` is 0.039 s.
+
+### Floor after group A
+
+```
+Summary [ 582.441s] 6403 tests run: 6373 passed (30 slow), 26 failed, 4 timed out, 24 skipped
+```
+
+Exit 100. Log: `.floor/2026-10-03T08-02-27Z/`. Do not re-run it. Do not re-run `.floor/2026-10-03T06-32-08Z`. Doctests exited 0. The post-cure floor clock is 582.441 s. The pre-cure converted floor was 546.885 s. The last green floor before the conversion, `.floor/2026-10-03T05-24-19Z`, was 394.450 s.
+
+`cargo clippy --release --all-targets -- -D warnings` returned RC=0. The tree was clean before this floor and before this commit. This amend's Then list does not include census or delta; neither ran.
+
+### Remaining reds
+
+26 failures and 4 timeouts. The group A arms are absent: no `freeze.rs:1176` capability panic, no `DeclarationInExpressionPosition`, no `first` of empty at `wat/rete/compile.wat:576`, no journal or sqlite `disconnected`, no missing Point/Config/Tree, no unregistered `:t::work::Kwargs`.
+
+| remaining | n | arm on this floor |
+|---|---:|---|
+| #4 diagnostic goldens. The reason text is the old reason. The EDN golden differs, and the span sits in the converted stdlib. | 7 | `cond_refuses_missing_else` and `contract_02_non_exhaustive_cond_names_else`: reason `cond: non-exhaustive — needs a terminal :else arm`, span `wat/core.wat:1512`. `format_strict_unused_kwarg_is_macro_error`: reason `format: kwarg :y is unused`, span `wat/core.wat:2037`. `witness_thread_first_empty_step_panics_at_expansion`: reason `:wat::core::first: WatAST List has 0 child(ren)`, span `wat/core.wat:1460`. `probe_two_arg_form_only_one_arg_errors`: reason `cannot take rest of empty Vec`, span `wat/Record.wat:145`. Both `peers_bijection_*_undeclared_peer_*`: reason `surface :probe::Echo is not declared in :peers`, span `wat/service.wat:927`. |
+| #5 nested-program census | 3 | `nested_program_literals_start_on_the_child_path` at `tests/lint/nested_program_starts.rs:574`: `census was 141 literals; got checked=0 assembled=0 templates=0 data=139 total=139`. The other two fail `should have a checked child` (`:647`, `:706`). |
+| grep matches nothing | 7 | These died inside #3's `first`-of-empty on the pre-cure floor, except `g3`, which now passes. `g1` at `wat_grep.rs:73`: `sample fixture must have at least one node; got 0`. `g4` at `:126`: `balanced input has symbols; the rule should fire`. `g5` `:140`, `g6` `:157`, `written_refuses_a_string_literal` `:189`: `fixture must have named nodes`. `g7` `:209`: `left: 0` `right: 1` Match lines. `every_wat_scripts_grep_program_matches_a_known_target` at `grep_programs_still_match.rs:74`: `matches=0` on the smoke programs, exit status 0. |
+| metadata width | 1 | `example_from_the_lookup_formats_widest_le_120` at `metadata_of_example_formats.rs:48`: `got 1154`. |
+| #10 stdio gate | 2 | `probe_1` `:105` and `probe_2` `:142`: `left: []` `right: [":wat::kernel::stdout-svc", ":wat::kernel::stderr-svc", ":wat::kernel::stdin-svc"]`. |
+| #12 faithful-surface non-vacuity | 1 | `every_stdlib_declaration_name_survives_the_faithful_surface` at `src/freeze/env.rs:1166`: `only 1 stdlib declaration names carry a / member join`. |
+| #13 doc-row bytes | 1 | `doc_row_pprintln_matches_byte_golden` at `pprintln_doc_row.rs:32`: `assertion left == right` failed, `byte golden: #wat.doc/Row from a record value`. |
+| #14 lost-arm spelling | 1 | `the_emitted_lost_arm_reaps_and_does_not_raise` at `probe_arc255_32_lost_arm_expansion.rs:30`. Left contains `(wat.seq/remove-at` and `[wat.spawn/`. Right contains `(:wat.seq/remove-at` and `[:wat.spawn/`. |
+| #15 structtype text | 1 | `lookup_form_struct_returns_special_form` at `wat_arc144_special_forms.rs:189`: `defstruct's macro body must expand through to :wat::core::structtype`. |
+| emitted defn binders empty | 1 | `arc255_24_every_emitted_defn_declares_its_letters` at `probe_arc255_24_defservice_declares_what_it_emits.rs:87`: `left: []` against the eighteen expected binders. On `.floor/2026-10-03T06-32-08Z` this test died at `src/freeze.rs:1176` inside #1, so the binder assert never ran. |
+| time limit, no assertion raised | 4 timeouts + the fuzz failure | `reachability_shard_0_of_6` TIMEOUT 30.023s, shard 1 TIMEOUT 30.012s, shard 4 TIMEOUT 30.016s. Shard 2 PASS 29.754s, shard 3 PASS 29.592s, shard 5 PASS 29.131s. `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` FAIL 90.022s: `exceeded time-limit of 90000ms` at `tests/kernel/test.rs:17`. `retirement_table_is_fully_reachable` TIMEOUT 240.004s. On `.floor/2026-10-03T06-32-08Z` that retirement test passed in 231.462s. |
+
+26 + 4 = 30. The seven diagnostic goldens, the three nested-program failures, the two stdio failures, and mechanisms 12, 13, 14, and 15 are group B. The grep-zero, metadata-width, and empty-binder failures are arms the pre-cure floor never reached, because those tests died inside #1 or #3. The time-limit rows are the cost, measured above, and they stay on the default kill.
+
+## STOP (amend)
+
+Group A is cured. Group B and the three unmasked arms remain. The converted stdlib is slower on the two isolated workloads, and the floor after the cures is 582.441 s. That slowdown is its own stone. No performance cure, no timeout change. The floor log is `.floor/2026-10-03T08-02-27Z/`.
