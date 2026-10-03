@@ -25,10 +25,59 @@ use crate::span::Span;
 pub(crate) const ANON_FN_SYMBOL: &str = ":wat::core::Fn";
 
 /// One entry on the wat call stack.
+///
+/// Excursus 003 strike D ("a frame is where a function is") — a tail call
+/// doesn't push; it SUBSTITUTES the top slot's contents (`replace_top_frame`
+/// below). Read naively, each substitution throws away the identity of
+/// whoever occupied the slot before it — `grow` vanishes the moment it tail-
+/// calls `+`. The ruling (`AUDIT-the-shape-of-an-error.md` § RULING
+/// 2026-10-03 item 1): keep the lost identity and a count, at O(1) cost,
+/// rather than paying for a ring buffer or silently losing the name.
+///
+/// Three fields beyond `callee_path`/`call_span` carry that history:
+/// - `entry_call_site`: the span this slot was PUSHED with — the real
+///   (non-tail) caller's own call site. Never touched by a later tail
+///   replace; a frame ONE level further out reads `at` from here (the
+///   edge it made into this slot), never from this slot's own (possibly
+///   stale) `call_span`.
+/// - `last_tail_caller`: whoever occupied `callee_path` immediately before
+///   the MOST RECENT `replace_top_frame` call — the true owner of the
+///   surviving `call_span` (the location the replace's span was captured
+///   AT is inside the PREVIOUS occupant's body, not the new one's).
+///   Meaningless (never read) while `tail_hops == 0`.
+/// - `tail_hops`: how many `replace_top_frame` calls this slot has
+///   absorbed. `0` means this slot was never tail-replaced — a plain,
+///   non-tail frame, GD3.
 #[derive(Debug, Clone)]
 pub struct FrameInfo {
     pub callee_path: String,
     pub call_span: Span,
+    /// The span this slot was PUSHED with (the real caller's own call
+    /// site) — preserved across every later tail replace. See the struct
+    /// doc.
+    pub(crate) entry_call_site: Span,
+    /// The name that occupied this slot immediately before its last tail
+    /// replace. Equal to `callee_path` (harmlessly) while `tail_hops == 0`.
+    pub(crate) last_tail_caller: String,
+    /// Count of `replace_top_frame` calls this slot has absorbed. `0` =
+    /// never tail-replaced.
+    pub(crate) tail_hops: usize,
+}
+
+impl FrameInfo {
+    /// Build a freshly-pushed (never tail-replaced) `FrameInfo` — the same
+    /// initialization `FrameGuard::push` does, exposed for the handful of
+    /// sites (test fixtures, the cap-measurement benchmark) that construct
+    /// one directly rather than going through the real push path.
+    pub(crate) fn pristine(callee_path: String, call_span: Span) -> Self {
+        FrameInfo {
+            callee_path: callee_path.clone(),
+            call_span: call_span.clone(),
+            entry_call_site: call_span,
+            last_tail_caller: callee_path,
+            tail_hops: 0,
+        }
+    }
 }
 
 thread_local! {
@@ -44,7 +93,7 @@ pub(crate) struct FrameGuard;
 impl FrameGuard {
     pub(crate) fn push(callee_path: String, call_span: Span) -> Self {
         CALL_STACK.with(|s| {
-            s.borrow_mut().push(FrameInfo { callee_path, call_span });
+            s.borrow_mut().push(FrameInfo::pristine(callee_path, call_span));
         });
         FrameGuard
     }
@@ -61,10 +110,22 @@ impl Drop for FrameGuard {
 /// Replace the top frame's contents in place — called on tail-call
 /// iteration inside apply_function's trampoline. The stack depth
 /// stays the same; the content substitutes.
+///
+/// Excursus 003 strike D: the occupant being overwritten (`top.callee_path`,
+/// BEFORE this call) is who `call_span` is ABOUT TO become true of — that
+/// surviving span sits inside THAT occupant's body (it's the span of the
+/// tail call that occupant made). So the outgoing name becomes
+/// `last_tail_caller`, paired with the incoming `call_span`, and
+/// `tail_hops` counts one more substitution. `entry_call_site` is untouched
+/// — it was fixed at push and names the real (non-tail) caller, for a frame
+/// one level further out to read.
 pub(crate) fn replace_top_frame(callee_path: String, call_span: Span) {
     CALL_STACK.with(|s| {
         if let Some(top) = s.borrow_mut().last_mut() {
-            *top = FrameInfo { callee_path, call_span };
+            let outgoing_name = std::mem::replace(&mut top.callee_path, callee_path);
+            top.last_tail_caller = outgoing_name;
+            top.call_span = call_span;
+            top.tail_hops += 1;
         }
     });
 }
@@ -77,6 +138,344 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
         let stack = s.borrow();
         stack.iter().rev().cloned().collect()
     })
+}
+
+// ─── Excursus 003 strike D — "a frame is where a function is" ────────────────
+//
+// `AUDIT-the-shape-of-an-error.md` F6 + its § RULING 2026-09-27 item 2 + §
+// RULING 2026-10-03 item 1. `Frame` (today `{symbol span kind}`, pairing
+// (*callee*, *where it was called from*)) is being reshaped to `{fn at}`,
+// pairing (*function*, *where inside it execution is*) — the Clojure/Java
+// convention. That reshape also needs the innermost Rust activation to carry
+// an honest `fn` name (never the `<rust>` placeholder), which — per the
+// builder's "no placeholder" ruling — this strike found it could not supply
+// for every `RuntimeErrorKind` variant from data the kind already carries
+// (`DivisionByZero`, `NotCallable`, `BadCondition`, `UserMainMissing`,
+// `EvalVerificationFailed`, `WriteStopped`, `PatternMatchFailed`,
+// `AssertionFailed`, `MacroAbort`, and three of `ReteCeiling`'s four inner
+// variants carry no name-bearing field at all — see the strike's report for
+// the full census). That is a STOP: completing the wire reshape (the `Frame`
+// type itself, `RuntimeError`'s EDN, every consumer, every golden) is OUT
+// until the builder rules on it.
+//
+// What is NOT blocked by that gap: the tail-collapse bookkeeping itself
+// (`FrameInfo`'s three new fields above, `replace_top_frame`'s O(1) update)
+// and the pure reconstruction algorithm below, which the eventual wire
+// reshape will call once item 4 is resolved. Proven here at the Rust level
+// (GD1–GD4, `mod strike_d_tests` below) against a throwaway `DisplayFrame`
+// shape — not yet `crate::value::frame::Frame`, not yet wired into
+// `RuntimeError`/EDN/goldens (that's GD5 and the wire work, still blocked).
+
+/// A reconstructed, correctly-paired display frame — `{fn at}` plus the
+/// tail-collapse count. The eventual `Frame` (once item 4 unblocks the wire
+/// reshape) carries exactly this shape; kept separate for now so this
+/// strike's proven half doesn't masquerade as the (still-blocked) whole.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DisplayFrame {
+    /// The function this frame is about. Mandatory — no placeholder.
+    pub(crate) fn_name: String,
+    /// Where, INSIDE `fn_name`, execution is (or where it made its next
+    /// call, or — for the innermost frame when a raise span is supplied —
+    /// where it raised).
+    pub(crate) at: Span,
+    /// How many tail-collapsed activations are missing BEYOND the one named
+    /// here. `0` for an ordinary (never tail-replaced) frame, and ALSO for a
+    /// tail-collapsed frame whose own single substitution lost nothing
+    /// further (GD1's `grow` frame: one hop, nothing beyond it is missing).
+    /// The value is honest either way — it states exactly how many named
+    /// activations are absent at this position, and 0 is the true answer in
+    /// both cases.
+    pub(crate) tail_elided: usize,
+}
+
+/// Reconstruct display frames from a tail-aware call-stack slice, innermost
+/// first. `stack` must be in storage order (outermost first, innermost /
+/// top-of-stack last) — exactly `capped_wat_frames`' internal slice, or
+/// `snapshot_call_stack()`'s result reversed back to storage order.
+///
+/// `raise_span`, when given, is the actual location execution reached when it
+/// raised (or made the call that's about to raise) — e.g. the raw `span`
+/// `RuntimeError::new` was constructed with, or an assertion's own call-form
+/// span. It becomes the `at` of an EXTRA innermost frame naming the top
+/// slot's CURRENT occupant (`stack.last().callee_path`) — distinct from that
+/// slot's own (possibly stale) `call_span`, which belongs to whichever
+/// identity the slot's last tail replace displaced (handled by the normal
+/// per-slot branch below, when `tail_hops > 0`). `None` means the caller has
+/// nothing more local than the stack itself to report (G4's "no frame is in
+/// user source" case, or a context — like `snapshot_call_stack`'s other
+/// consumers — with no separate raise site at all).
+///
+/// For each slot, outermost to innermost reversed (innermost emitted first):
+/// - `tail_hops > 0`: `{fn: last_tail_caller, at: call_span, tail_elided:
+///   tail_hops - 1}` — `call_span` is the span of the LAST tail call this
+///   slot absorbed, which sits inside `last_tail_caller`'s own body (the
+///   occupant the last replace displaced), so that pairing is direct, no
+///   shift needed. `tail_hops - 1` is exactly how many earlier identities
+///   (further back in this slot's own chain) are not separately named.
+/// - `tail_hops == 0`: `{fn: callee_path, at: <the edge this slot made into
+///   the NEXT (more inner) slot>, tail_elided: 0}` — this slot's own
+///   `call_span` names the edge INTO it (from its PARENT), not out of it;
+///   the edge OUT of it is the next slot's `entry_call_site` (untouched by
+///   whatever tail-collapsing later happened inside that inner slot). The
+///   true innermost slot has no next slot: if `raise_span` was supplied, the
+///   raise-frame step above already said everything about this slot, and
+///   this branch is skipped entirely (avoiding a second, wrong-paired frame
+///   for the same identity); otherwise its own `call_span` is the best
+///   available answer (the "no raise_span" contexts don't have a
+///   shift target either).
+pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) -> Vec<DisplayFrame> {
+    let n = stack.len();
+    let mut out = Vec::with_capacity(n + raise_span.is_some() as usize);
+    for idx in (0..n).rev() {
+        let slot = &stack[idx];
+        let is_top = idx == n - 1;
+        if is_top {
+            if let Some(span) = &raise_span {
+                out.push(DisplayFrame {
+                    fn_name: slot.callee_path.clone(),
+                    at: span.clone(),
+                    tail_elided: 0,
+                });
+                if slot.tail_hops == 0 {
+                    // Nothing else to say about this slot — the raise frame
+                    // above is its only display frame. Falling through would
+                    // re-emit `callee_path` a second time, wrongly paired
+                    // with its own (parent-edge) call_span.
+                    continue;
+                }
+                // tail_hops >= 1: the slot ALSO has a collapsed-history
+                // identity to name (its last_tail_caller) — fall through.
+            }
+        }
+        if slot.tail_hops > 0 {
+            out.push(DisplayFrame {
+                fn_name: slot.last_tail_caller.clone(),
+                at: slot.call_span.clone(),
+                tail_elided: slot.tail_hops - 1,
+            });
+        } else {
+            let at = match stack.get(idx + 1) {
+                Some(inner) => inner.entry_call_site.clone(),
+                None => slot.call_span.clone(),
+            };
+            out.push(DisplayFrame {
+                fn_name: slot.callee_path.clone(),
+                at,
+                tail_elided: 0,
+            });
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod strike_d_tests {
+    //! Excursus 003 strike D — GD1–GD4 at the Rust level (the valid boundary
+    //! this strike stopped at; see the report for why item 4 blocks the wire
+    //! reshape these would otherwise feed). Each test drives `CALL_STACK`
+    //! directly via `FrameGuard::push` / `replace_top_frame`, exactly as
+    //! `apply_function`'s trampoline does, then asserts `reconstruct_frames`'
+    //! output field-for-field.
+    use super::*;
+
+    fn span(file: &str, line: i64, col: i64) -> Span {
+        Span::new(std::sync::Arc::new(file.to_string()), line, col)
+    }
+
+    fn clear_stack() {
+        CALL_STACK.with(|s| s.borrow_mut().clear());
+    }
+
+    /// Snapshot `CALL_STACK` in STORAGE order (outermost first) — what
+    /// `reconstruct_frames` expects, as opposed to `snapshot_call_stack`'s
+    /// newest-first convention.
+    fn stack_storage_order() -> Vec<FrameInfo> {
+        CALL_STACK.with(|s| s.borrow().clone())
+    }
+
+    /// GD1 — C-114's shape: `probe-overflow` (pushed) tail-calls `grow`,
+    /// which tail-calls `core::+` (two hops absorbed by ONE physical slot),
+    /// which — via a native intrinsic, no further push/replace — raises at
+    /// `wat/core.wat:66`. Innermost first: the raise-paired frame names the
+    /// slot's CURRENT occupant (`core::+`); the collapsed-history frame
+    /// names `last_tail_caller` (`grow`) with `tail_elided = hops - 1 = 1`
+    /// (the one entirely missing identity: `probe-overflow`).
+    #[test]
+    fn gd1_c114_shape_names_grow_and_collapses_probe_overflow() {
+        clear_stack();
+        let _g = FrameGuard::push(
+            ":my::test::probe-overflow".into(),
+            span("src/freeze.rs", 1646, 1),
+        );
+        replace_top_frame(":user::grow".into(), span("c114.wat", 14, 3));
+        replace_top_frame(":wat::core::+".into(), span("c114.wat", 10, 3));
+
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("wat/core.wat", 66, 62)));
+
+        assert_eq!(
+            frames,
+            vec![
+                DisplayFrame {
+                    fn_name: ":wat::core::+".into(),
+                    at: span("wat/core.wat", 66, 62),
+                    tail_elided: 0,
+                },
+                DisplayFrame {
+                    fn_name: ":user::grow".into(),
+                    at: span("c114.wat", 10, 3),
+                    tail_elided: 1,
+                },
+            ]
+        );
+        clear_stack();
+    }
+
+    /// GD1's own assertion already pins `frames[1].fn_name == ":user::grow"`
+    /// field-for-field above — that IS the mutation gate: swapping
+    /// `last_tail_caller` for `callee_path` in `reconstruct_frames`'
+    /// `tail_hops > 0` branch (the drop-the-tail-caller-record mutation)
+    /// makes `frames[1].fn_name` read `":wat::core::+"` (duplicating the
+    /// raise frame) instead of `":user::grow"`, and `gd1_c114_shape_…`
+    /// above goes RED. Mutation proven by hand (edit, run, confirm RED,
+    /// revert) rather than carried as a second, permanently-mutated copy of
+    /// the same assertion — see this strike's report for the transcript.
+
+    /// GD2 — a tail chain `f` → (tail) `g` → (tail) `h` → raise, called from
+    /// `main` (a SEPARATE, never-replaced physical slot). The trace names
+    /// `h` with its raise, `g` at its tail call (`last_tail_caller`), the
+    /// count (1, for `f`'s fully collapsed frame), and `main` at the call
+    /// into `f` (via `main`'s own never-replaced slot's shift target: `f`'s
+    /// preserved `entry_call_site`).
+    #[test]
+    fn gd2_tail_chain_names_last_caller_and_counts_the_rest() {
+        clear_stack();
+        let _main = FrameGuard::push(":user::main".into(), span("rt.rs", 1, 1));
+        let _f = FrameGuard::push(":user::f".into(), span("chain.wat", 1, 3)); // main calls f
+        replace_top_frame(":user::g".into(), span("chain.wat", 5, 3)); // f tail-calls g
+        replace_top_frame(":user::h".into(), span("chain.wat", 9, 3)); // g tail-calls h
+
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("chain.wat", 13, 3))); // h raises
+
+        assert_eq!(
+            frames,
+            vec![
+                DisplayFrame {
+                    fn_name: ":user::h".into(),
+                    at: span("chain.wat", 13, 3),
+                    tail_elided: 0,
+                },
+                DisplayFrame {
+                    fn_name: ":user::g".into(),
+                    at: span("chain.wat", 9, 3),
+                    tail_elided: 1, // f's own identity is the one missing frame
+                },
+                DisplayFrame {
+                    fn_name: ":user::main".into(),
+                    at: span("chain.wat", 1, 3), // f's entry_call_site, inside main
+                    tail_elided: 0,
+                },
+            ]
+        );
+        clear_stack();
+    }
+
+    /// Mutation (GD2): compute the count wrong (e.g. `tail_hops` instead of
+    /// `tail_hops - 1`) — RED, because 2 != 1.
+    #[test]
+    fn gd2_mutation_wrong_count_is_red() {
+        clear_stack();
+        let _main = FrameGuard::push(":user::main".into(), span("rt.rs", 1, 1));
+        let _f = FrameGuard::push(":user::f".into(), span("chain.wat", 1, 3));
+        replace_top_frame(":user::g".into(), span("chain.wat", 5, 3));
+        replace_top_frame(":user::h".into(), span("chain.wat", 9, 3));
+
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("chain.wat", 13, 3)));
+        let g_frame = frames.iter().find(|f| f.fn_name == ":user::g").unwrap();
+        assert_eq!(g_frame.tail_elided, 1, "the ruling's own worked example: count = 1, for f's collapsed frame");
+        assert_ne!(g_frame.tail_elided, 2, "tail_hops (2) is NOT the count — that's the pre-ruling bug this gate catches");
+        clear_stack();
+    }
+
+    /// GD3 — a non-tail call has no tail marker, and its frames are
+    /// unchanged in meaning. `main` pushes `leaf` (non-tail); `leaf` raises
+    /// directly (no tail call at all — `tail_hops == 0` throughout).
+    #[test]
+    fn gd3_non_tail_call_has_no_tail_marker() {
+        clear_stack();
+        let _main = FrameGuard::push(":user::main".into(), span("rt.rs", 1, 1));
+        let _leaf = FrameGuard::push(":user::leaf".into(), span("plain.wat", 2, 3));
+
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("plain.wat", 4, 5)));
+
+        assert_eq!(
+            frames,
+            vec![
+                DisplayFrame {
+                    fn_name: ":user::leaf".into(),
+                    at: span("plain.wat", 4, 5),
+                    tail_elided: 0,
+                },
+                DisplayFrame {
+                    fn_name: ":user::main".into(),
+                    at: span("plain.wat", 2, 3),
+                    tail_elided: 0,
+                },
+            ]
+        );
+        // Every tail_elided is 0 — "no marker" here IS the no-tail-hops case
+        // (see DisplayFrame's own doc: 0 is honest in both readings; what
+        // distinguishes a tail frame from an ordinary one is WHICH name
+        // (`last_tail_caller` vs `callee_path`) got reported, not this count).
+        assert!(frames.iter().all(|f| f.tail_elided == 0));
+        clear_stack();
+    }
+
+    /// GD4 — constant space. A tail-recursive loop of 1,000,000 iterations
+    /// (kept well under the ~110,000-frame Rust-stack-overflow ceiling
+    /// `the-little-wat` F-099 measured for NON-tail recursion — this is a
+    /// `replace_top_frame` loop, no Rust recursion at all) raises at the
+    /// end. `CALL_STACK` depth stays O(1): exactly 1 physical slot. The
+    /// reconstructed trace holds a single collapse count of ~10^6.
+    #[test]
+    fn gd4_million_tail_hops_stay_one_physical_slot() {
+        clear_stack();
+        let _entry = FrameGuard::push(":user::loop".into(), span("loop.wat", 1, 1));
+        const ITERS: usize = 1_000_000;
+        for i in 0..ITERS {
+            replace_top_frame(":user::loop".into(), span("loop.wat", 2, 3 + i as i64 % 1000));
+        }
+        // O(1): still exactly one physical slot, regardless of 10^6 hops.
+        assert_eq!(CALL_STACK.with(|s| s.borrow().len()), 1);
+
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("loop.wat", 2, 3)));
+        assert_eq!(frames.len(), 2, "one physical slot, tail_hops > 0 => BOTH the raise-paired frame (current occupant) and the collapsed-history frame (last_tail_caller) fire — still O(1) frames, independent of the 10^6 hops");
+        clear_stack();
+    }
+
+    /// GD4 (full, both frames): same million-hop loop, but confirms the
+    /// collapse count is exactly `ITERS - 1` and the slot never grew.
+    #[test]
+    fn gd4_million_tail_hops_collapse_count_is_exact() {
+        clear_stack();
+        let _entry = FrameGuard::push(":user::loop".into(), span("loop.wat", 1, 1));
+        const ITERS: usize = 1_000_000;
+        for _ in 0..ITERS {
+            replace_top_frame(":user::loop".into(), span("loop.wat", 2, 3));
+        }
+        let depth_before_raise = CALL_STACK.with(|s| s.borrow().len());
+        let stack = stack_storage_order();
+        let frames = reconstruct_frames(&stack, Some(span("loop.wat", 9, 9)));
+
+        assert_eq!(depth_before_raise, 1, "mutation: push instead of replace would make this ITERS, not 1");
+        assert_eq!(frames.len(), 2, "the raise-paired frame (current occupant) + the collapsed-history frame (last_tail_caller)");
+        assert_eq!(frames[1].tail_elided, ITERS - 1);
+        clear_stack();
+    }
 }
 
 // ─── Excursus 003 D4 item 1 — the user-source-file record ────────────────────
@@ -446,10 +845,10 @@ mod cap_measurement {
             let mut stack = s.borrow_mut();
             stack.clear();
             for i in 0..n {
-                stack.push(FrameInfo {
-                    callee_path: format!(":user::fn-{i}"),
-                    call_span: Span::new(std::sync::Arc::new("bench.wat".to_string()), i as i64, 0),
-                });
+                stack.push(FrameInfo::pristine(
+                    format!(":user::fn-{i}"),
+                    Span::new(std::sync::Arc::new("bench.wat".to_string()), i as i64, 0),
+                ));
             }
         });
     }
