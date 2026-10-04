@@ -18,7 +18,7 @@ fn node_share_census(n: i64, m: i64) -> Vec<super::RoundCensus> {
     let (_fired, census) = super::with_fire_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
-            .value_owned()
+            
     });
     census
 }
@@ -116,7 +116,7 @@ fn node_share_where_cost_decomposition() {
     let (_fired, sample) = super::with_where_sample(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at N={N} M={M}: {e:?}"))
-            .value_owned()
+            
     });
     let (expr, tokens) = sample.expect(
         "the fire never reached a TestNode, so nothing was captured — every number below \
@@ -231,7 +231,7 @@ fn node_share_where_cost_decomposition() {
     let staged_ast = crate::parse_one!(staged.as_str()).expect("parse the staged compile+seed");
     let session = eval_in_frozen(&staged_ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised at N={N} M={M}: {e:?}"))
-        .value_owned();
+        ;
     let mut wm =
         super::to_transient(&session).expect("to_transient of the seeded node-share session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
@@ -282,7 +282,7 @@ fn node_share_where_cost_decomposition() {
     let (_fired2, count_rows) = super::with_count_census(|| {
         eval_in_frozen(&count_ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("counted fire raised at N={N} M={M}: {e:?}"))
-            .value_owned()
+            
     });
     let counted = |k: &str| -> u64 {
         count_rows
@@ -850,7 +850,7 @@ fn node_share_filter_counts(n: i64, m: i64) -> (u64, u64, u64) {
     let (_fired, rows) = super::with_count_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
-            .value_owned()
+            
     });
     let get = |k: &str| {
         rows.iter()

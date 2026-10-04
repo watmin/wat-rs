@@ -131,7 +131,7 @@ pub fn wat_value(args: TokenStream, input: TokenStream) -> TokenStream {
                          it documents WHY the structural exception is justified.\n\
                          \n\
                          More often the right fix is a SIBLING TYPE outside the enum \
-                         (e.g., wat::runtime::TrackedValue per Stone 233.2.h). \
+                         (e.g., wat::value::ValueSnapshot). \
                          See docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.l.md \
                          for the doctrine.",
                         variant_name

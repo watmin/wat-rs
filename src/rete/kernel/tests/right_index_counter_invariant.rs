@@ -240,7 +240,7 @@ fn fire_d2(world_src: &str, n: i64, what: &str) -> D2Reading {
         with_fire_census(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
                 .unwrap_or_else(|e| panic!("{what}: fire raised at n={n}: {e:?}"))
-                .value_owned()
+                
         })
     });
     D2Reading {

@@ -54,8 +54,7 @@
 use crate::edn_doc;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{Error, Expr, ExprLit, FnArg, GenericArgument, ItemFn, Lit, LitStr, Meta, Pat,
-    PathArguments, ReturnType, Type};
+use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Pat, Type};
 
 /// The parsed `#[wat_intrinsic(...)]` attribute payload (arc 255 Stone N).
 ///
@@ -224,9 +223,11 @@ fn sniff_args(item: &ItemFn) -> syn::Result<(SniffedArgs, Vec<ContextParam>)> {
     Ok((sniffed, context_tail))
 }
 
-/// The handler's KIND (arc 255 Stone O-iii) — the third sniff on the same mechanism as
-/// `sniff_args` (the argument shape) and `sniff_return` (the return shape), applied to which
-/// TYPE the leading params are. Decided by the FIRST param: `&WatAST`/`&[WatAST]` ⇒ BINDING
+/// The handler's KIND (arc 255 Stone O-iii) — a sniff on the same mechanism as `sniff_args`
+/// (the argument shape), applied to which TYPE the leading params are. (A return-shape sniff,
+/// `sniff_return`/`SniffedReturn`, existed alongside this one through Stone G; retired by
+/// excursus 003 strike G item 4 once every handler returns bare `Value`.) Decided by the FIRST
+/// param: `&WatAST`/`&[WatAST]` ⇒ BINDING
 /// (today's shape, parsed by `sniff_args`, untouched); `&Value`/`&[Value]` ⇒ ALGEBRA (the macro
 /// generates BOTH the value door — the fn itself — and the AST door, behind one arity check).
 enum IntrinsicKind {
@@ -353,80 +354,6 @@ fn pat_ident(pat: &Pat) -> syn::Result<String> {
             other,
             "wat_intrinsic: param must be a plain ident pattern",
         )),
-    }
-}
-
-/// Result of sniffing the handler's RETURN type — the same shape as `SniffedArgs`, applied to
-/// the return side instead of the argument side (arc 255 Stone G).
-///
-/// `pub(crate)` (arc 255 Stone the-eval-door, STOP-4): `wat_special_form_impl.rs`'s `role = eval`
-/// codegen reuses this sniff and [`wrap_call_for_return`] rather than re-deriving the
-/// Value-vs-TrackedValue decision a second time — one authority for the question, shared across
-/// the sibling module, not a copy.
-pub(crate) enum SniffedReturn {
-    /// `-> Result<Value, EvalBreak>` — the ~250 pre-existing handlers. The shim wraps the
-    /// returned bare `Value` as `TrackedValue::new(v, Provenance::Unknown)` — unchanged default.
-    BareValue,
-    /// `-> Result<TrackedValue, EvalBreak>` — a handler that WANTS to stamp its own
-    /// provenance (e.g. `Provenance::RuntimeBuilt`). The shim passes the returned
-    /// `TrackedValue` through un-rewrapped.
-    Tracked,
-}
-
-/// Sniff the handler fn's return type: `Result<Value, EvalBreak>` or
-/// `Result<TrackedValue, EvalBreak>`. Any other return type is rejected with a `compile_error!`
-/// naming the two accepted shapes — never silently guessed.
-///
-/// `pub(crate)` — see [`SniffedReturn`]'s doc: shared with `wat_special_form_impl.rs`.
-pub(crate) fn sniff_return(item: &ItemFn) -> syn::Result<SniffedReturn> {
-    let ReturnType::Type(_, ty) = &item.sig.output else {
-        return Err(Error::new_spanned(
-            &item.sig,
-            "wat_intrinsic: handler must return `Result<Value, EvalBreak>` or \
-             `Result<TrackedValue, EvalBreak>`",
-        ));
-    };
-    if is_result_of(ty, "TrackedValue") {
-        Ok(SniffedReturn::Tracked)
-    } else if is_result_of(ty, "Value") {
-        Ok(SniffedReturn::BareValue)
-    } else {
-        Err(Error::new_spanned(
-            ty,
-            "wat_intrinsic: handler must return `Result<Value, EvalBreak>` or \
-             `Result<TrackedValue, EvalBreak>` — got a different Ok type",
-        ))
-    }
-}
-
-/// Wrap a handler call per its sniffed return shape (arc 255 Stone G) — the ONE place that
-/// decides Value-vs-TrackedValue handling. `emit`, below, calls this via its `wrap_call`
-/// closure; `wat_special_form_impl.rs`'s `role = eval` codegen calls it directly
-/// (arc 255 Stone the-eval-door, STOP-4) rather than re-deriving the same match.
-pub(crate) fn wrap_call_for_return(sniffed_return: &SniffedReturn, call: TokenStream2) -> TokenStream2 {
-    match sniffed_return {
-        SniffedReturn::BareValue => quote! {
-            #call.map(::wat::value::TrackedValue::from)
-        },
-        SniffedReturn::Tracked => call,
-    }
-}
-
-/// Is `ty` shaped `Result<Ok = name, _>`? (Tolerates a preceding module path on `Result`
-/// itself, e.g. `std::result::Result`; the Ok type is matched by its final path segment,
-/// same tolerance as `type_path_ends_with`.)
-fn is_result_of(ty: &Type, name: &str) -> bool {
-    let Type::Path(p) = ty else { return false };
-    let Some(seg) = p.path.segments.last() else { return false };
-    if seg.ident != "Result" {
-        return false;
-    }
-    let PathArguments::AngleBracketed(args) = &seg.arguments else {
-        return false;
-    };
-    match args.args.first() {
-        Some(GenericArgument::Type(t)) => type_path_ends_with(t, name),
-        _ => false,
     }
 }
 
@@ -738,21 +665,6 @@ pub(crate) fn emit(
     item: &ItemFn,
 ) -> syn::Result<TokenStream2> {
     let kind = sniff_kind(item)?;
-    let sniffed_return = sniff_return(item)?;
-
-    // arc 255 Stone O-iii, STOP-2 — an ALGEBRA handler cannot stamp provenance: `ValueHandler`
-    // returns a bare `Value`, so a `TrackedValue` return could not survive the value door. Ruled
-    // out by the design's first affirmative cut, not silently dropped or half-supported.
-    if let (IntrinsicKind::Algebra(_, _), SniffedReturn::Tracked) = (&kind, &sniffed_return) {
-        return Err(Error::new_spanned(
-            &item.sig,
-            "wat_intrinsic: an ALGEBRA handler (leading `&Value`/`&[Value]` params) cannot \
-             return `Result<TrackedValue, EvalBreak>` — `ValueHandler` returns a bare `Value`, \
-             so a provenance stamp could not survive the value door. This handler is a \
-             provenance-stamping handler and is BINDING by construction: give it `&WatAST` \
-             leading params instead.",
-        ));
-    }
 
     // arc 255 Stone O-iii — an ALGEBRA handler cannot ALSO name `value = <path>`: the handler
     // itself becomes the value door (the macro generates it), so a hand-named one would leave
@@ -1047,12 +959,6 @@ pub(crate) fn emit(
         quote! { ::wat::intrinsic::Arity::Exact(#n) }
     };
 
-    // Wrap the raw handler call per the sniffed return shape (arc 255 Stone G) — extracted to
-    // the top-level `wrap_call_for_return` (arc 255 Stone the-eval-door, STOP-4) so
-    // `wat_special_form_impl.rs`'s `role = eval` codegen can call the SAME fn instead of
-    // re-deriving the Value-vs-TrackedValue decision.
-    let wrap_call = |call: TokenStream2| -> TokenStream2 { wrap_call_for_return(&sniffed_return, call) };
-
     // Build the shim body. For exact-arity: check len == N, then forward individual refs.
     // For variadic: pass the whole slice directly (no arity check — 0+ args all valid).
     // arc 255 Stone O-iii — BINDING builds today's shim exactly as before (this whole branch is
@@ -1067,15 +973,15 @@ pub(crate) fn emit(
                 context_tail.iter().map(|c| c.forward_token()).collect();
             let body = if is_variadic {
                 // Variadic: pass the whole slice to the handler.
-                wrap_call(quote! {
+                quote! {
                     #fn_name(args, #(#tail_tokens),*)
-                })
+                }
             } else {
                 let n = arg_names.len();
                 let arg_forwards: Vec<TokenStream2> = (0..n).map(|i| quote! { &args[#i] }).collect();
-                let call = wrap_call(quote! {
+                let call = quote! {
                     #fn_name(#(#arg_forwards,)* #(#tail_tokens),*)
-                });
+                };
                 quote! {
                     if args.len() != #n {
                         return ::std::result::Result::Err(
@@ -1167,9 +1073,9 @@ pub(crate) fn emit(
             let ast_body = if is_variadic {
                 quote! {
                     let vals: ::std::vec::Vec<::wat::value::Value> = args.iter()
-                        .map(|a| ::wat::runtime::eval_inner(a, env, sym).map(::wat::value::TrackedValue::value_owned))
+                        .map(|a| ::wat::runtime::eval_inner(a, env, sym))
                         .collect::<::std::result::Result<_, _>>()?;
-                    #value_door_ident(&vals, list_span).map(::wat::value::TrackedValue::from)
+                    #value_door_ident(&vals, list_span)
                 }
             } else {
                 let n = arg_names.len();
@@ -1185,9 +1091,9 @@ pub(crate) fn emit(
                         );
                     }
                     let vals: ::std::vec::Vec<::wat::value::Value> = args.iter()
-                        .map(|a| ::wat::runtime::eval_inner(a, env, sym).map(::wat::value::TrackedValue::value_owned))
+                        .map(|a| ::wat::runtime::eval_inner(a, env, sym))
                         .collect::<::std::result::Result<_, _>>()?;
-                    #value_door_ident(&vals, list_span).map(::wat::value::TrackedValue::from)
+                    #value_door_ident(&vals, list_span)
                 }
             };
             let vh_field = quote! { ::std::option::Option::Some(#value_door_ident) };
@@ -1202,15 +1108,15 @@ pub(crate) fn emit(
         // arc 255 Stone O-iii — the generated value door (ALGEBRA only; empty for BINDING).
         #value_door_tokens
 
-        // Dispatch shim — canonical NativeHandler signature. Returns `TrackedValue`
-        // (arc 255 Stone G): a bare-`Value` handler is wrapped as `Provenance::Unknown`
-        // by `wrap_call` above; a `TrackedValue`-returning handler's own provenance survives.
+        // Dispatch shim — canonical NativeHandler signature. Returns bare `Value`
+        // (excursus 003 strike G item 4 retired the `TrackedValue`/`Provenance`
+        // eval-boundary pairing that `wrap_call` used to rewrap into here).
         fn #shim_ident(
             args: &[::wat::ast::WatAST],
             list_span: &::wat::span::Span,
             env: &::wat::value::Environment,
             sym: &::wat::value::SymbolTable,
-        ) -> ::std::result::Result<::wat::value::TrackedValue, ::wat::value::EvalBreak> {
+        ) -> ::std::result::Result<::wat::value::Value, ::wat::value::EvalBreak> {
             #shim_body
         }
 

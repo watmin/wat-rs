@@ -183,11 +183,11 @@ pub(crate) fn eval_step_payload(
     let bindings_span = bindings.span().clone();
     let sfact_span    = sfact.span().clone();
 
-    let session_val  = crate::runtime::eval_inner(session, env, sym)?.value_owned();
-    let alpha_id_val = crate::runtime::eval_inner(alpha_id, env, sym)?.value_owned();
-    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
-    let sfact_val    = crate::runtime::eval_inner(sfact, env, sym)?.value_owned();
-    let supporting   = crate::runtime::eval_inner(supporting, env, sym)?.value_owned();
+    let session_val  = crate::runtime::eval_inner(session, env, sym)?;
+    let alpha_id_val = crate::runtime::eval_inner(alpha_id, env, sym)?;
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?;
+    let sfact_val    = crate::runtime::eval_inner(sfact, env, sym)?;
+    let supporting   = crate::runtime::eval_inner(supporting, env, sym)?;
 
     // ── Extract alpha_id ──────────────────────────────────────────────────────
     let alpha_id = match alpha_id_val {

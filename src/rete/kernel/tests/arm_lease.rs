@@ -303,7 +303,7 @@ fn intern_release_session_wat_mouth_drops_the_lease() {
     let ast = crate::parse_one!(src).expect("parse release-session");
     let released = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("release-session raised: {e:?}"))
-        .value_owned();
+        ;
     let id = session_net_id(&released).expect("released session has a network identity");
     assert!(
         rete_arm_lookup(id).is_none(),
@@ -373,7 +373,7 @@ fn scoped_work_with_overlay_reuses_one_build() {
     let ast = crate::parse_one!(src).expect("parse with-overlay driver");
     let total = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("with-overlay raised: {e:?}"))
-        .value_owned();
+        ;
     assert_eq!(
         total,
         Value::i64(3),
@@ -404,7 +404,7 @@ fn scoped_work_with_network_base_untouched() {
     let ast = crate::parse_one!(src).expect("parse with-network driver");
     let zero = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("with-network raised: {e:?}"))
-        .value_owned();
+        ;
     assert_eq!(
         zero,
         Value::i64(0),
@@ -440,7 +440,7 @@ fn scoped_work_with_network_releases_the_lease_it_takes() {
     let inside_ast = crate::parse_one!(inside_src).expect("parse compile-all");
     let inside_base = eval_in_frozen(&inside_ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile-all raised: {e:?}"))
-        .value_owned();
+        ;
     let inside_id =
         session_net_id(&inside_base).expect("compiled session has a network identity");
     assert_eq!(
@@ -461,7 +461,7 @@ fn scoped_work_with_network_releases_the_lease_it_takes() {
     let after_ast = crate::parse_one!(after_src).expect("parse with-network driver");
     let returned = eval_in_frozen(&after_ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("with-network raised: {e:?}"))
-        .value_owned();
+        ;
     let after_id =
         session_net_id(&returned).expect("with-network's base carries a network identity");
     assert!(

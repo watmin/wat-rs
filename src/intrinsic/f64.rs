@@ -719,7 +719,7 @@ fn f64_variadic_reduce(
     let mut acc: Option<f64> = None;
     for a in args {
         let a_span = a.span().clone();
-        match crate::runtime::eval_inner(a, env, sym)?.value_owned() {
+        match crate::runtime::eval_inner(a, env, sym)? {
             Value::f64(x) => acc = Some(match acc {
                 Some(cur) => fold(cur, x),
                 None => x,

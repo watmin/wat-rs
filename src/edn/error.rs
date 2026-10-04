@@ -28,8 +28,6 @@ use wat_edn::{Keyword, OwnedValue, Tag};
 
 use crate::edn::contract::edn_tag_dotted;
 use crate::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, ValueSnapshot};
-use crate::value::Provenance;
-use crate::span::Span;
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
@@ -120,9 +118,9 @@ impl crate::edn::contract::WatError for RuntimeError {
 ///
 /// Maps `{:type "...", :rendered "..."}`. Excursus 003 strike C: `:provenance`
 /// removed per the 2026-09-27 ruling item 4 — the field left `ValueSnapshot`
-/// itself (`src/value/observe.rs`); `provenance_to_edn`/`ToEdn for Provenance`
-/// below are untouched (general `Provenance` EDN serialization, not specific
-/// to this writer) — see the strike's report for their own measured use.
+/// itself (`src/value/observe.rs`). `provenance_to_edn`/`ToEdn for Provenance`,
+/// which used to sit just below this fn, retired wholesale in strike G item 4
+/// along with `Provenance` itself (measured: no production caller anywhere).
 pub fn value_snapshot_to_edn(snap: &ValueSnapshot) -> OwnedValue {
     OwnedValue::Map(vec![
         (kw("type"), str_val(snap.type_name)),
@@ -133,39 +131,6 @@ pub fn value_snapshot_to_edn(snap: &ValueSnapshot) -> OwnedValue {
 impl crate::edn::contract::ToEdn for ValueSnapshot {
     fn to_edn(&self) -> OwnedValue {
         value_snapshot_to_edn(self)
-    }
-}
-
-/// Serialize a [`Provenance`] to tagged EDN.
-///
-/// - `Unknown` → `nil`
-/// - `Literal { span }` → `#wat.kernel/Literal {:span <map>}`
-/// - `SymbolBound { binding_span, head_span }` → `#wat.kernel/SymbolBound {:binding-span ... :head-span ...}`
-/// - `RuntimeBuilt { producer, call_span }` → `#wat.kernel/RuntimeBuilt {:producer "..." :call-span ...}`
-pub fn provenance_to_edn(prov: &Provenance) -> OwnedValue {
-    match prov {
-        Provenance::Unknown => OwnedValue::Nil,
-        Provenance::Literal { span } => {
-            tagged("Literal", map1(kw("span"), span_val(span)))
-        }
-        Provenance::SymbolBound { binding_span, head_span } => {
-            tagged("SymbolBound", map2(
-                kw("binding-span"), span_val(binding_span),
-                kw("head-span"), span_val(head_span),
-            ))
-        }
-        Provenance::RuntimeBuilt { producer, call_span } => {
-            tagged("RuntimeBuilt", map2(
-                kw("producer"), str_val(producer),
-                kw("call-span"), span_val(call_span),
-            ))
-        }
-    }
-}
-
-impl crate::edn::contract::ToEdn for Provenance {
-    fn to_edn(&self) -> OwnedValue {
-        provenance_to_edn(self)
     }
 }
 
@@ -244,19 +209,6 @@ fn str_val(s: &str) -> OwnedValue {
     OwnedValue::String(Cow::Owned(s.to_owned()))
 }
 
-fn span_val(span: &Span) -> OwnedValue {
-    use crate::edn::contract::ToEdn;
-    span.to_edn()
-}
-
 fn tagged(variant: &'static str, body: OwnedValue) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns(crate::error_ns::KERNEL, variant), Box::new(body))
-}
-
-fn map1(k1: OwnedValue, v1: OwnedValue) -> OwnedValue {
-    OwnedValue::Map(vec![(k1, v1)])
-}
-
-fn map2(k1: OwnedValue, v1: OwnedValue, k2: OwnedValue, v2: OwnedValue) -> OwnedValue {
-    OwnedValue::Map(vec![(k1, v1), (k2, v2)])
 }

@@ -121,7 +121,7 @@ pub(crate) fn eval_try(
         )
         .into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),
@@ -171,7 +171,7 @@ pub(crate) fn eval_result_expect(
         )
         .into());
     }
-    let res = eval_inner(&args[0], env, sym)?.value_owned();
+    let res = eval_inner(&args[0], env, sym)?;
     match res {
         Value::Result(r) => match std::sync::Arc::try_unwrap(r) {
             Ok(std::result::Result::Ok(ok)) => Ok(ok),

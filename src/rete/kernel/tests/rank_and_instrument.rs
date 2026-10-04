@@ -64,7 +64,7 @@ fn accum_gather_visits(g: i64, w: i64) -> u64 {
     let (_fired, visits) = super::with_gather_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
-            .value_owned()
+            
     });
     visits
 }
@@ -107,7 +107,7 @@ fn one_rule_fold_ns(rule: &str, g: i64, w: i64) -> u64 {
     let (_fired, rows) = super::with_phase_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
-            .value_owned()
+            
     });
     rows.iter()
         .find(|(n, _)| *n == "  └ accum:fold")
@@ -206,7 +206,7 @@ fn bind_world_alpha_ns(reading_cond: &str, n: i64) -> u64 {
     let (_fired, rows) = super::with_phase_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
-            .value_owned()
+            
     });
     rows.iter()
         .find(|(n2, _)| *n2 == "alpha")
@@ -335,7 +335,7 @@ fn one_rule_gather_visits(rule: &str, g: i64, w: i64) -> u64 {
                     rule.chars().take(80).collect::<String>()
                 )
             })
-            .value_owned()
+            
     });
     visits
 }
@@ -608,7 +608,7 @@ fn join_extend_lookups(keys: i64, fanout: i64) -> u64 {
     let (_fired, lookups) = super::with_join_alpha_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("join-extend fire raised at keys={keys} fanout={fanout}: {e:?}"))
-            .value_owned()
+            
     });
     lookups
 }
@@ -708,7 +708,7 @@ fn fanout_prod_entry_fire(keys: i64, fanout: i64) -> (Value, u64, u64) {
         super::with_prod_entry_census(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
                 .unwrap_or_else(|e| panic!("fanout fire raised at keys={keys} fanout={fanout}: {e:?}"))
-                .value_owned()
+                
         })
     });
     let derivations = counts
@@ -824,7 +824,7 @@ fn fire_col_field(world: &str, ns: &str, seed_args: &str) -> super::ColFieldCoun
     let (_fired, counts) = super::with_col_field_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
-            .value_owned()
+            
     });
     counts
 }
@@ -945,7 +945,7 @@ fn fire_root_join(world: &str, ns: &str, seed_args: &str) -> super::RootJoinCoun
     let (_fired, counts) = super::with_root_join_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
-            .value_owned()
+            
     });
     counts
 }
@@ -1064,7 +1064,7 @@ fn fire_gather_keys_world(world: &str, ns: &str, seed_args: &str) -> Vec<super::
     let (_fired, rows) = super::with_gather_key_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("{ns} fire raised at {seed_args}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }
@@ -1080,7 +1080,7 @@ fn fire_gather_keys_rule(rule: &str, g: i64, w: i64) -> Vec<super::GatherKeyRow>
     let (_fired, rows) = super::with_gather_key_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("one-rule fire raised at G={g} W={w}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }

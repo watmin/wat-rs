@@ -25,8 +25,8 @@ fn eval_render(src: &str) -> (String, String) {
     let tv = eval_in_frozen(&ast, &world, &env)
         .unwrap_or_else(|e| panic!("{src:?} should eval: {e:?}"));
     (
-        tv.value().type_name().to_string(),
-        ValueSnapshot::of(tv.value()).rendered,
+        tv.type_name().to_string(),
+        ValueSnapshot::of(&tv).rendered,
     )
 }
 

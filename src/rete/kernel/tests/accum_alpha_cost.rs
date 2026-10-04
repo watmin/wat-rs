@@ -19,7 +19,7 @@ fn accum_alpha_memory_shape() {
     let (_fired, census) = super::with_fire_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
-            .value_owned()
+            
     });
     // ⛔ WAS `assert!(!census.is_empty())` — a LIVENESS check, which fails only if the fire
     // never ran and says nothing about what it computed. The workload here is FIXED (G=200,
@@ -119,7 +119,7 @@ fn accum_alpha_leftover_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -417,7 +417,7 @@ fn accum_alpha_seed_after_fold_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -683,7 +683,7 @@ fn accum_alpha_tree_walk_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -810,7 +810,7 @@ fn accum_alpha_class_lookup_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient of seeded session");
     let facts: Vec<Value> = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
@@ -994,7 +994,7 @@ fn accum_alpha_push_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -1291,7 +1291,7 @@ fn c4_probe_bind_only_decides_skip_span_for_the_accum_axis() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");

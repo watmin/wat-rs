@@ -53,7 +53,7 @@ use crate::ast::WatAST;
 use crate::runtime::eval;
 use crate::span::Span;
 use crate::value::{
-    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
+    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
 
@@ -762,7 +762,7 @@ pub(crate) fn eval_time_sub(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::time::-";
     let a = eval(a, env, sym)?;
-    let b = eval(b, env, sym)?.value_owned();
+    let b = eval(b, env, sym)?;
     let a_inst = require_instant(OP, a, list_span)?;
     match b {
         Value::wat__time__Duration(ns) => {
@@ -835,7 +835,7 @@ pub(crate) fn eval_time_add(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::time::+";
     let a = eval(a, env, sym)?;
-    let b = eval(b, env, sym)?.value_owned();
+    let b = eval(b, env, sym)?;
     let a_inst = require_instant(OP, a, list_span)?;
     let ns = match b {
         Value::wat__time__Duration(ns) => ns,
@@ -1334,8 +1334,8 @@ pub(crate) fn eval_time_days_from_now(
 
 // ─── Helpers — local to this module ─────────────────────────────────
 
-fn require_i64(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
-    match tv.value_owned() {
+fn require_i64(op: &'static str, v: Value, list_span: &Span) -> Result<i64, RuntimeError> {
+    match v {
         Value::i64(n) => Ok(n),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -1345,8 +1345,8 @@ fn require_i64(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i
     }
 }
 
-fn require_string(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<String, RuntimeError> {
-    match tv.value_owned() {
+fn require_string(op: &'static str, v: Value, list_span: &Span) -> Result<String, RuntimeError> {
+    match v {
         Value::String(s) => Ok((*s).clone()),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -1356,8 +1356,8 @@ fn require_string(op: &'static str, tv: TrackedValue, list_span: &Span) -> Resul
     }
 }
 
-fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<DateTime<Utc>, RuntimeError> {
-    match tv.value_owned() {
+fn require_instant(op: &'static str, v: Value, list_span: &Span) -> Result<DateTime<Utc>, RuntimeError> {
+    match v {
         Value::wat__time__Instant(dt) => Ok(dt),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -1367,8 +1367,8 @@ fn require_instant(op: &'static str, tv: TrackedValue, list_span: &Span) -> Resu
     }
 }
 
-fn require_duration(op: &'static str, tv: TrackedValue, list_span: &Span) -> Result<i64, RuntimeError> {
-    match tv.value_owned() {
+fn require_duration(op: &'static str, v: Value, list_span: &Span) -> Result<i64, RuntimeError> {
+    match v {
         Value::wat__time__Duration(ns) => Ok(ns),
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),

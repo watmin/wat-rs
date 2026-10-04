@@ -243,8 +243,8 @@ pub(crate) fn eval_peer_send_prime(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
+    let payload_val = eval_inner(&args[1], env, sym)?;
 
     match &peer_val {
         Value::RustOpaque(inner)
@@ -409,8 +409,8 @@ pub(crate) fn eval_peer_try_send_prime(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let payload_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
+    let payload_val = eval_inner(&args[1], env, sym)?;
 
     match &peer_val {
         // Unified Peer' arm (the serve loop's `clients` are PEER_TYPE_PATH — socket
@@ -500,7 +500,7 @@ pub(crate) fn eval_peer_recv_prime(
         .into());
     }
 
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
 
     match &peer_val {
         Value::RustOpaque(inner)
@@ -762,7 +762,7 @@ pub(crate) fn eval_peer_select_prime(
         )
         .into());
     }
-    let peers_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peers_val = eval_inner(&args[0], env, sym)?;
     let peers_vec = match peers_val {
         Value::Vec(ref v) => v.clone(),
         other => {
@@ -1494,7 +1494,7 @@ pub(crate) fn eval_poll_prime(
     // We only need its .rx (= input_rx); watching it makes the RAII drain the wake.
     // Arc 209 C0b.2e-i-b: Peer is now non-generic (boxed); recover the concrete
     // &thread::Receiver<Value> via as_any (i-a foundation, shipped aac27fb5).
-    let self_peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let self_peer_val = eval_inner(&args[0], env, sym)?;
     let self_peer_cell: crate::kernel::spawn::PeerCell = match &self_peer_val {
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
             crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::spawn::PeerCell>(
@@ -1537,7 +1537,7 @@ pub(crate) fn eval_poll_prime(
     };
 
     // ── arg 1: listener → Listener' (unified Listener entity, arc 209 C0b.2e-ii) ─
-    let listener_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let listener_val = eval_inner(&args[1], env, sym)?;
     let listener_opaque: &crate::kernel::listener::Listener = match &listener_val {
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH => {
             crate::rust_deps::marshal::downcast_ref_opaque::<crate::kernel::listener::Listener>(
@@ -1562,7 +1562,7 @@ pub(crate) fn eval_poll_prime(
     let listener_class = listener_opaque.inner.reactor_class();
 
     // ── arg 2: peers → Vec of PEER_TYPE_PATH opaques ──────────────────────────
-    let peers_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let peers_val = eval_inner(&args[2], env, sym)?;
     let peers_vec = match peers_val {
         Value::Vec(ref v) => v.clone(),
         other => {

@@ -622,7 +622,7 @@ pub(crate) fn eval_fire_rules_native(
     }
 
     // Evaluate the session argument.
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
     // ⛔ THE WALL, at the wat boundary — the same one `fire-once` stands behind
     // (`fire/mod.rs`). `fire_rules_on_session` keeps returning `Result<Session>` because rust
     // reads it too; this is the one place `fire-rules` becomes a wat value, so it is the one

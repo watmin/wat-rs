@@ -142,7 +142,7 @@ pub(crate) fn parse_projection_args(
         }
     };
     // Evaluate args[0] (x).
-    let x_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let x_val = eval_inner(&args[0], env, sym)?;
     Ok((x_val, surface_kw, surf))
 }
 

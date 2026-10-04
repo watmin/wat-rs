@@ -41,8 +41,8 @@ pub(crate) fn eval_session_insert(
     }
 
     // Evaluate both arguments (mirrors eval_fire_rules_native's session eval).
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let fact = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
+    let fact = crate::runtime::eval_inner(&args[1], env, sym)?;
     insert_one_on_session(session, fact, list_span, sym)
 }
 
@@ -72,10 +72,10 @@ pub(crate) fn eval_insert_public(
         )
         .into()),
         _ => {
-            let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+            let session = crate::runtime::eval_inner(&args[0], env, sym)?;
             let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for a in &args[1..] {
-                pv.push_back_mut(crate::runtime::eval_inner(a, env, sym)?.value_owned());
+                pv.push_back_mut(crate::runtime::eval_inner(a, env, sym)?);
             }
             insert_facts_on_session(
                 session,
@@ -252,7 +252,7 @@ pub(crate) fn eval_insert_all_native(
     }
 
     // Evaluate both arguments (mirrors eval_session_insert's session/fact eval).
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
+    let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?;
     insert_facts_on_session(session, new_facts_vec, list_span, sym, OP)
 }

@@ -37,7 +37,7 @@ use crate::function::FN_HEAD;
 use crate::span::Span;
 use crate::value::{
     ClauseAttempt, ClauseFailureReason, ClauseSet, Environment, EvalBreak, Function, RuntimeError,
-    RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot,
+    RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use std::sync::Arc;
 
@@ -127,7 +127,7 @@ pub(crate) fn eval_call_to_defclause(
     // Evaluate all args eagerly.
     let vals: Vec<Value> = args
         .iter()
-        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     eval_call_to_defclause_with_vals(cs, vals, list_span, sym)
 }
@@ -282,13 +282,11 @@ pub(crate) fn select_defclause_clause(
         // 3. Bind clause args into a child scope (needed for :guard eval).
         let mut scope = Environment::new();
         for ((param_name_ident, _), val) in clause.args.fixed_params.iter().zip(vals.iter()) {
-            let span = list_span.clone();
             scope = scope
                 .child()
                 .bind(
                     crate::scope::env_key(param_name_ident),
-                    span,
-                    TrackedValue::from(val.clone()),
+                    val.clone(),
                 )
                 .build();
         }
@@ -302,15 +300,14 @@ pub(crate) fn select_defclause_clause(
                 .child()
                 .bind(
                     crate::scope::env_key(rest_name_ident),
-                    list_span.clone(),
-                    TrackedValue::from(rest_vec),
+                    rest_vec,
                 )
                 .build();
         }
 
         // 4. Stone 237.3 — :guard evaluation (before body).
         if let Some(guard_ast) = &clause.guard {
-            let guard_result = eval_inner(guard_ast, &scope, sym).map(|tv| tv.value_owned())?;
+            let guard_result = eval_inner(guard_ast, &scope, sym)?;
             match &guard_result {
                 Value::bool(true) => {
                     // Guard passes — continue to body.
@@ -385,7 +382,7 @@ pub(crate) fn eval_call_to_defclause_with_vals(
             return apply_function(f.clone(), vals, sym, list_span.clone()).map_err(Into::into);
         }
     }
-    let result = eval_inner(&clause.body, &scope, sym).map(|tv| tv.value_owned())?;
+    let result = eval_inner(&clause.body, &scope, sym)?;
 
         // 6. Stone 237.3 / 237.4 — :ensure post-condition check (after body).
         if let Some(ensure_ast) = &clause.ensure_fn {
@@ -395,7 +392,7 @@ pub(crate) fn eval_call_to_defclause_with_vals(
             let ensure_span = ensure_ast.span().clone();
 
             // Evaluate the :ensure :fn form to get a callable.
-            let ensure_fn_val = eval_inner(ensure_ast, &scope, sym).map(|tv| tv.value_owned())?;
+            let ensure_fn_val = eval_inner(ensure_ast, &scope, sym)?;
             let ensure_result = match ensure_fn_val {
                 Value::wat__core__fn(func) => {
                     apply_function(func, vec![result.clone()], sym, list_span.clone())?

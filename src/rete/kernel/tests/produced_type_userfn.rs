@@ -35,7 +35,7 @@ fn eval_form(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
     let ast = crate::parse_one!(src).expect("parse form");
     eval_in_frozen(&ast, world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval of {src} raised: {e:?}"))
-        .value_owned()
+        
 }
 
 fn pvec_strings(v: &Value, what: &str) -> Vec<String> {

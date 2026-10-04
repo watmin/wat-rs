@@ -975,8 +975,8 @@ fn head_ok(
     // `f`'s OWN `closed_env` — the scope the closure was CREATED in, never the caller's (`ctx`
     // itself is not forwarded past this point; only a fresh ctx built from `f.closed_env` is).
     if let ClassifyCtx::Runtime(env) = ctx {
-        if let Some(bound) = env.lookup(head, at) {
-            if let Value::wat__core__fn(f) = bound.value() {
+        if let Some(bound) = env.lookup(head) {
+            if let Value::wat__core__fn(f) = &bound {
                 return classify_closure(f, axis, sym, seen, closure_seen, at);
             }
             // Bound to a non-fn value — nothing to classify; fall through unchanged.
@@ -1999,7 +1999,7 @@ pub(crate) fn eval_axis_violation(
     const AXIS_TYPE: &str = ":wat::rete::Axis";
     let expr_span = expr.span().clone();
     let axis_span = axis.span().clone();
-    let val = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
+    let val = crate::runtime::eval_inner(expr, env, sym)?;
     let ast = match val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -2011,7 +2011,7 @@ pub(crate) fn eval_axis_violation(
             .into());
         }
     };
-    let axis_val = crate::runtime::eval_inner(axis, env, sym)?.value_owned();
+    let axis_val = crate::runtime::eval_inner(axis, env, sym)?;
     // ONE DOOR (`Axis::from_variant_name`) — never a second, hand-spelled variant list here.
     // See `Axis::variant_name`'s doc for the 39-test failure the old duplicate decode caused.
     let axis = match &axis_val {
@@ -2448,7 +2448,7 @@ mod completeness_gate {
         // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan
         // anchors on `dispatch_keyword_head_value` and `dispatch_substrate_impl`
         // (`dispatch_verbs`, below) and has never covered `dispatch_keyword_head` — the
-        // `Result<TrackedValue, _>` path where PRODUCERS live. All ten are producers, so all
+        // `Result<Value, _>` path where PRODUCERS live. All ten are producers, so all
         // ten sat in the blind spot. HOME-12 registered them as `#[wat_intrinsic]`, the scan's
         // other half, and the gate saw them for the first time and went red.
         //

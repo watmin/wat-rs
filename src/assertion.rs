@@ -46,7 +46,6 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
-use crate::value::TrackedValue;
 use crate::value::frame::{Frame, frames_for_trace};
 use crate::value::{EvalBreak, ValueSnapshot};
 use crate::span::Span;
@@ -142,7 +141,7 @@ pub fn eval_kernel_assertion_failed(
         }));
     }
 
-    let message = match eval(&args[0], env, sym)?.value_owned() {
+    let message = match eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -189,8 +188,8 @@ pub fn eval_kernel_assertion_failed(
 
 /// Unwrap an `Option<String>` Value into a Rust `Option<String>`,
 /// refusing payloads with non-String `Some` variants.
-fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, RuntimeError> {
-    match tv.value_owned() {
+fn eval_opt_string(op: &str, v: Value) -> Result<Option<String>, RuntimeError> {
+    match v {
         Value::Option(opt) => match &*opt {
             None => Ok(None),
             Some(Value::String(s)) => Ok(Some((**s).clone())),
@@ -249,7 +248,7 @@ pub(crate) fn expect_panic(
     location: crate::span::Span,
     upstream_chain: Option<Vec<Value>>,
 ) -> Result<Value, EvalBreak> {
-    let msg = match eval_inner(msg_ast, env, sym)?.value_owned() {
+    let msg = match eval_inner(msg_ast, env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(

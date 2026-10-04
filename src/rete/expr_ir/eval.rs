@@ -1406,7 +1406,7 @@ pub(crate) fn eval_lower(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let v = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
+    let v = crate::runtime::eval_inner(expr, env, sym)?;
     let ast = match v {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {

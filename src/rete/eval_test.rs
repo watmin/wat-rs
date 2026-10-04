@@ -6,7 +6,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::rete::matcher::Bindings;
-use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
+use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 
 /// Interpreter / differential for a fenced `:then` operand against one token's bindings.
 /// Live caller is [`resolve_rhs_value`]. Compiled `RhsOp::Expr` runs `expr_ir::exec_value`
@@ -21,7 +21,7 @@ pub(crate) fn eval_rhs_expr(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let expr_env = build_test_env(bindings, &Environment::new());
-    Ok(crate::runtime::eval_inner(expr, &expr_env, sym)?.value_owned())
+    Ok(crate::runtime::eval_inner(expr, &expr_env, sym)?)
 }
 
 // ─── Arc 278 Stone 6b-i: eval-test ────────────────────────────────────────────
@@ -48,7 +48,7 @@ pub(crate) fn build_test_env<B: Bindings + ?Sized>(bindings: &B, env: &Environme
             _ => continue, // non-string key: skip (should not occur in well-formed bindings)
         };
         crate::rete::kernel::census_count("filter:test-key-alloc");
-        b = b.bind_unknown_span(name, TrackedValue::from(v.clone()));
+        b = b.bind(name, v.clone());
     }
     b.build()
 }
@@ -83,7 +83,7 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
     let test_env = build_test_env(bindings, env);
 
     // Evaluate the predicate expr in the test env; result MUST be bool.
-    match crate::runtime::eval_inner(expr, &test_env, sym)?.value_owned() {
+    match crate::runtime::eval_inner(expr, &test_env, sym)? {
         Value::bool(x) => Ok(x),
         other => Err(RuntimeError::new(expr.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -133,7 +133,7 @@ pub(crate) fn eval_test(
     const OP: &str = ":wat::rete::eval-test";
 
     // Arg 0: evaluate → must be Value::wat__WatAST (a quoted expr from :wat::core::quote).
-    let expr_val = crate::runtime::eval_inner(expr, env, sym)?.value_owned();
+    let expr_val = crate::runtime::eval_inner(expr, env, sym)?;
     let expr_ast = match expr_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -147,7 +147,7 @@ pub(crate) fn eval_test(
     };
 
     // Arg 1: evaluate → must be Value::wat__core__PersistentMap.
-    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?;
     let map = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {

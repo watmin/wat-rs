@@ -154,7 +154,7 @@ fn try_format_source(src: &str, env: &Environment, sym: &SymbolTable) -> String 
         ]),
     ]);
     match eval_inner(&form, env, sym) {
-        Ok(tv) => match tv.value_owned() {
+        Ok(tv) => match tv {
             Value::String(s) => (*s).clone(),
             _ => src.to_string(),
         },
@@ -546,7 +546,7 @@ pub fn eval_kernel_readln_prime(
     }
 
     // Evaluate the cap arg.
-    let cap = match eval(&args[0], env, sym)?.value_owned() {
+    let cap = match eval(&args[0], env, sym)? {
         Value::i64(n) if n > 0 => n,
         Value::i64(n) => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {

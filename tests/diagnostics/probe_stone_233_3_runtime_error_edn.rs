@@ -1,9 +1,8 @@
 //! FM 2-bis probe for arc 233 Stone 233.3 (Errors-as-EDN extension).
 //!
-//! Asserts that the new `edn::error` module mints:
+//! Asserts that the `edn::error` module mints:
 //!   - `runtime_error_to_edn(err: &RuntimeError) -> wat_edn::OwnedValue`
 //!   - `value_snapshot_to_edn(snap: &ValueSnapshot) -> wat_edn::OwnedValue`
-//!   - `provenance_to_edn(prov: &Provenance) -> wat_edn::OwnedValue`
 //!
 //! And that the emitted EDN round-trips through wat-edn parser.
 //!
@@ -17,10 +16,15 @@
 //! Stays as permanent regression guard. Per arc 233 thesis: errors are
 //! remarkable. Per Stone 233.3: errors are MACHINE-CONSUMABLE across
 //! IPC boundaries via tagged EDN envelopes.
+//!
+//! Excursus 003 strike G item 4: `provenance_to_edn`/`Provenance` retired
+//! wholesale (no production caller, per the audit) — probe 5, which drove
+//! that fn directly, is retired with it. Probes 1/2 (RuntimeError) are
+//! unaffected — `ValueSnapshot` never carried provenance (strike C already
+//! removed that field).
 
 use std::sync::Arc;
 use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
-use wat::value::{Provenance, TrackedValue};
 use wat::span::Span;
 use wat::edn::contract::ToEdn;
 
@@ -78,35 +82,10 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
 // probe here; `src/panic_hook.rs`'s own unit tests cover the panic path's
 // `#wat.runtime/AssertionFailed` wire tag.
 
-// ─── Probe 5 — Provenance variants render with per-variant tags ─────────────
-
-#[test]
-fn probe_5_provenance_variants_render_with_tags() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 4, 8);
-
-    // SymbolBound — Stone 233.2.e populates this on let-bound symbol lookup
-    let prov = Provenance::SymbolBound {
-        binding_span: span.clone(),
-        head_span: Span::new(span.file.clone(), 5, 12),
-    };
-
-    let edn = wat::edn::error::provenance_to_edn(&prov);
-    let serialized = wat_edn::write(&edn);
-
-    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__provenance_symbol_bound.edn", "Provenance::SymbolBound must surface exact binding-span + head-span in EDN");
-
-    // Also test RuntimeBuilt — populated by 5 producers
-    let prov_rb = Provenance::RuntimeBuilt {
-        producer: ":wat::core::keyword/from-string",
-        call_span: span.clone(),
-    };
-    let edn_rb = wat::edn::error::provenance_to_edn(&prov_rb);
-    let serialized_rb = wat_edn::write(&edn_rb);
-
-    wat::assert_edn_matches_file!(serialized_rb, "probe_stone_233_3_runtime_error_edn__provenance_runtime_built.edn", "Provenance::RuntimeBuilt must surface exact producer + call-span in EDN");
-}
-
-// ─── helper — silence unused import warnings ────────────────────────────────
-
-#[allow(dead_code)]
-fn _silence_unused_imports(_: TrackedValue) {}
+// ─── Probe 5 — RETIRED (excursus 003 strike G item 4) ───────────────────────
+//
+// `Provenance`/`provenance_to_edn` are gone (measured: no production caller).
+// This probe drove `provenance_to_edn` directly on `Provenance::SymbolBound`/
+// `RuntimeBuilt`; both the fn and the type it probed are retired together.
+// Its 2 goldens (`..__provenance_symbol_bound.edn`, `..__provenance_runtime_built.edn`)
+// are removed with it.

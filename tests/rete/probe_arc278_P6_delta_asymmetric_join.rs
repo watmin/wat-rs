@@ -31,7 +31,7 @@ fn run_expr(expr: &str) -> Value {
     let ast = wat::parse_one!(expr).expect("parse_one");
     eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-        .value_owned()
+        
 }
 
 /// Run the same expression with BOTH `fire-rules` (native delta) and `fire-rules$oracle` (oracle),

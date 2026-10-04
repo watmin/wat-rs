@@ -54,7 +54,7 @@ pub(crate) fn eval_kernel_raise(
         )
         .into());
     }
-    let data = eval_inner(&args[0], env, sym)?.value_owned();
+    let data = eval_inner(&args[0], env, sym)?;
     // Arc 278 the string-wrap annihilation — carry the raised `:wat::core::Error`
     // STRUCTURALLY on the payload (never `edn::write` it into `message`). The
     // human `message` field is the error's OWN `message` field (a String), so

@@ -146,12 +146,12 @@ fn select_prime_yields_lost_when_process_child_crashes() {
     let spawn_call = build_spawn_process_call(CRASHING_CHILD_SRC);
     let child = eval(&spawn_call, &Environment::new(), world.symbols())
         .expect("spawn-program' should succeed")
-        .value_owned();
+        ;
 
     // Bind child into the env.
     let env = Environment::new()
         .child()
-        .bind("child", wat::rust_caller_span!(), child.into())
+        .bind("child", child)
         .build();
 
     // Eval: (select' (Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))
@@ -173,7 +173,7 @@ fn select_prime_yields_lost_when_process_child_crashes() {
 
     match result {
         Ok(tv) => {
-            let event = tv.value_owned();
+            let event = tv;
             match &event {
                 Value::Enum(ev) => {
                     assert_eq!(

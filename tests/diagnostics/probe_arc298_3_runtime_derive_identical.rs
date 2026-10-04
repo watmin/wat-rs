@@ -35,7 +35,6 @@ use wat::runtime::{
 };
 use wat::span::Span;
 use wat::edn::contract::ToEdn;
-use wat::value::Provenance;
 
 fn s() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 1, 0)
@@ -338,7 +337,3 @@ fn probe_rete_defn_recursive() {
     );
 }
 
-// ─── Silence unused import warnings ──────────────────────────────────────────
-
-#[allow(dead_code)]
-fn _uses_provenance(_: Provenance) {}

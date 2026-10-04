@@ -352,7 +352,7 @@ pub(crate) fn eval_insert(
     const OP: &str = ":wat::rete::eval-insert";
 
     // Evaluate arg[0]: must be Value::wat__WatAST wrapping a List.
-    let form_val = crate::runtime::eval_inner(fact_form, env, sym)?.value_owned();
+    let form_val = crate::runtime::eval_inner(fact_form, env, sym)?;
     let form_ast = match form_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -367,7 +367,7 @@ pub(crate) fn eval_insert(
     // Evaluate arg[1]: must be Value::wat__core__PersistentMap (token bindings). `build_insert_fact`
     // is now typed to `PMap` directly (DESIGN-STONE-token-bindings-promoting) — no trie
     // materialisation at this boundary; the value IS the field.
-    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?.value_owned();
+    let bindings_val = crate::runtime::eval_inner(bindings, env, sym)?;
     let token_bindings: crate::value::pmap::PMap = match bindings_val {
         Value::wat__core__PersistentMap(ref m) => m.clone(),
         other => {

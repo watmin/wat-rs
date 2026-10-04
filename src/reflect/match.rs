@@ -29,7 +29,7 @@ use crate::ast::WatAST;
 use crate::span::Span;
 use crate::types::Nature;
 use crate::value::{
-    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value,
+    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
     ValueSnapshot,
 };
 use std::sync::Arc;
@@ -109,7 +109,7 @@ pub(crate) fn eval_form_matches(
     // so callers can write `(matches? maybe-event (:Foo ...))`
     // against `(Option :- [Value])` directly. None / non-Struct / wrong
     // type → false.
-    let subject = eval_inner(&args[0], env, sym)?.value_owned();
+    let subject = eval_inner(&args[0], env, sym)?;
     let subject = match subject {
         Value::Option(opt) => match (*opt).clone() {
             Some(v) => v,
@@ -213,7 +213,7 @@ pub(crate) fn walk_match_clause(
             // Disambiguate binding vs equality by LHS shape and
             // whether the variable is already in scope.
             if let Some(var) = logic_var_name(left) {
-                if env.lookup(var, left.span()).is_none() {
+                if env.lookup(var).is_none() {
                     // Fresh ?var — binding.
                     let field_kw = keyword_payload(right).ok_or_else(|| {
                         RuntimeError::new(
@@ -239,21 +239,21 @@ pub(crate) fn walk_match_clause(
                     };
                     let new_env = env
                         .child()
-                        .bind_unknown_span(var.to_string(), TrackedValue::from(value))
+                        .bind(var.to_string(), value)
                         .build();
                     return Ok((true, new_env));
                 }
                 // ?var already bound — fall through to comparison.
             }
             // Equality comparison. eval both sides; structural equality.
-            let a = eval_inner(left, &env, sym)?.value_owned();
-            let b = eval_inner(right, &env, sym)?.value_owned();
+            let a = eval_inner(left, &env, sym)?;
+            let b = eval_inner(right, &env, sym)?;
             let eq = values_equal(&a, &b).unwrap_or(false);
             Ok((eq, env))
         }
         RawClause::Compare { op, left, right } => {
-            let a = eval_inner(left, &env, sym)?.value_owned();
-            let b = eval_inner(right, &env, sym)?.value_owned();
+            let a = eval_inner(left, &env, sym)?;
+            let b = eval_inner(right, &env, sym)?;
             match op {
                 CompareOp::NotEq => {
                     let eq = values_equal(&a, &b).unwrap_or(false);
@@ -341,7 +341,7 @@ pub(crate) fn walk_match_clause(
             Ok((!p, entry_env))
         }
         RawClause::Where(body) => {
-            let v = eval_inner(body, &env, sym)?.value_owned();
+            let v = eval_inner(body, &env, sym)?;
             match v {
                 Value::bool(b) => Ok((b, env)),
                 other => Err(RuntimeError::new(

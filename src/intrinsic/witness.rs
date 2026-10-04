@@ -85,7 +85,7 @@ pub(crate) fn eval_yields_witness(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::intrinsic::yields-witness";
     // Evaluate f to get the callable.
-    let callable = eval_inner(f, env, sym)?.value_owned();
+    let callable = eval_inner(f, env, sym)?;
     // Extract the Function arc from the callable value.
     let func = match callable {
         Value::wat__core__fn(f) => f,

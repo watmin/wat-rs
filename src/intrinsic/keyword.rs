@@ -22,16 +22,14 @@
 //! already lived in `runtime.rs`/`edn/render.rs`, and stay there (name-only rename of the
 //! DISPATCH ROUTE, not the implementation).
 //!
-//! ★ FOUR of the five (`from-string`, `to-symbol`, `to-type-form`, `to-type-form-colon`) are
-//! PRODUCERS: their handlers below return `Result<TrackedValue, EvalBreak>` directly (not
-//! `Result<Value, EvalBreak>`), forwarding the `TrackedValue` their algorithm fn already builds
-//! — carrying `Provenance::RuntimeBuilt { producer, call_span }` — un-rewrapped. Arc 255 Stone
-//! G gave `NativeHandler` a `TrackedValue`-returning signature with a sniff (mirroring the
-//! macro's existing `SniffedArgs` on the argument side) precisely so a registry-routed producer
-//! could keep stamping its own provenance instead of being downgraded to `Provenance::Unknown`
-//! by the shim's default arm — restoring what Stone E-iv recorded as an open regression.
-//! `to-string` (the fifth verb) is a plain Probe, not a producer, and keeps the bare-`Value`
-//! shape — the shim wraps it as `Provenance::Unknown`, same as any other non-producer handler.
+//! ★ FOUR of the five (`from-string`, `to-symbol`, `to-type-form`, `to-type-form-colon`) WERE
+//! PRODUCERS through arc 255 Stone G: their handlers forwarded the `TrackedValue` their
+//! algorithm fn already built — carrying `Provenance::RuntimeBuilt { producer, call_span }` —
+//! un-rewrapped, restoring what Stone E-iv had recorded as an open regression. `to-string` (the
+//! fifth verb) was always a plain Probe, not a producer, and kept the bare-`Value` shape.
+//! Excursus 003 strike G item 4 retired `Provenance`/`TrackedValue` wholesale: all five
+//! handlers below now return bare `Result<Value, EvalBreak>` — there is no stamp left to
+//! distinguish the four producers from the one probe.
 //!
 //! Both the old `:wat::core::keyword/*` spelling and this new one are LIVE during Phase 1/2 of
 //! this stone (register, then move the corpus by codemod); Phase 3 retires the old spelling,
@@ -48,7 +46,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 // ─── the 5 verbs ────────────────────────────────────────────────────────────
 
@@ -106,7 +104,7 @@ pub(crate) fn eval_keyword_from_string_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::runtime::eval_keyword_from_string(std::slice::from_ref(s), span, env, sym)
 }
 
@@ -137,7 +135,7 @@ pub(crate) fn eval_keyword_to_symbol_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_keyword_to_symbol(std::slice::from_ref(kw_node), span, env, sym)
         .map_err(Into::into)
 }
@@ -168,7 +166,7 @@ pub(crate) fn eval_keyword_to_type_form_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_keyword_to_type_form(std::slice::from_ref(kw_node), span, env, sym)
         .map_err(Into::into)
 }
@@ -199,7 +197,7 @@ pub(crate) fn eval_keyword_to_type_form_colon_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_keyword_to_type_form_colon(std::slice::from_ref(kw_node), span, env, sym)
         .map_err(Into::into)
 }

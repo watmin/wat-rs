@@ -34,7 +34,7 @@ fn parametric_surface_return_resolves_to_satisfier_type() {
     );
     let got = eval_in_frozen(&call, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("resolve raised: {e:?}"))
-        .value_owned();
+        ;
     match got {
         Value::i64(42) => { /* Holds<T>/get resolved T = i64 per IntBox's extend-type */ }
         other => panic!(

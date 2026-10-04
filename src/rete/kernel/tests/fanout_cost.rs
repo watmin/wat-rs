@@ -67,7 +67,7 @@ fn beta_write_read_traffic() {
         let (_fired, rows) = super::with_beta_traffic(|| {
             eval_in_frozen(&ast, &world, &Environment::new())
                 .unwrap_or_else(|e| panic!("{label} fire raised: {e:?}"))
-                .value_owned()
+                
         });
 
         let mut out = format!("\n  BETA TRAFFIC — {label}\n\n    node    written      read   verdict\n    ------------------------------------------------\n");
@@ -198,7 +198,7 @@ fn fanout_rhs_key_alloc_census() {
     let (_fired, rows) = super::with_count_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fanout count census fire raised: {e:?}"))
-            .value_owned()
+            
     });
     let get = |n: &str| {
         rows.iter()
@@ -257,7 +257,7 @@ fn fanout_per_call_alpha_census() {
     let (_fired, rows) = super::with_phase_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fanout census fire raised: {e:?}"))
-            .value_owned()
+            
     });
 
     // The denominator is THE FIRE — and it is NAMED, not inferred, because inferring it from
@@ -538,7 +538,7 @@ fn fanout_three_leftover_split() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
@@ -815,7 +815,7 @@ fn fanout_phase_dump() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (_fired, rows) = super::with_phase_census_counted(|| {

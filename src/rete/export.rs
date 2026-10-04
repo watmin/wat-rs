@@ -2037,7 +2037,7 @@ pub(crate) fn eval_export(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?;
     let (network, rules) = session_network_rules(&session, list_span)?;
     // Pack door: MISS intern's (`DESIGN-STONE-intern-eviction`); HIT reuses the compile lease.
     let arm = rete_arm_get_or_build(network, rules, sym)?;
@@ -2174,7 +2174,7 @@ pub(crate) fn eval_import(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let export = crate::runtime::eval_inner(export, env, sym)?.value_owned();
+    let export = crate::runtime::eval_inner(export, env, sym)?;
     import_export(&export, list_span, sym)
 }
 

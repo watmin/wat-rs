@@ -44,7 +44,7 @@ pub use encoding_ctx::EncodingCtx;
 pub use environment::{Function, FunctionBody, Environment, EnvBuilder, BoundEntry, ReteContract};
 pub use frame::{FrameInfo, snapshot_call_stack};
 pub(crate) use frame::{FrameGuard, replace_top_frame, MacroCallSiteGuard, current_macro_call_site, ANON_FN_SYMBOL};
-pub use observe::{Provenance, TrackedValue, ValueSnapshot};
+pub use observe::ValueSnapshot;
 pub use signal::{EvalBreak, EvalSignal, ReteCeiling, RuntimeError, RuntimeErrorKind};
 pub use symbol_table::SymbolTable;
 pub use value::{Value, AggregateValue, HolonForm, EnumValue,

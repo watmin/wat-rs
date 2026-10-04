@@ -24,8 +24,8 @@ fn eval_res(src: &str) -> Result<(String, String), EvalBreak> {
     let ast = wat::parse_one!(src).expect("parse");
     let tv = eval_in_frozen(&ast, &world, &env)?;
     Ok((
-        tv.value().type_name().to_string(),
-        ValueSnapshot::of(tv.value()).rendered,
+        tv.type_name().to_string(),
+        ValueSnapshot::of(&tv).rendered,
     ))
 }
 

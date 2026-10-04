@@ -143,7 +143,7 @@ pub(crate) fn eval_record_to_map(
         )
         .into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     record_field_map(v, OP, list_span, sym)
 }
 
@@ -178,8 +178,8 @@ pub(crate) fn eval_record_same_data(
         )
         .into());
     }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     let map_a = record_field_map(a, OP, list_span, sym)?;
     let map_b = record_field_map(b, OP, list_span, sym)?;
     Ok(Value::bool(values_equal(&map_a, &map_b) == Some(true)))
@@ -398,8 +398,8 @@ pub(crate) fn eval_record_assoc(
         )
         .into());
     }
-    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let key_val = eval_inner(&args[1], env, sym)?.value_owned();
-    let new_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let record_val = eval_inner(&args[0], env, sym)?;
+    let key_val = eval_inner(&args[1], env, sym)?;
+    let new_val = eval_inner(&args[2], env, sym)?;
     record_assoc_inner(record_val, key_val, new_val, list_span, sym)
 }

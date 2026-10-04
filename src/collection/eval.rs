@@ -820,8 +820,8 @@ pub(crate) fn eval_persistentmap_ctor(
     }
     let mut pairs: Vec<(Value, Value)> = Vec::with_capacity(args.len() / 2);
     for pair in args.chunks(2) {
-        let k = eval_inner(&pair[0], env, sym)?.value_owned();
-        let v = eval_inner(&pair[1], env, sym)?.value_owned();
+        let k = eval_inner(&pair[0], env, sym)?;
+        let v = eval_inner(&pair[1], env, sym)?;
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::new(pair[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::PersistentMap".into(),
@@ -1311,7 +1311,7 @@ pub(crate) fn eval_persistentvector_ctor(
     let _ = call_span; // arity is any (0+ elements)
     let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for arg in args {
-        let v = eval_inner(arg, env, sym)?.value_owned();
+        let v = eval_inner(arg, env, sym)?;
         pv.push_back_mut(v);
     }
     Ok(Value::wat__core__PersistentVector(pv))
@@ -1332,7 +1332,7 @@ pub(crate) fn length_of(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::length";
-    let arg_val = eval_inner(xs, env, sym)?.value_owned();
+    let arg_val = eval_inner(xs, env, sym)?;
     // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
     // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
@@ -1389,7 +1389,7 @@ pub(crate) fn empty_of(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::empty?";
-    let arg_val = eval_inner(xs, env, sym)?.value_owned();
+    let arg_val = eval_inner(xs, env, sym)?;
     // Arc-278 strike A — map-family arms route through MapContainer (measurable capability).
     // The capability DRIVES the accepted set: the `if m.measurable()` guard is the genuine gate,
     // not a debug_assert. Exhaustive match over the closed MapContainer enum — NO `_`. Adding a
@@ -1463,8 +1463,8 @@ pub(crate) fn nth_of(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::nth";
-    let v = eval_inner(xs, env, sym)?.value_owned();
-    let idx_val = eval_inner(idx, env, sym)?.value_owned();
+    let v = eval_inner(xs, env, sym)?;
+    let idx_val = eval_inner(idx, env, sym)?;
     let index_i64 = match idx_val {
         Value::i64(n) => n,
         other => {
@@ -1610,7 +1610,7 @@ pub(crate) fn eval_rest(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let v = eval_inner(xs, env, sym)?.value_owned();
+    let v = eval_inner(xs, env, sym)?;
     // Arc-278 strike 2 — classify via the registry (StreamContainer::of_value + has_tail()).
     // The registry is the single source of truth; dispatch arms below are per-container
     // implementation only — no classification logic lives here.
@@ -1783,7 +1783,7 @@ pub(crate) fn eval_vector_ctor(
     // typealias to reuse.
     let items = args[1..]
         .iter()
-        .map(|a| eval_inner(a, env, sym).map(|tv| tv.value_owned()))
+        .map(|a| eval_inner(a, env, sym))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Value::Vec(Arc::new(items)))
 }
@@ -1859,8 +1859,8 @@ pub(crate) fn eval_hashmap_ctor(
     #[allow(clippy::mutable_key_type)]
     let mut map: HashMap<Value, Value> = HashMap::with_capacity(pairs.len() / 2);
     for pair in pairs.chunks(2) {
-        let k = eval_inner(&pair[0], env, sym)?.value_owned();
-        let v = eval_inner(&pair[1], env, sym)?.value_owned();
+        let k = eval_inner(&pair[0], env, sym)?;
+        let v = eval_inner(&pair[1], env, sym)?;
         if !value_is_key_hashable(&k) {
             return Err(RuntimeError::new(pair[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::HashMap".into(),
@@ -1934,7 +1934,7 @@ pub(crate) fn eval_hashset_ctor(
     // Guard: reject opaque-handle variants (would hit unreachable!() in Hash).
     let mut set: HashSet<Value> = HashSet::with_capacity(args.len() - 1);
     for a in &args[1..] {
-        let v = eval_inner(a, env, sym)?.value_owned();
+        let v = eval_inner(a, env, sym)?;
         if !value_is_set_hashable(&v) {
             return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::core::HashSet".into(),

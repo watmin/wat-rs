@@ -86,7 +86,7 @@ pub(crate) fn eval_uuid_v5(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch) locates at its own arg's span (`ns`'s or `name`'s)
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::uuid::v5";
-    let ns_val = eval_inner(ns, env, sym)?.value_owned();
+    let ns_val = eval_inner(ns, env, sym)?;
     let ns_uuid = match ns_val {
         Value::wat__core__Uuid(u) => u,
         other => {
@@ -98,7 +98,7 @@ pub(crate) fn eval_uuid_v5(
             .into());
         }
     };
-    let name_val = eval_inner(name, env, sym)?.value_owned();
+    let name_val = eval_inner(name, env, sym)?;
     let name_str = match &name_val {
         Value::String(s) => s.as_str().to_string(),
         other => {
@@ -138,7 +138,7 @@ pub(crate) fn eval_uuid_from_string(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `s`'s own span; malformed UUID text is a non-error `Ok(None)`
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::uuid::from-string";
-    let s_val = eval_inner(s, env, sym)?.value_owned();
+    let s_val = eval_inner(s, env, sym)?;
     let s_str = match &s_val {
         Value::String(v) => v.as_str().to_string(),
         other => {
@@ -179,7 +179,7 @@ pub(crate) fn eval_uuid_to_string(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::uuid::to-string";
-    let u_val = eval_inner(u, env, sym)?.value_owned();
+    let u_val = eval_inner(u, env, sym)?;
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,
         other => {
@@ -232,7 +232,7 @@ pub(crate) fn eval_uuid_version(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::uuid::version";
-    let u_val = eval_inner(u, env, sym)?.value_owned();
+    let u_val = eval_inner(u, env, sym)?;
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,
         other => {
@@ -270,7 +270,7 @@ pub(crate) fn eval_uuid_rfc4122_variant(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::uuid::rfc4122-variant?";
-    let u_val = eval_inner(u, env, sym)?.value_owned();
+    let u_val = eval_inner(u, env, sym)?;
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,
         other => {

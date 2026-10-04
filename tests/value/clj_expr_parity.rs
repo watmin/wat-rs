@@ -42,7 +42,7 @@ fn wat_eval_edn(expr: &str) -> String {
     let call = wat::parse_one!("(:probe::e)").expect("parse the probe call");
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
         match eval_in_frozen(&call, &world, &Environment::new()) {
-            Ok(tv) => wat_edn::write(&value_to_edn_with(&tv.value_owned(), None).expect("test value must encode")),
+            Ok(tv) => wat_edn::write(&value_to_edn_with(&tv, None).expect("test value must encode")),
             Err(_) => ":ERR".to_string(),
         }
     })) {

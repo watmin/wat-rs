@@ -487,7 +487,7 @@ pub fn eval_kernel_spawn_thread_prime(
     }
 
     // arg 0: program fn value.
-    let program_fn = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let program_fn = match eval_inner(&args[0], env, sym)? {
         Value::wat__core__fn(f) => f,
         other => {
             return Err(RuntimeError::new(
@@ -503,7 +503,7 @@ pub fn eval_kernel_spawn_thread_prime(
     };
 
     // arg 1: init-fn value (0-arg fn returning :wat::core::Record).
-    let init_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let init_fn = match eval_inner(&args[1], env, sym)? {
         Value::wat__core__fn(f) => f,
         other => {
             return Err(RuntimeError::new(
@@ -520,7 +520,7 @@ pub fn eval_kernel_spawn_thread_prime(
     };
 
     // arg 2: post-spawn-fn value (1-arg fn receiving ThreadLaunch, returning nil).
-    let post_spawn_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
+    let post_spawn_fn = match eval_inner(&args[2], env, sym)? {
         Value::wat__core__fn(f) => f,
         other => {
             return Err(RuntimeError::new(
@@ -581,7 +581,7 @@ pub fn eval_kernel_spawn_process_prime(
     .map_err(EvalBreak::from)?;
 
     // arg 1: post-spawn-fn value (1-arg fn receiving ProcessLaunch, returning nil).
-    let post_spawn_fn = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let post_spawn_fn = match eval_inner(&args[1], env, sym)? {
         Value::wat__core__fn(f) => f,
         other => {
             return Err(RuntimeError::new(
@@ -598,7 +598,7 @@ pub fn eval_kernel_spawn_process_prime(
     };
 
     // arg 2: env-fn — a wat source string the child evals to produce user-data.
-    let env_fn = match eval_inner(&args[2], env, sym)?.value_owned() {
+    let env_fn = match eval_inner(&args[2], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(
@@ -614,7 +614,7 @@ pub fn eval_kernel_spawn_process_prime(
     };
 
     // arg 3: max-message-bytes — the per-receiver frame-size budget (i64 from ProcessOpts).
-    let max_frame_bytes = match eval_inner(&args[3], env, sym)?.value_owned() {
+    let max_frame_bytes = match eval_inner(&args[3], env, sym)? {
         Value::i64(n) => n as usize,
         other => {
             return Err(RuntimeError::new(
@@ -633,7 +633,7 @@ pub fn eval_kernel_spawn_process_prime(
     // env-fn (a source string the CHILD evals), this is a VALUE the parent already holds —
     // it never needed the child's world, so it reaches ExecPlan::build() directly. `None`
     // means "no identity declared" (today's bare `wat` argv, unchanged).
-    let identity = match eval_inner(&args[4], env, sym)?.value_owned() {
+    let identity = match eval_inner(&args[4], env, sym)? {
         Value::Option(opt) => (*opt).clone(),
         other => {
             return Err(RuntimeError::new(
@@ -741,9 +741,9 @@ pub fn spawn_thread_peer(
             // constructor references by name.
             let ctor_env = Environment::new()
                 .child()
-                .bind_unknown_span(
+                .bind(
                     "user-program",
-                    crate::value::TrackedValue::from(user_program),
+                    user_program,
                 )
                 .build();
             let peer_env_src = format!(
@@ -754,7 +754,7 @@ pub fn spawn_thread_peer(
                 .expect("arc 259: peer env constructor form parses");
             let peer_env_val = crate::runtime::eval(&peer_env_ast, &ctor_env, &thread_sym)
                 .expect("arc 259: peer env constructor evals")
-                .value_owned();
+                ;
             let _peer_env_guard = crate::services::install_program_env(peer_env_val);
 
             // Excursus 003 D4 item 1 — this thread shares the parent's already-frozen
@@ -878,7 +878,7 @@ pub fn spawn_thread_peer(
                 },
             )
         })?
-        .value_owned();
+        ;
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
     // Wrapped in Option so close' can `.take()` the peer (consuming it for
@@ -1135,7 +1135,7 @@ pub fn spawn_process_peer(
                 },
             )
         })?
-        .value_owned();
+        ;
     apply_function(post_spawn_fn, vec![launch], sym, list_span.clone())?;
 
     // Wrapped in Option so close' can `.take()` the bundle (consuming it for

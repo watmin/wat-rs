@@ -60,7 +60,7 @@ pub(crate) fn eval_collect_rules(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::collect-rules";
     let ns_span = ns.span().clone();
-    let ns_val = crate::runtime::eval_inner(ns, env, sym)?.value_owned();
+    let ns_val = crate::runtime::eval_inner(ns, env, sym)?;
     let ns = match ns_val {
         Value::wat__core__keyword(k) => k,
         other => {
@@ -95,7 +95,7 @@ pub(crate) fn eval_collect_rules(
     for name in &names {
         let kw = if name.starts_with(':') { name.clone() } else { format!(":{name}") };
         let call = WatAST::List(vec![WatAST::Keyword(kw, list_span.clone())], list_span.clone());
-        let rule = crate::runtime::eval_inner(&call, env, sym)?.value_owned();
+        let rule = crate::runtime::eval_inner(&call, env, sym)?;
         out.push_back_mut(rule);
     }
     Ok(Value::wat__core__PersistentVector(out))

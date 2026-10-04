@@ -125,7 +125,7 @@
 //! `require-wire-address` (`runtime.rs:32094`) was named in `:CheckGate`'s
 //! prose before it was ever registered, when actual membership was zero;
 //! carving it here makes that naming true for the first time. Its body is
-//! bare identity — `eval_inner(&args[0], env, sym)?.value_owned()` — the
+//! bare identity — `eval_inner(&args[0], env, sym)?` — the
 //! ENTIRE contract (`Wire` vs `Shared` transport marker) is discharged by
 //! `infer_require_wire_address` at check time, exactly `:CheckGate`'s own
 //! prose: acquire/refuse at the boundary, not at runtime. `@Purity Pure` /
@@ -177,7 +177,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 //
 // Deciding line for `@Purity Pure` / `@Determinism Deterministic`:
 // `runtime.rs:32094` `eval_require_wire_address` is `eval_inner(&args[0],
-// env, sym)?.value_owned()` — bare identity, same input, same output, no
+// env, sym)?` — bare identity, same input, same output, no
 // effect.
 #[wat_intrinsic(":wat::kernel::require-wire-address")]
 pub(crate) fn eval_require_wire_address(

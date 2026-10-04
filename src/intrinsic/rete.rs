@@ -80,7 +80,7 @@ fn eval_quoted_ast_arg(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<WatAST, EvalBreak> {
-    let val = eval_inner(expr, env, sym)?.value_owned();
+    let val = eval_inner(expr, env, sym)?;
     match val {
         Value::wat__WatAST(ref a) => Ok((**a).clone()),
         other => Err(RuntimeError::new(
@@ -295,7 +295,7 @@ pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::vocabulary-admitted?";
-    let val = eval_inner(head, env, sym)?.value_owned();
+    let val = eval_inner(head, env, sym)?;
     let name = match val {
         Value::wat__WatAST(ref a) => match a.as_ref() {
             WatAST::Keyword(k, _) => k.clone(),
@@ -363,7 +363,7 @@ pub(crate) fn eval_rete_cond_has_deferred_constraint_intrinsic(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::cond-has-deferred-constraint?";
-    let cond_val = eval_inner(cond, env, sym)?.value_owned();
+    let cond_val = eval_inner(cond, env, sym)?;
     let cond_ast = match cond_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -393,7 +393,7 @@ fn eval_alpha_match_kind_impl(
     sym: &SymbolTable,
     local: bool,
 ) -> Result<Value, EvalBreak> {
-    let cond_val = eval_inner(cond, env, sym)?.value_owned();
+    let cond_val = eval_inner(cond, env, sym)?;
     let cond_ast = match cond_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -409,7 +409,7 @@ fn eval_alpha_match_kind_impl(
         }
     };
 
-    let fact_val = eval_inner(fact, env, sym)?.value_owned();
+    let fact_val = eval_inner(fact, env, sym)?;
     let f = match fact_from_value(&fact_val) {
         Some(f) => f,
         None => {
@@ -545,7 +545,7 @@ pub(crate) fn eval_rete_alpha_match_under_intrinsic(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::alpha-match-under";
 
-    let cond_val = eval_inner(cond, env, sym)?.value_owned();
+    let cond_val = eval_inner(cond, env, sym)?;
     let cond_ast = match cond_val {
         Value::wat__WatAST(ref a) => (**a).clone(),
         other => {
@@ -561,7 +561,7 @@ pub(crate) fn eval_rete_alpha_match_under_intrinsic(
         }
     };
 
-    let fact_val = eval_inner(fact, env, sym)?.value_owned();
+    let fact_val = eval_inner(fact, env, sym)?;
     let f = match fact_from_value(&fact_val) {
         Some(f) => f,
         None => {
@@ -577,7 +577,7 @@ pub(crate) fn eval_rete_alpha_match_under_intrinsic(
         }
     };
 
-    let binds_val = eval_inner(bindings, env, sym)?.value_owned();
+    let binds_val = eval_inner(bindings, env, sym)?;
     let seed: Vec<(Value, Value)> = match &binds_val {
         Value::wat__core__PersistentMap(pm) => {
             pm.iter().map(|(k, v)| (k.clone(), v.clone())).collect()

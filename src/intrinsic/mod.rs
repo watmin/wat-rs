@@ -45,7 +45,7 @@
 use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak, TrackedValue};
+use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
 
 // ─── The closed-domain enums the reflection surface answers with ─────────────
 //
@@ -155,28 +155,22 @@ pub(crate) enum Arity {
     Variadic,
 }
 
-/// The native dispatch handler — returns `TrackedValue`, not a bare `Value`, so a producer
-/// handler CAN stamp `Provenance::RuntimeBuilt { producer, call_span }` — "this value was
-/// manufactured, by that verb, there" — the same fact a hand-written `dispatch_keyword_head`
-/// arm has always been able to record. Arc 255 Stone G.
-///
-/// The `#[wat_intrinsic]`-generated shim (`crates/wat-macros/src/wat_intrinsic.rs`) is the ONE
-/// choke point that produces this signature: a handler written to return a bare `Value` (the
-/// ~250 pre-existing handlers, untouched) is wrapped by the shim as
-/// `TrackedValue::new(v, Provenance::Unknown)` — today's behaviour, unchanged; a handler that
-/// WANTS provenance returns `TrackedValue` itself and the shim's sniff (mirroring
-/// `SniffedArgs` for the argument side) passes it through un-rewrapped.
+/// The native dispatch handler. Returned `TrackedValue` (not a bare `Value`) from arc 255 Stone
+/// G through excursus 003 strike G item 4: a producer handler could stamp
+/// `Provenance::RuntimeBuilt { producer, call_span }` — "this value was manufactured, by that
+/// verb, there" — the same fact a hand-written `dispatch_keyword_head` arm had always been able
+/// to record. That machinery (`Provenance`/`TrackedValue`, the `#[wat_intrinsic]` shim's
+/// return-shape sniff) is retired; every handler, producer or not, now returns bare `Value`
+/// through this one signature.
 pub(crate) type NativeHandler =
-    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<TrackedValue, EvalBreak>;
+    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
 
 /// The tail door's callable pointer — arc 255 Stone the-tail-door. Sibling to [`NativeHandler`],
-/// same argument shape, DIFFERENT return: a tail impl (`eval_if_tail`/`eval_let_tail`/
-/// `eval_match_tail`'s shim) returns bare `Value`, which is what `eval_tail` itself returns and
-/// what its trampoline caller expects — no `TrackedValue` provenance decision belongs at a tail
-/// return (DESIGN-STONE-the-tail-door's "the type needs no invention" table). Carried on a
-/// SEPARATE `IntrinsicEntry::tail_handler` slot, never folded into `handler`
-/// (`NativeHandler`'s slot): `handler` is what `dispatch_keyword_head_value` calls in NON-tail
-/// position, where a tail impl's contract does not hold.
+/// same argument shape AND (since excursus 003 strike G item 4) same return shape — both doors
+/// return bare `Value`, which is what `eval_tail`/`dispatch_keyword_head_value`'s trampoline
+/// callers expect. Carried on a SEPARATE `IntrinsicEntry::tail_handler` slot, never folded into
+/// `handler` (`NativeHandler`'s slot): `handler` is what `dispatch_keyword_head_value` calls in
+/// NON-tail position, where a tail impl's contract does not hold.
 pub(crate) type TailHandler =
     fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
 

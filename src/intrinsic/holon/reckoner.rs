@@ -63,7 +63,7 @@ pub(crate) fn eval_reckoner_new_discrete(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch) locates at its own arg's span (`name`'s or `labels`'s)
 ) -> Result<Value, EvalBreak> {
-    let name_val = eval_inner(name, env, sym)?.value_owned();
+    let name_val = eval_inner(name, env, sym)?;
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -80,13 +80,13 @@ pub(crate) fn eval_reckoner_new_discrete(
     };
     let dims = require_i64(
         ":wat::holon::Reckoner/new-discrete",
-        eval_inner(dims, env, sym)?.value_owned(),
+        eval_inner(dims, env, sym)?,
     )?;
     let recalib = require_i64(
         ":wat::holon::Reckoner/new-discrete",
-        eval_inner(recalib, env, sym)?.value_owned(),
+        eval_inner(recalib, env, sym)?,
     )?;
-    let labels_val = eval_inner(labels, env, sym)?.value_owned();
+    let labels_val = eval_inner(labels, env, sym)?;
     let label_asts: Vec<HolonAST> = match labels_val {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
@@ -153,7 +153,7 @@ pub(crate) fn eval_reckoner_new_continuous(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let name_val = eval_inner(name, env, sym)?.value_owned();
+    let name_val = eval_inner(name, env, sym)?;
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
@@ -170,20 +170,20 @@ pub(crate) fn eval_reckoner_new_continuous(
     };
     let dims = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(dims, env, sym)?.value_owned(),
+        eval_inner(dims, env, sym)?,
     )?;
     let recalib = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(recalib, env, sym)?.value_owned(),
+        eval_inner(recalib, env, sym)?,
     )?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        &eval_inner(default_value, env, sym)?.value_owned(),
+        &eval_inner(default_value, env, sym)?,
         list_span,
     )?;
     let buckets = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(buckets, env, sym)?.value_owned(),
+        eval_inner(buckets, env, sym)?,
     )?;
     let r = holon::Reckoner::new(
         &name,
@@ -308,15 +308,15 @@ pub(crate) fn eval_reckoner_resolve(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/resolve",
-        &eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?,
         list_span,
     )?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        &eval_inner(conviction, env, sym)?.value_owned(),
+        &eval_inner(conviction, env, sym)?,
         list_span,
     )?;
-    let correct_val = eval_inner(correct, env, sym)?.value_owned();
+    let correct_val = eval_inner(correct, env, sym)?;
     let correct = match correct_val {
         Value::bool(b) => b,
         other => {

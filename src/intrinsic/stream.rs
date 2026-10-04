@@ -135,8 +135,8 @@ pub(crate) fn eval_stream_cons_intrinsic(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let head_val = eval_inner(head, env, sym)?.value_owned();
-    let tail_val = eval_inner(tail, env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?;
+    let tail_val = eval_inner(tail, env, sym)?;
     let tail_stream = match tail_val {
         Value::wat__stream__Stream(st) => st,
         other => {
@@ -192,7 +192,7 @@ pub(crate) fn eval_stream_next_intrinsic(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let seq_val = eval_inner(s, env, sym)?.value_owned();
+    let seq_val = eval_inner(s, env, sym)?;
     let seq = match seq_val {
         Value::wat__stream__Stream(st) => st,
         other => {

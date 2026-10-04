@@ -40,7 +40,7 @@ fn eval_probe(defn: &str, call: &str) -> Result<Value, StartupError> {
     let ast = wat::parse_one!(call).map_err(StartupError::Parse)?;
     eval_in_frozen(&ast, &w, &Environment::new())
         .map_err(|e| StartupError::Runtime(Box::new(e)))
-        .map(|tv| tv.value_owned())
+        
 }
 
 fn expect_i64(defn: &str, call: &str, want: i64) {

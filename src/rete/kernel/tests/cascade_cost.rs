@@ -109,7 +109,7 @@ fn cascade_kind_list_split() {
     let ast = crate::parse_one!(src).expect("parse compile");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient of compiled session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for cascade network");
@@ -237,7 +237,7 @@ fn cascade_query_harvest_split() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("cascade seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {

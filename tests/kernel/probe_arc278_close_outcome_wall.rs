@@ -35,7 +35,7 @@
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_beside, FrozenWorld};
-use wat::runtime::{apply_function, Environment, TrackedValue, Value};
+use wat::runtime::{apply_function, Environment, Value};
 
 /// Spawn a peer via the co-located fixture's `spawn_fn`, then drive the
 /// kernel-restricted `close'` on it via `eval_in_frozen` (no check pass), returning
@@ -52,12 +52,12 @@ fn spawn_then_close(spawn_fn: &str) -> Value {
         .unwrap_or_else(|e| panic!("{spawn_fn} should spawn a peer: {e:?}"));
     let env = Environment::new()
         .child()
-        .bind_unknown_span("peer", TrackedValue::from(peer))
+        .bind("peer", peer)
         .build();
     let ast = wat::parse_one!("(:wat::kernel::close peer)").expect("parse close' form");
     eval_in_frozen(&ast, &world, &env)
         .unwrap_or_else(|e| panic!("close' should eval to a CloseOutcome, not raise: {e:?}"))
-        .value_owned()
+        
 }
 
 /// Extract a `:wat::kernel::CloseOutcome` enum value, asserting the type path.

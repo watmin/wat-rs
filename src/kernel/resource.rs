@@ -75,7 +75,7 @@ pub(crate) fn eval_listener_prime(
         .into());
     }
     // Evaluate the host to dispatch between thread and process tiers.
-    let host_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let host_val = eval_inner(&args[0], env, sym)?;
     let is_process = matches!(&host_val,
         Value::Aggregate(a) if a.class.as_ref() == "wat::spawn::ProcessOpts");
 
@@ -109,7 +109,7 @@ pub(crate) fn eval_listener_prime(
             }
             // Evaluate the optional per-service frame budget `FOO` (arg 3).
             let max_frame_bytes: usize = if args.len() == 4 {
-                match eval_inner(&args[3], env, sym)?.value_owned() {
+                match eval_inner(&args[3], env, sym)? {
                     Value::i64(n) if n > 0 => n as usize,
                     other => {
                         return Err(RuntimeError::new(args[3].span().clone(), RuntimeErrorKind::MalformedForm {
@@ -248,7 +248,7 @@ pub(crate) fn eval_connect_prime(
         )
         .into());
     }
-    let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let addr_val = eval_inner(&args[0], env, sym)?;
     // Arc 209 C0b.2e-iii — one arm: downcast the Address' opaque → inner.connect.
     let addr: &crate::kernel::address::Address = match addr_val {
         Value::RustOpaque(ref inner)
@@ -306,7 +306,7 @@ pub(crate) fn eval_accept_prime(
         )
         .into());
     }
-    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let listener_val = eval_inner(&args[0], env, sym)?;
     // Arc 209 C0b.2e-ii — ONE arm: downcast the unified Listener entity.
     match listener_val {
         Value::RustOpaque(ref inner)
@@ -356,7 +356,7 @@ pub(crate) fn eval_allow_prime(
         )
         .into());
     }
-    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let listener_val = eval_inner(&args[0], env, sym)?;
     match listener_val {
         Value::RustOpaque(ref inner)
             if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
@@ -371,7 +371,7 @@ pub(crate) fn eval_allow_prime(
             )?;
             match listener.inner.as_any_ref().downcast_ref::<SocketListener>() {
                 Some(sl) => {
-                    let pid_val = eval_inner(&args[1], env, sym)?.value_owned();
+                    let pid_val = eval_inner(&args[1], env, sym)?;
                     let pid = match pid_val {
                         Value::i64(n) => n as i32,
                         other => {
@@ -435,7 +435,7 @@ pub(crate) fn eval_deny_prime(
         )
         .into());
     }
-    let listener_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let listener_val = eval_inner(&args[0], env, sym)?;
     match listener_val {
         Value::RustOpaque(ref inner)
             if inner.type_path == crate::kernel::spawn::LISTENER_TYPE_PATH =>
@@ -450,7 +450,7 @@ pub(crate) fn eval_deny_prime(
             )?;
             match listener.inner.as_any_ref().downcast_ref::<SocketListener>() {
                 Some(sl) => {
-                    let pid_val = eval_inner(&args[1], env, sym)?.value_owned();
+                    let pid_val = eval_inner(&args[1], env, sym)?;
                     let pid = match pid_val {
                         Value::i64(n) => n as i32,
                         other => {
@@ -519,7 +519,7 @@ pub(crate) fn eval_handle_pool_new(
         )
         .into());
     }
-    let name = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let name = match eval_inner(&args[0], env, sym)? {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::new(
@@ -533,7 +533,7 @@ pub(crate) fn eval_handle_pool_new(
             .into());
         }
     };
-    let handles = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let handles = match eval_inner(&args[1], env, sym)? {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::new(
@@ -588,7 +588,7 @@ pub(crate) fn eval_handle_pool_pop(
         )
         .into());
     }
-    let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let (name, rx) = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::new(
@@ -645,7 +645,7 @@ pub(crate) fn eval_handle_pool_finish(
         )
         .into());
     }
-    let (name, rx) = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let (name, rx) = match eval_inner(&args[0], env, sym)? {
         Value::wat__kernel__HandlePool { name, rx } => (name, rx),
         other => {
             return Err(RuntimeError::new(
@@ -712,7 +712,7 @@ pub(crate) fn eval_peer_close_prime(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
 
     match &peer_val {
         Value::RustOpaque(inner)
@@ -878,8 +878,8 @@ pub(crate) fn eval_signal(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let sig_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
+    let sig_val = eval_inner(&args[1], env, sym)?;
 
     // STOP-6: no `_` wildcard — every Signal variant is named explicitly.
     let sig_posix: libc::c_int = match &sig_val {
@@ -1024,7 +1024,7 @@ pub(crate) fn eval_kernel_after(
     // arg 0: peer-kind — evaluate and match the PeerKind enum VALUE.
     // `:wat::program::PeerKind.thread` / `:process` evaluate to
     // Value::Enum { type_path=":wat::program::PeerKind", variant_name="thread"/"process", fields=[] }.
-    let peer_kind_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_kind_val = eval_inner(&args[0], env, sym)?;
     let is_thread_tier = match &peer_kind_val {
         Value::Enum(ev)
             if ev.type_path.as_str() == ":wat::program::PeerKind" && ev.fields.is_empty() =>
@@ -1060,7 +1060,7 @@ pub(crate) fn eval_kernel_after(
     };
 
     // arg 1: duration — must be Value::wat__time__Duration(nanos: i64), non-negative.
-    let duration_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let duration_val = eval_inner(&args[1], env, sym)?;
     let nanos: i64 = match &duration_val {
         Value::wat__time__Duration(n) => *n,
         other => {
@@ -1087,7 +1087,7 @@ pub(crate) fn eval_kernel_after(
     }
 
     // arg 2: msg — any Value.
-    let msg = eval_inner(&args[2], env, sym)?.value_owned();
+    let msg = eval_inner(&args[2], env, sym)?;
 
     // Build the std::time::Duration from nanos.
     let std_dur = std::time::Duration::from_nanos(nanos as u64);

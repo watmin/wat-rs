@@ -596,7 +596,7 @@ pub fn register_stdlib_runtime_defs(
                 let env = Environment::new();
                 match eval_inner(expr, &env, sym_ref) {
                     Ok(tv) => {
-                        let value = tv.value_owned();
+                        let value = tv;
                         if !matches!(value, Value::wat__core__fn(_)) {
                             sym.register_def_value(name, value);
                         }
@@ -1960,7 +1960,7 @@ fn register_runtime_defs_form(
             // sym must be passed as immutable here for eval; the write
             // to runtime_def_values happens after.
             let sym_ref: &SymbolTable = sym;
-            let value = eval_inner(expr, env, sym_ref)?.value_owned();
+            let value = eval_inner(expr, env, sym_ref)?;
             // Arc 170 Gap D — if the evaluated value is a fn (possibly with
             // a `closed_env` captured from enclosing let-bindings), also
             // update `sym.functions` with the properly-evaluated fn. This
@@ -2049,7 +2049,7 @@ fn register_runtime_defs_form(
                     let binding_name = crate::scope::env_key(ident);
                     let sym_ref: &SymbolTable = sym;
                     let tv = eval_inner(rhs, &scope, sym_ref)?;
-                    scope = scope.child().bind_unknown_span(binding_name, tv).build();
+                    scope = scope.child().bind(binding_name, tv).build();
                 }
                 // Non-Symbol binder (Vector destructure) — skip env extension;
                 // not load-bearing for def-splice-into-let-body.

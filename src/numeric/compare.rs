@@ -43,8 +43,8 @@ pub(crate) fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
         .into());
     }
     let a_span = args[0].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => Ok(Value::bool(pred(x, y))),
         (other, _) => Err(RuntimeError::new(

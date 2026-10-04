@@ -100,7 +100,7 @@ pub(crate) fn eval_signature_of_defn(
     let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(name_ast, env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?;
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
@@ -343,7 +343,7 @@ pub(crate) fn eval_signature_of_fn(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::signature-of-fn";
-    let v = eval_inner(fn_expr, env, sym)?.value_owned();
+    let v = eval_inner(fn_expr, env, sym)?;
     let f = match v {
         Value::wat__core__fn(f) => f,
         other => {
@@ -409,7 +409,7 @@ pub(crate) fn eval_return_type_of(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::return-type-of";
-    let v = eval_inner(fn_expr, env, sym)?.value_owned();
+    let v = eval_inner(fn_expr, env, sym)?;
     let f = match v {
         Value::wat__core__fn(f) => f,
         // Arc 278 query (a) de-mask — arc 294 item 9a's construction flip made a bare
@@ -512,7 +512,7 @@ pub(crate) fn eval_body_of(
     let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(name_ast, env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?;
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {
@@ -635,7 +635,7 @@ pub(crate) fn eval_rename_callable_name(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::rename-callable-name";
     // Eval all three args.
-    let head_val = eval_inner(head, env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?;
     // Arc 166 — mirror the literal-keyword shortcut from `eval_lookup_define`:
     // when the `from`/`to` arg is a literal keyword AST (e.g. `:user::my-double`
     // passed directly as a keyword literal), use the keyword string as the name
@@ -646,12 +646,12 @@ pub(crate) fn eval_rename_callable_name(
     let from_val = if let WatAST::Keyword(k, _) = from {
         Value::wat__core__keyword(Arc::new(k.clone()))
     } else {
-        eval_inner(from, env, sym)?.value_owned()
+        eval_inner(from, env, sym)?
     };
     let to_val = if let WatAST::Keyword(k, _) = to {
         Value::wat__core__keyword(Arc::new(k.clone()))
     } else {
-        eval_inner(to, env, sym)?.value_owned()
+        eval_inner(to, env, sym)?
     };
 
     // Extract WatAST from head arg (arc 294.f — signature heads are now WatAST).
@@ -828,7 +828,7 @@ pub(crate) fn eval_extract_arg_names(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-names";
-    let head_val = eval_inner(head, env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?;
     let ast_arc = match head_val {
         Value::wat__WatAST(a) => a,
         other => {
@@ -934,7 +934,7 @@ pub(crate) fn eval_extract_arg_types(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::runtime::extract-arg-types";
-    let head_val = eval_inner(head, env, sym)?.value_owned();
+    let head_val = eval_inner(head, env, sym)?;
     let ast_arc = match head_val {
         Value::wat__WatAST(a) => a,
         other => {
@@ -1145,7 +1145,7 @@ fn resolve_type_keyword_arg(
     if let WatAST::Keyword(k, _) = arg {
         return Ok(k.clone());
     }
-    let v = eval_inner(arg, env, sym)?.value_owned();
+    let v = eval_inner(arg, env, sym)?;
     match name_from_keyword_or_fn(&v) {
         Some(n) => Ok(n),
         None => Err(RuntimeError::new(
@@ -1640,7 +1640,7 @@ pub(crate) fn eval_declared_types(
     const OP: &str = ":wat::runtime::declared-types";
     const OUT: &str = ":wat::runtime::DeclaredTypes";
     let span = forms_ast.span();
-    let forms_val = eval_inner(forms_ast, env, sym)?.value_owned();
+    let forms_val = eval_inner(forms_ast, env, sym)?;
     let forms = asts_from_value(&forms_val, span, OP)?;
     let (stdlib_sym, stdlib_macros, stdlib_types) = crate::freeze::env::stdlib_snapshot();
     let before: HashSet<String> = stdlib_types.iter().map(|(n, _)| n.clone()).collect();
@@ -1699,7 +1699,7 @@ pub(crate) fn eval_declared_stdlib_types(
     const OP: &str = ":wat::runtime::declared-stdlib-types";
     const OUT: &str = ":wat::runtime::DeclaredTypes";
     let span = forms_ast.span();
-    let forms_val = eval_inner(forms_ast, env, sym)?.value_owned();
+    let forms_val = eval_inner(forms_ast, env, sym)?;
     let forms = asts_from_value(&forms_val, span, OP)?;
     let (stdlib_sym, stdlib_macros, stdlib_types) = crate::freeze::env::stdlib_snapshot();
     match crate::freeze::env::register_declared_stdlib_types(
@@ -1839,7 +1839,7 @@ pub(crate) fn eval_variant_parent_of(
     let type_kw = if let WatAST::Keyword(k, _) = type_kw_ast {
         k.clone()
     } else {
-        let v = crate::runtime::eval_inner(type_kw_ast, env, sym)?.value_owned();
+        let v = crate::runtime::eval_inner(type_kw_ast, env, sym)?;
         match &v {
             Value::wat__core__keyword(k) => k.as_ref().clone(),
             _ => {
@@ -1931,7 +1931,7 @@ pub(crate) fn eval_compose_variant(
         if let WatAST::Keyword(k, _) = ast {
             Ok(k.clone())
         } else {
-            let v = crate::runtime::eval_inner(ast, env, sym)?.value_owned();
+            let v = crate::runtime::eval_inner(ast, env, sym)?;
             match &v {
                 Value::wat__core__keyword(k) => Ok(k.as_ref().clone()),
                 _ => Err(RuntimeError::new(

@@ -1489,7 +1489,7 @@ pub(crate) fn eval_fire_once_native(
     // `Result<Session>` because its other reader is rust; this is the one place `fire-once`
     // becomes a wat value, so it is the one place the ceilings become matchable arms rather than
     // a raise that unwinds past the caller. See `rete::kernel::outcome`.
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
     crate::rete::kernel::outcome::fire_result_to_outcome(fire_once_session(&session, list_span, sym))
 }
 

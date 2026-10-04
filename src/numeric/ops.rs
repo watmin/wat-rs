@@ -115,7 +115,7 @@ pub(crate) fn eval_f64_round(
     }
     let arg0_span = args[0].span().clone();
     let arg1_span = args[1].span().clone();
-    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let v = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
@@ -129,7 +129,7 @@ pub(crate) fn eval_f64_round(
             .into());
         }
     };
-    let digits = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let digits = match eval_inner(&args[1], env, sym)? {
         Value::i64(d) => d,
         other => {
             return Err(RuntimeError::new(
@@ -183,7 +183,7 @@ pub(crate) fn eval_f64_unary(
         .into());
     }
     let arg_span = args[0].span().clone();
-    let v = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let v = match eval_inner(&args[0], env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
@@ -231,7 +231,7 @@ pub(crate) fn eval_f64_clamp(
     let mut vs = [0.0_f64; 3];
     for (i, slot) in vs.iter_mut().enumerate() {
         let arg_span = args[i].span().clone();
-        *slot = match eval_inner(&args[i], env, sym)?.value_owned() {
+        *slot = match eval_inner(&args[i], env, sym)? {
             Value::f64(x) => x,
             other => {
                 return Err(RuntimeError::new(

@@ -27,7 +27,6 @@
 
 use crate::ast::WatAST;
 use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
-use crate::value::TrackedValue;
 use crate::rust_deps::ThreadOwnedCell;
 use crate::span::Span;
 use std::sync::Arc;
@@ -794,8 +793,8 @@ fn arity(op: &str, args: &[WatAST], n: usize, list_span: &Span) -> Result<(), Ru
     Ok(())
 }
 
-fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
-    match tv.value_owned() {
+fn expect_reader(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatReader>, RuntimeError> {
+    match v {
         Value::wat__io__IOReader(r) => Ok(r),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -805,8 +804,8 @@ fn expect_reader(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatRe
     }
 }
 
-fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
-    match tv.value_owned() {
+fn expect_writer(op: &str, v: Value, span: Span) -> Result<Arc<dyn WatWriter>, RuntimeError> {
+    match v {
         Value::wat__io__IOWriter(w) => Ok(w),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -816,8 +815,8 @@ fn expect_writer(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<dyn WatWr
     }
 }
 
-fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeError> {
-    match tv.value_owned() {
+fn expect_i64(op: &str, v: Value, span: Span) -> Result<i64, RuntimeError> {
+    match v {
         Value::i64(n) => Ok(n),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -827,8 +826,8 @@ fn expect_i64(op: &str, tv: TrackedValue, span: Span) -> Result<i64, RuntimeErro
     }
 }
 
-fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, RuntimeError> {
-    match tv.value_owned() {
+fn expect_string(op: &str, v: Value, span: Span) -> Result<Arc<String>, RuntimeError> {
+    match v {
         Value::String(s) => Ok(s),
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
@@ -838,8 +837,8 @@ fn expect_string(op: &str, tv: TrackedValue, span: Span) -> Result<Arc<String>, 
     }
 }
 
-fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, RuntimeError> {
-    match tv.value_owned() {
+fn expect_vec_u8(op: &str, v: Value, span: Span) -> Result<Vec<u8>, RuntimeError> {
+    match v {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
@@ -1019,7 +1018,7 @@ pub fn eval_ioreader_read_frame(
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
     use crate::edn::render::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
     let cap: usize = if args.len() == 2 {
-        match eval(&args[1], env, sym)?.value_owned() {
+        match eval(&args[1], env, sym)? {
             Value::i64(n) if n > 0 => n as usize,
             Value::i64(n) => {
                 return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
@@ -1204,7 +1203,7 @@ pub fn eval_iowriter_open_file(
     use std::os::fd::OwnedFd;
     let op = ":wat::io::IOWriter/open-file";
     arity(op, args, 1, list_span)?;
-    let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+    let path = match crate::runtime::eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -1243,7 +1242,7 @@ pub fn eval_ioreader_open_file(
     use std::os::fd::OwnedFd;
     let op = ":wat::io::IOReader/open-file";
     arity(op, args, 1, list_span)?;
-    let path = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+    let path = match crate::runtime::eval(&args[0], env, sym)? {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -1285,7 +1284,7 @@ pub fn eval_iowriter_from_fd(
     use std::os::fd::{FromRawFd, OwnedFd};
     let op = ":wat::io::IOWriter/from-fd";
     arity(op, args, 1, list_span)?;
-    let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+    let fd = match crate::runtime::eval(&args[0], env, sym)? {
         Value::i64(n) => n,
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -1325,7 +1324,7 @@ pub fn eval_ioreader_from_fd(
     use std::os::fd::{FromRawFd, OwnedFd};
     let op = ":wat::io::IOReader/from-fd";
     arity(op, args, 1, list_span)?;
-    let fd = match crate::runtime::eval(&args[0], env, sym)?.value_owned() {
+    let fd = match crate::runtime::eval(&args[0], env, sym)? {
         Value::i64(n) => n,
         other => {
             return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -1717,7 +1716,7 @@ pub fn eval_io_temp_file_path(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempFile/path";
     arity(op, args, 1, list_span)?;
-    let v = eval(&args[0], env, sym)?.value_owned();
+    let v = eval(&args[0], env, sym)?;
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempFile", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempFile> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempFile", op, args[0].span().clone())?;
@@ -1747,7 +1746,7 @@ pub fn eval_io_temp_dir_path(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::io::TempDir/path";
     arity(op, args, 1, list_span)?;
-    let v = eval(&args[0], env, sym)?.value_owned();
+    let v = eval(&args[0], env, sym)?;
     let inner = crate::rust_deps::rust_opaque_arc(&v, ":wat::io::TempDir", op, args[0].span().clone())?;
     let cell: &crate::rust_deps::ThreadOwnedCell<WatTempDir> =
         crate::rust_deps::downcast_ref_opaque(&inner, ":wat::io::TempDir", op, args[0].span().clone())?;

@@ -28,7 +28,6 @@ use wat::freeze::{startup_bare, startup_beside};
 use wat::io::{StringIoReader, WatReader, eval_ioreader_read_frame};
 use wat::runtime::{Environment, Value};
 use wat::scope::Identifier;
-use wat::value::TrackedValue;
 
 /// Gate 1 — multi-line EDN map frame reads back as ReadFrameOutcome::Frame.
 ///
@@ -47,10 +46,9 @@ fn read_frame_multiline_edn_map() {
     let reader_val = Value::wat__io__IOReader(reader_arc);
 
     // Inject the reader into a child env under the name "__reader__".
-    let tv: TrackedValue = reader_val.into();
     let env = Environment::new()
         .child()
-        .bind_unknown_span("__reader__", tv)
+        .bind("__reader__", reader_val)
         .build();
 
     // Build a synthetic Symbol AST node pointing at "__reader__" in the env.
@@ -88,10 +86,9 @@ fn read_frame_eof_returns_none() {
     let reader_arc: Arc<dyn WatReader> = Arc::new(StringIoReader::from_string(String::new()));
     let reader_val = Value::wat__io__IOReader(reader_arc);
 
-    let tv: TrackedValue = reader_val.into();
     let env = Environment::new()
         .child()
-        .bind_unknown_span("__reader__", tv)
+        .bind("__reader__", reader_val)
         .build();
 
     let arg_ast = WatAST::Symbol(Identifier::bare("__reader__"), wat::rust_caller_span!());

@@ -861,7 +861,7 @@ pub(crate) fn eval_fire_rules_explain(
     }
 
     // Evaluate the session argument (mirrors eval_fire_rules_native).
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
 
     // ⛔ THE CEILING ARMS SHORT-CIRCUIT HERE, through the ONE conversion site. `explain` is a fire
     // like any other and carries both ceilings; what differs is only its payload, which is why

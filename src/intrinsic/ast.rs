@@ -13,21 +13,14 @@
 //! re-registration, same shape as HOME-8/10/11). No codemod, no `RetirementEntry` row, no `.wat`
 //! corpus touch.
 //!
-//! ## The one contract decision — ALL TEN ARE PRODUCERS
+//! ## The one contract decision — ALL TEN WERE PRODUCERS
 //!
-//! Measured: every one of the ten stamps `Provenance::RuntimeBuilt { producer, .. }` in its body
-//! (one construction site apiece, all in `src/edn/render.rs`) — they mint AST values (or, for
-//! `read-string`, a `ReadOutcome` wrapping one) and record which verb made them. Every handler
-//! below therefore returns `Result<TrackedValue, EvalBreak>` un-rewrapped, exactly the shape
-//! `src/intrinsic/keyword.rs` established and arc 255 Stone G's `sniff_return` requires to keep a
-//! registry-routed producer's own stamp alive instead of the shim's default
-//! `Provenance::Unknown` rewrap.
-//!
-//! This is a SHARPER version of HOME-11's risk: there 3 of 13 were producers, with ten plain
-//! shims to fall back on. Here it is 10 of 10 — there is no non-producer half, and a bare-`Value`
-//! return on any one of these would silently degrade its stamp to `Provenance::SymbolBound` with
-//! every test green, exactly what Stone E-iv did to four keyword verbs before Stone G made the
-//! `TrackedValue`-returning shape expressible.
+//! Through arc 255 Stone G, every one of the ten stamped `Provenance::RuntimeBuilt { producer,
+//! .. }` in its body (one construction site apiece, all in `src/edn/render.rs`) — they mint AST
+//! values (or, for `read-string`, a `ReadOutcome` wrapping one) and recorded which verb made
+//! them. Excursus 003 strike G item 4 retired `Provenance`/`TrackedValue` wholesale: every
+//! handler below, like every other handler in the registry, now returns bare
+//! `Result<Value, EvalBreak>` — there is no stamp left to preserve or degrade.
 //!
 //! ## Two homes, same split HOME-5/HOME-11 established
 //!
@@ -62,7 +55,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue};
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 // ─── parse: the homoiconic read side (1 producer) ──────────────────────────
 
@@ -97,7 +90,7 @@ pub(crate) fn eval_read_string_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_read_string(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
@@ -124,7 +117,7 @@ pub(crate) fn eval_read_string_with_comments_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_read_string_with_comments(std::slice::from_ref(s), span, env, sym)
         .map_err(Into::into)
 }
@@ -160,7 +153,7 @@ pub(crate) fn eval_ast_to_source_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_to_source(std::slice::from_ref(ast), span, env, sym)
         .map_err(Into::into)
 }
@@ -193,7 +186,7 @@ pub(crate) fn eval_ast_children_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_children(std::slice::from_ref(ast), span, env, sym)
         .map_err(Into::into)
 }
@@ -226,7 +219,7 @@ pub(crate) fn eval_ast_kind_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_kind(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
@@ -256,7 +249,7 @@ pub(crate) fn eval_ast_name_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_name(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
@@ -286,7 +279,7 @@ pub(crate) fn eval_ast_span_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_span(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
@@ -315,7 +308,7 @@ pub(crate) fn eval_ast_end_span_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_ast_end_span(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
@@ -349,7 +342,7 @@ pub(crate) fn eval_symbol_node_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_symbol_node(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
@@ -378,7 +371,7 @@ pub(crate) fn eval_keyword_node_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_keyword_node(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
@@ -413,7 +406,7 @@ pub(crate) fn eval_fresh_symbol_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_fresh_symbol(std::slice::from_ref(base), span, env, sym).map_err(Into::into)
 }
 
@@ -459,7 +452,7 @@ pub(crate) fn eval_write_forms_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_write_forms(std::slice::from_ref(ast), span, env, sym).map_err(Into::into)
 }
 
@@ -508,7 +501,7 @@ pub(crate) fn eval_with_children_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_with_children(&[template.clone(), children.clone()], span, env, sym)
         .map_err(Into::into)
 }

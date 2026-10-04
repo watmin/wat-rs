@@ -116,7 +116,7 @@ pub(crate) fn require_one_arg(
             got: args.len()
         }));
     }
-    eval(&args[0], env, sym).map(|tv| tv.value_owned())
+    eval(&args[0], env, sym)
 }
 
 /// `(:wat::edn::write-json-natural v)` → `:String`. Ingestion-tooling-
@@ -166,7 +166,7 @@ pub fn eval_edn_read(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::edn::read";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -196,13 +196,7 @@ pub fn eval_edn_read(
         })
     })?;
     // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
-    Ok(crate::value::TrackedValue::new(
-        result,
-        crate::value::Provenance::RuntimeBuilt {
-            producer: ":wat::edn::read",
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(result)
 }
 
 // Arc 278 Stone 1 (`wat --mcp`) — the type path of `:wat::edn::ReadJsonOutcome` (registered in
@@ -267,7 +261,7 @@ pub fn eval_edn_read_json(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::edn::read-json";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -298,13 +292,7 @@ pub fn eval_edn_read_json(
             read_json_outcome_malformed(&cause)
         }
     };
-    Ok(crate::value::TrackedValue::new(
-        value,
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(value)
 }
 
 /// `(:wat::edn::read-foreign s)` → `:wat::edn::ReadForeignOutcome<T>`. Arc 278
@@ -324,7 +312,7 @@ pub fn eval_edn_read_foreign(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::edn::read-foreign";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -353,13 +341,7 @@ pub fn eval_edn_read_foreign(
             tagged_read_outcome_malformed(READ_FOREIGN_OUTCOME_TYPE, &cause)
         }
     };
-    Ok(crate::value::TrackedValue::new(
-        value,
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(value)
 }
 
 /// Arc 278 Stone A — extract the bare field name a `ForeignRecord/get` key
@@ -394,8 +376,8 @@ pub fn eval_foreign_record_get(
             op: OP.into(), expected: 2, got: args.len()
         }));
     }
-    let fr_v = eval(&args[0], env, sym).map(|tv| tv.value_owned())?;
-    let key_v = eval(&args[1], env, sym).map(|tv| tv.value_owned())?;
+    let fr_v = eval(&args[0], env, sym)?;
+    let key_v = eval(&args[1], env, sym)?;
     let fr = match &fr_v {
         Value::wat__edn__ForeignRecord(fr) => fr,
         other => {
@@ -582,7 +564,7 @@ pub fn eval_read_string(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::read-string";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -608,13 +590,7 @@ pub fn eval_read_string(
         }
         Err(e) => read_outcome_malformed(&e, sym),
     };
-    Ok(crate::value::TrackedValue::new(
-        value,
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(value)
 }
 
 /// `(:wat::core::read-string-with-comments s)` → `:wat::core::ReadWithCommentsOutcome`.
@@ -627,7 +603,7 @@ pub fn eval_read_string_with_comments(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::read-string-with-comments";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -671,13 +647,7 @@ pub fn eval_read_string_with_comments(
             }))
         }
     };
-    Ok(crate::value::TrackedValue::new(
-        value,
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(value)
 }
 
 fn comment_record(c: &Comment) -> Value {
@@ -723,7 +693,7 @@ pub fn eval_write_forms(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::write-forms";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -738,13 +708,7 @@ pub fn eval_write_forms(
     };
     let edn = crate::edn::bridge::watast_to_edn(ast);
     let text = wat_edn::write(&edn);
-    Ok(crate::value::TrackedValue::new(
-        Value::String(std::sync::Arc::new(text)),
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(Value::String(std::sync::Arc::new(text)))
 }
 
 /// `(:wat::core::ast->source <ast>)` — arc 278 Stone 1 (the sift Predicate's enabling
@@ -764,7 +728,7 @@ pub fn eval_ast_to_source(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast->source";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -779,13 +743,7 @@ pub fn eval_ast_to_source(
     };
     let mut out = String::new();
     write_wat_source_with_comments(std::slice::from_ref(ast), &[], &mut out);
-    Ok(crate::value::TrackedValue::new(
-        Value::String(std::sync::Arc::new(out)),
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(Value::String(std::sync::Arc::new(out)))
 }
 
 /// Recursive verbatim printer for [`eval_ast_to_source`]. Resurrects the retired
@@ -1099,7 +1057,7 @@ pub fn eval_ast_children(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast->children";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -1123,13 +1081,7 @@ pub fn eval_ast_children(
             .collect(),
         _ => Vec::new(),
     };
-    Ok(crate::value::TrackedValue::new(
-        Value::Vec(std::sync::Arc::new(children)),
-        crate::value::Provenance::RuntimeBuilt {
-            producer: OP,
-            call_span: list_span.clone(),
-        },
-    ))
+    Ok(Value::Vec(std::sync::Arc::new(children)))
 }
 
 /// `(:wat::core::with-children <template> <children>)` — arc 251 Stone 251.5a-iv.
@@ -1146,15 +1098,15 @@ pub fn eval_with_children(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::with-children";
     if args.len() != 2 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(), expected: 2, got: args.len(),
         }));
     }
-    let template_v = eval(&args[0], env, sym)?.value_owned();
-    let children_v = eval(&args[1], env, sym)?.value_owned();
+    let template_v = eval(&args[0], env, sym)?;
+    let children_v = eval(&args[1], env, sym)?;
     // template must be a forms-value
     let template: &WatAST = match &template_v {
         Value::wat__WatAST(a) => a.as_ref(),
@@ -1211,10 +1163,7 @@ pub fn eval_with_children(
             leaf.clone()
         }
     };
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(rebuilt)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(rebuilt)))
 }
 
 /// `(:wat::core::ast-kind <node>)` — arc 251 Stone 251.5a-v. Total kind discriminant.
@@ -1223,7 +1172,7 @@ pub fn eval_ast_kind(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast-kind";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -1247,10 +1196,7 @@ pub fn eval_ast_kind(
         WatAST::Set(..) => "set",
         WatAST::Map(..) => "map",
     };
-    Ok(crate::value::TrackedValue::new(
-        Value::String(std::sync::Arc::new(kind.to_string())),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::String(std::sync::Arc::new(kind.to_string())))
 }
 
 /// `(:wat::core::ast-name <node>)` — arc 251 Stone 251.5a-v. Verbatim token text of a Symbol/Keyword.
@@ -1259,7 +1205,7 @@ pub fn eval_ast_name(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast-name";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -1280,10 +1226,7 @@ pub fn eval_ast_name(
             reason: "ast-name requires a Symbol, Keyword, or StringLit node".to_string(),
         })),
     };
-    Ok(crate::value::TrackedValue::new(
-        Value::String(std::sync::Arc::new(name)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::String(std::sync::Arc::new(name)))
 }
 
 /// `(:wat::core::ast-span <node>)` — Stone 251.5 / Slice 4.2a. Source START location of any node.
@@ -1299,7 +1242,7 @@ pub fn eval_ast_span(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast-span";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -1318,10 +1261,7 @@ pub fn eval_ast_span(
         Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
         Value::i64(span.col),
     );
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__core__HashMap(std::sync::Arc::new(map)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__core__HashMap(std::sync::Arc::new(map)))
 }
 
 /// `(:wat::core::ast-end-span <node>)` — Arc 281. Source END location of any node.
@@ -1333,7 +1273,7 @@ pub fn eval_ast_end_span(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::ast-end-span";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let ast: &WatAST = match &v {
@@ -1354,10 +1294,7 @@ pub fn eval_ast_end_span(
         Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
         Value::i64(end_col),
     );
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__core__HashMap(std::sync::Arc::new(map)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__core__HashMap(std::sync::Arc::new(map)))
 }
 
 /// `(:wat::core::symbol-node <string>)` — arc 251 Stone 251.5a-v. Construct a bare Symbol node.
@@ -1366,7 +1303,7 @@ pub fn eval_symbol_node(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::symbol-node";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -1384,10 +1321,7 @@ pub fn eval_symbol_node(
         }));
     }
     let node = WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!());
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(node)))
 }
 
 /// `(:wat::core::fresh-symbol <base>)` — arc 274 Stone 274.1. Construct a capture-proof Symbol node.
@@ -1402,7 +1336,7 @@ pub fn eval_fresh_symbol(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::fresh-symbol";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -1412,10 +1346,7 @@ pub fn eval_fresh_symbol(
     };
     let ident = Identifier::bare(s).add_scope(crate::scope::fresh_scope());
     let node = WatAST::Symbol(ident, crate::rust_caller_span!());
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(node)))
 }
 
 /// `(:wat::core::keyword-node <string>)` — arc 251 Stone 251.5a-v. Construct a Keyword node (arg must start with ':').
@@ -1424,7 +1355,7 @@ pub fn eval_keyword_node(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::core::keyword-node";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let s = match &v {
@@ -1454,10 +1385,7 @@ pub fn eval_keyword_node(
         }));
     }
     let node = WatAST::Keyword(s, crate::rust_caller_span!());
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(node)))
 }
 
 /// `(:wat::keyword::to-symbol <keyword-node>)` — arc 251 head role-inversion (arc 255 Stone E-iv rename). Convert a
@@ -1470,7 +1398,7 @@ pub fn eval_keyword_to_symbol(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::keyword::to-symbol";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     let kw: String = match &v {
@@ -1491,10 +1419,7 @@ pub fn eval_keyword_to_symbol(
             ),
         }))?;
     let node = WatAST::Symbol(Identifier::bare(symbol_name), crate::rust_caller_span!());
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(node)))
 }
 
 /// Arc 109 Stone ②-i — head-spelling mode for [`type_expr_to_clojure_form`]. Threaded through
@@ -1693,7 +1618,7 @@ fn eval_keyword_to_type_form_impl(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     let v = require_one_arg(op, args, env, sym, list_span)?;
     let kw: String = match &v {
         Value::wat__WatAST(a) => match a.as_ref() {
@@ -1715,10 +1640,7 @@ fn eval_keyword_to_type_form_impl(
             reason: format!("type-keyword parse failed: {:?}", e.kind()),
         }))?;
     let node = type_expr_to_clojure_form(&te, mode).map_err(|reason| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm { head: op.into(), reason }))?;
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: op, call_span: list_span.clone() },
-    ))
+    Ok(Value::wat__WatAST(std::sync::Arc::new(node)))
 }
 
 /// `(:wat::keyword::to-type-form <keyword-node>)` — arc 251 type-position rendering (arc 255 Stone E-iv rename).
@@ -1734,7 +1656,7 @@ pub fn eval_keyword_to_type_form(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::keyword::to-type-form";
     eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Clojure, args, list_span, env, sym)
 }
@@ -1750,7 +1672,7 @@ pub fn eval_keyword_to_type_form_colon(
     list_span: &crate::span::Span,
     env: &Environment,
     sym: &SymbolTable,
-) -> Result<crate::value::TrackedValue, RuntimeError> {
+) -> Result<crate::value::Value, RuntimeError> {
     const OP: &str = ":wat::keyword::to-type-form-colon";
     eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Colon, args, list_span, env, sym)
 }

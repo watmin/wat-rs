@@ -7,9 +7,8 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use crate::ast::WatAST;
-use crate::span::Span;
 use crate::types::TypeExpr;
-use crate::value::{TrackedValue, Provenance};
+use crate::value::Value;
 
 /// Stone 255.1a — body representation for a `Function`.
 ///
@@ -149,13 +148,17 @@ pub struct Environment {
     inner: Arc<EnvCell>,
 }
 
-/// Arc 233 Stone 233.2.e: named struct carrying TrackedValue + binding_span.
-/// binding_span is the source position of the LHS name in the let binder
-/// (e.g., position of `x` in `(let [x 42] ...)`). Used by env.lookup to
-/// construct SymbolBound provenance at the lookup boundary.
+/// A single binding in an [`Environment`] frame.
+///
+/// Carried `value: TrackedValue` plus a `binding_span: Span` (the source
+/// position of the LHS name in the let binder) from arc 233 Stone 233.2.e
+/// through excursus 003 strike G item 4: `binding_span` existed for no
+/// reason but to let `lookup` re-derive `Provenance::SymbolBound` at the
+/// lookup boundary. With `Provenance`/`TrackedValue` retired (measured:
+/// `binding_span` had no other reader anywhere in the tree), this struct
+/// is the bare value again.
 pub struct BoundEntry {
-    pub value: TrackedValue,
-    pub binding_span: Span,
+    pub value: Value,
 }
 
 struct EnvCell {
@@ -180,45 +183,17 @@ impl Environment {
         }
     }
 
-    /// Look up a name in the environment, constructing SymbolBound provenance
-    /// at the lookup boundary for Unknown/Literal provenance values
-    /// (Arc 233 Stone 233.2.e).
+    /// Look up a name in the environment.
     ///
-    /// `head_span` is the source position where the symbol appears in the call
-    /// (e.g., position of `x` in `(some-fn x)`). The returned TrackedValue
-    /// carries SymbolBound { binding_span: <where x was bound>, head_span: <where x is used> }
-    /// when the stored value has Unknown or Literal provenance.
-    ///
-    /// Provenance replacement rule (honest reconciliation of Decision 2 with
-    /// Stone 233.2.k's regression guard):
-    /// - Unknown → SymbolBound (no prior context; binding IS the context)
-    /// - Literal → SymbolBound (literal's source position is embedded in the
-    ///   binding span; the symbol reference is the diagnostic context)
-    /// - RuntimeBuilt → keep RuntimeBuilt (producer context is more informative
-    ///   than the binding coordinates for errors on producer-built values)
-    /// - SymbolBound → replace with new SymbolBound (update binding/head context)
-    pub fn lookup(&self, name: &str, head_span: &Span) -> Option<TrackedValue> {
+    /// Through arc 233 Stone 233.2.e this re-derived `Provenance::SymbolBound`
+    /// at the lookup boundary; excursus 003 strike G item 4 retired that
+    /// machinery (`Provenance`/`TrackedValue` are gone) — this is now a plain
+    /// value lookup up the parent chain.
+    pub fn lookup(&self, name: &str) -> Option<Value> {
         if let Some(entry) = self.inner.bindings.get(name) {
-            let value = entry.value.value().clone();
-            let provenance = match entry.value.provenance().clone() {
-                Provenance::RuntimeBuilt { producer, call_span } => {
-                    // RuntimeBuilt: keep producer provenance. The producer context is
-                    // more informative than binding coordinates for diagnostic errors.
-                    Provenance::RuntimeBuilt { producer, call_span }
-                }
-                _ => {
-                    // Unknown / Literal / SymbolBound: replace with SymbolBound.
-                    // The binding coordinates (where the name was defined +
-                    // where it is used) are the useful diagnostic context.
-                    Provenance::SymbolBound {
-                        binding_span: entry.binding_span.clone(),
-                        head_span: head_span.clone(),
-                    }
-                }
-            };
-            return Some(TrackedValue::new(value, provenance));
+            return Some(entry.value.clone());
         }
-        self.inner.parent.as_ref().and_then(|p| p.lookup(name, head_span))
+        self.inner.parent.as_ref().and_then(|p| p.lookup(name))
     }
 }
 
@@ -235,20 +210,14 @@ pub struct EnvBuilder {
 }
 
 impl EnvBuilder {
-    /// Bind a name to a TrackedValue with its binding_span (Arc 233 Stone 233.2.e).
-    /// The binding_span is the source position of the LHS name in the let binder;
-    /// env.lookup uses it to construct SymbolBound provenance at lookup time.
-    pub fn bind(mut self, name: impl Into<String>, binding_span: Span, tv: TrackedValue) -> Self {
-        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span });
-        self
-    }
-
-    /// Bind a name without a meaningful source span (Unknown binding_span).
-    /// Used by sites that bind values without let-binder source coordinates
-    /// (e.g., function argument binding, matches? pattern binding).
-    /// These sites get Provenance::Unknown when the value is looked up.
-    pub fn bind_unknown_span(mut self, name: impl Into<String>, tv: TrackedValue) -> Self {
-        self.bindings.insert(name.into(), BoundEntry { value: tv, binding_span: crate::rust_caller_span!() });
+    /// Bind a name to a value.
+    ///
+    /// Took a `binding_span: Span` through excursus 003 strike G item 4 —
+    /// purely to feed `lookup`'s now-retired `Provenance::SymbolBound`
+    /// re-derivation. Measured: nothing else ever read it, so it is gone
+    /// along with `lookup`'s `head_span`, not left as a dead parameter.
+    pub fn bind(mut self, name: impl Into<String>, value: Value) -> Self {
+        self.bindings.insert(name.into(), BoundEntry { value });
         self
     }
 

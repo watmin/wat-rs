@@ -25,17 +25,15 @@
 //! moved last, to match `#[wat_intrinsic]`'s variadic calling convention)
 //! did.
 //!
-//! **`eval_holon_from_holon` (`from-holon`) is the ONE producer** among
+//! **`eval_holon_from_holon` (`from-holon`) was the ONE producer** among
 //! these 60: pre-carve, it was the only one of the ~95 holon arms hoisted
-//! into `dispatch_keyword_head`'s small `Result<TrackedValue, _>` fast
-//! path (`runtime.rs`, "Producers + forms that preserve provenance"),
-//! stamping `Provenance::RuntimeBuilt`. It keeps its
-//! `Result<TrackedValue, EvalBreak>` return type here; Stone G's `sniff_return`
-//! forwards it un-rewrapped. Every other verb below returned bare `Value`
-//! before this carve (wrapped as `Provenance::Unknown` by
-//! `dispatch_keyword_head`'s fallback) and still does — carrying that
-//! forward is the behaviour-preserving move; stamping NEW provenance on
-//! any of them would be a behaviour change this stone does not make.
+//! into `dispatch_keyword_head`'s small `Result<Value, _>` fast path
+//! (`runtime.rs`, "Producers + forms that preserve provenance"), stamping
+//! `Provenance::RuntimeBuilt` via a local `prov()` closure. Excursus 003
+//! strike G item 4 retired `Provenance`/`TrackedValue` wholesale — every
+//! verb in this file, `from-holon` included, now just returns bare
+//! `Value`; the `prov()` closure and its construction sites are gone, not
+//! merely stamping `Provenance::Unknown` instead.
 //!
 //! **Categories are a FRESH judgment call** — `:wat::holon::` had zero
 //! registry presence before this stone, so there is no prior `@Category`
@@ -99,8 +97,8 @@ use crate::runtime::{
 };
 use crate::span::Span;
 use crate::value::{
-    Environment, EvalBreak, Provenance, RuntimeError, RuntimeErrorKind, SymbolTable,
-    TrackedValue, Value, ValueSnapshot, AggregateValue,
+    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable,
+    Value, ValueSnapshot, AggregateValue,
 };
 use holon::{encode, HolonAST, Similarity};
 
@@ -116,8 +114,9 @@ use holon::{encode, HolonAST, Similarity};
 /// honest rename). Kept as the gravestone: erase it and the next reader re-mints
 /// the retired spelling innocently.
 ///
-/// THE ONE PRODUCER in this file: stamps `Provenance::RuntimeBuilt` (see
-/// module doc).
+/// Was THE ONE PRODUCER in this file (see module doc) — stamped
+/// `Provenance::RuntimeBuilt` before excursus 003 strike G item 4 retired
+/// that machinery; now returns bare `Value` like every other verb here.
 ///
 /// **Expand-time ground —** Holon AST / form construction: pure, no IO. Safe to evaluate
 /// while a `defmacro` body is being expanded. Ruling relocated from `macros/eval.rs`'s
@@ -140,7 +139,7 @@ pub(crate) fn eval_holon_from_holon(
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::from-holon";
     // Accepts 1 arg (no type hint) or 3 args with optional `-> :T` annotation
     // for disambiguating empty Bundle: `(from-holon h -> (:wat::core::HashMap :- [K V]))`.
@@ -194,7 +193,7 @@ pub(crate) fn eval_holon_from_holon(
     } else {
         false
     };
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     let holon = match v {
         Value::wat__holon__HolonAST(h) => h,
         other => {
@@ -212,43 +211,25 @@ pub(crate) fn eval_holon_from_holon(
     // Arc 230: Symbol/Keyword/Nil variants retired. Recognise via accessors.
     // These checks must come before the `match &*holon` because the compositions
     // are Bind variants that would otherwise fall to the classifier-dispatch arm.
-    // Arc 233 Stone 233.2.j: construct TrackedValue::new directly (no Value::Tracked wrap).
-    let prov = || Provenance::RuntimeBuilt {
-        producer: ":wat::holon::from-holon",
-        call_span: list_span.clone(),
-    };
     if let Some(s) = holon.as_symbol() {
         // nil composition (symbol("nil")) → Value::Unit.
         if s == "nil" {
-            return Ok(TrackedValue::new(Value::Unit, prov()));
+            return Ok(Value::Unit);
         }
-        return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(s.to_string())),
-            prov(),
-        ));
+        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
     }
     if let Some(s) = holon.as_keyword() {
         // Keyword composition: restore leading colon for the Value round-trip.
-        return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(format!(":{}", s))),
-            prov(),
-        ));
+        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
     }
     match &*holon {
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__char.
-        // Arc 233 Stone 233.2.j — use TrackedValue::new directly.
-        HolonAST::Char(c) => Ok(TrackedValue::new(Value::wat__core__char(*c), prov())),
-        HolonAST::String(s) => Ok(TrackedValue::new(
-            Value::String(Arc::new(s.to_string())),
-            prov(),
-        )),
-        HolonAST::I64(n) => Ok(TrackedValue::new(Value::i64(*n), prov())),
-        HolonAST::F64(x) => Ok(TrackedValue::new(Value::f64(*x), prov())),
-        HolonAST::Bool(b) => Ok(TrackedValue::new(Value::bool(*b), prov())),
-        HolonAST::Atom(inner) => Ok(TrackedValue::new(
-            Value::wat__holon__HolonAST(inner.clone()),
-            prov(),
-        )),
+        HolonAST::Char(c) => Ok(Value::wat__core__char(*c)),
+        HolonAST::String(s) => Ok(Value::String(Arc::new(s.to_string()))),
+        HolonAST::I64(n) => Ok(Value::i64(*n)),
+        HolonAST::F64(x) => Ok(Value::f64(*x)),
+        HolonAST::Bool(b) => Ok(Value::bool(*b)),
+        HolonAST::Atom(inner) => Ok(Value::wat__holon__HolonAST(inner.clone())),
         // Arc 228 Stone 228.1 — classifier-dispatch replaces arc 216 heuristic Bundle dispatch.
         // The outermost form is now Bind(Atom(String(name)), Bundle(items)) for all collections.
         // Dispatch by classifier name:
@@ -309,10 +290,7 @@ pub(crate) fn eval_holon_from_holon(
                                 }
                             }
                         }
-                        Ok(TrackedValue::new(
-                            Value::wat__core__HashMap(Arc::new(map)),
-                            prov(),
-                        ))
+                        Ok(Value::wat__core__HashMap(Arc::new(map)))
                     }
                     "Set" => {
                         // Set: inner Bundle contains bare items → HashSet.
@@ -321,10 +299,7 @@ pub(crate) fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             set.insert(v);
                         }
-                        Ok(TrackedValue::new(
-                            Value::wat__core__HashSet(Arc::new(set)),
-                            prov(),
-                        ))
+                        Ok(Value::wat__core__HashSet(Arc::new(set)))
                     }
                     "Vector" => {
                         // Vector: inner Bundle contains positional Bind(I64, _) pairs → Vec.
@@ -357,7 +332,7 @@ pub(crate) fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(TrackedValue::new(Value::Vec(Arc::new(elems)), prov()))
+                        Ok(Value::Vec(Arc::new(elems)))
                     }
                     "List" => {
                         // List: inner Bundle contains sequential bare items → wat::core::List.
@@ -367,10 +342,7 @@ pub(crate) fn eval_holon_from_holon(
                             let v = from_holon_item(item, OP, args[0].span())?;
                             list.push_back(v);
                         }
-                        Ok(TrackedValue::new(
-                            Value::wat__core__List(Arc::new(list)),
-                            prov(),
-                        ))
+                        Ok(Value::wat__core__List(Arc::new(list)))
                     }
                     "Tuple" => {
                         // Tuple: inner Bundle contains positional Bind(I64, _) pairs → Tuple.
@@ -404,7 +376,7 @@ pub(crate) fn eval_holon_from_holon(
                         }
                         pairs.sort_by_key(|(k, _)| *k);
                         let elems: Vec<Value> = pairs.into_iter().map(|(_, v)| v).collect();
-                        Ok(TrackedValue::new(Value::Tuple(Arc::new(elems)), prov()))
+                        Ok(Value::Tuple(Arc::new(elems)))
                     }
                     _ => Err(RuntimeError::new(
                         args[0].span().clone(),
@@ -460,7 +432,7 @@ pub(crate) fn eval_holon_atom_constructor(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (from `wrap_holon_as_atom`) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    let v = eval_inner(h, env, sym)?.value_owned();
+    let v = eval_inner(h, env, sym)?;
     wrap_holon_as_atom(v, h.span())
 }
 
@@ -492,7 +464,7 @@ pub(crate) fn eval_holon_to_holon(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (from `to_holon_inner`) locates at `v`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    let val = eval_inner(v, env, sym)?.value_owned();
+    let val = eval_inner(v, env, sym)?;
     to_holon_inner(val, v.span())
 }
 
@@ -523,7 +495,7 @@ pub(crate) fn eval_holon_leaf(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `v`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::leaf";
-    let val = eval_inner(v, env, sym)?.value_owned();
+    let val = eval_inner(v, env, sym)?;
     let h = match val {
         Value::i64(n) => HolonAST::i64(n),
         Value::f64(x) => HolonAST::f64(x),
@@ -580,7 +552,7 @@ pub(crate) fn eval_holon_from_wat(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `a`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::from-wat";
-    let v = eval_inner(a, env, sym)?.value_owned();
+    let v = eval_inner(a, env, sym)?;
     let h = match v {
         Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
@@ -627,7 +599,7 @@ pub(crate) fn eval_holon_to_wat(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    let h = match eval_inner(h, env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -745,7 +717,7 @@ pub(crate) fn eval_algebra_map(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Map";
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -795,7 +767,7 @@ pub(crate) fn eval_algebra_set(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Set";
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -845,7 +817,7 @@ pub(crate) fn eval_algebra_vector(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Vector";
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -899,7 +871,7 @@ pub(crate) fn eval_algebra_list(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::List";
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -949,7 +921,7 @@ pub(crate) fn eval_algebra_tuple(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Tuple";
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -1015,12 +987,12 @@ pub(crate) fn eval_algebra_bind(
     // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
     let a = coerce_to_holon_ast(
         ":wat::holon::Bind",
-        eval_inner(a, env, sym)?.value_owned(),
+        eval_inner(a, env, sym)?,
         a.span(),
     )?;
     let b = coerce_to_holon_ast(
         ":wat::holon::Bind",
-        eval_inner(b, env, sym)?.value_owned(),
+        eval_inner(b, env, sym)?,
         b.span(),
     )?;
 
@@ -1062,7 +1034,7 @@ pub(crate) fn eval_algebra_bundle(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let list = match eval_inner(items, env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)? {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
@@ -1158,9 +1130,9 @@ pub(crate) fn eval_algebra_permute(
 ) -> Result<Value, EvalBreak> {
     let child = require_holon(
         ":wat::holon::Permute",
-        &eval_inner(h, env, sym)?.value_owned(),
+        &eval_inner(h, env, sym)?,
     )?;
-    let k = match eval_inner(k, env, sym)?.value_owned() {
+    let k = match eval_inner(k, env, sym)? {
         Value::i64(n) => i32::try_from(n).map_err(|_| {
             RuntimeError::new(
                 k.span().clone(),
@@ -1297,7 +1269,7 @@ pub(crate) fn eval_extract_classifier(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `x`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::extract-classifier";
-    let arg_val = eval_inner(x, env, sym)?.value_owned();
+    let arg_val = eval_inner(x, env, sym)?;
     // Arc 234 Stone 234.5 — D3: auto-dispatch on wat::core::Record.
     // Records always have a class_fqdn; return String directly (not Option).
     // This is honest: a record's classifier is NEVER absent (mandatory at construction).
@@ -1349,7 +1321,7 @@ pub(crate) fn eval_bind_left(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/left";
-    let arg_val = eval_inner(h, env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?;
     let holon_arc = match arg_val {
         Value::wat__holon__HolonAST(h) => h,
         other => {
@@ -1395,7 +1367,7 @@ pub(crate) fn eval_bind_right(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/right";
-    let arg_val = eval_inner(h, env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?;
     let holon_arc = match arg_val {
         Value::wat__holon__HolonAST(h) => h,
         other => {
@@ -1472,7 +1444,7 @@ pub(crate) fn eval_bundle_children(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/children";
-    let arg_val = eval_inner(h, env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?;
     let holon_arc = match arg_val {
         Value::wat__holon__HolonAST(h) => h,
         other => {
@@ -1523,7 +1495,7 @@ pub(crate) fn eval_bundle_first(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch, empty Bundle) locate at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/first";
-    let arg_val = eval_inner(h, env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?;
     let holon_arc = match arg_val {
         Value::wat__holon__HolonAST(h) => h,
         other => {
@@ -1841,8 +1813,8 @@ pub(crate) fn eval_holon_is_predicate(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch, non-String classifier) locates at `class`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is?";
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let class_val = eval_inner(class, env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?;
+    let class_val = eval_inner(class, env, sym)?;
     let class_name = match class_val {
         Value::String(s) => s,
         other => {
@@ -1887,7 +1859,7 @@ pub(crate) fn eval_term_template(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::template";
-    let h = match eval_inner(h, env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -1927,7 +1899,7 @@ pub(crate) fn eval_term_slots(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::slots";
-    let h = match eval_inner(h, env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -1968,7 +1940,7 @@ pub(crate) fn eval_term_ranges(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::ranges";
-    let h = match eval_inner(h, env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -2014,7 +1986,7 @@ pub(crate) fn eval_term_matches_q(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::matches?";
-    let q = match eval_inner(q, env, sym)?.value_owned() {
+    let q = match eval_inner(q, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -2028,7 +2000,7 @@ pub(crate) fn eval_term_matches_q(
             .into());
         }
     };
-    let s = match eval_inner(s, env, sym)?.value_owned() {
+    let s = match eval_inner(s, env, sym)? {
         Value::wat__holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
@@ -2102,7 +2074,7 @@ pub(crate) fn eval_therm_form(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::therm-form";
-    let low = match eval_inner(low, env, sym)?.value_owned() {
+    let low = match eval_inner(low, env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
@@ -2116,7 +2088,7 @@ pub(crate) fn eval_therm_form(
             .into());
         }
     };
-    let high = match eval_inner(high, env, sym)?.value_owned() {
+    let high = match eval_inner(high, env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
@@ -2130,7 +2102,7 @@ pub(crate) fn eval_therm_form(
             .into());
         }
     };
-    let value = match eval_inner(value, env, sym)?.value_owned() {
+    let value = match eval_inner(value, env, sym)? {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
@@ -2190,7 +2162,7 @@ pub(crate) fn eval_presence_floor(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::presence-floor";
-    let dval = require_i64(OP, eval_inner(d, env, sym)?.value_owned())?;
+    let dval = require_i64(OP, eval_inner(d, env, sym)?)?;
     if dval <= 0 {
         return Err(RuntimeError::new(
             d.span().clone(),
@@ -2228,7 +2200,7 @@ pub(crate) fn eval_coincident_floor(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-floor";
-    let dval = require_i64(OP, eval_inner(d, env, sym)?.value_owned())?;
+    let dval = require_i64(OP, eval_inner(d, env, sym)?)?;
     if dval <= 0 {
         return Err(RuntimeError::new(
             d.span().clone(),
@@ -2280,8 +2252,8 @@ pub(crate) fn eval_algebra_cosine(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let a = eval_inner(a, env, sym)?.value_owned();
-    let b = eval_inner(b, env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?;
+    let b = eval_inner(b, env, sym)?;
     cosine_outcome_from_values(a, b, list_span, sym)
 }
 
@@ -2320,8 +2292,8 @@ pub(crate) fn eval_algebra_presence_q(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let target = eval_inner(target, env, sym)?.value_owned();
-    let reference = eval_inner(reference, env, sym)?.value_owned();
+    let target = eval_inner(target, env, sym)?;
+    let reference = eval_inner(reference, env, sym)?;
     presence_q_from_values(target, reference, list_span, sym)
 }
 
@@ -2359,8 +2331,8 @@ pub(crate) fn eval_algebra_coincident_q(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let a = eval_inner(a, env, sym)?.value_owned();
-    let b = eval_inner(b, env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?;
+    let b = eval_inner(b, env, sym)?;
     coincident_q_from_values(a, b, list_span, sym)
 }
 
@@ -2390,8 +2362,8 @@ pub(crate) fn eval_algebra_coincident_explain(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-explain";
-    let a = eval_inner(a, env, sym)?.value_owned();
-    let b = eval_inner(b, env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?;
+    let b = eval_inner(b, env, sym)?;
     let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
         // `coincident-explain`'s return shape is a fixed `CoincidentExplanation`
         // struct (STOP-5: do not touch it) with no field able to honestly
@@ -2668,8 +2640,8 @@ pub(crate) fn eval_algebra_dot(
 ) -> Result<Value, EvalBreak> {
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
-    let a = eval_inner(a, env, sym)?.value_owned();
-    let b = eval_inner(b, env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?;
+    let b = eval_inner(b, env, sym)?;
     dot_outcome_from_values(a, b, list_span, sym)
 }
 
@@ -2695,7 +2667,7 @@ pub(crate) fn eval_algebra_simhash(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let val = eval_inner(target, env, sym)?.value_owned();
+    let val = eval_inner(target, env, sym)?;
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
@@ -2760,7 +2732,7 @@ pub(crate) fn eval_holon_encode(
 ) -> Result<Value, EvalBreak> {
     let target = require_holon(
         ":wat::holon::encode",
-        &eval_inner(target, env, sym)?.value_owned(),
+        &eval_inner(target, env, sym)?,
     )?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
@@ -2843,7 +2815,7 @@ pub(crate) fn eval_holon_bytes_vector(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::bytes-vector";
     // Pull the byte vector contents out as Vec<u8>.
-    let xs = match eval_inner(bs, env, sym)?.value_owned() {
+    let xs = match eval_inner(bs, env, sym)? {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::new(
@@ -2961,7 +2933,7 @@ pub(crate) fn eval_holon_vector_bundle(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch) locate at `vs`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    let vec_value = eval_inner(vs, env, sym)?.value_owned();
+    let vec_value = eval_inner(vs, env, sym)?;
     let elements = match vec_value {
         Value::Vec(v) => v,
         other => {
@@ -3070,9 +3042,9 @@ pub(crate) fn eval_holon_vector_permute(
 ) -> Result<Value, EvalBreak> {
     let v = require_vector(
         ":wat::holon::vector-permute",
-        &eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?,
     )?;
-    let k_val = eval_inner(k, env, sym)?.value_owned();
+    let k_val = eval_inner(k, env, sym)?;
     let k = match k_val {
         Value::i64(n) => n as i32,
         other => {

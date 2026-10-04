@@ -104,7 +104,7 @@ pub(crate) fn run_ast_arg_for_eval_coincident(
     sym: &SymbolTable,
     op: &'static str,
 ) -> Result<Value, EvalBreak> {
-    let ast = match eval_inner(arg, env, sym)?.value_owned() {
+    let ast = match eval_inner(arg, env, sym)? {
         Value::wat__WatAST(a) => a,
         other => {
             return Err(RuntimeError::new(

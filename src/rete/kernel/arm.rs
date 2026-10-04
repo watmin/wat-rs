@@ -1282,7 +1282,7 @@ pub(crate) fn eval_arm_session(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::arm-session";
-    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?;
     let (network, rules) = match (
         session_network(&session),
         session_named_field(&session, "rules"),
@@ -1395,7 +1395,7 @@ pub(crate) fn eval_release_session(
     // Keyword primitive (TypeScheme + runtime dispatch), not a dual-impl wat Fn.
     // Bound in DESIGN-STONE-intern-eviction.md.
     const OP: &str = ":wat::rete::release-session";
-    let session = crate::runtime::eval_inner(session, env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(session, env, sym)?;
     let network = match session_network(&session) {
         Some(network) => network,
         None => {
@@ -1459,7 +1459,7 @@ pub(crate) fn eval_adopt_session_lease(
         )
         .into());
     }
-    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?;
     let network = match session_network(&session) {
         Some(network) => network,
         None => {

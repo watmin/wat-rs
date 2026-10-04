@@ -25,7 +25,7 @@ fn eval_render(src: &str) -> (String, String) {
     let tv = eval_in_frozen(&ast, &world, &env)
         .unwrap_or_else(|e| panic!("{src:?} should eval: {e:?}"));
     (
-        tv.value().type_name().to_string(),
+        tv.type_name().to_string(),
         // NOTE (Stone B implementation, not spec intent): the doc comment
         // above says this tuple is "(type_name, rendered)" — the BARE
         // rendered form, not a full diagnostic ValueSnapshot::Display
@@ -35,7 +35,7 @@ fn eval_render(src: &str) -> (String, String) {
         // on the whole snapshot could never equal a bare "1/2"/"-3/2" for
         // ANY literal; `.rendered` is the field that matches the doc
         // comment's stated intent and every other stone's render checks.
-        ValueSnapshot::of(tv.value()).rendered,
+        ValueSnapshot::of(&tv).rendered,
     )
 }
 
@@ -68,9 +68,9 @@ fn rational_literal_denominator_one_is_integer_not_ratio() {
         let tv = eval_in_frozen(&ast, &world, &env)
             .unwrap_or_else(|e| panic!("{src:?} should eval: {e:?}"));
         assert!(
-            matches!(tv.value(), Value::i64(n) if *n == want),
+            matches!(&tv, Value::i64(n) if *n == want),
             "{src} must reduce to Integer {want} (clj Long), got {:?}",
-            tv.value().type_name()
+            tv.type_name()
         );
     }
 }

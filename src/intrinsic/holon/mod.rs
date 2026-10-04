@@ -32,11 +32,11 @@
 //! delegates to the pure algebra in [`crate::holon`] (the first-strike home) or to the external
 //! `holon` VSA crate directly, exactly as it did before this carve.
 //!
-//! **Provenance:** `atom::eval_holon_from_holon` (`from-holon`) is the one PRODUCER among all 95 —
-//! the only verb pre-carve that was hoisted into `dispatch_keyword_head`'s `TrackedValue`-returning
-//! fast path, stamping `Provenance::RuntimeBuilt`. It keeps that return type here, so Stone G's
-//! `sniff_return` forwards it un-rewrapped instead of downgrading it to `Provenance::Unknown`. Every
-//! other verb returned bare `Value` before this carve and still does.
+//! **Provenance (historical):** through arc 255 Stone G, `atom::eval_holon_from_holon`
+//! (`from-holon`) was the one PRODUCER among all 95 — the only verb pre-carve hoisted into
+//! `dispatch_keyword_head`'s `TrackedValue`-returning fast path, stamping
+//! `Provenance::RuntimeBuilt`. Excursus 003 strike G item 4 retired that machinery wholesale;
+//! every verb here, `from-holon` included, now returns bare `Value`.
 //!
 //! **The rete seam is untouched.** `src/rete/purity.rs:647` classifies exactly four `:wat::holon::`
 //! verbs (builder-ruled, 2026-08-01); this carve moves what that ruling requires and classifies

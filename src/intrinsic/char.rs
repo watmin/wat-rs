@@ -51,7 +51,7 @@ pub(crate) fn eval_char_of(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch/MalformedForm) locates at `s`'s own span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::char";
-    let val = eval_inner(s, env, sym)?.value_owned();
+    let val = eval_inner(s, env, sym)?;
     let text = match val {
         Value::String(v) => (*v).clone(),
         other => {

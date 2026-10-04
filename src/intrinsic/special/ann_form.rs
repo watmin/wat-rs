@@ -21,7 +21,7 @@ use std::collections::HashMap;
 /// `<type>`? — is discharged entirely by `infer_ann_form` (this file) at check time: a
 /// `TypeMismatch` there refuses the call site before evaluation ever runs. At runtime,
 /// `eval_ann_form` (`src/runtime.rs:6175`) is bare identity on `<expr>`'s value —
-/// `eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())` — `<type>` (`args[1]`) is never
+/// `eval_inner(&args[0], env, sym)` — `<type>` (`args[1]`) is never
 /// touched by it at all, exactly the shape `identity.rs`'s `require-wire-address` doc argues for
 /// `:CheckGate`'s first real member: *"Its body is bare identity ... the ENTIRE contract ... is
 /// discharged ... at check time."* `ann-form` is `:CheckGate`'s second real member.

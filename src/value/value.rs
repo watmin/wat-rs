@@ -374,8 +374,10 @@ pub enum Value {
     wat__core__extend_def(Arc<ExtendDef>),
 }
 // Arc 233 Stone 233.2.k: Value::Tracked variant DELETED.
-// Environment now stores TrackedValue directly (Option A); provenance flows
-// structurally through the environment without a wrapping variant.
+// Stone 233.2.k through excursus 003 strike G item 4: Environment stored
+// TrackedValue (Value + Provenance) directly; provenance flowed structurally
+// through the environment without a wrapping variant. Strike G item 4
+// retired Provenance/TrackedValue wholesale — Environment stores bare Value.
 // Stone 233.2.l seals the meta-class via #[wat_value] proc-macro.
 
 // ─── Stone 237.2 — defclause structs ─────────────────────────────────────────
@@ -1811,6 +1813,8 @@ impl Value {
 }
 // Arc 233 Stone 233.2.k: Value::inner(), Value::provenance(), Value::into_tracked() DELETED.
 // These helpers were only meaningful while Value::Tracked existed.
-// Call sites use TrackedValue::from(value) directly (no need for into_tracked());
-// Value is never wrapped post-233.2.k so inner() is a no-op; Value no longer
-// carries provenance so provenance() is gone. Use TrackedValue's own .provenance().
+// Call sites use value directly (no need for into_tracked());
+// Value is never wrapped post-233.2.k so inner() is a no-op. Provenance
+// itself (and TrackedValue, its carrier) retired wholesale in excursus 003
+// strike G item 4 — there is no .provenance() anywhere anymore, on Value or
+// otherwise.

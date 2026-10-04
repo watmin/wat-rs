@@ -81,7 +81,7 @@ fn run(depth: usize, width: usize, fire_verb: &str) -> Value {
     let world = startup_from_source(&gen_world(depth), None, Arc::new(InMemoryLoader::new())).expect("startup");
     let ast = wat::parse_one!(&gen_expr(depth, width, fire_verb)).expect("parse");
     eval_in_frozen(&ast, &world, &Environment::new())
-        .unwrap_or_else(|e| panic!("eval raised: {e:?}")).value_owned()
+        .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
 /// depth 10: native fire-rules == fire-rules$oracle == full closure (width).

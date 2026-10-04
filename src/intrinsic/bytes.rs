@@ -52,7 +52,7 @@ pub(crate) fn eval_bytes_to_hex(
 
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes/to-hex";
-    let xs = match eval_inner(bs, env, sym)?.value_owned() {
+    let xs = match eval_inner(bs, env, sym)? {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::new(bs.span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -119,7 +119,7 @@ pub(crate) fn eval_bytes_from_hex(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::Bytes/from-hex";
     let arg_span = s.span().clone();
-    let s = match eval_inner(s, env, sym)?.value_owned() {
+    let s = match eval_inner(s, env, sym)? {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::new(arg_span, RuntimeErrorKind::TypeMismatch {

@@ -237,12 +237,12 @@ pub fn extract_closure(
     if let Some(closed_env) = &func.closed_env {
         let frees = std::mem::take(&mut state.unresolved_frees);
         for (name, span) in frees {
-            if let Some(tv) = closed_env.lookup(&name, &span) {
+            if let Some(v) = closed_env.lookup(&name) {
                 // It's a captured local. Encode the value to AST and
                 // record. The captured value itself may carry types we
                 // need to extract; the type-walk phase below handles
                 // them.
-                let encoded = encode_value_to_ast(tv.value(), &name, &mut state)?;
+                let encoded = encode_value_to_ast(&v, &name, &mut state)?;
                 state.captured_bindings.push(CapturedBinding {
                     original_name: name.clone(),
                     synthetic_name: synthesize_capture_name(&name),
@@ -547,7 +547,7 @@ pub fn eval_kernel_fn_forms(
     // arm, runtime.rs, and only fires when the keyword is a literal AST
     // node in source). Mirror that exact resolution here so a keyword
     // Value arriving through computation also resolves.
-    let fn_value = match eval(&args[0], env, sym)?.value_owned() {
+    let fn_value = match eval(&args[0], env, sym)? {
         v @ Value::wat__core__fn(_) => v,
         Value::wat__core__keyword(k) => match sym.get(&k) {
             Some(func) => Value::wat__core__fn(func.clone()),
@@ -570,7 +570,7 @@ pub fn eval_kernel_fn_forms(
 
     // arg 1: the bind name — a keyword (carries its leading ':', same
     // convention as every other keyword Value in the runtime).
-    let name: String = match eval(&args[1], env, sym)?.value_owned() {
+    let name: String = match eval(&args[1], env, sym)? {
         Value::wat__core__keyword(k) => (*k).clone(),
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {

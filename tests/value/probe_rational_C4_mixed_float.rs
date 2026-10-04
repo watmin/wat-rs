@@ -19,8 +19,8 @@ fn eval_try(src: &str) -> Result<(String, String), String> {
     let ast = wat::parse_one!(src).map_err(|e| format!("parse: {e:?}"))?;
     let tv = eval_in_frozen(&ast, &world, &env).map_err(|e| format!("{e:?}"))?;
     Ok((
-        tv.value().type_name().to_string(),
-        ValueSnapshot::of(tv.value()).rendered,
+        tv.type_name().to_string(),
+        ValueSnapshot::of(&tv).rendered,
     ))
 }
 

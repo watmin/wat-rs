@@ -13,7 +13,7 @@ use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
 use crate::load::loader::InMemoryLoader;
 use crate::runtime::{
     RuntimeError, RuntimeErrorKind,
-    TrackedValue, Value,
+    Value,
 };
 
 use std::os::fd::{BorrowedFd, FromRawFd, OwnedFd};
@@ -512,11 +512,11 @@ pub(crate) fn run_forms_as_server_child(
 // was given; the flat helper matches the caller's expected shape exactly.
 // pub(crate): also called by kernel/spawn.rs dispatcher for the :process tier
 // (arc 214 β — forms extraction from the evaluated args[2]).
-pub(crate) fn expect_vec_ast_pub(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
-    expect_vec_ast(op, tv, span)
+pub(crate) fn expect_vec_ast_pub(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
+    expect_vec_ast(op, v, span)
 }
-fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
-    match tv.value_owned() {
+fn expect_vec_ast(op: &str, v: Value, span: crate::span::Span) -> Result<Vec<WatAST>, RuntimeError> {
+    match v {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {

@@ -273,7 +273,7 @@ pub(crate) fn failure_error_field(
         )
         .into());
     }
-    let val = eval_inner(&args[0], env, sym)?.value_owned();
+    let val = eval_inner(&args[0], env, sym)?;
     let types = sym.types().map(|a| a.as_ref());
     match record_field_by_name(&val, "error", types) {
         Some(e) => Ok(e),
@@ -398,7 +398,7 @@ pub(crate) fn eval_died_error_message(
         )
         .into());
     }
-    let val = eval_inner(&args[0], env, sym)?.value_owned();
+    let val = eval_inner(&args[0], env, sym)?;
     let types = sym.types().map(|a| a.as_ref());
     match val {
         Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
@@ -492,7 +492,7 @@ pub(crate) fn eval_died_error_to_failure(
         )
         .into());
     }
-    let val = eval_inner(&args[0], env, sym)?.value_owned();
+    let val = eval_inner(&args[0], env, sym)?;
     match val {
         Value::Enum(ev) if ev.type_path == LociDiedError::WAT_TYPE_PATH => {
             match ev.variant_name.parse::<LociDiedError>() {

@@ -1243,7 +1243,7 @@ fn dbeta_gather_volume() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("{label} seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let (_fired, counts) = super::with_count_census(|| {
             fire_rules_on_session(&staged, &crate::rust_caller_span!(), world.symbols(), None)

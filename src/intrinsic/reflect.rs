@@ -409,7 +409,7 @@ fn extract_fqdn(
     match arg {
         WatAST::Keyword(k, _) => Ok(k.clone()),
         _ => {
-            let v = crate::runtime::eval_inner(arg, env, sym)?.value_owned();
+            let v = crate::runtime::eval_inner(arg, env, sym)?;
             match &v {
                 Value::wat__core__keyword(k) => Ok((**k).clone()),
                 other => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
@@ -841,7 +841,7 @@ pub(crate) fn eval_type_params_used_in(
     const OP: &str = ":wat::core::type-params-used-in";
     let _ = span;
 
-    let params_v = crate::runtime::eval_inner(params, env, sym)?.value_owned();
+    let params_v = crate::runtime::eval_inner(params, env, sym)?;
     let param_vals: &Vec<Value> = match &params_v {
         Value::Vec(v) => v.as_ref(),
         other => {
@@ -854,7 +854,7 @@ pub(crate) fn eval_type_params_used_in(
         }
     };
 
-    let node_v = crate::runtime::eval_inner(node, env, sym)?.value_owned();
+    let node_v = crate::runtime::eval_inner(node, env, sym)?;
     let node_ast: &WatAST = match &node_v {
         Value::wat__WatAST(a) => a.as_ref(),
         other => {
@@ -958,7 +958,7 @@ pub(crate) fn eval_type_equal(
     const OP: &str = ":wat::core::type-equal?";
     let _ = span;
 
-    let a_v = crate::runtime::eval_inner(a, env, sym)?.value_owned();
+    let a_v = crate::runtime::eval_inner(a, env, sym)?;
     let a_ast: &WatAST = match &a_v {
         Value::wat__WatAST(ast) => ast.as_ref(),
         other => {
@@ -971,7 +971,7 @@ pub(crate) fn eval_type_equal(
         }
     };
 
-    let b_v = crate::runtime::eval_inner(b, env, sym)?.value_owned();
+    let b_v = crate::runtime::eval_inner(b, env, sym)?;
     let b_ast: &WatAST = match &b_v {
         Value::wat__WatAST(ast) => ast.as_ref(),
         other => {

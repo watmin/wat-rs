@@ -156,7 +156,7 @@ pub(crate) fn keyword_value_to_registry_key(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<String, RuntimeError> {
-    let v = eval(arg, env, sym)?.value_owned();
+    let v = eval(arg, env, sym)?;
     match v {
         Value::wat__core__keyword(ref k) => Ok((**k).clone()),
         Value::wat__WatAST(ref ast) => {

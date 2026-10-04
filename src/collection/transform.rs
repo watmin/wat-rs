@@ -53,7 +53,7 @@ pub(crate) fn eval_vec_reverse(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let v = eval_inner(xs, env, sym)?.value_owned();
+    let v = eval_inner(xs, env, sym)?;
     // Arc-278 strike 3 — classify via the registry (StreamContainer::of_value + ordered()).
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
     use crate::collection::seq_container::StreamContainer;
@@ -110,8 +110,8 @@ pub(crate) fn eval_vec_range(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let start = require_i64(":wat::core::range", eval_inner(start, env, sym)?.value_owned())?;
-    let end = require_i64(":wat::core::range", eval_inner(end, env, sym)?.value_owned())?;
+    let start = require_i64(":wat::core::range", eval_inner(start, env, sym)?)?;
+    let end = require_i64(":wat::core::range", eval_inner(end, env, sym)?)?;
     let items: Vec<Value> = if start <= end {
         (start..end).map(Value::i64).collect()
     } else {
@@ -141,8 +141,8 @@ pub(crate) fn eval_vec_take(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::take";
-    let coll = eval_inner(&args[0], env, sym)?.value_owned();
-    let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[0], env, sym)?;
+    let n = require_i64(OP, eval_inner(&args[1], env, sym)?)?;
     let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
@@ -198,8 +198,8 @@ pub(crate) fn eval_vec_drop(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::drop";
-    let coll = eval_inner(&args[0], env, sym)?.value_owned();
-    let n = require_i64(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let coll = eval_inner(&args[0], env, sym)?;
+    let n = require_i64(OP, eval_inner(&args[1], env, sym)?)?;
     let source = crate::stream::value_as_stream(&coll).ok_or_else(|| EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
@@ -285,8 +285,8 @@ pub(crate) fn eval_vec_sort_by(
         .into());
     }
     // Arc 247: fn-first — (sort$native cmp xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let xs = require_vec(OP, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let f = eval_inner(&args[0], env, sym)?;
+    let xs = require_vec(OP, eval_inner(&args[1], env, sym)?)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -500,8 +500,8 @@ pub(crate) fn eval_vec_map(
         .into());
     }
     // Arc 247: fn-first — (map f xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let coll = eval_inner(&args[1], env, sym)?.value_owned();
+    let f = eval_inner(&args[0], env, sym)?;
+    let coll = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -612,8 +612,8 @@ pub(crate) fn eval_mapv(
         )
         .into());
     }
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let coll = eval_inner(&args[1], env, sym)?.value_owned();
+    let f = eval_inner(&args[0], env, sym)?;
+    let coll = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -791,9 +791,9 @@ pub(crate) fn eval_vec_foldl(
         .into());
     }
     // Arc 247: fn-first — (foldl f init xs)
-    let f = eval_inner(&args[0], env, sym)?.value_owned();
-    let mut acc = eval_inner(&args[1], env, sym)?.value_owned();
-    let coll = eval_inner(&args[2], env, sym)?.value_owned();
+    let f = eval_inner(&args[0], env, sym)?;
+    let mut acc = eval_inner(&args[1], env, sym)?;
+    let coll = eval_inner(&args[2], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -987,7 +987,7 @@ pub(crate) fn eval_stream_to_vec(
         )
         .into());
     }
-    let acc = eval_inner(&args[0], env, sym)?.value_owned();
+    let acc = eval_inner(&args[0], env, sym)?;
     let Value::Vec(acc) = acc else {
         return Err(RuntimeError::new(
             args[0].span().clone(),
@@ -999,7 +999,7 @@ pub(crate) fn eval_stream_to_vec(
         )
         .into());
     };
-    let s = eval_inner(&args[1], env, sym)?.value_owned();
+    let s = eval_inner(&args[1], env, sym)?;
     let Some(mut cur) = crate::stream::value_as_stream(&s) else {
         return Err(RuntimeError::new(
             args[1].span().clone(),
@@ -1055,7 +1055,7 @@ pub(crate) fn eval_stream_to_pvec(
         )
         .into());
     }
-    let acc = eval_inner(&args[0], env, sym)?.value_owned();
+    let acc = eval_inner(&args[0], env, sym)?;
     let Value::wat__core__PersistentVector(mut pv) = acc else {
         return Err(RuntimeError::new(
             args[0].span().clone(),
@@ -1067,7 +1067,7 @@ pub(crate) fn eval_stream_to_pvec(
         )
         .into());
     };
-    let s = eval_inner(&args[1], env, sym)?.value_owned();
+    let s = eval_inner(&args[1], env, sym)?;
     let Some(mut cur) = crate::stream::value_as_stream(&s) else {
         return Err(RuntimeError::new(
             args[1].span().clone(),
@@ -1176,14 +1176,14 @@ pub(crate) fn eval_seq_zip(
     }
     let xs = require_seqable_vec(
         op,
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(&args[0], env, sym)?,
         args[0].span(),
         sym,
         call_span,
     )?;
     let ys = require_seqable_vec(
         op,
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(&args[1], env, sym)?,
         args[1].span(),
         sym,
         call_span,
@@ -1222,12 +1222,12 @@ pub(crate) fn eval_seq_window(
     }
     let xs = require_seqable_vec(
         op,
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(&args[0], env, sym)?,
         args[0].span(),
         sym,
         call_span,
     )?;
-    let n = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let n = require_i64(op, eval_inner(&args[1], env, sym)?)?;
     if n <= 0 {
         return Ok(Value::Vec(Arc::new(Vec::new())));
     }
@@ -1267,12 +1267,12 @@ pub(crate) fn eval_seq_remove_at(
     }
     let xs = require_seqable_vec(
         op,
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(&args[0], env, sym)?,
         args[0].span(),
         sym,
         call_span,
     )?;
-    let i = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
+    let i = require_i64(op, eval_inner(&args[1], env, sym)?)?;
     if i < 0 || (i as usize) >= xs.len() {
         return Ok(Value::Vec(Arc::new(xs)));
     }
@@ -1297,7 +1297,7 @@ pub(crate) fn eval_vec_last(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let xs = require_vec(":wat::core::last", eval_inner(xs, env, sym)?.value_owned())?;
+    let xs = require_vec(":wat::core::last", eval_inner(xs, env, sym)?)?;
     Ok(Value::Option(Arc::new(xs.last().cloned())))
 }
 
@@ -1379,8 +1379,8 @@ pub(crate) fn eval_vec_find_last_index(
         )
         .into());
     }
-    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
+    let xs = require_vec(OP, eval_inner(&args[0], env, sym)?)?;
+    let f = eval_inner(&args[1], env, sym)?;
     let func = match &f {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -1468,7 +1468,7 @@ pub(crate) fn eval_seqable_to_stream(
         )
         .into());
     }
-    let coll = eval_inner(&args[0], env, sym)?.value_owned();
+    let coll = eval_inner(&args[0], env, sym)?;
     Ok(Value::wat__stream__Stream(seqable_value_to_stream(
         coll,
         OP,
@@ -1607,8 +1607,8 @@ pub(crate) fn eval_filter(
         .into());
     }
     // pred-first: arg[0] is the predicate, arg[1] is the collection.
-    let p = eval_inner(&args[0], env, sym)?.value_owned();
-    let coll = eval_inner(&args[1], env, sym)?.value_owned();
+    let p = eval_inner(&args[0], env, sym)?;
+    let coll = eval_inner(&args[1], env, sym)?;
     let pred = match &p {
         Value::wat__core__fn(func) => func.clone(),
         other => {
@@ -1770,7 +1770,7 @@ mod seqable_to_stream_tests {
         let start = Instant::now();
         let result = eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-            .value_owned();
+            ;
         let elapsed = start.elapsed();
         eprintln!("seqable_to_stream_keep_stays_under_wall_at_n4000: elapsed={elapsed:?}");
 
@@ -1835,7 +1835,7 @@ mod filter_native_tests {
         let start = Instant::now();
         let result = eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-            .value_owned();
+            ;
         let elapsed = start.elapsed();
         eprintln!("filter_native_stays_under_wall_at_n4000_persistentvector: elapsed={elapsed:?}");
 

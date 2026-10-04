@@ -10,17 +10,14 @@
 //! **Nothing is renamed** — `:wat::edn::` is already the final spelling (pure re-registration,
 //! same shape as HOME-8/HOME-10). No codemod, no `RetirementEntry` row, no `.wat` corpus touch.
 //!
-//! ## The one contract decision — three of these are PRODUCERS
+//! ## The one contract decision — three of these WERE PRODUCERS
 //!
-//! `read`, `read-json`, `read-foreign` each mint a `TrackedValue` with
-//! `Provenance::RuntimeBuilt { producer, .. }` inside their `src/edn/render.rs` bodies (one
+//! Through arc 255 Stone G, `read`, `read-json`, `read-foreign` each minted a `TrackedValue`
+//! with `Provenance::RuntimeBuilt { producer, .. }` inside their `src/edn/render.rs` bodies (one
 //! `RuntimeBuilt` construction site apiece — measured directly, not guessed from the verb name).
-//! Their handlers below return `Result<TrackedValue, EvalBreak>` un-rewrapped, exactly the shape
-//! `src/intrinsic/keyword.rs` established and arc 255 Stone G's `sniff_return` requires to keep
-//! a registry-routed producer's own stamp alive instead of the shim's default
-//! `Provenance::Unknown` rewrap. The other 10 verbs (the four `write*` renderers, `validate`,
-//! and the five `ForeignRecord`/`ForeignVariant` accessors) return plain values — no
-//! `RuntimeBuilt` site in any of their bodies — so their handlers keep the bare-`Value` shape.
+//! Excursus 003 strike G item 4 retired `Provenance`/`TrackedValue` wholesale: all 13 verbs in
+//! this file, producers and plain-value verbs alike, now return bare `Result<Value, EvalBreak>`
+//! — there is no stamp left to distinguish them by.
 //!
 //! ## Two homes, same split HOME-5 established
 //!
@@ -44,7 +41,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 // ─── decode: the 3 producers ────────────────────────────────────────────────
 
@@ -69,7 +66,7 @@ pub(crate) fn eval_edn_read_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_edn_read(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
@@ -96,7 +93,7 @@ pub(crate) fn eval_edn_read_json_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_edn_read_json(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 
@@ -135,7 +132,7 @@ pub(crate) fn eval_edn_read_foreign_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<TrackedValue, EvalBreak> {
+) -> Result<Value, EvalBreak> {
     crate::edn::render::eval_edn_read_foreign(std::slice::from_ref(s), span, env, sym).map_err(Into::into)
 }
 

@@ -164,7 +164,7 @@ fn emit_dispatch_fn(
             Ok(quote! {
                 let #tv_ident = ::wat::runtime::eval(&args[#idx], env, sym)?;
                 let #bind_ident: #ty = <#ty as ::wat::rust_deps::FromWat>::from_wat(
-                    #tv_ident.value(),
+                    &#tv_ident,
                     #wat_path,
                     args[#idx].span(),
                 )?;
@@ -187,7 +187,7 @@ fn emit_dispatch_fn(
             // handle; downcast to &ThreadOwnedCell<Self>; call
             // with_mut so the inner &mut Self can receive the method.
             quote! {
-                let self_val = ::wat::runtime::eval(&args[0], env, sym)?.value_owned();
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
                     ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
@@ -200,7 +200,7 @@ fn emit_dispatch_fn(
         (Some(ReceiverKind::Ref), Scope::ThreadOwned) => {
             // &self under thread-owned scope: with_ref instead.
             quote! {
-                let self_val = ::wat::runtime::eval(&args[0], env, sym)?.value_owned();
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
                     ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::ThreadOwnedCell<#self_type> =
@@ -214,7 +214,7 @@ fn emit_dispatch_fn(
             // &self under shared scope. args[0] is the opaque handle;
             // downcast to &Self directly (no guard). Plain &Self call.
             quote! {
-                let self_val = ::wat::runtime::eval(&args[0], env, sym)?.value_owned();
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
                     ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_ref: &#self_type =
@@ -236,7 +236,7 @@ fn emit_dispatch_fn(
             // of the OwnedMoveCell on the first use; subsequent
             // invocations on the same handle error cleanly.
             quote! {
-                let self_val = ::wat::runtime::eval(&args[0], env, sym)?.value_owned();
+                let self_val = ::wat::runtime::eval(&args[0], env, sym)?;
                 let self_inner =
                     ::wat::rust_deps::rust_opaque_arc(&self_val, TYPE_PATH, #wat_path, args[0].span().clone())?;
                 let self_cell: &::wat::rust_deps::OwnedMoveCell<#self_type> =

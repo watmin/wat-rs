@@ -58,7 +58,7 @@ fn busy_count(acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, St
     let w = startup_from_source(&world_src, Some(concat!(file!(), ":", line!())), Arc::new(InMemoryLoader::new()))
         .map_err(|e| format!("startup: {e:?}"))?;
     let ast = wat::parse_one!(&run).map_err(|e| format!("parse: {e:?}"))?;
-    match eval_in_frozen(&ast, &w, &Environment::new()).map_err(|e| format!("eval: {e:?}"))?.value_owned() {
+    match eval_in_frozen(&ast, &w, &Environment::new()).map_err(|e| format!("eval: {e:?}"))? {
         Value::i64(n) => Ok(n),
         other => Err(format!("expected i64; got {other:?}")),
     }

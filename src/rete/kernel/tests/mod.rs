@@ -59,7 +59,7 @@ fn eval_in(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
     let ast = crate::parse_one!(src).expect("parse");
     eval_in_frozen(&ast, world, &Environment::new())
         .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-        .value_owned()
+        
 }
 
 // ── The keyed-gather gate (DESIGN-STONE-keyed-gather.md) ──────────────────────────────────
@@ -144,7 +144,7 @@ fn accum_count_census(g: i64, w: i64) -> Vec<(&'static str, u64)> {
     let (_fired, rows) = super::with_count_census(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }
@@ -214,7 +214,7 @@ fn fire_cascade(depth: i64, width: i64) -> (crate::freeze::FrozenWorld, Value) {
     let ast = crate::parse_one!(src.as_str()).expect("parse the fire driver");
     let fired = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("fire raised at depth={depth} width={width}: {e:?}"))
-        .value_owned();
+        ;
     (world, fired)
 }
 
@@ -421,7 +421,7 @@ fn accum_phase_census(g: i64, w: i64) -> Vec<(&'static str, u64, u64)> {
     let (_fired, mut rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at G={g} W={w}: {e:?}"))
-            .value_owned()
+            
     });
     // ⚠ The WHOLE fire, so the census can declare its own COVERAGE. The six phases live inside
     // `fire_fixpoint_delta`'s round loop; everything outside it — network extraction,
@@ -619,7 +619,7 @@ fn node_share_phase_census(n: i64, m: i64) -> Vec<(&'static str, u64, u64)> {
     let (_fired, rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fire raised at N={n} M={m}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }
@@ -634,7 +634,7 @@ fn cascade_phase_census(depth: i64, width: i64) -> Vec<(&'static str, u64, u64)>
     let (_fired, rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("cascade fire raised at depth={depth} width={width}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }
@@ -688,7 +688,7 @@ fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> 
     let (_fired, rows) = super::with_phase_census_counted(|| {
         eval_in_frozen(&ast, &world, &Environment::new())
             .unwrap_or_else(|e| panic!("fanout fire raised at keys={keys} fanout={fanout}: {e:?}"))
-            .value_owned()
+            
     });
     rows
 }

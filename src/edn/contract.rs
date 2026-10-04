@@ -81,9 +81,10 @@ pub use wat_edn::ToEdn;
 /// ## What does NOT implement `WatError`
 ///
 /// Sub-values embedded inside a variant's EDN — [`crate::runtime::ValueSnapshot`],
-/// [`crate::value::Provenance`], [`crate::span::Span`],
-/// [`crate::assertion::AssertionPayload`], [`OwnedValue`], [`FlatMessage`] —
-/// are passed to `to_edn()`, never to `to_wire_edn`. They stay [`ToEdn`].
+/// [`crate::span::Span`], [`crate::assertion::AssertionPayload`], [`OwnedValue`],
+/// [`FlatMessage`] — are passed to `to_edn()`, never to `to_wire_edn`. They stay
+/// [`ToEdn`]. (`Provenance` used to be in this list too; excursus 003 strike G
+/// item 4 retired it along with `TrackedValue`.)
 pub trait WatError {
     /// The human-readable error message. Typically `self.to_string()`.
     fn message(&self) -> String;
@@ -414,9 +415,9 @@ pub fn to_wire_edn(e: &impl WatError) -> String {
 /// :<key> "<message>"}`. `FlatMessage` implements [`WatError`] so it too
 /// crosses the wire boundary through the floor — even a flat OS-level failure
 /// carries `:message`/`:location`. It is NOT excluded from
-/// `WatError` (unlike the embedded sub-values `ValueSnapshot`, `Provenance`,
-/// `Span`, …): a `FlatMessage` IS a top-level error at the wire, not a
-/// sub-value inside another error's EDN.
+/// `WatError` (unlike the embedded sub-values `ValueSnapshot`, `Span`, …):
+/// a `FlatMessage` IS a top-level error at the wire, not a sub-value inside
+/// another error's EDN.
 pub(crate) struct FlatMessage<'a> {
     pub tag: &'a str,
     pub key: &'a str,

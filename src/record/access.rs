@@ -63,7 +63,7 @@ pub(crate) fn eval_struct_field(
         )
         .into());
     }
-    let struct_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let struct_val = eval_inner(&args[0], env, sym)?;
     // Arc 293.R2.2 — accept ANY Value::Aggregate (unified repr post-R2.1;
     // STOP-3 resolution: the old Nature::Struct guard was a pre-unification
     // artifact; record + holon-record field accessors now use this same
@@ -153,8 +153,8 @@ pub(crate) fn eval_record_field_at(
         )
         .into());
     }
-    let record_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let index_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let record_val = eval_inner(&args[0], env, sym)?;
+    let index_val = eval_inner(&args[1], env, sym)?;
 
     // Arc 293.R2.1 — Aggregate (Record/HolonRecord): positional field store.
     let fields = match record_val {
@@ -260,7 +260,7 @@ pub(crate) fn eval_record_q(
         )
         .into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     // Arc 293.R2.1 — Aggregate with Record or HolonRecord nature is a record.
     Ok(Value::bool(
         matches!(v, Value::Aggregate(ref a) if a.nature != Nature::Struct),
@@ -295,7 +295,7 @@ pub(crate) fn eval_list_q(
         )
         .into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     Ok(Value::bool(
         matches!(v, Value::wat__WatAST(ref ast) if matches!(&**ast, WatAST::List(..))),
     ))

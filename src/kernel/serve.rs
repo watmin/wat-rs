@@ -121,7 +121,7 @@ pub(crate) fn eval_retag_op(
     // strip below found nothing to do even before this stone. A runtime `EnumValue.type_path`
     // is always the BASE name (type params are erased), and `try_match_pattern` composes
     // `type_path::variant`, so both the discriminator and the re-tag target are the base.
-    let op_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let op_val = eval_inner(&args[0], env, sym)?;
     match op_val {
         // Surface-tagged client op → embed into the service superset counterpart.
         Value::Enum(ev) if ev.type_path == surface_path => Ok(Value::Enum(Arc::new(EnumValue {
@@ -186,7 +186,7 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
         )
         .into());
     }
-    let clients_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let clients_val = eval_inner(&args[0], env, sym)?;
     let body = &args[1];
     let outcome =
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| eval_tail(body, env, sym)));

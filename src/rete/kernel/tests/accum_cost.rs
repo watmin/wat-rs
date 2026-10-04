@@ -334,7 +334,7 @@ fn accum_query_harvest_split() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
@@ -830,7 +830,7 @@ fn accum_compiled_match_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -1061,7 +1061,7 @@ fn accum_materialize_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -1324,7 +1324,7 @@ fn accum_intern_val_i64_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -1494,7 +1494,7 @@ fn accum_exec_ops_split() {
     let ast = crate::parse_one!(staged).expect("parse compile+seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile+seed raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
@@ -1669,7 +1669,7 @@ fn accum_seen_fire_context_split() {
     let ast = crate::parse_one!(src.as_str()).expect("parse seed");
     let session = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
-        .value_owned();
+        ;
     let wm = super::to_transient(&session).expect("to_transient");
     let pv: crate::value::pvec::PVec = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),

@@ -452,7 +452,7 @@ pub(crate) fn eval_variant_name(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::variant-name";
-    let v = eval_inner(e, env, sym)?.value_owned();
+    let v = eval_inner(e, env, sym)?;
     match v {
         Value::Enum(ev) => Ok(Value::String(Arc::new(ev.variant_name.clone()))),
         other => Err(RuntimeError::new(

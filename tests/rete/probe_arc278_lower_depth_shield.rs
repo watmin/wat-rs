@@ -64,7 +64,7 @@ fn startup(src: &str) -> Result<wat::freeze::FrozenWorld, StartupError> {
 fn eval_go(src: &str) -> Result<Value, StartupError> {
     let world = startup(src)?;
     let ast = wat::parse_one!("(:user::go)")?;
-    Ok(eval_in_frozen(&ast, &world, &Environment::new())?.value_owned())
+    Ok(eval_in_frozen(&ast, &world, &Environment::new())?)
 }
 
 #[test]

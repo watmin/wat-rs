@@ -470,7 +470,7 @@ fn stage_row(world: &crate::freeze::FrozenWorld, axis: &UniformAxis, row: i64) -
     let ast = crate::parse_one!(src.as_str()).expect("parse the staging driver");
     eval_in_frozen(&ast, world, &Environment::new())
         .unwrap_or_else(|e| panic!("staging {ns} row {row} raised: {e:?}"))
-        .value_owned()
+        
 }
 
 /// ★ THE DIFFERENTIAL — the fast filter must derive exactly what the reference filter derives.
@@ -530,7 +530,7 @@ fn where_tree_branch_agrees_with_the_reference_filter() {
         let ast = crate::parse_one!(src).expect("parse the node-share staging driver");
         let staged = eval_in_frozen(&ast, &world, &Environment::new())
             .expect("node-share staging")
-            .value_owned();
+            ;
         measured.push(differential(&staged, world.symbols(), "node-share [50 200]"));
     }
 

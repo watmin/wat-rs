@@ -26,7 +26,7 @@ fn each_with_kwargs_tail_fires_every_side_effect_and_returns_nil() {
     );
     let got = eval_in_frozen(&call, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("run raised: {e:?}"))
-        .value_owned();
+        ;
     match got {
         Value::Tuple(ref items) => {
             assert_eq!(items.len(), 2, "expected a 2-tuple (each-out, final-count); got {items:?}");

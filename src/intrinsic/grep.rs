@@ -18,7 +18,7 @@ fn arg_string(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<String>, EvalBreak> {
-    match eval_inner(arg, env, sym)?.value_owned() {
+    match eval_inner(arg, env, sym)? {
         Value::String(s) => Ok(s),
         other => Err(RuntimeError::new(
             arg.span().clone(),

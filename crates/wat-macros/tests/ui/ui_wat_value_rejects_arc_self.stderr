@@ -6,7 +6,7 @@ error: #[wat_value]: variant `Wrap` has wrapping shape (single Box<Self> / Arc<S
            #[wat_value(allow_wrapping = "your reason")]
        to this variant. The reason string is mandatory and non-empty; it documents WHY the structural exception is justified.
 
-       More often the right fix is a SIBLING TYPE outside the enum (e.g., wat::runtime::TrackedValue per Stone 233.2.h). See docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.l.md for the doctrine.
+       More often the right fix is a SIBLING TYPE outside the enum (e.g., wat::value::ValueSnapshot). See docs/arc/2026/05/233-substrate-errors-as-values/DESIGN-STONE-233.2.l.md for the doctrine.
   --> tests/ui/ui_wat_value_rejects_arc_self.rs:12:5
    |
 12 |     Wrap(Arc<BadArcValue>),

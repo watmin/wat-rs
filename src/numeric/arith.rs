@@ -53,14 +53,14 @@ where
     let b_span = args[1].span().clone();
     let a = eval_inner(&args[0], env, sym)?;
     let b = eval_inner(&args[1], env, sym)?;
-    match (a.value(), b.value()) {
+    match (&a, &b) {
         (Value::i64(x), Value::i64(y)) => Ok(Value::i64(op(*x, *y, &b_span)?)),
         (other, _) if !matches!(other, Value::i64(_)) => Err(RuntimeError::new(
             a_span,
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "i64",
-                got: Box::new(ValueSnapshot::of(a.value())),
+                got: Box::new(ValueSnapshot::of(&a)),
             },
         )
         .into()),
@@ -69,7 +69,7 @@ where
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "i64",
-                got: Box::new(ValueSnapshot::of(b.value())),
+                got: Box::new(ValueSnapshot::of(&b)),
             },
         )
         .into()),
@@ -221,14 +221,14 @@ where
     let b_span = args[1].span().clone();
     let a = eval_inner(&args[0], env, sym)?;
     let b = eval_inner(&args[1], env, sym)?;
-    match (a.value(), b.value()) {
+    match (&a, &b) {
         (Value::wat__core__bigint(x), Value::wat__core__bigint(y)) => op(x, y, &b_span),
         (other, _) if !matches!(other, Value::wat__core__bigint(_)) => Err(RuntimeError::new(
             a_span,
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "bigint",
-                got: Box::new(ValueSnapshot::of(a.value())),
+                got: Box::new(ValueSnapshot::of(&a)),
             },
         )
         .into()),
@@ -237,7 +237,7 @@ where
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "bigint",
-                got: Box::new(ValueSnapshot::of(b.value())),
+                got: Box::new(ValueSnapshot::of(&b)),
             },
         )
         .into()),
@@ -339,7 +339,7 @@ where
     let b_span = args[1].span().clone();
     let a = eval_inner(&args[0], env, sym)?;
     let b = eval_inner(&args[1], env, sym)?;
-    match (to_bigrational(a.value()), to_bigrational(b.value())) {
+    match (to_bigrational(&a), to_bigrational(&b)) {
         (Some(x), Some(y)) => {
             let r = op(&x, &y, &b_span)?;
             Ok(collapse_bigrational(r))
@@ -349,7 +349,7 @@ where
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "rational",
-                got: Box::new(ValueSnapshot::of(a.value())),
+                got: Box::new(ValueSnapshot::of(&a)),
             },
         )
         .into()),
@@ -358,7 +358,7 @@ where
             RuntimeErrorKind::TypeMismatch {
                 op: head.into(),
                 expected: "rational",
-                got: Box::new(ValueSnapshot::of(b.value())),
+                got: Box::new(ValueSnapshot::of(&b)),
             },
         )
         .into()),
@@ -391,8 +391,8 @@ where
     }
     let a_span = args[0].span().clone();
     let b_span = args[1].span().clone();
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(&args[0], env, sym)?;
+    let b = eval_inner(&args[1], env, sym)?;
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => Ok(Value::f64(op(x, y, &b_span)?)),
         (other, _) if !matches!(other, Value::f64(_)) => Err(RuntimeError::new(

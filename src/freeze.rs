@@ -81,7 +81,7 @@ use crate::parser::{parse_all_with_file, ParseError};
 use crate::resolve::ResolveError;
 use crate::runtime::{
     apply_function, Environment, EvalBreak, Function, FunctionBody, RuntimeError, RuntimeErrorKind,
-    SymbolTable, TrackedValue, Value,
+    SymbolTable, Value,
 };
 use crate::load::stdlib::StdlibError;
 use crate::types::{TypeEnv, TypeError, TypeExpr};
@@ -587,7 +587,7 @@ impl FrozenWorld {
                         crate::rust_caller_span!(),
                     )
                 })?
-                .value_owned();
+                ;
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -624,7 +624,7 @@ impl FrozenWorld {
                         crate::rust_caller_span!(),
                     )
                 })?
-                .value_owned();
+                ;
             let func = match v {
                 crate::runtime::Value::wat__core__fn(f) => f,
                 other => {
@@ -1586,7 +1586,7 @@ pub fn resolve_env_program(world: &FrozenWorld, src: &str) -> Result<Value, Runt
             },
         )
     })?;
-    let v = eval_in_frozen(&ast, world, &Environment::new())?.value_owned();
+    let v = eval_in_frozen(&ast, world, &Environment::new())?;
     match v {
         Value::wat__core__fn(f) => {
             let r = apply_function(f, vec![], world.symbols(), crate::rust_caller_span!())?;
@@ -1664,13 +1664,13 @@ fn invoke_user_main_orchestrated(
             frozen,
             &crate::runtime::Environment::new(),
         )
-        .map(|tv| tv.value_owned())?,
+        ?,
     };
     let ctor_env = crate::runtime::Environment::new()
         .child()
-        .bind_unknown_span(
+        .bind(
             "user-program",
-            crate::value::TrackedValue::from(user_program_val),
+            user_program_val,
         )
         .build();
     let env_src = format!(
@@ -1679,7 +1679,7 @@ fn invoke_user_main_orchestrated(
     );
     let env_ast =
         crate::parse_one!(&env_src).expect("arc 259: the program-env constructor form parses");
-    let program_env = eval_in_frozen(&env_ast, frozen, &ctor_env).map(|tv| tv.value_owned())?;
+    let program_env = eval_in_frozen(&env_ast, frozen, &ctor_env)?;
     let _program_env_guard = crate::services::install_program_env(program_env);
 
     // Step 5: Run `:user::main`. Any error (or the Ok value) is
@@ -1951,7 +1951,7 @@ pub fn eval_in_frozen(
     ast: &WatAST,
     frozen: &FrozenWorld,
     env: &Environment,
-) -> Result<TrackedValue, RuntimeError> {
+) -> Result<Value, RuntimeError> {
     refuse_mutation_forms(ast)?;
     // READ→EXPAND→EVAL (arc 294 item 9a — full Lisp). Expand macros against the frozen
     // registry BEFORE eval, so a source-written form (a kwargs construction, a user
@@ -1994,7 +1994,7 @@ pub fn eval_digest_in_frozen(
     env: &Environment,
     algo: &str,
     expected_hex: &str,
-) -> Result<TrackedValue, RuntimeError> {
+) -> Result<Value, RuntimeError> {
     // Compute the canonical-EDN bytes and verify against expected.
     let bytes = crate::hash::canonical_edn_wat(ast);
     crate::hash::verify_source_hash(&bytes, algo, expected_hex).map_err(|kind| {
@@ -2031,7 +2031,7 @@ pub fn eval_signed_in_frozen(
     algo: &str,
     sig_b64: &str,
     pubkey_b64: &str,
-) -> Result<TrackedValue, RuntimeError> {
+) -> Result<Value, RuntimeError> {
     crate::hash::verify_ast_signature(ast, algo, sig_b64, pubkey_b64).map_err(|kind| {
         RuntimeError::new(
             ast.span().clone(),
@@ -2395,7 +2395,7 @@ mod tests {
         let ast = crate::parse_one!("(:my::app::triple 7)").unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result.value(), Value::i64(21)));
+        assert!(matches!(&result, Value::i64(21)));
     }
 
     #[test]
@@ -2413,7 +2413,7 @@ mod tests {
         .unwrap();
         let env = Environment::new();
         let result = eval_in_frozen(&ast, &world, &env).expect("eval ok");
-        assert!(matches!(result.value(), Value::wat__holon__HolonAST(_)));
+        assert!(matches!(&result, Value::wat__holon__HolonAST(_)));
     }
 
     #[test]
@@ -2489,7 +2489,7 @@ mod tests {
         let ok = crate::parse_one!(r#"(wat.i64/+ 20 22)"#).unwrap();
         let v = eval_in_frozen(&ok, &world, &env)
             .expect("a non-mutation symbol head must still evaluate")
-            .value_owned();
+            ;
         assert_eq!(v, crate::value::Value::i64(42));
     }
 
@@ -2685,7 +2685,7 @@ mod tests {
         let hex = digest_hex_for(&ast);
         let result = eval_digest_in_frozen(&ast, &world, &Environment::new(), "sha256", &hex)
             .expect("eval ok");
-        assert!(matches!(result.value(), Value::i64(42)));
+        assert!(matches!(&result, Value::i64(42)));
     }
 
     #[test]
@@ -2754,7 +2754,7 @@ mod tests {
         let (sig, pk) = sign_ast_ed25519(&ast);
         let result = eval_signed_in_frozen(&ast, &world, &Environment::new(), "ed25519", &sig, &pk)
             .expect("eval ok");
-        assert!(matches!(result.value(), Value::i64(42)));
+        assert!(matches!(&result, Value::i64(42)));
     }
 
     #[test]

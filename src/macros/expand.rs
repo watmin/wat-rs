@@ -2,7 +2,6 @@ use crate::ast::WatAST;
 use crate::runtime::{Environment, SymbolTable, Value};
 use crate::scope::{fresh_scope, ScopeId};
 use crate::span::Span;
-use crate::value::TrackedValue;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -1565,12 +1564,12 @@ fn expand_program_body(
                 .map(|a| Value::wat__WatAST(Arc::new(a.clone())))
                 .collect();
             builder = builder
-                .bind_unknown_span(name.clone(), TrackedValue::from(Value::Vec(Arc::new(vals))));
+                .bind(name.clone(), Value::Vec(Arc::new(vals)));
         } else {
             // Fixed param: bind as a quoted form-value (Value::wat__WatAST).
-            builder = builder.bind_unknown_span(
+            builder = builder.bind(
                 name.clone(),
-                TrackedValue::from(Value::wat__WatAST(Arc::new(ast_form.clone()))),
+                Value::wat__WatAST(Arc::new(ast_form.clone())),
             );
         }
     }
@@ -1595,7 +1594,7 @@ fn expand_program_body(
     // wat__holon__HolonAST (via holon_to_watast). Other shapes (Struct/Enum/Vec/HashMap) error.
     crate::runtime::value_to_watast(
         &format!("macro {} body result", macro_name),
-        result_tv.value_owned(),
+        result_tv,
         call_site_span.clone(),
     )
     .map_err(|e| MacroError {
@@ -2237,7 +2236,7 @@ pub(super) fn unquote_argument(
             // not on the blessed pure-combinator allow-list) now errors here
             // instead of running. Hash-IS-identity determinism is enforced by
             // construction. See docs/arc/2026/06/249-total-pure-macros/DESIGN-STONE-249.2b.md.
-            let val = crate::macros::eval::macro_eval(&substituted, env, sym)?.value_owned();
+            let val = crate::macros::eval::macro_eval(&substituted, env, sym)?;
             crate::runtime::value_to_watast(",(expr)", val, span.clone()).map_err(|e| MacroError {
                 span: span.clone(),
                 kind: MacroErrorKind::MalformedTemplate {
@@ -2311,7 +2310,7 @@ fn splice_argument(
                         ),
                     },
                 })?
-                .value_owned();
+                ;
             // Result must be a Vec; extract elements, convert each to WatAST.
             match val {
                 crate::runtime::Value::Vec(elems) => {

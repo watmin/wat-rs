@@ -33,7 +33,7 @@ fn toy_journal_satisfies_surface_and_replies_success() {
     );
     let got = eval_in_frozen(&call, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("run raised: {e:?}"))
-        .value_owned();
+        ;
     match got {
         Value::Enum(ev) => {
             assert_eq!(

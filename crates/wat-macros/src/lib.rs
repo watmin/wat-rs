@@ -38,9 +38,9 @@ mod wat_value;
 /// Forbids wrapping-style variants (single `Box<Self>` / `Arc<Self>` /
 /// `Rc<Self>` / `Self` field) at compile time. Future authors who try to
 /// re-introduce the trap-door class encounter a `compile_error!` with a
-/// teaching diagnostic naming the forbidden pattern, recommending
-/// `TrackedValue` as the sibling-type alternative, and documenting the
-/// per-variant opt-in escape hatch with mandatory non-empty reason string.
+/// teaching diagnostic naming the forbidden pattern, recommending a
+/// sibling type (e.g. `ValueSnapshot`) as the alternative, and documenting
+/// the per-variant opt-in escape hatch with mandatory non-empty reason string.
 ///
 /// Apply to `pub enum Value` (and future enums where the trap-door class
 /// has been identified):

@@ -491,7 +491,7 @@ fn class_scan_harvest_includes_input() {
         &Environment::new(),
     )
     .unwrap_or_else(|e| panic!("input-scan fire raised: {e:?}"))
-    .value_owned();
+    ;
     let maps = match session_named_field(&fired, "query-memory") {
         Some(Value::wat__core__PersistentMap(pm)) => pm
             .iter()

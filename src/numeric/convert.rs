@@ -171,7 +171,7 @@ pub(crate) fn eval_u8_cast(
         .into());
     }
     let arg_span = args[0].span().clone();
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     match v {
         Value::i64(n) => {
             if !(0..=255).contains(&n) {

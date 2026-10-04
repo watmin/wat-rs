@@ -1,86 +1,19 @@
-//! Value observation types — Provenance, TrackedValue, ValueSnapshot — and the
-//! `render_value` display engine that ValueSnapshot::of() delegates to.
+//! Value observation types — ValueSnapshot — and the `render_value` display
+//! engine that ValueSnapshot::of() delegates to.
 //!
 //! Moved from `src/runtime.rs` (block ~1860–2022 + fn render_value) in Stone
 //! 251.2b. Value stays in runtime.rs until Stone 251.2e.
+//!
+//! `Provenance` and `TrackedValue` (the eval-boundary Value+Provenance pairing
+//! from the Stone 233.2 Shape A pivot) lived in this file from Stone 251.2b
+//! until excursus 003 strike G item 4: measured as carrying nothing besides
+//! provenance, and with that provenance itself unread at every production
+//! call site but 3 of 506 (`AUDIT-the-shape-of-an-error.md` F5; strike C
+//! already dropped the field it was feeding), both retired wholesale —
+//! `eval_inner` and every downstream door return bare `Value` again.
 
 use std::fmt;
 use crate::value::Value;
-use crate::span::Span;
-
-/// Provenance of a Value — where it came from.
-///
-/// Stone 233.1 ships only `Unknown`. Stone 233.2.a adds three variants:
-/// - `Provenance::Literal { span }` — the value appeared as a literal in source.
-/// - `Provenance::SymbolBound { binding_span, head_span }` — bound via let-symbol lookup.
-/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `from-holon`, `edn::read`,
-///   `keyword-node`, `keyword/from-string`/`to-symbol`/`to-type-form`/`to-type-form-colon`,
-///   mailbox payload, etc. Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning
-///   signature (sniffed from the handler's own declared return type,
-///   `crates/wat-macros/src/wat_intrinsic.rs`), so a registry-routed producer CAN stamp this
-///   variant itself — `src/intrinsic/keyword.rs`'s four producers do. A registry-routed
-///   handler that just returns a bare `Value` still yields `Unknown` (the shim's default arm,
-///   unchanged for the ~250 non-producer handlers).
-#[derive(Debug, Clone)]
-pub enum Provenance {
-    /// Default — no provenance information attached.
-    Unknown,
-    /// Value appeared as a literal in source.
-    /// E.g., `:foo` in `(let [k :foo] ...)` has `Literal { span: <:foo's span> }`.
-    Literal { span: Span },
-    /// Value resolved from a Symbol lookup; the binding_span is where the binding
-    /// was defined; head_span is where the symbol appeared in the call.
-    SymbolBound { binding_span: Span, head_span: Span },
-    /// Value was constructed by a producer function at runtime.
-    /// E.g., `(keyword/from-string s)` returns a keyword with
-    /// `RuntimeBuilt { producer: ":wat::core::keyword/from-string", call_span }`.
-    RuntimeBuilt { producer: &'static str, call_span: Span },
-}
-
-/// TrackedValue — the eval-boundary type pairing a Value with its Provenance.
-///
-/// Parallel to Value::Tracked variant during the Shape A pivot (Stone 233.2.h
-/// scaffolds; 233.2.i flips eval signature; 233.2.j migrates producers;
-/// 233.2.k retires Value::Tracked).
-///
-/// NOT derived: Eq/PartialEq/Hash — callers compare .value()/.provenance()
-/// explicitly. TrackedValue is a transient eval-boundary handoff, not a
-/// HashMap key or collection element.
-#[derive(Clone, Debug)]
-pub struct TrackedValue {
-    value: Value,
-    provenance: Provenance,
-}
-
-impl TrackedValue {
-    /// Construct a TrackedValue from a value + provenance.
-    pub fn new(value: Value, provenance: Provenance) -> Self {
-        Self { value, provenance }
-    }
-
-    /// Borrow the inner Value.
-    pub fn value(&self) -> &Value {
-        &self.value
-    }
-
-    /// Borrow the provenance metadata.
-    pub fn provenance(&self) -> &Provenance {
-        &self.provenance
-    }
-
-    /// Consume self, yielding the bare Value.
-    pub fn value_owned(self) -> Value {
-        self.value
-    }
-}
-
-/// `Value::into()` wraps with Provenance::Unknown — adapter for sites
-/// that produce bare Values without producer-level provenance.
-impl From<Value> for TrackedValue {
-    fn from(value: Value) -> Self {
-        Self::new(value, Provenance::Unknown)
-    }
-}
 
 /// Snapshot of a value attached to a runtime error for diagnostic richness.
 ///

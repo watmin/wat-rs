@@ -13,7 +13,7 @@ fn call(world: &wat::freeze::FrozenWorld, name: &str) -> Value {
     );
     eval_in_frozen(&ast, world, &Environment::new())
         .unwrap_or_else(|e| panic!("{name} raised: {e:?}"))
-        .value_owned()
+        
 }
 
 #[test]

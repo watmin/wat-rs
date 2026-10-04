@@ -75,7 +75,9 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../../wat/kernel/diagnostics.wat"),
     },
     // Excursus 003 step 3a — the 33 `:wat::runtime::<Kind>` records mirroring
-    // `RuntimeErrorKind`, plus `ValueSnapshot`/`Provenance`/`ReteCeilingKind`.
+    // `RuntimeErrorKind`, plus `ValueSnapshot`/`ReteCeilingKind` (the wat
+    // `:wat::runtime::Provenance` record this comment used to also name was
+    // itself already retired by strike C, 2026-09-27).
     // After `wat/kernel/diagnostics.wat`: `NoMatchingClause` references
     // `:wat::kernel::ClauseAttempt`, declared there.
     WatSource {

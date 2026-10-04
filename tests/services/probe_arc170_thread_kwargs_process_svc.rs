@@ -17,7 +17,7 @@ fn thread_map_kwargs_reaches_process_service() {
     );
     let got = eval_in_frozen(&call, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("run raised: {e:?}"))
-        .value_owned();
+        ;
     match got {
         Value::Vec(ref v) => {
             let strs: Vec<String> = v

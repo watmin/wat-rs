@@ -85,7 +85,7 @@ pub(crate) fn eval_struct_new(
     };
     let mut fields = Vec::with_capacity(args.len() - 1);
     for arg in &args[1..] {
-        fields.push(eval_inner(arg, env, sym)?.value_owned());
+        fields.push(eval_inner(arg, env, sym)?);
     }
     // Arc 293.R2.1 — AggregateValue::struct_ strips leading ':' from type_name.
     let class = type_name.trim_start_matches(':').to_string();
@@ -216,7 +216,7 @@ pub(crate) fn eval_variant(
     };
     let mut fields = Vec::with_capacity(args.len() - 2);
     for arg in &args[2..] {
-        fields.push(eval_inner(arg, env, sym)?.value_owned());
+        fields.push(eval_inner(arg, env, sym)?);
     }
     // Arc 296 G′ — the generic constructor: names come from the registry, never
     // invented. STOP-2: an unregistered type/variant RAISES, it does not fall back
@@ -359,7 +359,7 @@ pub(crate) fn try_eval_enum_map_ctor(
         match eval_inner(val_ast, env, sym) {
             Ok(tv) => {
                 names.push(decl_name.clone());
-                fields.push(tv.value_owned());
+                fields.push(tv);
             }
             Err(e) => return Some(Err(e)),
         }
@@ -501,7 +501,7 @@ fn construct_aggregate(
     // Evaluate the value ASTs as the field values.
     let mut fields: Vec<Value> = Vec::with_capacity(value_asts.len());
     for arg in value_asts {
-        fields.push(eval_inner(arg, env, sym)?.value_owned());
+        fields.push(eval_inner(arg, env, sym)?);
     }
 
     // Look up the TypeDef in the TypeEnv.

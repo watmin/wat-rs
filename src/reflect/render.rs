@@ -59,7 +59,7 @@ pub(crate) fn eval_struct_to_form(
         )
         .into());
     }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(&args[0], env, sym)?;
     // Arc 293.R2.1 — Aggregate with nature==Struct.
     let s = match v {
         Value::Aggregate(a) if a.nature == Nature::Struct => a,

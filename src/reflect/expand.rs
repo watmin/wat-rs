@@ -60,7 +60,7 @@ pub(crate) fn eval_macroexpand_1(
         )
         .into());
     }
-    let ast = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let ast = match eval_inner(&args[0], env, sym)? {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::new(
@@ -126,7 +126,7 @@ pub(crate) fn eval_macroexpand(
         )
         .into());
     }
-    let mut ast = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let mut ast = match eval_inner(&args[0], env, sym)? {
         Value::wat__WatAST(a) => (*a).clone(),
         other => {
             return Err(RuntimeError::new(

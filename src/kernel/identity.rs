@@ -45,7 +45,7 @@ pub(crate) fn eval_peer_pid(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
 
     match &peer_val {
         // Process peer: reach the Pidfd through the bundle → (Some pid).
@@ -148,7 +148,7 @@ pub(crate) fn eval_peer_process(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
 
     match &peer_val {
         Value::RustOpaque(inner)
@@ -209,7 +209,7 @@ pub(crate) fn eval_peer_wire(
         )
         .into());
     }
-    let peer_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let peer_val = eval_inner(&args[0], env, sym)?;
 
     match &peer_val {
         Value::RustOpaque(inner) if inner.type_path == crate::kernel::spawn::PEER_TYPE_PATH => {
@@ -264,7 +264,7 @@ pub(crate) fn eval_address_wire(
         )
         .into());
     }
-    let addr_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let addr_val = eval_inner(&args[0], env, sym)?;
     let addr: &crate::kernel::address::Address = match addr_val {
         Value::RustOpaque(ref inner)
             if inner.type_path == crate::kernel::spawn::ADDRESS_TYPE_PATH =>
@@ -312,5 +312,5 @@ pub(crate) fn eval_require_wire_address(
         )
         .into());
     }
-    Ok(eval_inner(&args[0], env, sym)?.value_owned())
+    Ok(eval_inner(&args[0], env, sym)?)
 }

@@ -38,7 +38,7 @@ pub(crate) fn eval_regex_matches(
     _span: &Span, // rune:lint(unused-span) — located elsewhere: TypeMismatch locates at the offending arg's own span; a bad pattern locates at `pattern`'s own span too
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::regex::matches?";
-    let pattern_val = eval_inner(pattern, env, sym)?.value_owned();
+    let pattern_val = eval_inner(pattern, env, sym)?;
     let pattern_str = match &pattern_val {
         Value::String(s) => s.as_str().to_string(),
         other => {
@@ -50,7 +50,7 @@ pub(crate) fn eval_regex_matches(
             .into());
         }
     };
-    let haystack_val = eval_inner(haystack, env, sym)?.value_owned();
+    let haystack_val = eval_inner(haystack, env, sym)?;
     let haystack_str = match &haystack_val {
         Value::String(s) => s.as_str().to_string(),
         other => {

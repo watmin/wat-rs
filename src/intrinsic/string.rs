@@ -63,7 +63,7 @@ fn arg_string(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Arc<String>, EvalBreak> {
-    match eval_inner(arg, env, sym)?.value_owned() {
+    match eval_inner(arg, env, sym)? {
         Value::String(s) => Ok(s),
         other => Err(RuntimeError::new(
             arg.span().clone(),
@@ -85,7 +85,7 @@ fn arg_i64(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<i64, EvalBreak> {
-    match eval_inner(arg, env, sym)?.value_owned() {
+    match eval_inner(arg, env, sym)? {
         Value::i64(n) => Ok(n),
         other => Err(RuntimeError::new(
             arg.span().clone(),
@@ -696,7 +696,7 @@ pub(crate) fn eval_string_join(
             ),
         }
     };
-    let pieces_owned: Vec<String> = match eval_inner(pieces, env, sym)?.value_owned() {
+    let pieces_owned: Vec<String> = match eval_inner(pieces, env, sym)? {
         // FAST PATH — an eager Vector keeps its direct iterator and never routes
         // through the stream normaliser below.
         Value::Vec(items) => {
@@ -790,7 +790,7 @@ pub(crate) fn eval_string_concat(
     let mut total = 0usize;
     let mut pieces: Vec<Arc<String>> = Vec::with_capacity(args.len());
     for arg in args {
-        match eval_inner(arg, env, sym)?.value_owned() {
+        match eval_inner(arg, env, sym)? {
             Value::String(s) => {
                 total += s.len();
                 pieces.push(s);
@@ -878,7 +878,7 @@ pub(crate) fn eval_string_interpolate(
     while i < rest.len() {
         let key_arg = &rest[i];
         let val_arg = &rest[i + 1];
-        let key_name = match eval_inner(key_arg, env, sym)?.value_owned() {
+        let key_name = match eval_inner(key_arg, env, sym)? {
             Value::wat__core__keyword(k) => k.strip_prefix(':').unwrap_or(k.as_str()).to_string(),
             other => {
                 return Err(RuntimeError::new(
@@ -893,7 +893,7 @@ pub(crate) fn eval_string_interpolate(
             }
         };
         let rendered = crate::string::render_str_total(
-            &eval_inner(val_arg, env, sym)?.value_owned(),
+            &eval_inner(val_arg, env, sym)?,
             sym.types().map(|a| a.as_ref()),
         );
         kwargs.insert(key_name, rendered);

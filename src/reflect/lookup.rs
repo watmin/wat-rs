@@ -335,7 +335,7 @@ pub(crate) fn eval_lookup_define(
     let name = if let WatAST::Keyword(k, _) = name_ast {
         k.clone()
     } else {
-        let v = eval_inner(name_ast, env, sym)?.value_owned();
+        let v = eval_inner(name_ast, env, sym)?;
         match name_from_keyword_or_fn(&v) {
             Some(n) => n,
             None => {

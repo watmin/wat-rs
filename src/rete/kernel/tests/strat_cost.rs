@@ -60,7 +60,7 @@ fn strat_neg_query_harvest_split() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("strat-neg seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (fired, rows) = super::with_phase_census_counted(|| {
@@ -395,7 +395,7 @@ fn strat_neg_stratum_split() {
             &Environment::new(),
         )
         .unwrap_or_else(|e| panic!("strat-neg seed raised: {e:?}"))
-        .value_owned();
+        ;
 
         let t0 = Instant::now();
         let (_fired, rows) = super::with_phase_census_counted(|| {
@@ -470,7 +470,7 @@ fn strat_merge_pv_owner_count() {
         &Environment::new(),
     )
     .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
-    .value_owned();
+    ;
 
     // Owner counts land in the COUNT census, not PHASE_NANOS. `merge:pv-owners-sum`
     // sums the owner gauge across calls; `merge:pv-calls` counts the calls, so the

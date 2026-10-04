@@ -64,7 +64,7 @@ fn rule_set(world: &FrozenWorld, src: &str) -> Value {
     let ast = crate::parse_one!(src).expect("parse the rule-set expression");
     eval_in_frozen(&ast, world, &Environment::new())
         .unwrap_or_else(|e| panic!("rule-set expression raised: {e:?}"))
-        .value_owned()
+        
 }
 
 /// The verdict as a byte-exact name, so every assertion below is an `assert_eq!` on a
@@ -209,7 +209,7 @@ fn not_analysable_still_compiles_and_is_not_a_refusal() {
     let ast = crate::parse_one!(src.as_str()).expect("parse the compile-all driver");
     let outcome = eval_in_frozen(&ast, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("compile-all raised on an AST-less rule set: {e:?}"))
-        .value_owned();
+        ;
     let got = match &outcome {
         Value::String(s) => (**s).clone(),
         other => panic!("compile-all driver returned a non-String: {other:?}"),

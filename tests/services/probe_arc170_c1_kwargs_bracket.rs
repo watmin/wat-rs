@@ -31,7 +31,7 @@ fn c1_kwargs_workfn_invoked_with_dialed_peer() {
     );
     let got = eval_in_frozen(&call, &world, &Environment::new())
         .unwrap_or_else(|e| panic!("run raised: {e:?}"))
-        .value_owned();
+        ;
     match got {
         Value::String(ref s) if s.as_str() == "echo:a echo:b echo:c" => {
             // the kwargs work-fn was invoked via the companion :key val call on the

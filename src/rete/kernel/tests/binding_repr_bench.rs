@@ -205,7 +205,7 @@ fn binding_cardinality_distribution() {
     let (_f, rows_join) = super::with_count_census(|| {
         eval_in_frozen(&ast, &wj, &Environment::new())
             .unwrap_or_else(|e| panic!("join fire raised: {e:?}"))
-            .value_owned()
+            
     });
     report.push_str(&dist("2-cond join, 3 distinct vars (N=400)", &rows_join));
 
