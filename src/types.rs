@@ -42,6 +42,7 @@ pub(crate) mod surface;
 pub(crate) use surface::parse_defsurface;
 
 use crate::ast::WatAST;
+use crate::name_map::{NameMap, NameSet};
 use crate::span::Span;
 use std::collections::HashMap;
 #[cfg(test)]
@@ -1075,7 +1076,7 @@ impl TypeDef {
 /// Keyword-path ↦ `TypeDef` registry.
 #[derive(Debug, Default, Clone)]
 pub struct TypeEnv {
-    types: HashMap<String, TypeDef>,
+    types: NameMap<TypeDef>,
     /// Stone 255-builtin-registry — names that have MEMBERSHIP but no STRUCTURE: primitives
     /// (`:wat::core::i64`), built-in parametric container heads (`:wat::core::Vector`), and
     /// opaque capability/handle types (`:wat::kernel::Peer`, `:rust::crossbeam_channel::Sender`)
@@ -1088,18 +1089,18 @@ pub struct TypeEnv {
     /// fabricated `TypeDef`. Populated in `register_builtin_types`, then by
     /// `register_use_declared_leaf` for this program's `use!` declarations
     /// (arc 296 P-2 prereq).
-    builtin_names: std::collections::HashSet<String>,
+    builtin_names: NameSet,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
     /// parent FQDNs (e.g. `[":wat::type::Record"]`). Populated by `register_subtype`;
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
-    subtype_edges: HashMap<String, Vec<String>>,
+    subtype_edges: NameMap<Vec<String>>,
     /// Parents named by `subtype_edges`, so `is_subtype_parent` is a lookup.
     /// The edge lists stay the source of the child walk; this set is the
     /// same parents, indexed at registration. A linear scan of every edge
     /// on each symbol head was the converted-stdlib startup cost.
-    subtype_parents: std::collections::HashSet<String>,
+    subtype_parents: NameSet,
     /// Arc 170 — the ORIGINAL source decl form for each user (non-reserved)
     /// type, retained verbatim at registration time. Freeze ships these
     /// across a process fork instead of reconstructing via `type_def_to_ast`
@@ -1109,7 +1110,7 @@ pub struct TypeEnv {
     /// re-registered in the child via `with_builtins` and never shipped, and
     /// synthesized `derived` defs (backing records / `::Op` / `::Reply`) have
     /// no user form and fall back to reconstruction.
-    source_forms: HashMap<String, WatAST>,
+    source_forms: NameMap<WatAST>,
     /// Stone 255.15 — the STRUCTURED target of every PARAMETRIC `extend-type` edge,
     /// keyed by the child exactly as `subtype_edges` keys it. `subtype_edges` keeps the
     /// target only as a rendered string (`"(:probe::Loc :- [:probe::Shared])"`), which
@@ -1121,7 +1122,7 @@ pub struct TypeEnv {
     /// Written only by [`Self::register_parametric_extension`], which writes the
     /// string edge in the same call, so the two cannot be written apart; retracted
     /// beside it in [`Self::retract_for_door_replace`].
-    parametric_extensions: HashMap<String, Vec<TypeExpr>>,
+    parametric_extensions: NameMap<Vec<TypeExpr>>,
     /// Stone 255.22 — every GENERIC `extend-type` edge (one whose form declares a binder,
     /// `(extend-type :- [P…] <child> <target> …)`), kept STRUCTURED with the parameters the
     /// binder declared, keyed by the child's HEAD (`:hello::Box`). The binder is what makes a
@@ -1130,7 +1131,7 @@ pub struct TypeEnv {
     /// binds the parameters, and hands back the target instantiated under those bindings.
     /// Written only by [`Self::register_generic_edge`]; retracted beside the other edge
     /// stores in [`Self::retract_for_door_replace`].
-    generic_edges: HashMap<String, Vec<GenericEdge>>,
+    generic_edges: NameMap<Vec<GenericEdge>>,
     /// Stone 255.39 — parametric surfaces whose members do not consume every
     /// declared parameter. Rechecked by [`flush_surface_param_debt`] at the end
     /// of the registration walk, once this batch's generic `extend-type` edges
@@ -1205,17 +1206,41 @@ impl TypeEnv {
     /// does NOT gain the same `||`: a builtin leaf's whole point is that it
     /// has no structure to return.
     pub fn contains(&self, name: &str) -> bool {
-        let id = crate::edn::render::canonical_identity(name);
-        if self.types.contains_key(&id) || self.builtin_names.contains(&id) {
-            return true;
+        self.types.contains_key(name) || self.builtin_names.contains(name)
+    }
+
+    /// Spellings `Name::enter` refused, by store. Measurement for stone 255.92.
+    #[cfg(test)]
+    pub(crate) fn rendered_key_report(&self) -> Vec<(&'static str, String)> {
+        let mut out = Vec::new();
+        for s in self.types.rendered_spellings() {
+            out.push(("types", s.clone()));
         }
-        // wat.type/X is a member iff wat.core/X is — derived from denotation,
-        // never a hand-list of tails. The old `canonicalize_type_kw` alias
-        // forwarded every spelling; a real namespace must reach at least
-        // that far.
-        let denoted = crate::edn::render::type_denotation(&id);
-        denoted != id
-            && (self.types.contains_key(&denoted) || self.builtin_names.contains(&denoted))
+        for s in self.builtin_names.rendered_spellings() {
+            out.push(("builtin_names", s.clone()));
+        }
+        for s in self.subtype_edges.rendered_spellings() {
+            out.push(("subtype_edges", s.clone()));
+        }
+        for s in self.subtype_parents.rendered_spellings() {
+            out.push(("subtype_parents", s.clone()));
+        }
+        for s in self.source_forms.rendered_spellings() {
+            out.push(("source_forms", s.clone()));
+        }
+        for s in self.parametric_extensions.rendered_spellings() {
+            out.push(("parametric_extensions", s.clone()));
+        }
+        for s in self.generic_edges.rendered_spellings() {
+            out.push(("generic_edges", s.clone()));
+        }
+        out.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
+        out
+    }
+
+    /// Lookup by the pair. A spelling enters through [`Self::get`].
+    pub fn get_name(&self, name: &crate::scope::Name) -> Option<&TypeDef> {
+        self.types.get_name(name)
     }
 
     /// ONE classifier: Declared (`get` is Some) then Builtin (`builtin_names` ∪
@@ -1224,33 +1249,25 @@ impl TypeEnv {
     /// `:wat::core::Option`/`Result` were, until the head loop in
     /// `register_builtin_types` stopped sending structured heads to the leaf door).
     pub(crate) fn classify<'b>(&'b self, kw: &str) -> TypeMembership<'b> {
-        let canonical = crate::edn::render::canonical_identity(kw);
-        let denoted = crate::edn::render::type_denotation(&canonical);
-        if let Some(def) = self
-            .types
-            .get(kw)
-            .or_else(|| self.types.get(&canonical))
-            .or_else(|| self.types.get(&denoted))
-        {
+        if let Some(def) = self.types.get(kw) {
             return TypeMembership::Declared(def);
         }
-        let stripped = denoted.strip_prefix(':').unwrap_or(denoted.as_str());
-        if self.builtin_names.contains(&canonical)
-            || self.builtin_names.contains(&denoted)
-            || crate::runtime::is_builtin_primitive(stripped)
-        {
+        let canonical = crate::edn::render::canonical_identity(kw);
+        let stripped = canonical.strip_prefix(':').unwrap_or(canonical.as_str());
+        if self.builtin_names.contains(kw) || crate::runtime::is_builtin_primitive(stripped) {
             return TypeMembership::Builtin;
         }
-        if self.is_subtype_parent(&canonical) || self.is_subtype_parent(&denoted) {
-            let parent = if self.is_subtype_parent(&canonical) {
-                canonical.as_str()
-            } else {
-                denoted.as_str()
-            };
+        if self.is_subtype_parent(kw) {
+            let want = crate::scope::Name::enter(kw);
             let mut children: Vec<String> = self
                 .subtype_edges
                 .iter()
-                .filter(|(_, parents)| parents.iter().any(|p| p == parent))
+                .filter(|(_, parents)| {
+                    parents.iter().any(|p| match &want {
+                        Some(want) => crate::scope::Name::enter(p).as_ref() == Some(want),
+                        None => p == kw,
+                    })
+                })
                 .map(|(child, _)| child.clone())
                 .collect();
             children.sort();
@@ -1318,18 +1335,7 @@ impl TypeEnv {
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays
     /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
-        let id = crate::edn::render::canonical_identity(name);
-        self.types
-            .get(name)
-            .or_else(|| self.types.get(&id))
-            .or_else(|| {
-                let denoted = crate::edn::render::type_denotation(&id);
-                if denoted != id {
-                    self.types.get(&denoted)
-                } else {
-                    None
-                }
-            })
+        self.types.get(name)
     }
 
     /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
@@ -1421,8 +1427,8 @@ impl TypeEnv {
     /// Build a map from every unit-variant keyword path (`:enum::Variant`) to its
     /// enum type. Allocates a fresh map; the checker calls this once at CheckEnv
     /// construction to seed value-position unit-variant resolution.
-    pub fn build_unit_variant_map(&self) -> HashMap<String, TypeExpr> {
-        let mut out = HashMap::new();
+    pub fn build_unit_variant_map(&self) -> NameMap<TypeExpr> {
+        let mut out = NameMap::new();
         for (name, def) in self.iter() {
             if let TypeDef::Enum(e) = def {
                 // Arc 296 A-2 RELAND-1 — skip synthesized variant-types (singleton
@@ -1711,8 +1717,7 @@ impl TypeEnv {
             ));
         }
         self.subtype_edges
-            .entry(child.to_string())
-            .or_default()
+            .or_default(child.to_string())
             .push(parent.to_string());
         self.subtype_parents.insert(parent.to_string());
         Ok(())
@@ -1788,7 +1793,7 @@ impl TypeEnv {
             }
         }
         self.register_subtype(child, &crate::check::format_type(target), span)?;
-        let slot = self.parametric_extensions.entry(child.to_string()).or_default();
+        let slot = self.parametric_extensions.or_default(child.to_string());
         if !slot.iter().any(|t| type_exprs_same(t, target)) {
             slot.push(target.clone());
         }
@@ -1816,7 +1821,7 @@ impl TypeEnv {
             (None, TypeExpr::Path(p)) => crate::edn::render::type_denotation(p),
             _ => return,
         };
-        let slot = self.generic_edges.entry(key).or_default();
+        let slot = self.generic_edges.or_default(key);
         if !slot.iter().any(|e| {
             e.params == params
                 && e.tuple_each == tuple_each
@@ -9405,7 +9410,7 @@ mod tests {
             let mut both: Vec<&String> = env
                 .builtin_names
                 .iter()
-                .filter(|n| env.types.contains_key(*n))
+                .filter(|n| env.types.contains_key(n))
                 .collect();
             both.sort();
             assert!(

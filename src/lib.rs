@@ -104,6 +104,7 @@ pub mod load;
 pub(crate) mod match_arm;
 pub mod lower;
 pub mod macros;
+pub mod name_map;
 pub mod parser;
 pub mod resolve;
 pub mod restriction_entry;

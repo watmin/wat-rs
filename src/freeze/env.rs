@@ -616,11 +616,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
         let restricted_to_ast = WatAST::List(prefix_items, crate::rust_caller_span!());
         let mut meta: HashMap<String, WatAST> = HashMap::new();
         meta.insert(":restricted-to".to_string(), restricted_to_ast);
-        symbols
-            .binding_metadata
-            .entry(name)
-            .or_default()
-            .extend(meta);
+        symbols.binding_metadata.or_default(name).extend(meta);
     }
 
     // 6.96. Arc 265 — pre-register declare-acronyms forms into the

@@ -90,6 +90,21 @@ impl PartialEq for Name {
 
 impl Eq for Name {}
 
+impl PartialOrd for Name {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Name {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.namespace
+            .as_ref()
+            .cmp(other.namespace.as_ref())
+            .then_with(|| self.name.as_ref().cmp(other.name.as_ref()))
+    }
+}
+
 impl Hash for Name {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // Contents, not the Arc pointer. Derived `Hash` for `Arc<str>` already
@@ -161,6 +176,53 @@ impl Name {
             name: std::sync::Arc::from(name),
         })
     }
+
+    /// A spelling enters a registry here, once.
+    ///
+    /// A keyword [`from_keyword`] accepts is that pair. A rust-scheme path
+    /// with no leading colon (`wat::core::foo`) is the keyword `:{path}`.
+    /// Anything else — a clojure symbol, a binder, a value keyword — is
+    /// [`Identifier::bare`]'s pair. A rendered parametric form (`(`, `<`, or a
+    /// `:-` binder that is not a `::` leaf beginning with `-`) is not a name:
+    /// this returns `None` and the caller keeps the text. `:wat::core::->` is a name.
+    pub fn enter(spelling: &str) -> Option<Self> {
+        if is_rendered_type_text(spelling) {
+            return None;
+        }
+        if let Some(name) = Self::from_keyword(spelling) {
+            return Some(name);
+        }
+        if !spelling.starts_with(':') && spelling.contains("::") {
+            let mut kw = String::with_capacity(1 + spelling.len());
+            kw.push(':');
+            kw.push_str(spelling);
+            if let Some(name) = Self::from_keyword(&kw) {
+                return Some(name);
+            }
+        }
+        Some(Identifier::bare(spelling).pair().clone())
+    }
+}
+
+fn is_rendered_type_text(spelling: &str) -> bool {
+    if spelling.contains('(') || spelling.contains('<') {
+        return true;
+    }
+    // `:-` is the binder separator in a rendered type. A leaf that begins with
+    // `-` (`->`, `->>`, `-`, `-type-slot-name`) is written after `::`, so the
+    // two characters `:-` occur inside a name. That spelling is still a name.
+    let bytes = spelling.as_bytes();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b':' && bytes[i + 1] == b'-' {
+            let after_double_colon = i > 0 && bytes[i - 1] == b':';
+            if !after_double_colon {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
 }
 
 /// A unique integer identifying a lexical scope — macro invocation,
@@ -769,6 +831,16 @@ mod tests {
         assert_eq!(bare.pair(), &from_colons);
         assert_eq!(bare.pair(), &from_slash);
         assert_eq!(from_colons.to_string(), "a.b/c");
+        assert_eq!(Name::enter(":a::b::c").as_ref(), Some(bare.pair()));
+        assert_eq!(Name::enter("a.b/c").as_ref(), Some(bare.pair()));
+        assert_eq!(Name::enter("(:a::b :- [:T])"), None);
+        let threading = Name::from_keyword(":wat::core::->").expect("threading macro");
+        assert_eq!(Name::enter(":wat::core::->").as_ref(), Some(&threading));
+        assert_eq!(Name::enter("wat.core/->").as_ref(), Some(&threading));
+        assert_eq!(
+            Name::enter(":wat::bracket::-type-slot-name").as_ref(),
+            Name::from_keyword(":wat::bracket::-type-slot-name").as_ref()
+        );
         assert!(Name::from_keyword(":else").is_none());
         assert!(Name::from_keyword(":k").is_none());
 

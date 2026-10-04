@@ -679,9 +679,9 @@ struct ExtractState<'a> {
     /// Encoded captured bindings to emit as top-level defines.
     captured_bindings: Vec<CapturedBinding>,
     /// User dependency functions discovered, keyed by canonical name.
-    captured_deps: BTreeMap<String, Arc<Function>>,
+    captured_deps: crate::name_map::NameBTree<Arc<Function>>,
     /// User types discovered, keyed by canonical name.
-    captured_types: BTreeMap<String, TypeDef>,
+    captured_types: crate::name_map::NameBTree<TypeDef>,
     /// Order in which deps were discovered (drives topo sort tiebreak).
     dep_discovery_order: Vec<String>,
     /// Order in which types were discovered.
@@ -690,7 +690,7 @@ struct ExtractState<'a> {
     /// RETAINED `(defmacro …)` form. Shipped verbatim — a `MacroDef`
     /// cannot rebuild its own declaration (no param types, no return
     /// type), and the forms we ship still CALL these macros.
-    captured_macros: BTreeMap<String, WatAST>,
+    captured_macros: crate::name_map::NameBTree<WatAST>,
     /// Order in which macros were discovered (deterministic emission).
     macro_discovery_order: Vec<String>,
     /// `def`-bound values discovered in walked bodies, keyed by the
@@ -727,11 +727,11 @@ impl<'a> ExtractState<'a> {
             really_unresolved: Vec::new(),
             captured_locals: HashSet::new(),
             captured_bindings: Vec::new(),
-            captured_deps: BTreeMap::new(),
-            captured_types: BTreeMap::new(),
+            captured_deps: crate::name_map::NameBTree::default(),
+            captured_types: crate::name_map::NameBTree::default(),
             dep_discovery_order: Vec::new(),
             type_discovery_order: Vec::new(),
-            captured_macros: BTreeMap::new(),
+            captured_macros: crate::name_map::NameBTree::default(),
             macro_discovery_order: Vec::new(),
             captured_defs: BTreeMap::new(),
             def_discovery_order: Vec::new(),

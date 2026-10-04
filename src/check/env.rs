@@ -92,7 +92,7 @@ pub struct CheckEnv<'a> {
     /// `:wat::core::keyword`. Mirrors the runtime's
     /// `SymbolTable.unit_variants`. Populated at construction by
     /// walking every `:wat::core::enum` declaration in `types`.
-    pub(super) unit_variant_types: HashMap<String, TypeExpr>,
+    pub(super) unit_variant_types: crate::name_map::NameMap<TypeExpr>,
     /// Stone 243.3.1 — BORROW (was Arc<TypeEnv>, deep-cloned at check.rs:2175).
     /// Read-only after the register phase; outlives every use in check_program.
     pub(super) types: &'a TypeEnv,
@@ -124,7 +124,7 @@ pub struct CheckEnv<'a> {
     ///
     /// Generic storage: the substrate does NOT enforce specific keys; each
     /// downstream consumer projects to its typed needs.
-    pub(crate) binding_metadata: Option<&'a HashMap<String, HashMap<String, WatAST>>>,
+    pub(crate) binding_metadata: Option<&'a crate::name_map::NameMap<HashMap<String, WatAST>>>,
     /// Arc 157 slice 1a-ii — compile-time redef-allowed flag. Default
     /// `false` (strict default: every redef is an error). Updated
     /// in-line by `check_program` when it encounters a top-level

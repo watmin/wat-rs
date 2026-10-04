@@ -3826,20 +3826,8 @@ pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
     if !body.contains("::") || body.ends_with("::") {
         return None;
     }
-    // `body` contains "::" and has no trailing "::", so there are ≥2 non-empty segments.
-    // rune:lint(one-variant-separator, namespace) — leaf of the call-head keyword's own path
-    let final_seg = wat_reader::identifier::leaf(body);
-    // rune:lint(one-variant-separator, edn) — splits the call-head's `::` segments to rejoin with `.` for the Clojure symbol
-    let mut ns_parts: Vec<&str> = wat_reader::identifier::path(body).split("::").collect();
-    let name: &str = if final_seg.contains('/') && !wat_reader::identifier::receiver(final_seg).is_empty() {
-        // `Type/method` — fold `Type` into the namespace; the method is the name.
-        ns_parts.push(wat_reader::identifier::receiver(final_seg));
-        wat_reader::identifier::method(final_seg)
-    } else {
-        // A bare `/` (division → name `/`) or no slash: the final segment IS the name.
-        final_seg
-    };
-    Some(format!("{}/{}", ns_parts.join("."), name))
+    // The pair lives in `Name::from_keyword`. [`std::fmt::Display`] is the spelling.
+    crate::scope::Name::from_keyword(kw).map(|name| name.to_string())
 }
 
 /// Canonical form of a `:restricted-to` entry or a caller FQDN, for matching.

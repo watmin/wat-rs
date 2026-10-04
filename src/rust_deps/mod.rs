@@ -275,7 +275,7 @@ pub fn registry() -> &'static RustDepsRegistry {
 /// Scope: program-global (one use! anywhere enables the symbol everywhere).
 #[derive(Default, Debug, Clone)]
 pub struct UseDeclarations {
-    declared: HashSet<String>,
+    declared: crate::name_map::NameSet,
 }
 
 impl UseDeclarations {

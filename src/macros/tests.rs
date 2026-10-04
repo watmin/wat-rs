@@ -583,31 +583,54 @@ fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
     // (`:wat::core::Option/expect`) and the symbol `wat.core.Option/expect`
     // are one `Name`, so that re-declaration is a no-op too. The old
     // `canonical_identity` door kept the `/` divergent from `::`.
-    let same = expand_src(
-        r#"
+    let same_src = r#"
         (:wat::core::defmacro :my::m [& call-args <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
           (:wat::core::let [_kc-type (:wat::core::keyword-node ":my::m")]
             `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))
         (wat.core/defmacro :my::m [& call-args :- (wat.type/Vector :- [wat.type/AST])] :- wat.type/AST
           (wat.core/let [_kc-type (wat.core/keyword-node ":my::m")]
             `(wat.core/kwargs-construct ~_kc-type ~@call-args)))
-        "#,
+        "#;
+    let (same_reg, same_rest, _, _) = expand_setup(same_src);
+    assert_eq!(
+        same_reg.len(),
+        1,
+        "one macro in the registry; a second macro would be len 2"
     );
+    assert!(
+        same_rest.is_empty(),
+        "both forms are the registration, not leftover source"
+    );
+    assert!(same_reg.get(":my::m").is_some(), "the one macro is :my::m");
+    let same = expand_src(same_src);
     assert!(
         same.is_ok(),
         "symbol spelling of the same companion must no-op; got {:?}",
         same
     );
 
-    let member = expand_src(
-        r#"
+    let member_src = r#"
         (:wat::core::defmacro :my::m2 [] -> wat.type/AST `(:wat::core::Option/expect x "m"))
         (:wat::core::defmacro :my::m2 [] -> wat.type/AST `(wat.core.Option/expect x "m"))
-        "#,
+        "#;
+    let (member_reg, member_rest, _, _) = expand_setup(member_src);
+    assert_eq!(
+        member_reg.len(),
+        1,
+        "one macro in the registry; a second macro would be len 2"
     );
     assert!(
+        member_rest.is_empty(),
+        "both forms are the registration, not leftover source"
+    );
+    assert!(
+        member_reg.get(":my::m2").is_some(),
+        "the one macro is :my::m2"
+    );
+    let member = expand_src(member_src);
+    assert!(
         member.is_ok(),
-        "the member keyword and its symbol are one Name; got {:?}",
+        "the second registration is a no-op; got {:?}",
         member
     );
 }

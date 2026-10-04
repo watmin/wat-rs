@@ -4,6 +4,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::name_map::NameMap;
+
 use crate::ast::WatAST;
 use crate::load::loader::SourceLoader;
 use crate::macros::MacroRegistry;
@@ -13,7 +15,7 @@ use crate::types::TypeEnv;
 use crate::value::{EncodingCtx, Function, FunctionBody};
 
 /// Per-binding metadata: FQDN -> metadata-key -> raw AST value.
-pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
+pub(crate) type BindingMetadata = NameMap<HashMap<String, WatAST>>;
 
 /// Keyword-path ↦ Function registry + runtime capabilities.
 ///
@@ -30,7 +32,7 @@ pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
 #[derive(Clone)]
 #[derive(Default)]
 pub struct SymbolTable {
-    functions: HashMap<String, Arc<Function>>,
+    functions: NameMap<Arc<Function>>,
     // TRANSFORMS — clojure-ination (keyword-keyed)
     /// Arc 048 — pre-built [`EnumValue`]s for each registered
     /// unit-variant enum constructor. Populated by
@@ -39,7 +41,7 @@ pub struct SymbolTable {
     /// Consulted in `eval`'s keyword arm before the function-lookup
     /// fallback so a bare keyword evaluates directly to its
     /// variant value (mirrors the `:None` shortcut).
-    unit_variants: HashMap<String, EnumValue>,
+    unit_variants: NameMap<EnumValue>,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn SourceLoader>>,
     macro_registry: Option<Arc<MacroRegistry>>,
@@ -105,7 +107,7 @@ pub struct SymbolTable {
     /// separation: check-time carries `(TypeExpr, Span)`; runtime carries
     /// `Value`. Populated by `register_runtime_defs` in `FrozenWorld::freeze`
     /// after all capability carriers are installed.
-    runtime_def_values: HashMap<String, Value>,
+    runtime_def_values: NameMap<Value>,
     /// Arc 157 slice 1a-ii — controls compile-time / load-time `def` redef.
     /// Default `false` (opt-in). Toggled via
     /// `(:wat::config::set-redef! true)`. Type-stability check applies
@@ -227,6 +229,26 @@ impl RegistrationSet {
 }
 
 impl SymbolTable {
+    /// Spellings `Name::enter` refused, by store. Measurement for stone 255.92.
+    #[cfg(test)]
+    pub(crate) fn rendered_key_report(&self) -> Vec<(&'static str, String)> {
+        let mut out = Vec::new();
+        for s in self.functions.rendered_spellings() {
+            out.push(("functions", s.clone()));
+        }
+        for s in self.unit_variants.rendered_spellings() {
+            out.push(("unit_variants", s.clone()));
+        }
+        for s in self.runtime_def_values.rendered_spellings() {
+            out.push(("runtime_def_values", s.clone()));
+        }
+        for s in self.binding_metadata.rendered_spellings() {
+            out.push(("binding_metadata", s.clone()));
+        }
+        out.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
+        out
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -271,6 +293,11 @@ impl SymbolTable {
 
     pub fn get(&self, path: &str) -> Option<&Arc<Function>> {
         self.functions.get(path)
+    }
+
+    /// Lookup by the pair. Text enters through [`Self::get`].
+    pub fn get_name(&self, name: &crate::scope::Name) -> Option<&Arc<Function>> {
+        self.functions.get_name(name)
     }
 
     /// Narrow: is `path` a registered FUNCTION? (Not "is it registered".)
@@ -369,11 +396,20 @@ impl SymbolTable {
 
     /// Mutable access to a registered function, for the in-place fixups the
     /// freeze pipeline performs after registration.
-    pub fn function_entry(
+    pub fn insert_function_if_absent(&mut self, path: String, f: Arc<Function>) {
+        if !self.functions.contains_key(&path) {
+            self.functions.insert(path, f);
+        }
+    }
+
+    pub fn insert_function_if_absent_with(
         &mut self,
         path: String,
-    ) -> std::collections::hash_map::Entry<'_, String, Arc<Function>> {
-        self.functions.entry(path)
+        f: impl FnOnce() -> Arc<Function>,
+    ) {
+        if !self.functions.contains_key(&path) {
+            self.functions.insert(path, f());
+        }
     }
 
     /// Attach an encoding context. Called once at freeze time by

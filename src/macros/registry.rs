@@ -1,4 +1,5 @@
 use crate::ast::WatAST;
+use crate::name_map::NameMap;
 use crate::span::Span;
 use std::collections::{HashMap, HashSet};
 
@@ -52,7 +53,7 @@ pub struct MacroDef {
 /// Keyword-path ↦ `MacroDef` registry.
 #[derive(Debug, Default, Clone)]
 pub struct MacroRegistry {
-    pub(super) macros: HashMap<String, MacroDef>,
+    pub(super) macros: NameMap<MacroDef>,
     /// Clojure symbol spelling → the keyword key in `macros`. Not a second
     /// `MacroDef`: the body stays in one entry. Absent when both joins are
     /// registered, so the symbol is not forced onto one of them.
@@ -77,6 +78,26 @@ impl MacroRegistry {
             return Some(def);
         }
         self.symbol_alias.get(name).and_then(|key| self.macros.get(key))
+    }
+
+    pub fn get_name(&self, name: &crate::scope::Name) -> Option<&MacroDef> {
+        self.macros.get_name(name)
+    }
+
+    pub fn len(&self) -> usize {
+        self.macros.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.macros.is_empty()
+    }
+
+    /// Spellings `Name::enter` refused. Measurement for stone 255.92.
+    #[cfg(test)]
+    pub(crate) fn rendered_key_report(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.macros.rendered_spellings().cloned().collect();
+        out.sort();
+        out
     }
 
     /// Register a macro through the ONE gate (resolve::registration). `privilege` is
@@ -122,8 +143,14 @@ impl MacroRegistry {
         if alias == primary {
             return;
         }
+        if crate::scope::Name::enter(primary) == crate::scope::Name::enter(&alias) {
+            return;
+        }
         if let Some(other) = crate::types::other_join_spelling(primary) {
-            if other != primary && self.macros.contains_key(&other) {
+            if other != primary
+                && crate::scope::Name::enter(&other) != crate::scope::Name::enter(primary)
+                && self.macros.contains_key(&other)
+            {
                 self.symbol_alias.remove(&alias);
                 self.ambiguous_symbols.insert(alias);
                 return;

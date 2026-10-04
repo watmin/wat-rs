@@ -753,7 +753,7 @@ pub fn register_stdlib_defines(
             // None for variadic forms (allow_rest_binder=false). This branch handles them:
             // parse with allow_rest_binder=true, set rest_param + rest_param_type on the Function.
             // Stdlib is PRIVILEGED — reserved-prefix gate bypassed.
-            sym.function_entry(path).or_insert(func);
+            sym.insert_function_if_absent(path, func);
             rest.push(form);
         } else if let Some((alias, target)) = parse_defalias_form(&form) {
             // Stone 241.12 — stdlib defalias native registration.
@@ -898,15 +898,13 @@ pub fn register_struct_methods(
             let ctor_path = struct_def.name.clone();
             let ctor_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
             sym.binding_metadata
-                .entry(ctor_path)
-                .or_default()
+                .or_default(ctor_path)
                 .insert(":restricted-to".to_string(), ctor_ast);
             for (field_name, field_wlist) in &restrictions.field_restrictions {
                 let accessor_path = format!("{}/{}", struct_def.name, field_name);
                 let field_ast = restrictions_to_binding_metadata_ast(field_wlist);
                 sym.binding_metadata
-                    .entry(accessor_path)
-                    .or_default()
+                    .or_default(accessor_path)
                     .insert(":restricted-to".to_string(), field_ast);
             }
         }
@@ -1047,8 +1045,7 @@ pub fn register_aggregate_methods(
             // re-walk, not an error. The TypeEnv is the authoritative collision
             // check for aggregate *types*; this loop only mints derived functions
             // from already-registered types, so re-minting the identical ctor is safe.
-            sym.function_entry(ctor_name)
-                .or_insert_with(|| Arc::new(ctor_func));
+            sym.insert_function_if_absent_with(ctor_name, || Arc::new(ctor_func));
 
             // Arc 198 strike 2 (BRIEF-198-companion-propagation-A1-B2) — A1: `T'` inherits
             // T's own `:restricted-to` whitelist. `(:T' v1 v2 …)` is a directly-callable
@@ -1062,8 +1059,7 @@ pub fn register_aggregate_methods(
             if let Some(restrictions) = &agg.restrictions {
                 let ctor_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
                 sym.binding_metadata
-                    .entry(format!("{}'", agg.name))
-                    .or_default()
+                    .or_default(format!("{}'", agg.name))
                     .insert(":restricted-to".to_string(), ctor_ast);
             }
         }
@@ -1277,8 +1273,9 @@ pub fn register_aggregate_methods(
                 acc_existing,
                 &crate::rust_caller_span!(),
                 || -> Result<(), RuntimeError> {
-                    sym.function_entry(accessor_path.clone())
-                        .or_insert_with(|| Arc::new(accessor_func));
+                    sym.insert_function_if_absent_with(accessor_path.clone(), || {
+                        Arc::new(accessor_func)
+                    });
                     Ok(())
                 },
             )?;
@@ -1772,8 +1769,7 @@ pub fn register_type_predicates(
         if let Some(restrictions) = agg_restrictions {
             let pred_ast = restrictions_to_binding_metadata_ast(&restrictions.ctor_whitelist);
             sym.binding_metadata
-                .entry(predicate_name.clone())
-                .or_default()
+                .or_default(predicate_name.clone())
                 .insert(":restricted-to".to_string(), pred_ast);
         }
 
