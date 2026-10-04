@@ -1,0 +1,10 @@
+;; Excursus 003 strike D3, GD2a — NEGATIVE fixture. MUST FAIL TO FREEZE.
+;;
+;; A top-level `defn` whose name sits under the reserved `:wat::` prefix. Caught by
+;; `register_defines`'s `resolve::register` gate (`src/value/signal.rs`'s
+;; `From<Rejection> for RuntimeError`, `Registration::Reserved` arm) at freeze step
+;; `6-register-defines` — mirrors the landed internal test
+;; `reserved_prefix_define_rejected` (src/runtime.rs), driven here through the real
+;; `startup_from_file` entry point instead.
+
+(:wat::core::defn :wat::holon::Bogus [x <- :wat::core::i64] -> :wat::core::i64 x)

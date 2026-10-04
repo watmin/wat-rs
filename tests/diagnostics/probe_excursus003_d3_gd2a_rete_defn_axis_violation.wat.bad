@@ -1,0 +1,12 @@
+;; Excursus 003 strike D3, GD2a — NEGATIVE fixture. MUST FAIL TO FREEZE.
+;;
+;; A `(:wat::rete::core::defn ...)` declaration whose body calls an effectful,
+;; non-rete primitive (`println`) — fails the Pure axis (and Law A: the head is
+;; not a rete primitive). Checked by `apply_rete_defn_contracts`
+;; (`src/rete/purity.rs`), called from `register_runtime_defs`
+;; (`src/declare/register.rs:1833-1862`), itself called from `FrozenWorld::freeze`'s
+;; own body — AFTER `pass_order::record("9-freeze")`'s announce, with no further
+;; dispatch before this raise, so the activation is `"9-freeze"`.
+
+(:wat::rete::core::defn :my::impure-helper [] -> :wat::core::i64
+  (:wat::core::do (:wat::kernel::println "impure") 1))

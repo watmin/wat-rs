@@ -1,0 +1,9 @@
+;; Excursus 003 strike D3, GD2a — NEGATIVE fixture. MUST FAIL TO FREEZE.
+;;
+;; A fn-shape `def` whose name carries no namespace at all. Caught by
+;; `register_defines`'s `resolve::register` gate (`Registration::Unnamespaced` arm)
+;; at freeze step `6-register-defines`. Empirically confirmed (built + run, then
+;; discarded, before this final fixture was committed): the frame names
+;; `"6-register-defines"`.
+
+(:wat::core::def :bare-fn (:wat::core::fn [] -> :wat::core::i64 1))

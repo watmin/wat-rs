@@ -639,14 +639,20 @@ pub enum RuntimeErrorKind {
     /// consumers can distinguish "out of scope by design" from "not
     /// taught yet."
     NoStepRule { op: String },
-    /// Raised by `:wat::kernel::assertion-failed!` when an assertion in
-    /// a `:wat::test::*` form (or any user code that calls the primitive
-    /// directly) fails. Intended to travel as a panic payload via the
-    /// [`crate::assertion::AssertionPayload`] struct and be caught by
-    /// `run-sandboxed`'s `catch_unwind`, where actual/expected land in
-    /// the `:wat::kernel::Failure`'s slots. Outside a sandbox, this
-    /// variant surfaces as an ordinary RuntimeError — reporting that
-    /// an assertion fired without a test harness to catch it.
+    /// Named by `:wat::kernel::assertion-failed!'`'s own op, but no construction
+    /// site anywhere in this crate ever builds this variant via `RuntimeError::new`
+    /// — DEAD as a `RuntimeError`, corrected excursus 003 strike D3 (GD2a, the
+    /// 40-kind activation census). The doc here used to claim "outside a sandbox,
+    /// this variant surfaces as an ordinary RuntimeError — reporting that an
+    /// assertion fired without a test harness to catch it"; that is false, measured
+    /// directly: `eval_kernel_assertion_failed` (`src/assertion.rs`)
+    /// UNCONDITIONALLY calls `std::panic::panic_any(payload)` with an
+    /// [`crate::assertion::AssertionPayload`] — no branch checks for a sandbox, so
+    /// there is no code path, sandboxed or not, that ever constructs this kind.
+    /// The real payload travels as `AssertionPayload`, caught by `run-sandboxed`'s
+    /// `catch_unwind`, where actual/expected land in the `:wat::kernel::Failure`'s
+    /// slots; outside a sandbox the panic simply propagates as an ordinary Rust
+    /// panic, never a `RuntimeError`. A retirement candidate (see the GD2a census).
     AssertionFailed {
         message: String,
         actual: Option<String>,

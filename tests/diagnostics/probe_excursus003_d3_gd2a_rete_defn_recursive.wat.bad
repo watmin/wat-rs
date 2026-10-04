@@ -1,0 +1,9 @@
+;; Excursus 003 strike D3, GD2a — NEGATIVE fixture. MUST FAIL TO FREEZE.
+;;
+;; A `(:wat::rete::core::defn ...)` declaration whose body calls itself — refused
+;; at LOAD (eBPF-shaped: a static refusal, never a runtime budget), per
+;; `apply_rete_defn_contracts`'s `Recursive` arm (`src/rete/purity.rs`). Same
+;; call chain and activation as the AxisViolation sibling fixture: `"9-freeze"`.
+
+(:wat::rete::core::defn :my::self-caller [] -> :wat::core::i64
+  (:my::self-caller))

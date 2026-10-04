@@ -1,0 +1,8 @@
+;; Excursus 003 strike D3, GD2a — NEGATIVE fixture. MUST FAIL TO FREEZE.
+;;
+;; A fn-shape `def` whose name's leaf segment carries a `.` — reserved for a
+;; composed enum-variant tag (`#ns/Enum.Variant`). Caught by `register_defines`'s
+;; `resolve::register` gate (`Registration::DottedName` arm) at freeze step
+;; `6-register-defines`, the SAME mechanism as `probe_excursus003_d3_gd2a_unnamespaced.wat.bad`.
+
+(:wat::core::def :my::a.b (:wat::core::fn [] -> :wat::core::i64 1))

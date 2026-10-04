@@ -125,12 +125,38 @@ thread_local! {
 ///
 /// Excursus 003 strike D, item 4 — ALSO names `step` as the current activation
 /// (`crate::value::frame::set_activation`), so a `RuntimeError` raised during this
-/// phase (`UserMainMissing`, `EvalVerificationFailed` — the only two live producers
-/// before any wat activation exists) carries an honest innermost-Rust-frame name
-/// instead of a placeholder. A plain overwrite, unconditional — cheap (one `String`
-/// allocation per pass, a handful of passes per freeze) and, unlike `TRACE`/`TIMING`,
-/// not gated behind `cfg(test)`/`timing_enabled`: every build needs the name, not just
-/// a measured or tested one.
+/// phase carries an honest innermost-Rust-frame name instead of a placeholder. A
+/// plain overwrite, unconditional — cheap (one `String` allocation per pass, a
+/// handful of passes per freeze) and, unlike `TRACE`/`TIMING`, not gated behind
+/// `cfg(test)`/`timing_enabled`: every build needs the name, not just a measured or
+/// tested one.
+///
+/// ⛔ CORRECTED, excursus 003 strike D3 (GD2a, the 40-kind activation census) — this
+/// comment used to claim `UserMainMissing`/`EvalVerificationFailed` as "the only two
+/// live producers before any wat activation exists." Both halves of that claim were
+/// false, measured directly rather than assumed:
+/// - `UserMainMissing` does not fire HERE at all. It is raised by
+///   `invoke_user_main_orchestrated` (`src/freeze.rs`) AFTER `FrozenWorld::freeze`
+///   has already returned — its own raise site carries no `ActivationGuard` of its
+///   own, so it merely INHERITS whatever this fn last announced (`"9-freeze"`, the
+///   final step below), the same plain-overwrite name every other post-freeze raise
+///   on this thread would inherit too.
+/// - `EvalVerificationFailed`'s real, wat-reachable producer
+///   (`:wat::eval-digest-string!`/`:wat::eval-signed-string!`, `src/runtime.rs`) is a
+///   RUNTIME keyword dispatch, not a freeze-phase one — its activation is the
+///   dispatcher's own guard (writer 1, the literal op spelling), never this fn's name
+///   at all.
+///
+/// What this fn's name DOES genuinely reach, measured via GD2a's standing census
+/// (`tests/diagnostics/probe_excursus003_d3_gd2a_census.rs` + sibling `.wat`/`.wat.bad`
+/// fixtures): every registration-time kind that raises during step `6-register-defines`
+/// (`UnnamespacedName`, `DottedName`, `ReservedPrefix`, `DuplicateDefine` — the extend-type
+/// surface-collision shape, at step `7-resolve-references`'s window specifically —
+/// and `UnreachableClause`), and every kind raised inside `FrozenWorld::freeze`'s own
+/// body at step `9-freeze` (`ReteDefnAxisViolation`, `ReteDefnRecursive`, and — by
+/// inheritance, after freeze returns — `UserMainMissing`). No count is stated as
+/// exhaustive on purpose, for the same reason this section exists: a stale "only N"
+/// claim here is exactly the failure mode this correction is annihilating.
 #[inline]
 pub(crate) fn record(step: &'static str) {
     #[cfg(test)]
