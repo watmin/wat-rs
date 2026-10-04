@@ -208,35 +208,43 @@ impl Environment {
     ///   than the binding coordinates for errors on producer-built values)
     /// - SymbolBound → replace with new SymbolBound (update binding/head context)
     pub fn lookup(&self, name: &str, head_span: &Span) -> Option<TrackedValue> {
-        if let Some(entry) = self.inner.bindings.get(name) {
-            let value = entry.value.value().clone();
-            // Arc 2026-10 name-resolution part 2, P1 — match BY REFERENCE (no upfront
-            // `.clone()` of the stored provenance). The old code cloned the whole enum
-            // unconditionally, then threw that clone away on every arm except
-            // `RuntimeBuilt` (building a fresh `SymbolBound` instead) — a guaranteed
-            // clone-then-discard on the common path (`drop_glue::<Provenance>` showed up
-            // as its own named cost in the R2 profile, BRIEF-2.md). Only the `RuntimeBuilt`
-            // arm actually needs a clone now (of its `call_span`; `producer` is
-            // `&'static str`, already `Copy`).
-            let provenance = match entry.value.provenance() {
-                Provenance::RuntimeBuilt { producer, call_span } => {
-                    // RuntimeBuilt: keep producer provenance. The producer context is
-                    // more informative than binding coordinates for diagnostic errors.
-                    Provenance::RuntimeBuilt { producer: *producer, call_span: call_span.clone() }
-                }
-                _ => {
-                    // Unknown / Literal / SymbolBound: replace with SymbolBound.
-                    // The binding coordinates (where the name was defined +
-                    // where it is used) are the useful diagnostic context.
-                    Provenance::SymbolBound {
-                        binding_span: entry.binding_span.clone(),
-                        head_span: head_span.clone(),
+        // Arc 2026-10 name-resolution part 2, P2 — the parent walk, LOOPED rather than
+        // recursed. Measured at 16.69% self-time on `wat-scripts/bench/deep-scope.wat` (a
+        // deliberately deep, 64-level chain; BRIEF-2.md's own ≥5% trigger), so this rewrites
+        // the walk as a loop over the chain instead of a recursive `self.inner.parent
+        // .as_ref().and_then(|p| p.lookup(...))` call. SAME result and SAME order as before:
+        // check `self`'s own bindings first, then each parent in turn, outermost last,
+        // returning on the first hit or `None` at the root. The per-level lookup logic
+        // (hash probe, value clone, Provenance construction — P1's no-discarded-clone form)
+        // is unchanged; only the "move to the next level" mechanism changed, from a Rust
+        // call (one stack frame + return per level) to reassigning a local reference.
+        let mut current = self;
+        loop {
+            if let Some(entry) = current.inner.bindings.get(name) {
+                let value = entry.value.value().clone();
+                let provenance = match entry.value.provenance() {
+                    Provenance::RuntimeBuilt { producer, call_span } => {
+                        // RuntimeBuilt: keep producer provenance. The producer context is
+                        // more informative than binding coordinates for diagnostic errors.
+                        Provenance::RuntimeBuilt { producer: *producer, call_span: call_span.clone() }
                     }
-                }
-            };
-            return Some(TrackedValue::new(value, provenance));
+                    _ => {
+                        // Unknown / Literal / SymbolBound: replace with SymbolBound.
+                        // The binding coordinates (where the name was defined +
+                        // where it is used) are the useful diagnostic context.
+                        Provenance::SymbolBound {
+                            binding_span: entry.binding_span.clone(),
+                            head_span: head_span.clone(),
+                        }
+                    }
+                };
+                return Some(TrackedValue::new(value, provenance));
+            }
+            match current.inner.parent.as_ref() {
+                Some(parent) => current = parent,
+                None => return None,
+            }
         }
-        self.inner.parent.as_ref().and_then(|p| p.lookup(name, head_span))
     }
 }
 

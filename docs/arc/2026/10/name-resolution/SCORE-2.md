@@ -92,3 +92,135 @@ shrinks elsewhere, which is exactly what was measured.
 `NEXTEST_TEST_THREADS=4 cargo nextest run --release` → **5405 tests run: 5405 passed (7 slow),
 22 skipped (1624.678s). ALL GREEN** — same result as the baseline
 (`/var/tmp/wat-rs-names-logs/floor-after-r1.log`). **Gate 2 (after P1) satisfied.**
+
+## P2 — the parent walk, measured
+
+Status: DONE (measured AND rewritten — the walk cleared the brief's ≥5% trigger).
+
+### The new workload
+
+`wat-scripts/bench/deep-scope.wat`: 64 SEPARATE, NESTED `(:wat::core::let [sN …] …)` forms
+(`s0` outermost … `s63` innermost), each binding exactly ONE new name — so there are 64
+distinct `Environment` objects chained parent-to-child, not one flat 64-binding environment.
+A closure `step`, created inside the innermost scope (so its `closed_env` captures the whole
+64-deep chain), is applied once per element of `(range 0 1000000)` via `foldl` (a
+Rust-implemented builtin iterator — no wat-level recursion needed, so there is no self-reference
+question to resolve for the loop driver). Each application reads `s0` (outermost — a 64-hop
+parent walk to find it) and `s63` (innermost — a 0-hop hit, the control) and adds their sum to
+the accumulator. Checksum: `s0=1`, `s63=64`, so each of 1,000,000 iterations adds 65 →
+**`65000000`**, hand-verified against the formula, not just "it ran."
+
+Generated with a small throwaway Python script (not committed — hand-writing 64 correctly
+nested, correctly-paren-balanced `let` forms by hand was the wrong tool; the generator's output
+is the committed, durable artifact, same spirit as the wat-fix codemod doctrine for `.wat`
+corpus edits, though this is new-file generation, not an existing-corpus rewrite). Passes
+`every_ungated_wat_checks` (confirmed before profiling).
+
+### Profile (current code = after P1, before any loop rewrite)
+
+```
+perf record -g -o perf/deep-scope-p2.data -- taskset -c 2 target/release/wat wat-scripts/bench/deep-scope.wat
+perf report -i perf/deep-scope-p2.data --stdio --no-children -g none
+```
+
+Checksum: `65000000` (hand-computed and confirmed, every run).
+
+**Top 25 self-time symbols (cpu_core event, 20K samples):**
+```
+16.69%  <wat::value::environment::Environment>::lookup
+ 4.44%  wat::numeric::arith::eval_i64_arith::<eval_i64_add::{closure#0}>
+ 4.35%  libc cfree
+ 4.35%  wat::runtime::apply_function
+ 4.31%  libc malloc
+ 3.17%  <String as Clone>::clone
+ 3.13%  <WatAST as Clone>::clone
+ 2.48%  <WatAST as Clone>::clone (2nd call site)
+ 2.47%  core::ptr::drop_glue::<WatAST>
+ 2.13%  wat::runtime::eval_inner
+ 2.07%  core::ptr::drop_glue::<WatAST> (2nd call site)
+ 2.00%  core::ptr::drop_glue::<Provenance>
+ 1.99%  libc.so.6 0xa633d (unresolved)
+ 1.93%  <sip::Hasher<Sip13Rounds> as Hasher>::write
+ 1.91%  wat::runtime::eval_tail
+ 1.89%  libc.so.6 0xa6324 (unresolved)
+ 1.59%  <RandomState as BuildHasher>::hash_one::<&str>
+ 1.48%  __rustc::__rdl_alloc
+ 1.47%  <EnvBuilder>::bind_unknown_span::<String>
+ 1.45%  <HashMap<String, BoundEntry, FxBuildHasher>>::insert
+ 1.21%  libc.so.6 0x17640d (unresolved)
+ 1.05%  wat::collection::transform::__wat_intrinsic_shim_eval_vec_foldl
+ 0.99%  wat::runtime::eval_list
+ 0.91%  libc.so.6 0xa79d7 (unresolved)
+ 0.91%  <Arc<String>>::drop_slow
+```
+
+**The parent walk's share: `Environment::lookup` is 16.69% self-time** — roughly 2.5–3.7×
+conj-build's 4.49% and call-heavy's 6.72% (both measured in P1, same code). Since `lookup`'s
+recursive self-call reuses the SAME function symbol at every level, perf's self-time accounting
+cannot separate "per-level hash-probe-and-maybe-build work" from "the recursive hop itself"
+within one flat symbol — but the comparison across workloads isolates it anyway: deep-scope's
+distinctive extra cost, relative to conj-build/call-heavy, is ENTIRELY attributable to each
+logical lookup of `s0` costing 64 `Environment::lookup` invocations instead of ~1–2, since
+every other per-call cost (the FxHash probe, the value clone, the P1-slimmed Provenance
+construction) is identical machinery paying the identical per-hit price the other two workloads
+already pay. **16.69% ≥ the brief's 5% trigger — rewrite the walk as a loop.**
+
+**Noise floor (3 runs, taskset -c 2, pre-rewrite):** instructions:u mean 15,511,080,837 (spread
+2.15%); cycles:u mean 5,512,044,585 (spread 3.62%).
+
+### The loop rewrite
+
+`src/value/environment.rs`'s `lookup`: the tail call `self.inner.parent.as_ref().and_then(|p|
+p.lookup(name, head_span))` became a `let mut current = self; loop { … match current.inner
+.parent.as_ref() { Some(parent) => current = parent, None => return None } }`. SAME result and
+SAME order: check `self`'s own bindings first, then each ancestor in turn (outermost last),
+returning on the first hit or `None` at the chain's root — only the "move to the next level"
+mechanism changed, from a recursive call to reassigning a local reference. P1's by-reference
+`match` and Provenance construction are otherwise untouched, inside the loop body verbatim.
+`cargo build --release`: clean on the first attempt (no lifetime issue — a `&Environment`
+local can be reassigned to a `&Environment` borrowed through its own `parent: Option<Environment>`
+field across loop iterations without the borrow checker objecting, since each step only needs
+the PREVIOUS reference's validity to produce the NEXT one, never both at once).
+
+### Re-measurement — all three workloads, exactly as R0/P1 (Gate 3)
+
+Checksums, every run: conj-build `499999500000`/`499999500000`; call-heavy `500013696418`;
+deep-scope `65000000` — **all unchanged. Gate 3 satisfied.**
+
+| workload | metric | pre-loop mean | post-loop mean | change |
+|---|---|---|---|---|
+| conj-build | instructions:u | 27,801,363,098 | 27,720,297,439 | +0.29% (noise) |
+| conj-build | cycles:u | 13,873,579,043 | 13,676,821,926 | +1.42% (likely noise; spread 3.85%→1.51%) |
+| call-heavy | instructions:u | 52,931,203,432 | 53,122,712,179 | -0.36% (noise) |
+| call-heavy | cycles:u | 23,246,153,196 | 23,186,124,379 | +0.26% (noise) |
+| deep-scope | instructions:u | 15,511,080,837 | 15,506,936,494 | **+0.03% — no signal** |
+| deep-scope | cycles:u | 5,512,044,585 | 5,672,617,705 | -2.91% (within its own ~3.6%/3.8% spread) |
+
+**`Environment::lookup`'s self-time on deep-scope, pre- vs. post-loop: 16.69% → 16.71%** —
+flat, inside noise. The brief's own prediction ("the loop rewrite, if it happens, is worth
+little on the other two") held for conj-build and call-heavy (both flat) — and, measured
+honestly, ALSO held for `deep-scope` ITSELF, which the orchestrator's prediction did not call
+out as a possible outcome. Read against the code: the original recursive form
+(`self.inner.parent.as_ref().and_then(|p| p.lookup(…))`) is a self-tail-call with no work
+after the recursive call returns — exactly the shape LLVM's optimizer turns into a loop at the
+machine-code level in a release build, with or without the Rust source saying `loop` explicitly.
+The explicit Rust-level rewrite most likely produced near-identical generated code to what the
+compiler had already synthesized from the recursive form — so there was no hidden "function
+call overhead" for the rewrite to remove. The walk's real cost (16.69%) is the PER-LEVEL hash
+probe repeated 64×, not the mechanism connecting one level to the next; a loop and a compiler-
+optimized recursive tail call pay that same per-level cost either way.
+
+**Kept, not reverted:** the loop form is clearer to read as an iteration (matches the brief's
+explicit instruction to rewrite once the ≥5% trigger fired) and removes any DEPENDENCY on the
+optimizer recognizing the tail call, which is a `-C opt-level`/LLVM-version-contingent guarantee,
+not a language one — a debug build or a future compiler change could regress the recursive
+form's stack safety on a pathologically deep chain (the-little-wat's own eval-stack-safety arc,
+#261, names recursive-eval-without-TCO as a live, tracked risk elsewhere in this codebase) in a
+way the explicit loop never can. The measured verdict is "no instruction-count win," not "no
+reason to keep it."
+
+### Gate after P2
+
+`NEXTEST_TEST_THREADS=4 cargo nextest run --release` → **5405 tests run: 5405 passed (4 slow),
+22 skipped (1510.776s). ALL GREEN** — same result as the baseline. **Gate 2 (after P2)
+satisfied.**
