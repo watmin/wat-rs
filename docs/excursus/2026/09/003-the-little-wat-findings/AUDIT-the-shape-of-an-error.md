@@ -397,3 +397,19 @@ PRESENT): DivisionByZero → `:wat::i64::/`, IntegerOverflow → `:wat::i64::*`,
 |---|---|---|
 | D | the Rust frame is `Option`: OMITTED when the activation slot is empty. The floor cannot see an omission (no assertion of presence); the only known empty shape is a bare `RuntimeError::new` in a unit test. The per-kind census of all 40 kinds was not built | build the census as a standing gate: every kind's real producer carries a NAMED Rust frame — a presence assertion, so an omission goes RED |
 | D | a call whose head is a SYMBOL (`(f 1)`, `f` a local) sets no activation, so its raise is named by the enclosing form (`NotCallable` → `:wat::core::let`) | the application path names its own activation (the callee's resolved name, or the symbol) |
+
+## Strike D2, item 1 landed (`c003ac8fa`) — the census is partial, and it found E's defect from below
+
+A symbol-headed call names itself (`(f 1)` → `f`, not the enclosing `let`); `apply_function` names
+the resolved callee, replaced in place on tail continuation (GD2b, mutation-proven). Floor 6382/6382.
+The 40-kind census reached 26 kinds: 17 real producers, all named; 9 with no real producer.
+
+| from | finding | the cure owed |
+|---|---|---|
+| D2 | **`BadCondition`, `PatternMatchFailed`, `EffectfulInStep`, `NoStepRule` are reachable ONLY through `:wat::eval-ast!` / `:wat::eval-step!`**, whose `wrap_as_eval_result` flattens every `RuntimeError` into `EvalError {kind message}` (`runtime_error_to_eval_error_value`, `src/runtime.rs:~12476`) — the raise happens with a correctly-named frame, then the frames are discarded before any observer | strike E (the eval family carries the real error) — so E runs BEFORE the census is finished |
+| D2 | `ParamShadowsBuiltin` has zero producers (registration only, `src/types.rs:~2563`) — a dead variant | retire it |
+| D2 | `NoEncodingCtx`/`NoSourceLoader`/`NoMacroRegistry` are unreachable from a frozen world (the pipeline always installs the capability); `UserMainMissing`'s producer was not found from the CLI or `spawn-peer` | the census lists them with reason; a kind with no producer from any real path is a candidate for retirement, measured not assumed |
+| D2 | `AssertionFailed` from `assertion-failed!` travels `AssertionPayload`, never `RuntimeError::new` — a sibling path; the census asks it the wrong question | the census checks each kind on the path it actually takes |
+| D2 | `src/freeze/pass_order.rs`'s `record()` doc says `UserMainMissing`/`EvalVerificationFailed` are the only freeze-phase producers; six more raise during `6-register-defines`/`7-resolve-references` | correct the comment when the census lands |
+
+Sequencing: **E → finish the census (GD2a as a standing gate, 40 kinds, on the path each actually takes) → the `Option` decision → F → the post-F strikes.**
