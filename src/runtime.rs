@@ -3748,36 +3748,13 @@ fn dispatch_keyword_head_value(
                             }
                         }
                     }
-                    // Arc 140 slice 1 — sandbox-scope leak detection.
-                    // Inner-scope lookup missed; if this SymbolTable
-                    // belongs to a sub-program (outer_symbols is
-                    // attached at spawn time), check whether the
-                    // name resolves in the outer scope. If yes — fire
-                    // the teaching SandboxScopeLeak diagnostic with both
-                    // spans (offending invocation + outer-scope define).
-                    // Otherwise fall through to the generic
-                    // UnknownFunction.
-                    if let Some(outer) = sym.outer_symbols.as_ref() {
-                        if let Some(outer_func) = outer.get(other) {
-                            // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
-                            let outer_define_span = match &outer_func.body {
-                                FunctionBody::Wat(ast) => ast.span().clone(),
-                                // rune:lint(span-substitution) — outer_define_span names WHERE the
-                                // shadowed outer binding was DEFINED, not where this call happened;
-                                // a Native builtin has no wat definition site to point at, so
-                                // list_span (the call site) would misattribute the definition.
-                                FunctionBody::Native => crate::rust_caller_span!(),
-                            };
-                            return Err(RuntimeError::new(
-                                list_span.clone(),
-                                RuntimeErrorKind::SandboxScopeLeak {
-                                    offending_name: other.to_string(),
-                                    outer_define_span,
-                                },
-                            )
-                            .into());
-                        }
-                    }
+                    // Arc 140 slice 1's sandbox-scope leak detection (`RuntimeErrorKind::
+                    // SandboxScopeLeak`) retired excursus 003 strike G item 1 — measured
+                    // dead: `SymbolTable::outer_symbols` (the field this branch read) was
+                    // NEVER set by any production path (the doc claiming the spawn driver
+                    // sets it was false, grepped exhaustively), only by two hand-built unit
+                    // tests poking the private field directly. Falls through to the generic
+                    // UnknownFunction below, same as it always has for every real caller.
                     // Arc 278 BRIEF-construction-total-three-walls.md #1 — nested surface
                     // aggregate-constructor dispatch. `build_insert_fact` special-cases a
                     // `:then`/`:when` item's OWN top-level `(:Type arg…)` shape before ever
@@ -11580,16 +11557,24 @@ pub(crate) fn require_encoding_ctx<'a>(
     sym: &'a SymbolTable,
     list_span: &Span,
 ) -> Result<&'a EncodingCtx, EvalBreak> {
+    // Excursus 003 strike G item 1 — `RuntimeErrorKind::NoEncodingCtx` retired
+    // (measured dead via the frozen-pipeline census, GD2a); this branch reuses
+    // the still-live `MalformedForm` kind rather than minting a replacement for
+    // a one-reader shape. Reachable only from a bare `SymbolTable::new()` that
+    // skips freeze — see `presence_requires_encoding_ctx`.
     sym.encoding_ctx().map(|arc| arc.as_ref()).ok_or_else(|| {
         EvalBreak::from(RuntimeError::new(
             list_span.clone(),
-            RuntimeErrorKind::NoEncodingCtx { op: op.into() },
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: "no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new()".into(),
+            },
         ))
     })
 }
 
 /// Arc 077: the program runs at one d. Read it from the ambient
-/// `EncodingCtx`. Returns `NoEncodingCtx` if no ctx is attached
+/// `EncodingCtx`. Returns a `MalformedForm` error if no ctx is attached
 /// (test harnesses that bypass freeze).
 pub(crate) fn program_dim(
     op: &'static str,
@@ -14380,10 +14365,16 @@ pub(crate) fn read_source_via_loader(
     sym: &SymbolTable,
 ) -> Result<String, EvalBreak> {
     let path = expect_string_value(op, arg, env, sym)?;
+    // Excursus 003 strike G item 1 — `RuntimeErrorKind::NoSourceLoader` retired
+    // (measured dead, zero construction sites reachable via the frozen
+    // pipeline); reuses the still-live `MalformedForm` kind.
     let loader = sym.source_loader().ok_or_else(|| {
         RuntimeError::new(
             arg.span().clone(),
-            RuntimeErrorKind::NoSourceLoader { op: op.into() },
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: "no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable".into(),
+            },
         )
     })?;
     loader
@@ -14443,8 +14434,9 @@ pub(crate) fn resolve_verify_payload(
         ":wat::verify::file-path" => match eval_inner(locator_ast, env, sym)?.value_owned() {
             Value::String(s) => {
                 let loader = sym.source_loader().ok_or_else(|| {
-                    RuntimeError::new(locator_ast.span().clone(), RuntimeErrorKind::NoSourceLoader {
-                        op: ":wat::verify::file-path".into()
+                    RuntimeError::new(locator_ast.span().clone(), RuntimeErrorKind::MalformedForm {
+                        head: ":wat::verify::file-path".into(),
+                        reason: "no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable".into(),
                     })
                 })?;
                 loader.fetch_payload_file(&s, None)
@@ -17207,10 +17199,13 @@ mod tests {
                  (:wat::holon::to-holon "b"))"#
         )
         .unwrap();
+        // Excursus 003 strike G item 1 — `NoEncodingCtx` retired (measured dead
+        // via the frozen-pipeline census); `require_encoding_ctx` now raises the
+        // still-live `MalformedForm` kind for this same bypass-freeze shape.
         let err = eval_inner(&ast, &Environment::new(), &SymbolTable::new()).unwrap_err();
         assert!(matches!(
             err,
-            EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::NoEncodingCtx { op, .. } if op == ":wat::holon::cosine")
+            EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::MalformedForm { head, .. } if head == ":wat::holon::cosine")
         ));
     }
 
@@ -20190,7 +20185,7 @@ mod tests {
         // raised it. Nothing is flattened into a `kind` string any more.
         assert_eq!(
             s,
-            r#"<wat::kernel::Failure{#0: <wat::runtime::NoStepRule{#0: ":wat::eval-step!: no step rule for op :wat::holon::from-wat; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 1, #2: 57, #3: (Some <wat::core::Pos{#0: 1, #1: 82}>)}>, #2: ":wat::holon::from-wat"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13450, #2: 21, #3: :None}>, #2: 0}>], #2: 0}>"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::NoStepRule{#0: ":wat::eval-step!: no step rule for op :wat::holon::from-wat; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.", #1: <wat::core::Span{#0: "src/runtime.rs:14900", #1: 1, #2: 57, #3: (Some <wat::core::Pos{#0: 1, #1: 82}>)}>, #2: ":wat::holon::from-wat"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13435, #2: 21, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 
@@ -20212,7 +20207,7 @@ mod tests {
         let s = step_to_show("(:wat::eval-step! 42)");
         assert_eq!(
             s,
-            r#"<wat::kernel::Failure{#0: <wat::runtime::TypeMismatch{#0: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 1, #2: 38, #3: (Some <wat::core::Pos{#0: 1, #1: 40}>)}>, #2: ":wat::eval-step!", #3: "wat::WatAST", #4: <wat::runtime::ValueSnapshot{#0: "wat::core::i64", #1: "42"}>}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 12941, #2: 28, #3: :None}>, #2: 0}>], #2: 0}>"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::TypeMismatch{#0: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`", #1: <wat::core::Span{#0: "src/runtime.rs:14900", #1: 1, #2: 38, #3: (Some <wat::core::Pos{#0: 1, #1: 40}>)}>, #2: ":wat::eval-step!", #3: "wat::WatAST", #4: <wat::runtime::ValueSnapshot{#0: "wat::core::i64", #1: "42"}>}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 12926, #2: 28, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 
@@ -20436,7 +20431,7 @@ mod tests {
         );
         assert_eq!(
             s,
-            r#"<wat::kernel::Failure{#0: <wat::runtime::EffectfulInStep{#0: ":wat::eval-step!: refuses to step effectful op :wat::kernel::assertion-failed!'; the BOOK Chapter 59 dual-LRU cache assumes form IS its return value (no side effects). Fall back to :wat::eval-ast! for sub-forms with effects.", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 3, #2: 21, #3: (Some <wat::core::Pos{#0: 3, #1: 53}>)}>, #2: ":wat::kernel::assertion-failed!'"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13350, #2: 20, #3: :None}>, #2: 0}>], #2: 0}>"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::EffectfulInStep{#0: ":wat::eval-step!: refuses to step effectful op :wat::kernel::assertion-failed!'; the BOOK Chapter 59 dual-LRU cache assumes form IS its return value (no side effects). Fall back to :wat::eval-ast! for sub-forms with effects.", #1: <wat::core::Span{#0: "src/runtime.rs:14900", #1: 3, #2: 21, #3: (Some <wat::core::Pos{#0: 3, #1: 53}>)}>, #2: ":wat::kernel::assertion-failed!'"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13335, #2: 20, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 
@@ -20955,115 +20950,6 @@ mod tests {
 
     // queue roundtrip across threads — covered by tests/wat_spawn_fn.rs
     // (mini-TCP shape on spawn-thread + Thread/join-result).
-
-    /// Arc 140 slice 1 — runtime sandbox-scope leak fires when an
-    /// inner sub-program's call head misses the inner scope but
-    /// resolves in the outer. The teaching diagnostic carries both
-    /// spans (offending invocation + outer-scope define) so users
-    /// (and agents) navigate without grepping. Constructs the
-    /// scenario directly: outer SymbolTable holds `:my::helper`,
-    /// inner SymbolTable does NOT, with outer_symbols attached.
-    #[test]
-    fn runtime_sandbox_scope_leak_fires_with_outer_attached() {
-        // Build the OUTER scope: stdlib + a user-defined helper.
-        let (stdlib_sym, _, _) = stdlib_loaded();
-        let mut outer_sym = stdlib_sym.clone();
-        let helper_body = crate::parse_one!("42").expect("parse body");
-        outer_sym.register_function(
-            ":my::helper".to_string(),
-            Arc::new(Function {
-                name: Some(":my::helper".to_string()),
-                params: vec![],
-                type_params: vec![],
-                param_types: vec![],
-                ret_type: crate::types::TypeExpr::Path(":wat::core::i64".to_string()),
-                rest_param: None,
-                rest_param_type: None,
-                body: FunctionBody::Wat(Arc::new(helper_body)),
-                closed_env: None,
-                rete: None,
-                synthesized_for: None,
-            }),
-        );
-
-        // Build the INNER scope: stdlib only, no `:my::helper`.
-        // Attach outer_symbols so the runtime check can fire.
-        let mut inner_sym = stdlib_sym.clone();
-        inner_sym.outer_symbols = Some(Arc::new(outer_sym));
-
-        // Construct the call: `(:my::helper)`.
-        let call = crate::parse_one!("(:my::helper)").expect("parse call");
-
-        let env = Environment::new();
-        let result = eval_inner(&call, &env, &inner_sym);
-
-        match result {
-            Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-                RuntimeErrorKind::SandboxScopeLeak { offending_name, .. } => {
-                    assert_eq!(offending_name, ":my::helper");
-                }
-                other => panic!("expected SandboxScopeLeak; got {:?}", other),
-            },
-            Err(other) => panic!("expected SandboxScopeLeak; got {:?}", other),
-            Ok(v) => panic!("expected SandboxScopeLeak err; got Ok({:?})", v),
-        }
-    }
-
-    /// Arc 140 slice 1 — when the offending name is NOT in the outer
-    /// scope either, the runtime falls through to the existing
-    /// `UnknownFunction` error. Confirms slice 1 doesn't misfire on
-    /// genuine typos.
-    #[test]
-    fn runtime_unknown_function_when_outer_also_missing() {
-        let (stdlib_sym, _, _) = stdlib_loaded();
-        let outer_sym = stdlib_sym.clone();
-
-        let mut inner_sym = stdlib_sym.clone();
-        inner_sym.outer_symbols = Some(Arc::new(outer_sym));
-
-        let call = crate::parse_one!("(:totally::made::up::name)").expect("parse call");
-
-        let env = Environment::new();
-        let result = eval_inner(&call, &env, &inner_sym);
-
-        match result {
-            Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-                RuntimeErrorKind::UnknownFunction(name) => {
-                    assert_eq!(name, ":totally::made::up::name");
-                }
-                RuntimeErrorKind::SandboxScopeLeak { .. } => {
-                    panic!("SandboxScopeLeak misfired on a genuinely-unknown name")
-                }
-                other => panic!("expected UnknownFunction; got {:?}", other),
-            },
-            other => panic!("expected UnknownFunction; got {:?}", other),
-        }
-    }
-
-    /// Arc 140 slice 1 — when the SymbolTable has no outer_symbols
-    /// attached (the entry program / non-sandboxed runtime), the
-    /// runtime falls through to UnknownFunction even if some other
-    /// table elsewhere has the name. The leak detection only runs
-    /// for sandboxed sub-programs.
-    #[test]
-    fn runtime_no_leak_when_outer_not_attached() {
-        let (stdlib_sym, _, _) = stdlib_loaded();
-        let inner_sym = stdlib_sym.clone(); // outer_symbols stays None
-
-        let call = crate::parse_one!("(:my::helper)").expect("parse call");
-        let env = Environment::new();
-        let result = eval_inner(&call, &env, &inner_sym);
-
-        match result {
-            Err(EvalBreak::Diagnostic(e)) => match e.kind() {
-                RuntimeErrorKind::UnknownFunction(name) => {
-                    assert_eq!(name, ":my::helper");
-                }
-                other => panic!("expected UnknownFunction; got {:?}", other),
-            },
-            other => panic!("expected UnknownFunction; got {:?}", other),
-        }
-    }
 
     /// Arc 138 slice 3a — every user-facing RuntimeError surfaced on
     /// real wat source carries `<file>:<line>:<col>:` in its rendered

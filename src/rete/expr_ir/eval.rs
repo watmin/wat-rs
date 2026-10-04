@@ -948,8 +948,19 @@ pub(crate) fn apply_op(
 /// never equals one, so a dispatch failure PROPAGATES rather than being
 /// silently replaced by a fallback value. Do not retag this error to an op name.
 ///
-/// `sym` is `None` off the encoding path; the holon arms that need it raise
-/// `NoEncodingCtx` rather than assuming a context they were not given.
+/// `sym` is `None` off the encoding path; the holon arms that need it raise a
+/// `MalformedForm` rather than assuming a context they were not given —
+/// `RuntimeErrorKind::NoEncodingCtx` retired excursus 003 strike G item 1
+/// (measured dead: `sym` is `None` here only via `where_tree`'s dim walker,
+/// whose own caller swallows ANY `Err` from `exec_dim` into "maybe" /
+/// over-approx). ⚠ Head is `"compiled-exec"`, the SAME non-op-name the
+/// catch-all above uses, NEVER the op's own `core_name` — a head matching
+/// `core_name` would be caught by `exec_dim`'s `CallFallback` arm
+/// (`classify_fallback_outcome`) as `UseFallback`, routing to the FALLBACK
+/// expression instead of propagating to the generic "maybe" catch; measured
+/// directly (`probe_arc278_vsa_where_native_differential`'s cosine cases
+/// regressed to `count=0` when this used the op's own name — the fallback
+/// branch computed a different, wrong answer).
 fn apply_core_kind(
     kind: OpExec,
     args: &[Value],
@@ -1266,8 +1277,9 @@ fn apply_core_kind(
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(
                     span.clone(),
-                    RuntimeErrorKind::NoEncodingCtx {
-                        op: ":wat::holon::cosine".into(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: "compiled-exec".into(),
+                        reason: "no encoding context attached (:wat::holon::cosine)".into(),
                     },
                 )
                 .into());
@@ -1278,8 +1290,9 @@ fn apply_core_kind(
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(
                     span.clone(),
-                    RuntimeErrorKind::NoEncodingCtx {
-                        op: ":wat::holon::dot".into(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: "compiled-exec".into(),
+                        reason: "no encoding context attached (:wat::holon::dot)".into(),
                     },
                 )
                 .into());
@@ -1290,8 +1303,9 @@ fn apply_core_kind(
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(
                     span.clone(),
-                    RuntimeErrorKind::NoEncodingCtx {
-                        op: ":wat::holon::coincident?".into(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: "compiled-exec".into(),
+                        reason: "no encoding context attached (:wat::holon::coincident?)".into(),
                     },
                 )
                 .into());
@@ -1302,8 +1316,9 @@ fn apply_core_kind(
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(
                     span.clone(),
-                    RuntimeErrorKind::NoEncodingCtx {
-                        op: ":wat::holon::presence?".into(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: "compiled-exec".into(),
+                        reason: "no encoding context attached (:wat::holon::presence?)".into(),
                     },
                 )
                 .into());

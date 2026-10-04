@@ -260,7 +260,7 @@ fn rete_ceiling_kind_value(ceiling: &ReteCeiling) -> Value {
     }
 }
 
-// ─── The 40 RuntimeErrorKind records ──────────────────────────────────────────
+// ─── The 33 RuntimeErrorKind records ──────────────────────────────────────────
 
 record_names_fn!(unbound_symbol_names, UNBOUND_SYMBOL_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::UnboundSymbol");
 record_names_fn!(unknown_function_names, UNKNOWN_FUNCTION_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::UnknownFunction");
@@ -270,7 +270,6 @@ record_names_fn!(type_mismatch_names, TYPE_MISMATCH_FIELDS, "wat/runtime-errors.
 record_names_fn!(arity_mismatch_names, ARITY_MISMATCH_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ArityMismatch");
 record_names_fn!(bad_condition_names, BAD_CONDITION_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::BadCondition");
 record_names_fn!(malformed_form_names, MALFORMED_FORM_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::MalformedForm");
-record_names_fn!(param_shadows_builtin_names, PARAM_SHADOWS_BUILTIN_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ParamShadowsBuiltin");
 record_names_fn!(division_by_zero_names, DIVISION_BY_ZERO_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::DivisionByZero");
 record_names_fn!(integer_overflow_names, INTEGER_OVERFLOW_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::IntegerOverflow");
 record_names_fn!(duplicate_define_names, DUPLICATE_DEFINE_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::DuplicateDefine");
@@ -282,17 +281,12 @@ record_names_fn!(declaration_in_expression_position_names, DECLARATION_IN_EXPRES
 record_names_fn!(eval_forbids_mutation_form_names, EVAL_FORBIDS_MUTATION_FORM_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::EvalForbidsMutationForm");
 record_names_fn!(user_main_missing_names, USER_MAIN_MISSING_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::UserMainMissing");
 record_names_fn!(eval_verification_failed_names, EVAL_VERIFICATION_FAILED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::EvalVerificationFailed");
-record_names_fn!(channel_disconnected_names, CHANNEL_DISCONNECTED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ChannelDisconnected");
 record_names_fn!(rete_ceiling_names, RETE_CEILING_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ReteCeiling");
-record_names_fn!(no_encoding_ctx_names, NO_ENCODING_CTX_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::NoEncodingCtx");
-record_names_fn!(no_source_loader_names, NO_SOURCE_LOADER_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::NoSourceLoader");
-record_names_fn!(no_macro_registry_names, NO_MACRO_REGISTRY_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::NoMacroRegistry");
 record_names_fn!(macro_expansion_failed_names, MACRO_EXPANSION_FAILED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::MacroExpansionFailed");
 record_names_fn!(pattern_match_failed_names, PATTERN_MATCH_FAILED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::PatternMatchFailed");
 record_names_fn!(effectful_in_step_names, EFFECTFUL_IN_STEP_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::EffectfulInStep");
 record_names_fn!(no_step_rule_names, NO_STEP_RULE_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::NoStepRule");
 record_names_fn!(assertion_failed_names, ASSERTION_FAILED_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::AssertionFailed");
-record_names_fn!(sandbox_scope_leak_names, SANDBOX_SCOPE_LEAK_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::SandboxScopeLeak");
 record_names_fn!(service_not_running_names, SERVICE_NOT_RUNNING_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::ServiceNotRunning");
 record_names_fn!(edn_coerce_mismatch_names, EDN_COERCE_MISMATCH_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::EdnCoerceMismatch");
 record_names_fn!(unknown_field_names, UNKNOWN_FIELD_FIELDS, "wat/runtime-errors.wat", ":wat::runtime::UnknownField");
@@ -447,11 +441,6 @@ impl RuntimeError {
                     Value::String(Arc::new(reason.clone())),
                 ]),
             ))),
-            RuntimeErrorKind::ParamShadowsBuiltin(name) => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::ParamShadowsBuiltin".to_string(),
-                param_shadows_builtin_names(),
-                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(name.clone()))]),
-            ))),
             RuntimeErrorKind::DivisionByZero => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::DivisionByZero".to_string(),
                 division_by_zero_names(),
@@ -522,30 +511,10 @@ impl RuntimeError {
                 eval_verification_failed_names(),
                 Arc::new(vec![floor_message, floor_location, hash_error_value(err)]),
             ))),
-            RuntimeErrorKind::ChannelDisconnected { op } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::ChannelDisconnected".to_string(),
-                channel_disconnected_names(),
-                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
-            ))),
             RuntimeErrorKind::ReteCeiling(ceiling) => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ReteCeiling".to_string(),
                 rete_ceiling_names(),
                 Arc::new(vec![floor_message, floor_location, rete_ceiling_kind_value(ceiling)]),
-            ))),
-            RuntimeErrorKind::NoEncodingCtx { op } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::NoEncodingCtx".to_string(),
-                no_encoding_ctx_names(),
-                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
-            ))),
-            RuntimeErrorKind::NoSourceLoader { op } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::NoSourceLoader".to_string(),
-                no_source_loader_names(),
-                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
-            ))),
-            RuntimeErrorKind::NoMacroRegistry { op } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::NoMacroRegistry".to_string(),
-                no_macro_registry_names(),
-                Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
             ))),
             // Field order matches the wat declaration (`wat/runtime-errors.wat`):
             // [message location op cause] — the codemod that added `cause` (excursus 003
@@ -574,26 +543,6 @@ impl RuntimeError {
                 "wat::runtime::NoStepRule".to_string(),
                 no_step_rule_names(),
                 Arc::new(vec![floor_message, floor_location, Value::String(Arc::new(op.clone()))]),
-            ))),
-            RuntimeErrorKind::AssertionFailed { actual, expected, .. } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::AssertionFailed".to_string(),
-                assertion_failed_names(),
-                Arc::new(vec![
-                    floor_message,
-                    floor_location,
-                    Value::Option(Arc::new(actual.clone().map(|s| Value::String(Arc::new(s))))),
-                    Value::Option(Arc::new(expected.clone().map(|s| Value::String(Arc::new(s))))),
-                ]),
-            ))),
-            RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => Value::Aggregate(Arc::new(AggregateValue::record(
-                "wat::runtime::SandboxScopeLeak".to_string(),
-                sandbox_scope_leak_names(),
-                Arc::new(vec![
-                    floor_message,
-                    floor_location,
-                    Value::String(Arc::new(offending_name.clone())),
-                    crate::runtime::value_from_span(outer_define_span.clone()),
-                ]),
             ))),
             RuntimeErrorKind::ServiceNotRunning { op } => Value::Aggregate(Arc::new(AggregateValue::record(
                 "wat::runtime::ServiceNotRunning".to_string(),

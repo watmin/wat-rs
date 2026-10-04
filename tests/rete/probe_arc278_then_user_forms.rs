@@ -35,8 +35,11 @@ const WORLD_NOTFACT: &str = "tests/rete/probe_arc278_then_user_forms_notfact.wat
 /// Call the named zero-arg entry fn and return its result, or a typed `StartupError` for either
 /// an ordinary raise OR the fence's `Option/expect` panic (caught via `catch_unwind`, exactly as
 /// `probe_fence_names_the_head.rs`'s `compile_message` does) — the caller decides which shape it
-/// expected. Arc 296 Stone M: the panic's `AssertionPayload` fields land in
-/// `RuntimeErrorKind::AssertionFailed` instead of being `format!`-collapsed to a bare String.
+/// expected. Arc 296 Stone M: the panic's `AssertionPayload` message lands in a
+/// `RuntimeErrorKind::MalformedForm` instead of being `format!`-collapsed to a bare String.
+/// Excursus 003 strike G item 1: wraps via `MalformedForm`, not the retired
+/// `RuntimeErrorKind::AssertionFailed` — `actual`/`expected` were never read downstream (only
+/// `message` is), so nothing drops.
 fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
     let world: FrozenWorld = startup_from_file(world_path)?;
     let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
@@ -46,20 +49,17 @@ fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
     })) {
         Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
         Err(panic_payload) => {
-            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
-                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
-                None => {
-                    let message = panic_payload
-                        .downcast_ref::<String>()
-                        .cloned()
-                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
-                        .unwrap_or_else(|| "panic-opaque".to_string());
-                    (message, None, None)
-                }
+            let message = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => p.message.clone(),
+                None => panic_payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                    .unwrap_or_else(|| "panic-opaque".to_string()),
             };
             Err(StartupError::Runtime(Box::new(RuntimeError::new(
                 wat::rust_caller_span!(),
-                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+                RuntimeErrorKind::MalformedForm { head: "assertion-failed".into(), reason: message },
             ))))
         }
     }
@@ -120,8 +120,8 @@ fn impure_fn_head_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
-                if message == "compile-condition: then expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+            RuntimeErrorKind::MalformedForm { reason, .. }
+                if reason == "compile-condition: then expr is not pure — ':wat::io::IOReader/open-file' is not pure"
         )
     );
 }

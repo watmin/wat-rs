@@ -436,7 +436,6 @@ pub enum ReteCeiling {
 /// **Multi-span variants** keep their SECONDARY spans as domain-named kind
 /// fields per CONFORMARE.md § Multi-span. The outer `span` is the
 /// most-actionable location (the site the user edits to fix):
-/// - `SandboxScopeLeak`: outer = `call_span`, secondary = `outer_define_span`
 /// - `PostconditionFailed`: outer = `body_span`, secondary = `ensure_span`
 ///
 /// **Freeze pair** (`UserMainMissing`, `EvalVerificationFailed`): no span on
@@ -477,8 +476,6 @@ pub enum RuntimeErrorKind {
     },
     BadCondition { got: Box<ValueSnapshot> },
     MalformedForm { head: String, reason: String },
-    #[to_edn(key = "name")]
-    ParamShadowsBuiltin(String),
     DivisionByZero,
     /// `i64 + - *` (`checked_*`) overflow — Arc 300 stone C3. Distinct from
     /// `DivisionByZero` (conflating "doesn't fit in 64 bits" with "can't
@@ -574,17 +571,6 @@ pub enum RuntimeErrorKind {
         #[to_edn(key = "error")]
         err: crate::hash::HashError,
     },
-    /// Raised when `:wat::kernel::join` reaps a spawned program
-    /// whose thread panicked before yielding a result — the internal
-    /// handle channel's Sender was dropped without sending, so the
-    /// join's `recv` sees disconnected.
-    ///
-    /// User channels (`:wat::kernel::send` / `recv`)
-    /// are symmetric on disconnect — both endpoints report it via
-    /// `:Option` rather than via this error, so no call path in the
-    /// user-level channel primitives produces this variant. It
-    /// remains only for the join-on-panic case.
-    ChannelDisconnected { op: String },
     /// The CLOSED set of rete ceiling breaches — every member of [`ReteCeiling`].
     ///
     /// ⛔ **A NEW CEILING GOES IN [`ReteCeiling`], NEVER HERE.** That enum is matched
@@ -595,30 +581,6 @@ pub enum RuntimeErrorKind {
     /// raise on all three paths — the one thing the outcome wall exists to prevent.
     #[to_edn(key = "ceiling")]
     ReteCeiling(ReteCeiling),
-    /// A vector-level primitive (`:wat::holon::cosine`,
-    /// `:wat::config::noise-floor`, etc.) was invoked but the
-    /// [`SymbolTable`](crate::value::SymbolTable) has no attached
-    /// [`EncodingCtx`](crate::value::EncodingCtx). Reachable from
-    /// test harnesses that don't go through freeze; the frozen startup
-    /// pipeline always installs one.
-    NoEncodingCtx { op: String },
-    /// A file-reading primitive (`:wat::eval-file!`, file-path
-    /// variants of the verified eval/load forms, `:wat::verify::file-path`
-    /// payloads) was invoked but the [`SymbolTable`](crate::value::SymbolTable) has no attached
-    /// source loader. The frozen startup pipeline attaches the loader
-    /// handed to `startup_from_source`; test harnesses that build a
-    /// SymbolTable directly must call
-    /// [`SymbolTable::set_source_loader`](crate::value::SymbolTable::set_source_loader)
-    /// to grant file-I/O capability.
-    NoSourceLoader { op: String },
-    /// `:wat::core::macroexpand` / `macroexpand-1` was invoked but the
-    /// [`SymbolTable`](crate::value::SymbolTable) has no attached macro registry. The frozen
-    /// startup pipeline attaches the registry; test harnesses that
-    /// build a SymbolTable directly must call
-    /// [`SymbolTable::set_macro_registry`](crate::value::SymbolTable::set_macro_registry) to
-    /// grant macro-expansion
-    /// capability. Arc 030.
-    NoMacroRegistry { op: String },
     /// `:wat::core::macroexpand` / `macroexpand-1` surfaced a macro-
     /// expansion error (malformed template, arity mismatch in the
     /// expanded call, expansion-depth cycle, etc.). Carries the
@@ -648,49 +610,6 @@ pub enum RuntimeErrorKind {
     /// consumers can distinguish "out of scope by design" from "not
     /// taught yet."
     NoStepRule { op: String },
-    /// Named by `:wat::kernel::assertion-failed!'`'s own op, but no construction
-    /// site anywhere in this crate ever builds this variant via `RuntimeError::new`
-    /// — DEAD as a `RuntimeError`, corrected excursus 003 strike D3 (GD2a, the
-    /// 40-kind activation census). The doc here used to claim "outside a sandbox,
-    /// this variant surfaces as an ordinary RuntimeError — reporting that an
-    /// assertion fired without a test harness to catch it"; that is false, measured
-    /// directly: `eval_kernel_assertion_failed` (`src/assertion.rs`)
-    /// UNCONDITIONALLY calls `std::panic::panic_any(payload)` with an
-    /// [`crate::assertion::AssertionPayload`] — no branch checks for a sandbox, so
-    /// there is no code path, sandboxed or not, that ever constructs this kind.
-    /// The real payload travels as `AssertionPayload`, caught by `run-sandboxed`'s
-    /// `catch_unwind`, where actual/expected land in the `:wat::kernel::Failure`'s
-    /// slots; outside a sandbox the panic simply propagates as an ordinary Rust
-    /// panic, never a `RuntimeError`. A retirement candidate (see the GD2a census).
-    AssertionFailed {
-        message: String,
-        actual: Option<String>,
-        expected: Option<String>,
-    },
-    /// Arc 140 slice 1 — runtime panic enrichment. Fires when a
-    /// sub-program (`run-sandboxed-ast` / `run-sandboxed-hermetic-ast`
-    /// / `spawn-process`) hits an
-    /// `UnknownFunction` AND the offending name (canonical form,
-    /// stripping `<T,...>`) IS registered in the OUTER scope's
-    /// `SymbolTable`. The substrate teaches: *"sandbox-scope leak —
-    /// you defined this at outer scope but deftest sandboxes don't
-    /// capture; move it into the prelude."* Both spans land so users
-    /// click the call site AND the outer-scope define.
-    ///
-    /// The runtime backstop for scope leaks on dynamic / `eval-ast!` /
-    /// otherwise check-walker-bypassing call paths. (The arc-140 static
-    /// check-time twin `CheckError::SandboxScopeLeak` was annihilated with
-    /// the arc-170 `*-program-ast` retirement — it fired only on those
-    /// now-deleted forms-block heads. This runtime variant is a distinct,
-    /// live feature over the `outer_symbols` sub-program mechanism.)
-    ///
-    /// Multi-span: outer `span` = `call_span` (most-actionable).
-    /// Secondary: `outer_define_span` (the outer-scope define).
-    SandboxScopeLeak {
-        offending_name: String,
-        /// Source location of the outer-scope define. May be `crate::rust_caller_span!()`.
-        outer_define_span: crate::span::Span,
-    },
     /// Arc 170 slice 1f-α — a thread-aware stdio helper
     /// (`:wat::kernel::println` / `eprintln` / `readln`) was
     /// invoked on a thread whose [`crate::services::ThreadIO`]
@@ -931,9 +850,6 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::MalformedForm { head, reason } => {
                 write!(f, "{}malformed {} form: {}", prefix, head, reason)
             }
-            RuntimeErrorKind::ParamShadowsBuiltin(s) => {
-                write!(f, "{}parameter name {} shadows a :wat::core builtin; pick another name", prefix, s)
-            }
             RuntimeErrorKind::DivisionByZero => {
                 write!(f, "{}division by zero", prefix)
             }
@@ -1069,26 +985,6 @@ impl RuntimeErrorKind {
                     prefix, cap, still_deriving
                 ),
             },
-            RuntimeErrorKind::ChannelDisconnected { op } => write!(
-                f,
-                "{}{}: channel disconnected — receiver was dropped. `recv` is now Option-returning (disconnect yields :None); only `send` to a dropped receiver raises this error.",
-                prefix, op
-            ),
-            RuntimeErrorKind::NoEncodingCtx { op } => write!(
-                f,
-                "{}{}: no encoding context attached to SymbolTable; presence / config accessors need a frozen EncodingCtx. Call via the freeze pipeline rather than a bare SymbolTable::new().",
-                prefix, op
-            ),
-            RuntimeErrorKind::NoSourceLoader { op } => write!(
-                f,
-                "{}{}: no source loader attached to SymbolTable; file-reading primitives require a loader. Call via the freeze pipeline, or set_source_loader on the test SymbolTable.",
-                prefix, op
-            ),
-            RuntimeErrorKind::NoMacroRegistry { op } => write!(
-                f,
-                "{}{}: no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable.",
-                prefix, op
-            ),
             RuntimeErrorKind::MacroExpansionFailed { op, cause } => write!(
                 f,
                 "{}{}: macro expansion failed: {}",
@@ -1109,26 +1005,6 @@ impl RuntimeErrorKind {
                 "{}:wat::eval-step!: no step rule for op {}; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.",
                 prefix, op
             ),
-            RuntimeErrorKind::AssertionFailed { message, actual, expected } => {
-                write!(f, "{}assertion failed: {}", prefix, message)?;
-                if let Some(a) = actual {
-                    write!(f, "\n  actual:   {}", a)?;
-                }
-                if let Some(e) = expected {
-                    write!(f, "\n  expected: {}", e)?;
-                }
-                Ok(())
-            }
-            RuntimeErrorKind::SandboxScopeLeak { offending_name, outer_define_span } => {
-                // outer span (call_span) is in prefix; secondary span here.
-                // Arc 298.2: span is always real; always emit the location.
-                let define_loc = format!("{}", outer_define_span);
-                write!(
-                    f,
-                    "{}sandbox-scope leak: '{}' invoked here is defined at {} but deftest sandboxes do NOT capture outer-scope. Move (:wat::core::defn {} ...) into this deftest's prelude (the second argument of `(:wat::test::deftest <name> <prelude> <body>)`), or load it into the prelude via `(:wat::core::load! \"path/to/file.wat\")`. Sandbox isolation is intentional — see wat/test.wat's deftest macro.",
-                    prefix, offending_name, define_loc, offending_name
-                )
-            }
             RuntimeErrorKind::ServiceNotRunning { op } => write!(
                 f,
                 "{}{}: called before stdio services running. The runtime spawns these services at process start (arc 170 slice 1f-δ); when called from a hand-spawned context (e.g., a test), the test must populate the per-thread routing via `wat::services::install_thread_io` before invoking. See arc 170 REALIZATIONS pass 15 + pass 16 for the substrate's thread-aware-helper architecture.",

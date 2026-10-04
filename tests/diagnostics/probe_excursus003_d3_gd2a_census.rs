@@ -23,12 +23,15 @@
 //!     registration-time (freeze step 6) or freeze-step-9 producer;
 //! (D) `startup_from_source` (Ok) then `invoke_user_main` -> `Err(RuntimeError)`.
 //!
-//! The no-real-producer and measured-not-driven kinds (`ParamShadowsBuiltin`,
-//! `NoEncodingCtx`, `NoSourceLoader`, `NoMacroRegistry`, `ChannelDisconnected`,
-//! `AssertionFailed`, `SandboxScopeLeak`, `ReteCeiling`, `EdnCoerceMismatch`,
-//! `WriteStopped`) carry no test here — see the strike report for the measured
-//! reason on each; a hand-constructed `RuntimeError` would bypass the very
-//! dispatch this census exists to prove, so they are not faked into this file.
+//! The no-real-producer kinds this census originally measured dead
+//! (`ParamShadowsBuiltin`, `NoEncodingCtx`, `NoSourceLoader`, `NoMacroRegistry`,
+//! `ChannelDisconnected`, `AssertionFailed` as a `RuntimeErrorKind`,
+//! `SandboxScopeLeak`) were retired, excursus 003 strike G item 1 — the census
+//! now accounts for 33 kinds, not 40. The three measured-not-driven survivors
+//! (`ReteCeiling`, `EdnCoerceMismatch`, `WriteStopped`) still carry no test
+//! here — see the strike report for the measured reason on each; a
+//! hand-constructed `RuntimeError` would bypass the very dispatch this census
+//! exists to prove, so they are not faked into this file.
 
 use wat::edn::contract::ToEdn;
 use wat::freeze::{call_beside_value, invoke_user_main, startup_from_file};

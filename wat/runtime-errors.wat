@@ -174,14 +174,6 @@
 ;; What was wrong with it.
    reason <- :wat::core::String])
 
-;; A `fn`/`defn` parameter name shadowed a `:wat::core` builtin.
-(:wat::core::defrecord :wat::runtime::ParamShadowsBuiltin
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The shadowing parameter's name.
-   name <- :wat::core::String])
-
 ;; `i64::/` (or `%`) at a zero divisor. No kind fields — the floor message
 ;; already names the operation ("division by zero").
 (:wat::core::defrecord :wat::runtime::DivisionByZero
@@ -285,15 +277,6 @@
    
    cause <- :wat::core::Error])
 
-;; `:wat::kernel::join` reaped a spawned program whose thread panicked before
-;; yielding a result.
-(:wat::core::defrecord :wat::runtime::ChannelDisconnected
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The operation that observed the disconnect.
-   op <- :wat::core::String])
-
 ;; A rete session breached one of its closed-set ceilings (see
 ;; `:wat::runtime::ReteCeilingKind` above). Excursus 003 doc note (`src/value/
 ;; signal.rs:248-262`): nesting the four former flat variants under this one
@@ -307,31 +290,6 @@
    
 ;; Which ceiling breached, and its measurement.
    ceiling <- :wat::runtime::ReteCeilingKind])
-
-;; A vector-level primitive ran with no `EncodingCtx` attached to the
-;; `SymbolTable`.
-(:wat::core::defrecord :wat::runtime::NoEncodingCtx
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The primitive that needed the encoding context.
-   op <- :wat::core::String])
-
-;; A file-reading primitive ran with no source loader attached.
-(:wat::core::defrecord :wat::runtime::NoSourceLoader
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The primitive that needed file I/O.
-   op <- :wat::core::String])
-
-;; `macroexpand`/`macroexpand-1` ran with no macro registry attached.
-(:wat::core::defrecord :wat::runtime::NoMacroRegistry
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The primitive that needed macro expansion.
-   op <- :wat::core::String])
 
 ;; `macroexpand`/`macroexpand-1` surfaced a macro-expansion error. The wrapped
 ;; `MacroError` (`src/macros/error.rs`) is a nested ERROR, per rule 2: it
@@ -395,17 +353,6 @@
    actual <- (:wat::core::Option :- [:wat::core::String])
 ;; The failed assertion's expected value, rendered, when the caller supplied one.
    expected <- (:wat::core::Option :- [:wat::core::String])])
-
-;; A sub-program's `UnknownFunction` name is registered in the OUTER scope —
-;; the "you defined this outside the sandbox" diagnostic.
-(:wat::core::defrecord :wat::runtime::SandboxScopeLeak
-  [message <- :wat::core::String
-   location <- :wat::core::Span
-   
-;; The name that leaked from the outer scope.
-   offending-name <- :wat::core::String
-;; Where the outer-scope define lives.
-   outer-define-span <- :wat::core::Span])
 
 ;; A thread-aware stdio helper ran on a thread with no `ThreadIO` installed.
 (:wat::core::defrecord :wat::runtime::ServiceNotRunning

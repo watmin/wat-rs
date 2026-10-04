@@ -119,14 +119,6 @@ fn probe_malformed_form() {
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__malformed_form.edn");
 }
 
-// ─── 8. ParamShadowsBuiltin ──────────────────────────────────────────────────
-
-#[test]
-fn probe_param_shadows_builtin() {
-    let err = make(RuntimeErrorKind::ParamShadowsBuiltin("map".into()));
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__param_shadows_builtin.edn");
-}
-
 // ─── 9. DivisionByZero ───────────────────────────────────────────────────────
 
 #[test]
@@ -185,38 +177,6 @@ fn probe_eval_verification_failed() {
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__eval_verification_failed.edn");
 }
 
-// ─── 16. ChannelDisconnected ─────────────────────────────────────────────────
-
-#[test]
-fn probe_channel_disconnected() {
-    let err = make(RuntimeErrorKind::ChannelDisconnected { op: ":wat::kernel::send".into() });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__channel_disconnected.edn");
-}
-
-// ─── 17. NoEncodingCtx ───────────────────────────────────────────────────────
-
-#[test]
-fn probe_no_encoding_ctx() {
-    let err = make(RuntimeErrorKind::NoEncodingCtx { op: ":wat::holon::cosine".into() });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_encoding_ctx.edn");
-}
-
-// ─── 18. NoSourceLoader ──────────────────────────────────────────────────────
-
-#[test]
-fn probe_no_source_loader() {
-    let err = make(RuntimeErrorKind::NoSourceLoader { op: ":wat::eval-file!".into() });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_source_loader.edn");
-}
-
-// ─── 19. NoMacroRegistry ─────────────────────────────────────────────────────
-
-#[test]
-fn probe_no_macro_registry() {
-    let err = make(RuntimeErrorKind::NoMacroRegistry { op: ":wat::core::macroexpand".into() });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_macro_registry.edn");
-}
-
 // ─── 20. MacroExpansionFailed ────────────────────────────────────────────────
 
 #[test]
@@ -255,55 +215,6 @@ fn probe_effectful_in_step() {
 fn probe_no_step_rule() {
     let err = make(RuntimeErrorKind::NoStepRule { op: ":user::custom-op".into() });
     wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__no_step_rule.edn");
-}
-
-// ─── 24a. AssertionFailed (both Some) ────────────────────────────────────────
-//
-// Arc 298.1 wire change: `Option<String>` is now tagged.
-// Old: `:actual "42"` (transparent)
-// New: `:actual #wat.core/Option.Some {:value "42"}` (tagged per arc 296 H-2)
-
-#[test]
-fn probe_assertion_failed_both_some() {
-    let err = make(RuntimeErrorKind::AssertionFailed {
-        message: "values differ".into(),
-        actual: Some("42".into()),
-        expected: Some("99".into()),
-    });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__assertion_failed_both_some.edn");
-}
-
-// ─── 24b. AssertionFailed (expected None) ────────────────────────────────────
-//
-// Arc 296 H-2: `None` → `#wat.core/Option.None {}`
-
-#[test]
-fn probe_assertion_failed_expected_none() {
-    let err = make(RuntimeErrorKind::AssertionFailed {
-        message: "fired".into(),
-        actual: Some("x".into()),
-        expected: None,
-    });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__assertion_failed_expected_none.edn");
-}
-
-// ─── 25. SandboxScopeLeak ────────────────────────────────────────────────────
-//
-// Multi-span: outer `span` (from `err.span`) appended as `:span` LAST by
-// `splice_span`; secondary `outer_define_span: Span` emitted as
-// `:outer-define-span` in declaration order (before `:span`).
-//
-// Arc 298.3 wire change: old form used `:call-span` for the outer span;
-// new form uses `:span` (the derive's splice_span name).
-
-#[test]
-fn probe_sandbox_scope_leak() {
-    let outer_span = Span::new(Arc::new("outer.wat".to_string()), 10, 4);
-    let err = make(RuntimeErrorKind::SandboxScopeLeak {
-        offending_name: ":user::my-helper".into(),
-        outer_define_span: outer_span,
-    });
-    wat::assert_edn_matches_file!(write(&err), "probe_arc298_3_runtime_derive_identical__sandbox_scope_leak.edn");
 }
 
 // ─── 26. ServiceNotRunning ───────────────────────────────────────────────────

@@ -2399,7 +2399,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (`src/value/value.rs:500`/`:513`). Kept in `:wat::kernel::` (builder's
     // ruling 2026-09-26): they already ship as `#wat.kernel/…` on the wire; the
     // existing hand-written writer in `src/edn/error.rs` is untouched by this
-    // registration. Registered BEFORE the 40 `:wat::runtime::<Kind>` records
+    // registration. Registered BEFORE the 33 `:wat::runtime::<Kind>` records
     // below: `NoMatchingClause` names `ClauseAttempt` as a field.
     ::wat_source_derive::wat_enum_register_from!(
         env,
@@ -2505,7 +2505,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // ─── Excursus 003 step 3a — the RuntimeErrorKind wat records ─────────────
     // Declared in `wat/runtime-errors.wat`. Order below matches that file's
-    // internal dependency order: ValueSnapshot first, then the 40 kind
+    // internal dependency order: ValueSnapshot first, then the 33 kind
     // records (several name ValueSnapshot / ReteCeilingKind / the
     // ClauseAttempt registered above).
     //
@@ -2532,7 +2532,6 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ArityMismatch");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::BadCondition");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::MalformedForm");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ParamShadowsBuiltin");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DivisionByZero");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::IntegerOverflow");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::DuplicateDefine");
@@ -2544,17 +2543,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EvalForbidsMutationForm");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UserMainMissing");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EvalVerificationFailed");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ChannelDisconnected");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ReteCeiling");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoEncodingCtx");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoSourceLoader");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoMacroRegistry");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::MacroExpansionFailed");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::PatternMatchFailed");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EffectfulInStep");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::NoStepRule");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::AssertionFailed");
-    ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::SandboxScopeLeak");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::ServiceNotRunning");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::EdnCoerceMismatch");
     ::wat_source_derive::wat_record_from!(env, "wat/runtime-errors.wat", ":wat::runtime::UnknownField");

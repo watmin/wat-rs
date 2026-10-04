@@ -43,8 +43,10 @@ fn snap(v: Value) -> ValueSnapshot {
 
 /// One instance of every `RuntimeErrorKind` variant, paired with the
 /// `:wat::runtime::<Kind>` record name `to_record` must produce for it.
-/// 40 entries — the measured count (`src/value/signal.rs:376`), not the
-/// brief's first-draft 31.
+/// 33 entries — excursus 003 strike G item 1 retired 7 measured-dead kinds
+/// (`ParamShadowsBuiltin`, `ChannelDisconnected`, `NoEncodingCtx`,
+/// `NoSourceLoader`, `NoMacroRegistry`, `AssertionFailed` as a
+/// `RuntimeErrorKind`, `SandboxScopeLeak`) from the prior 40.
 fn all_variants() -> Vec<(&'static str, RuntimeError)> {
     let mk = |k: RuntimeErrorKind| RuntimeError::new(s(), k);
     vec![
@@ -58,7 +60,6 @@ fn all_variants() -> Vec<(&'static str, RuntimeError)> {
         ("ArityMismatch", mk(RuntimeErrorKind::ArityMismatch { op: ":user::f".into(), expected: 2, got: 1 })),
         ("BadCondition", mk(RuntimeErrorKind::BadCondition { got: Box::new(snap(Value::i64(0))) })),
         ("MalformedForm", mk(RuntimeErrorKind::MalformedForm { head: "if".into(), reason: "missing branch".into() })),
-        ("ParamShadowsBuiltin", mk(RuntimeErrorKind::ParamShadowsBuiltin("if".into()))),
         ("DivisionByZero", mk(RuntimeErrorKind::DivisionByZero)),
         ("IntegerOverflow", mk(RuntimeErrorKind::IntegerOverflow { op: "+".into(), a: i64::MAX, b: 1 })),
         ("DuplicateDefine", mk(RuntimeErrorKind::DuplicateDefine(":user::f".into()))),
@@ -74,11 +75,7 @@ fn all_variants() -> Vec<(&'static str, RuntimeError)> {
         ("EvalVerificationFailed", mk(RuntimeErrorKind::EvalVerificationFailed {
             err: HashError::new(s(), HashErrorKind::Mismatch { algo: "sha256".into(), expected: "aaa".into(), actual: "bbb".into() }),
         })),
-        ("ChannelDisconnected", mk(RuntimeErrorKind::ChannelDisconnected { op: ":wat::kernel::join".into() })),
         ("ReteCeiling", mk(RuntimeErrorKind::ReteCeiling(ReteCeiling::FixpointRoundCapExceeded { cap: 50, still_deriving: 12 }))),
-        ("NoEncodingCtx", mk(RuntimeErrorKind::NoEncodingCtx { op: ":wat::holon::cosine".into() })),
-        ("NoSourceLoader", mk(RuntimeErrorKind::NoSourceLoader { op: ":wat::eval-file!".into() })),
-        ("NoMacroRegistry", mk(RuntimeErrorKind::NoMacroRegistry { op: ":wat::core::macroexpand".into() })),
         ("MacroExpansionFailed", mk(RuntimeErrorKind::MacroExpansionFailed {
             op: ":wat::core::macroexpand".into(),
             cause: Box::new(MacroError { span: s(), kind: MacroErrorKind::DuplicateMacro(":user::m".into()) }),
@@ -86,10 +83,6 @@ fn all_variants() -> Vec<(&'static str, RuntimeError)> {
         ("PatternMatchFailed", mk(RuntimeErrorKind::PatternMatchFailed { value_type: "i64" })),
         ("EffectfulInStep", mk(RuntimeErrorKind::EffectfulInStep { op: ":wat::kernel::println".into() })),
         ("NoStepRule", mk(RuntimeErrorKind::NoStepRule { op: ":wat::future::thing".into() })),
-        ("AssertionFailed", mk(RuntimeErrorKind::AssertionFailed {
-            message: "values differ".into(), actual: Some("42".into()), expected: Some("99".into()),
-        })),
-        ("SandboxScopeLeak", mk(RuntimeErrorKind::SandboxScopeLeak { offending_name: ":user::helper".into(), outer_define_span: s() })),
         ("ServiceNotRunning", mk(RuntimeErrorKind::ServiceNotRunning { op: ":wat::kernel::println".into() })),
         ("EdnCoerceMismatch", mk(RuntimeErrorKind::EdnCoerceMismatch {
             op: ":wat::kernel::readln".into(), expected: Box::new("i64".into()), got: Box::new("string".into()), path: "a.b".into(),
@@ -144,8 +137,12 @@ fn record_class_of(v: &Value) -> String {
 // ─── G1 — the declaration is the list ─────────────────────────────────────────
 
 /// The `:wat::runtime::*` `defrecord` names in `wat/runtime-errors.wat`,
-/// excluding `ValueSnapshot` and the two `defenum`s (`Provenance`,
-/// `ReteCeilingKind`) — G1's own scope per the brief.
+/// excluding `ValueSnapshot` and the `ReteCeilingKind` `defenum` — G1's own
+/// scope per the brief. Also excludes `AssertionFailed`: excursus 003 strike
+/// G item 1 kept that record declared (assertion panics still build it
+/// directly via `assertion_failed_value`, `src/value/runtime_records.rs`) but
+/// retired its `RuntimeErrorKind` variant, so `to_record()` no longer
+/// produces that class — the one record `all_variants()` cannot cover.
 fn declared_runtime_record_names() -> std::collections::BTreeSet<String> {
     let root = env!("CARGO_MANIFEST_DIR");
     let path = std::path::Path::new(root).join("wat/runtime-errors.wat");
@@ -160,7 +157,7 @@ fn declared_runtime_record_names() -> std::collections::BTreeSet<String> {
         }
         let Some(wat_reader::WatAST::Keyword(name, _)) = items.get(1) else { continue };
         let bare = name.as_str().trim_start_matches(":wat::runtime::");
-        if bare == "ValueSnapshot" {
+        if bare == "ValueSnapshot" || bare == "AssertionFailed" {
             continue;
         }
         names.insert(bare.to_string());

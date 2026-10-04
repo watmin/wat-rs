@@ -34,24 +34,21 @@ fn run_count(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
         // arc 296 Stone L: preserve the fence's `AssertionPayload.message` instead of a generic
         // sentinel — the sentinel is exactly what made the corresponding `.is_err()` assertion
         // vacuous (mirrors `probe_arc278_then_user_forms.rs`'s `run`, the sibling probe this
-        // module's own doc comment names). Arc 296 Stone M: the fields land in the REAL
-        // RuntimeErrorKind::AssertionFailed shape (mirrors AssertionPayload's own layout)
-        // instead of being flattened to a bare String.
+        // module's own doc comment names). Excursus 003 strike G item 1: wraps via
+        // `MalformedForm`, not the retired `RuntimeErrorKind::AssertionFailed` — only `message`
+        // was ever read downstream.
         Err(panic_payload) => {
-            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
-                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
-                None => {
-                    let message = panic_payload
-                        .downcast_ref::<String>()
-                        .cloned()
-                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
-                        .unwrap_or_else(|| "panic-opaque".to_string());
-                    (message, None, None)
-                }
+            let message = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => p.message.clone(),
+                None => panic_payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                    .unwrap_or_else(|| "panic-opaque".to_string()),
             };
             Err(StartupError::Runtime(Box::new(RuntimeError::new(
                 wat::rust_caller_span!(),
-                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+                RuntimeErrorKind::MalformedForm { head: "assertion-failed".into(), reason: message },
             ))))
         }
         Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
@@ -97,8 +94,8 @@ fn fence_rejects_impure_where_at_compile() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
-                if message == "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+            RuntimeErrorKind::MalformedForm { reason, .. }
+                if reason == "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
         )
     );
 }

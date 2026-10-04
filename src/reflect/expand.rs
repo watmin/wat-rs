@@ -74,9 +74,15 @@ pub(crate) fn eval_macroexpand_1(
             .into());
         }
     };
-    let registry = sym.macro_registry().ok_or(RuntimeError::new(
+    // Excursus 003 strike G item 1 — `RuntimeErrorKind::NoMacroRegistry`
+    // retired (measured dead, zero construction sites reachable via the
+    // frozen pipeline); reuses the still-live `MalformedForm` kind.
+    let registry = sym.macro_registry().ok_or_else(|| RuntimeError::new(
         args[0].span().clone(),
-        RuntimeErrorKind::NoMacroRegistry { op: OP.into() },
+        RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable".into(),
+        },
     ))?;
     let expanded = crate::macros::expand_once(ast, registry, env, sym).map_err(|e| {
         RuntimeError::new(
@@ -134,9 +140,15 @@ pub(crate) fn eval_macroexpand(
             .into());
         }
     };
-    let registry = sym.macro_registry().ok_or(RuntimeError::new(
+    // Excursus 003 strike G item 1 — `RuntimeErrorKind::NoMacroRegistry`
+    // retired (measured dead, zero construction sites reachable via the
+    // frozen pipeline); reuses the still-live `MalformedForm` kind.
+    let registry = sym.macro_registry().ok_or_else(|| RuntimeError::new(
         args[0].span().clone(),
-        RuntimeErrorKind::NoMacroRegistry { op: OP.into() },
+        RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: "no macro registry attached to SymbolTable; macroexpand / macroexpand-1 require one. Call via the freeze pipeline, or set_macro_registry on the test SymbolTable".into(),
+        },
     ))?;
     for _ in 0..crate::macros::EXPANSION_DEPTH_LIMIT {
         let next = crate::macros::expand_once(ast.clone(), registry, env, sym).map_err(|e| {

@@ -67,9 +67,11 @@ fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
                 .cloned()
                 .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
                 .unwrap_or_else(|| "panic-opaque".to_string());
+            // Excursus 003 strike G item 1: wraps via `MalformedForm`, not the retired
+            // `RuntimeErrorKind::AssertionFailed` — nothing downstream reads this error's kind.
             Err(StartupError::Runtime(Box::new(RuntimeError::new(
                 wat::rust_caller_span!(),
-                RuntimeErrorKind::AssertionFailed { message, actual: None, expected: None },
+                RuntimeErrorKind::MalformedForm { head: "assertion-failed".into(), reason: message },
             ))))
         }
     }

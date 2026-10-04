@@ -100,7 +100,7 @@ The destination's location is populated from the source's. Conversions that prod
 
 ## Multi-span variants
 
-Some variants carry secondary locations (e.g., `SandboxScopeLeak` has the call site and the outer define site; `DefRedefForbidden` has the prior and current locations; `ProcessJoinBeforeOutputDrain` has the join site and the output-accessor site).
+Some variants carry secondary locations (e.g., `PostconditionFailed` has the body site and the `ensure` site; `DefRedefForbidden` has the prior and current locations; `ProcessJoinBeforeOutputDrain` has the join site and the output-accessor site).
 
 The PRIMARY location (the most actionable site for the user) lives in the outer struct's location field. Secondary locations live in the `kind` variant's fields, with domain-descriptive names (`outer_define_span`, `original_def_span`, `output_accessor_span`, …). Secondary locations follow the SAME elision contract — render them through the elide-aware mechanism (Stone 243.6a gated all four secondary-span Display interpolations); a secondary span is not a license to emit `<runtime>:0:0`.
 
@@ -111,7 +111,7 @@ pub struct RuntimeError {
 }
 
 pub enum RuntimeErrorKind {
-    SandboxScopeLeak { offending_name: String, outer_define_span: Span },
+    PostconditionFailed { ensure_span: Box<Span>, /* ... */ },
     DefRedefForbidden { name: String, original_def_span: Span },
 }
 ```

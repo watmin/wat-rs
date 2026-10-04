@@ -156,7 +156,6 @@ const KNOWN_BROKEN_DOC_LINKS: &[(&str, &str, usize)] = &[
     ("src/value/environment.rs", "SymbolTable", 1),
     ("src/value/mod.rs", "must_use", 1),
     ("src/value/symbol_table.rs", "2", 1),
-    ("src/value/symbol_table.rs", "RuntimeError::NoEncodingCtx", 1),
 ];
 
 /// Wall-clock bound on the spawned doc build. **300s, against a worst OBSERVED 10.68s.**

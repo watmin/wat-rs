@@ -60,22 +60,6 @@ pub struct SymbolTable {
     /// e.g. to walk a consumer's entry-enum decl and synthesize
     /// schemas + INSERT statements without consumer code (arc 085).
     types: Option<Arc<TypeEnv>>,
-    /// Arc 140 slice 1 — when this SymbolTable belongs to a sub-
-    /// program (one started via `:wat::kernel::run-sandboxed-ast` /
-    /// `run-sandboxed-hermetic-ast`), this field carries an
-    /// Arc to the OUTER scope's frozen SymbolTable. Used by the
-    /// runtime's UnknownFunction site to detect sandbox-scope leaks:
-    /// when a call head doesn't resolve in the inner scope but DOES
-    /// resolve in `outer_symbols`, fire `RuntimeError::SandboxScopeLeak`
-    /// with a teaching diagnostic. Sandbox isolation is preserved —
-    /// `outer_symbols` is read-only and only consulted on the failure
-    /// path; nothing in the success path consults it.
-    ///
-    /// `None` for the entry program (no outer scope) and for test
-    /// harnesses that build a SymbolTable directly. Set by the spawn
-    /// driver (`spawn::eval_kernel_spawn_program_ast` and siblings)
-    /// after the sub-program's freeze completes.
-    pub outer_symbols: Option<Arc<SymbolTable>>,
     // Stone A0 — `defined_values: HashMap<String, (TypeExpr, Span)>` field
     // DELETED. Its doc comment claimed "Populated by `register_defs` during
     // the startup pipeline (step 6c...)" but no such writer ever existed
@@ -396,7 +380,7 @@ impl SymbolTable {
 
     /// Borrow the encoding context, if one is attached. Runtime
     /// primitives that require encoding (`:wat::holon::cosine`) call
-    /// this and raise [`RuntimeError::NoEncodingCtx`] on `None`.
+    /// this and raise an error on `None`.
     pub fn encoding_ctx(&self) -> Option<&Arc<EncodingCtx>> {
         self.encoding_ctx.as_ref()
     }
@@ -458,7 +442,7 @@ impl SymbolTable {
     }
 
     /// Borrow the macro registry, if one is attached. `macroexpand`
-    /// and `macroexpand-1` call this and raise `NoMacroRegistry` on
+    /// and `macroexpand-1` call this and raise an error on
     /// `None` — test harnesses that build a SymbolTable directly
     /// without going through freeze don't have macros attached.
     pub fn macro_registry(&self) -> Option<&Arc<MacroRegistry>> {

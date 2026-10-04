@@ -47,21 +47,20 @@ fn compile_message(world_path: &str, fn_name: &str) -> Result<Value, StartupErro
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
         Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
+        // Excursus 003 strike G item 1: wraps via `MalformedForm`, not the retired
+        // `RuntimeErrorKind::AssertionFailed` — only `message` was ever read downstream.
         Err(panic_payload) => {
-            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
-                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
-                None => {
-                    let message = panic_payload
-                        .downcast_ref::<String>()
-                        .cloned()
-                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
-                        .unwrap_or_else(|| "panic-opaque".to_string());
-                    (message, None, None)
-                }
+            let message = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => p.message.clone(),
+                None => panic_payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                    .unwrap_or_else(|| "panic-opaque".to_string()),
             };
             Err(StartupError::Runtime(Box::new(RuntimeError::new(
                 wat::rust_caller_span!(),
-                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+                RuntimeErrorKind::MalformedForm { head: "assertion-failed".into(), reason: message },
             ))))
         }
     }
@@ -79,7 +78,7 @@ fn impure_where_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
         )
     );
@@ -94,7 +93,7 @@ fn nondeterministic_where_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: where expr is not deterministic — ':wat::uuid::v4' is not deterministic"
         )
     );
@@ -109,7 +108,7 @@ fn partial_where_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: where expr is not total — ':wat::i64::/' is not total"
         )
     );
@@ -124,7 +123,7 @@ fn core_op_where_names_law_a_not_total() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: where expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
         )
     );
@@ -138,7 +137,7 @@ fn partial_then_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: then expr is not total — ':wat::i64::/' is not total"
         )
     );
@@ -152,7 +151,7 @@ fn core_op_then_names_law_a_not_total() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: then expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
         )
     );
@@ -166,7 +165,7 @@ fn impure_accumulator_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: accumulator expr is not pure — ':wat::io::IOReader/open-file' is not pure"
         )
     );
@@ -180,7 +179,7 @@ fn partial_accumulator_names_the_offending_head_and_axis() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: accumulator expr is not total — ':wat::i64::/' is not total"
         )
     );
@@ -194,7 +193,7 @@ fn core_op_accumulator_names_law_a_not_total() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: accumulator expr is not a rete primitive — ':wf::core-fold' is not a rete primitive; a accumulator admits only :wat::rete:: ops"
         )
     );

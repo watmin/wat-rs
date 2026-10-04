@@ -41,21 +41,20 @@ fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
         Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
+        // Excursus 003 strike G item 1: wraps via `MalformedForm`, not the retired
+        // `RuntimeErrorKind::AssertionFailed` — only `message` was ever read downstream.
         Err(panic_payload) => {
-            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
-                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
-                None => {
-                    let message = panic_payload
-                        .downcast_ref::<String>()
-                        .cloned()
-                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
-                        .unwrap_or_else(|| "panic-opaque".to_string());
-                    (message, None, None)
-                }
+            let message = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => p.message.clone(),
+                None => panic_payload
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                    .unwrap_or_else(|| "panic-opaque".to_string()),
             };
             Err(StartupError::Runtime(Box::new(RuntimeError::new(
                 wat::rust_caller_span!(),
-                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+                RuntimeErrorKind::MalformedForm { head: "assertion-failed".into(), reason: message },
             ))))
         }
     }
@@ -87,7 +86,7 @@ fn construct_plus_impure_op_still_refused() {
         r,
         StartupError::Runtime(e) if matches!(
             e.kind(),
-            RuntimeErrorKind::AssertionFailed { message, .. }
+            RuntimeErrorKind::MalformedForm { reason: message, .. }
                 if message == "compile-condition: then expr is not pure — ':wat::io::IOReader/open-file' is not pure"
         )
     );

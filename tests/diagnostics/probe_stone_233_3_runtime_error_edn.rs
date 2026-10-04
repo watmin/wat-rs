@@ -67,35 +67,16 @@ fn probe_2_type_mismatch_carries_all_struct_fields() {
     wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__type_mismatch.edn", "TypeMismatch serialization must include all fields: op, expected, got, span");
 }
 
-// ─── Probe 3 — AssertionFailed Option<String> fields render Nil/String ──────
-
-#[test]
-fn probe_3_assertion_failed_with_optional_fields() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 1, 1);
-    let err = RuntimeError::new(span.clone(), RuntimeErrorKind::AssertionFailed {
-        message: "assertion fired".into(),
-        actual: Some("42".into()),
-        expected: None, // tests the Nil branch
-    });
-
-    let edn = err.to_edn();
-    let serialized = wat_edn::write(&edn);
-
-    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__assertion_failed.edn", "AssertionFailed must surface message, actual (Some), and expected (None/nil)");
-}
-
-// ─── Probe 4 — Tuple variant (ParamShadowsBuiltin: String + Span) ───────────
-
-#[test]
-fn probe_4_tuple_variant_serializes() {
-    let span = Span::new(Arc::new("test.wat".to_string()), 9, 4);
-    let err = RuntimeError::new(span, RuntimeErrorKind::ParamShadowsBuiltin("my-fn".into()));
-
-    let edn = err.to_edn();
-    let serialized = wat_edn::write(&edn);
-
-    wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__param_shadows_builtin.edn", "ParamShadowsBuiltin must serialize to exact tagged EDN with :name and :span");
-}
+// ─── Probes 3 & 4 — RETIRED (excursus 003 strike G item 1) ──────────────────
+//
+// `RuntimeErrorKind::AssertionFailed` and `RuntimeErrorKind::ParamShadowsBuiltin`
+// were both measured dead (zero construction sites via the frozen-pipeline
+// census, GD2a) and retired. `:wat::runtime::AssertionFailed` the WAT RECORD
+// stays declared — assertion panics still build it directly via
+// `assertion_failed_value` (`src/value/runtime_records.rs`), never through
+// this `RuntimeErrorKind` variant — so its own EDN shape has no remaining
+// probe here; `src/panic_hook.rs`'s own unit tests cover the panic path's
+// `#wat.runtime/AssertionFailed` wire tag.
 
 // ─── Probe 5 — Provenance variants render with per-variant tags ─────────────
 
