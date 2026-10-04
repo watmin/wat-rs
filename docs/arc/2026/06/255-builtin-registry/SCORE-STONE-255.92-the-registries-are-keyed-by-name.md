@@ -207,3 +207,117 @@ broken intra-doc links moved away from the frozen ledger:
 ## What was not done
 
 No hand sweep of literals. No global interner. No `HashMap<String, Name>` spelling index. `flat` is still there. `fold_member_twin` was not ported. No `.wat` file was edited. The 328 failures were not patched. Stone 3 was not started.
+
+## Amend — one name, and the composite key is a TypeKey
+
+The STOP-1 and STOP-2 sections above stand. This appendix is the amend. Acceptance is `cfe6570e155b33883567b0b067fd610115092d6d`. Porcelain was empty when the floor started.
+
+| hash | subject |
+|---|---|
+| `6b93e158684d235fd9dc92c09f6f559aedc43b64` | amend document. Trailer `Co-Authored-By: Claude Opus 5.5`. The file only. |
+| `4a78369b2bfe86662936160f2ef54dd398ed79b1` | both joins are one name, and a composite key is structure. watmin, no trailer. |
+| `d0ec7d3c765058b66df61da77d3d9dcbe00052cb` | a dotted fact class is the keyword the registry kept |
+| `7a7973b756948db7561b6954f702f3b7c3319add` | i64 membership is a bool |
+| `cfe6570e155b33883567b0b067fd610115092d6d` | the heresy walk's floor sits under 300 sites |
+
+### Joins
+
+`:user::helper/of` and `:user::helper::of` are one `Name`. The refusal file is now `tests/macros/probe_arc251_8d_macro_member_join_wrong_join.wat`. Both spellings reach one macro, and the registry row is one key. `:wat::spawn::process/runner-count` resolves. The fixture is `tests/services/probe_arc255_14_namespace_join_old_join.wat` (a `.wat.bad` that starts clean fails `every_wat_bad_fixture_actually_fails`). Unknown member and unknown type member stay refusals. `:wat::type::i64` and `:wat::core::i64` stay distinct. `canonical_identity` of a keyword that already contains `::` returns that string unchanged, including a keyword that also contains `/`.
+
+`CheckEnv` keeps `HashMap<String, TypeScheme>`. `scheme_by_name` records the first spelling. `get` returns the exact hit, and on a miss enters the name and reads the kept spelling. The overlay gate still compares the exact string before the insert. `get_defclause_clauses` and `get_defined_value_type` stay exact-string. The intrinsic table stays string-keyed.
+
+### Variant match
+
+Runtime match sites and the rete expression compare variant identity with `Name::same_entered_name`: equal text, then `Name::enter`. `try_eval_enum_map_ctor` stores `enum_def.name`, the declared keyword. `compose_variant` in `src/rete/matcher.rs` was left as written. `wat/kernel/services/stdio.wat` was not edited.
+
+### TypeKey
+
+`src/type_key.rs`. `TypeKey` is `Name`, `Var`, or `Apply { head, args }`. `parametric_extensions`, `subtype_edges`, and `subtype_parents` hold those keys. The rendered side maps are gone. `base_of_rendered_type` is gone. An insert that cannot build a key panics at `require_type_key_spelling` or `require_type_key_expr`, and the message names the site.
+
+### Fact class
+
+`aggregate_field_names` looks up `format!(":{class}")`. `wat.grep/Node` becomes `:wat.grep/Node`. `Name::enter` of that spelling is a bare pair whose namespace keeps the leading colon, and that pair is not `{wat.grep, Node}`. The index holds `:wat::grep::Node` and the display `wat.grep/Node`. On the green tree, `TypeEnv::get` tried `canonical_identity`, which turns `:wat.grep/Node` into `:wat::grep::Node`. `get` and `contains` do that on a miss. A hit returns on the first lookup. A spelling that already contains `::` compares equal to its identity, so the second lookup does not run.
+
+### Collisions
+
+`WAT_NAME_COLLISIONS` was set for three floors, and each file was truncated first. All three are 0 bytes:
+
+- `/tmp/name-collisions-25592-amend.txt` (`.floor/2026-10-04T07-10-00Z`)
+- `/tmp/name-collisions-25592-amend2.txt` (`.floor/2026-10-04T07-32-46Z`)
+- `/tmp/name-collisions-25592-amend3.txt` (`.floor/2026-10-04T07-42-43Z`)
+
+The instrument appends one line when an insert finds the `Name` already present under a different spelling. No line was written. There is no unequal row. `values_equal: None` means the two values were not compared. It does not appear here, because no row was written. Most `TypeDef` inserts still pass `None` when a collision does happen; this run did not produce one.
+
+### Heresy and the loose assert
+
+`is_subtype` had `sup == ":wat::type::Value"` and `sub == ":wat::type::Never"`. Those two compares grew the ledger from 63 to 65. They are gone. The endpoints are the `Name` compares in `is_subtype_key`. `:wat::core::Value` stays a different name. The census test passed on `.floor/2026-10-04T07-32-46Z` and on the acceptance floor.
+
+`startup_bare_loads_name_keys` asserted `world.types.contains(":wat::type::i64")` inside `assert!`. The loose-assert lint flags that shape. The contains call now sits on its own statement, and the assert is `assert!(i64_is_a_name)`.
+
+### The two red floors, not re-run
+
+`.floor/2026-10-04T07-10-00Z`, on `4a78369b2`:
+
+```
+Summary [ 415.972s] 6417 tests run: 6409 passed (28 slow), 8 failed, 24 skipped
+```
+
+`FLOOR_RC=100`. The eight are `tests_carry_no_loose_string_assert` (`src/freeze.rs:2005`), `the_heresy_ledger_matches_its_frozen_census` (ledger 63, now 65, both sites in `is_subtype`), and six `UnknownFactType` failures (`wat.grep/Node`, `wat.grep/Source`, `vrm/F`, and the weather fixtures). Whole blocks are `.floor/2026-10-04T07-10-00Z/ARM.txt`. Do not re-run it.
+
+`.floor/2026-10-04T07-32-46Z`, on `7a7973b75`:
+
+```
+Summary [ 430.720s] 6417 tests run: 6416 passed (30 slow), 1 failed, 24 skipped
+```
+
+`the_discriminator_reaches_the_tree_and_its_passes_converge` panicked at `tests/lint/keyword_heresy_ledger.rs:963:5`:
+
+```
+only 300 decision sites found (364 measured 2026-09-22) — the shape detector is not firing
+```
+
+The bound was `c.sites.len() > 300`, and the walk found 300 after the two compares left. `cfe6570e1` records 300 as the measurement and sets the bound to `> 250`. Do not re-run that floor. Its in-load fuzz clock was `PASS [  74.109s]`. That number is not the gate.
+
+### Cost
+
+The gate is the fuzz deftest alone, six runs, the mean of the PASS clocks. Prescribed before is detached `4d4087f03`, `/tmp/fuzz-25592-before.log`: 32.072, 31.802, 31.824, 31.948, 31.995, 32.039. Sum 191.680. Mean 31.9467 s.
+
+A later remeasure of that same commit, `/tmp/fuzz-25592-before2.log`, on a quieter machine: 31.650, 31.648, 31.663, 31.775, 31.815, 31.845. Sum 190.396. Mean 31.7327 s. The bar stays 31.9467 s.
+
+The six after the `is_subtype` compares were removed, `/tmp/fuzz-25592-amend7.log`, tree `d0ec7d3c7`: 31.566, 31.566, 31.504, 31.738, 31.845, 31.678. Sum 189.897. Mean 31.6495 s. 31.6495 ≤ 31.9467. The same mean is also under 31.7327. `7a7973b75` and `cfe6570e1` change the bool assert and the heresy bound. They do not change `is_subtype` or `NameMap::get`.
+
+Lookup of a stored spelling is one hash into an index of the inserted spelling, the keyword image, and `Name`'s `Display`. A keyword image (`:ns::name`, no `/`) or a display image (`ns/name`, no `::`) that is absent returns without `Name::enter`. A slash-keyword still enters. `cached_enter` is a thread-local hoist on the lookup path. Inserts still call `Name::enter`.
+
+These still take `&str`: `canonical_type_key`, `TypeEnv::get`, `env_key`, the call head in `eval_tail`, and the spelling `match_arm` stores. A keyword literal was not swept out of every loop.
+
+Acceptance floor, in-load, not the gate:
+
+```
+PASS [  70.731s] (2326/6417) wat::kernel test::deftest_wat_tests_rete_fuzz_test_native_matches_oracle
+```
+
+### covers, and who reads the retained spelling
+
+`UseDeclarations::covers` enters the head once. The names are equal, or the head's namespace is the declaration's `namespace.name`, or that plus further `.` segments. `Lru` does not cover `LruExtra`. A `$bound` declaration covers nothing beyond itself.
+
+Readers of the retained spelling: `UseDeclarations::list`, `functions_iter`, `unit_variants_iter`, `def_values_iter`, `subtype_parent_names`. Marker children from `classify` are printed with `TypeKey`'s `Display`.
+
+### Acceptance floor
+
+`.floor/2026-10-04T07-42-43Z` on `cfe6570e1`. Doctests exit 0. Nextest:
+
+```
+Summary [ 421.151s] 6417 tests run: 6417 passed (28 slow), 24 skipped
+```
+
+`FLOOR_RC=0`. Test-name set against `.floor/2026-10-04T04-53-19Z`, regex `^\s*(PASS|FAIL|SLOW)\s+\[[^\]]+\]\s+\(\s*\d+/\d+\)\s+(\S+)\s+(\S+)\s*$`: base 6415, this floor 6417, MISSING 0, EXTRA 2 (`wat freeze::tests::startup_bare_loads_name_keys`, `wat::macros probe_arc251_8d_macro_member_join::both_joins_of_helper_of_are_one_macro`).
+
+Clippy on this commit, before the floor: `Finished release profile [optimized] target(s) in 12.72s`, `CLIPPY_RC=0`. `cargo clippy --release --all-targets -- -D warnings`.
+
+Ignores, `git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc`: 18.
+
+Doc-link exit 0. `cargo doc` finished in 11.73 s. `doc-link-judge.log` is 0 bytes. The judge writes a report only when the ledger moves.
+
+### Still open
+
+Stone 3, stone 4, deletion of `flat`, 5c-iv, and 5d were not started. The census file was not rewritten. Not pushed.
