@@ -508,19 +508,37 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
     cx.deeper(ast.span())?;
     match ast {
         WatAST::List(items, span) => {
-            let head = match items.first() {
-                Some(WatAST::Keyword(k, _)) => k.as_str(),
+            let head_owned: std::borrow::Cow<'_, str> = match items.first() {
+                Some(WatAST::Keyword(k, _)) => std::borrow::Cow::Borrowed(k.as_str()),
+                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
+                    std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str()))
+                }
                 _ => {
                     return Err(LowerError::non_lexical(ast.span().clone()));
                 }
             };
-            if resolve_core_name(head) == ":wat::core::fn" {
+            if resolve_core_name(head_owned.as_ref()) == ":wat::core::fn" {
                 return lower_fn(items, span, cx);
             }
             Err(LowerError::non_lexical(span.clone()))
         }
         WatAST::Keyword(k, span) => {
             if let Some(func) = cx.sym.get(k) {
+                if func.rete.is_some() {
+                    if let FunctionBody::Wat(body) = &func.body {
+                        let program = lower_rete_defn(func.as_ref(), body, cx.sym)?;
+                        return Ok(Expr::CallUser {
+                            program,
+                            args: Box::from([]),
+                        });
+                    }
+                }
+            }
+            Err(LowerError::non_lexical(span.clone()))
+        }
+        WatAST::Symbol(id, span) if id.is_reference() => {
+            let k = crate::edn::render::canonical_identity(id.as_str());
+            if let Some(func) = cx.sym.get(&k) {
                 if func.rete.is_some() {
                     if let FunctionBody::Wat(body) = &func.body {
                         let program = lower_rete_defn(func.as_ref(), body, cx.sym)?;
@@ -893,6 +911,20 @@ fn lower_bracket_arm(
                 lower_expr(body, cx)?,
             ))
         }
+        [WatAST::Symbol(id, _), WatAST::Map(pairs, _), body] if id.is_reference() => {
+            let canon = crate::edn::render::canonical_identity(id.as_str());
+            if crate::match_arm::is_namespaced_variant(&canon) {
+                Ok((
+                    lower_variant_map(&canon, pairs, span, cx)?,
+                    lower_expr(body, cx)?,
+                ))
+            } else {
+                Err(LowerError::unsupported(
+                    span.clone(),
+                    "malformed match arm".into(),
+                ))
+            }
+        }
         _ => Err(LowerError::unsupported(
             span.clone(),
             "malformed match arm".into(),
@@ -957,12 +989,16 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
         WatAST::Symbol(id, _) if id.as_str() == "_" => Ok(Pat::Wild),
         WatAST::Symbol(id, _) => Ok(Pat::Bind(cx.slot(id.as_str()))),
         WatAST::List(items, span) if !items.is_empty() => {
-            let tag = match &items[0] {
-                WatAST::Keyword(k, _) => k.as_str(),
+            let tag_owned: std::borrow::Cow<'_, str> = match &items[0] {
+                WatAST::Keyword(k, _) => std::borrow::Cow::Borrowed(k.as_str()),
+                WatAST::Symbol(id, _) if id.is_reference() => {
+                    std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str()))
+                }
                 _ => {
                     return Err(LowerError::unsupported(span.clone(), "match list pattern head must be a keyword".into()));
                 }
             };
+            let tag = tag_owned.as_ref();
             if tag.contains('{') || matches!(items[0], WatAST::Map(_, _)) {
                 return Err(LowerError::unsupported(
                     span.clone(),
@@ -1031,6 +1067,17 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
                 if crate::match_arm::is_namespaced_variant(k) =>
             {
                 lower_variant_map(k, pairs, span, cx)
+            }
+            [WatAST::Symbol(id, _), WatAST::Map(pairs, _)] if id.is_reference() => {
+                let canon = crate::edn::render::canonical_identity(id.as_str());
+                if crate::match_arm::is_namespaced_variant(&canon) {
+                    lower_variant_map(&canon, pairs, span, cx)
+                } else {
+                    Err(LowerError::unsupported(
+                        span.clone(),
+                        "unsupported match pattern".into(),
+                    ))
+                }
             }
             _ => Err(LowerError::unsupported(
                 span.clone(),

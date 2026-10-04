@@ -486,6 +486,53 @@ pub fn dot_path_segments(path: &str) -> Vec<&str> {
     path.split('.').filter(|s| !s.is_empty()).collect()
 }
 
+/// Rebuild a wat keyword path from a dotted namespace and a name.
+/// `wat.core` + `if` → `:wat::core::if`. The first `/` of a Clojure spelling
+/// is the caller's split; this function does not search for one.
+pub fn ns_to_wat_path(ns: &str, name: &str) -> String {
+    // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword path from an EDN-style dotted namespace; name is a call-head
+    format!(":{}::{}", ns.replace('.', "::"), name)
+}
+
+/// A name's identity is the `(namespace, name)` pair, not its spelling.
+///
+/// Both `:wat::core::Option` and `wat.core/Option` (and the dotted-keyword
+/// `:wat.core/Option`) produce the TypeEnv key `:wat::core::Option`. Does
+/// **not** rewrite `wat.type` → `wat.core`; that namespace is real.
+///
+/// A name that already contains `::` and starts with `:` or `(` is returned
+/// unchanged. That early return is why `:wat::cache::Cache/GetResult` stays
+/// distinct from `:wat::cache::Cache::GetResult`, and why a rendered
+/// parametric `(:wat::core::Vector :- […])` is not treated as a path.
+pub fn canonical_identity(s: &str) -> String {
+    // Rust-scheme paths contain `::` — including variant paths
+    // (`StdIn.read-frame::Request`, `.` is the enum/variant separator) and
+    // surface-op aliases (`StdOut::write/Request`, `/` is Type/method in the
+    // leaf). Do NOT clojure-round-trip: that would turn `.` into `::` and
+    // `/` into `::`. Dotted-keyword `:wat.core/Option` has `/` and no `::`.
+    if s.contains("::") {
+        // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
+        // Rendered parametric forms `(:wat::core::Vector :- […])` contain `::`
+        // but are not a path to prefix.
+        if s.starts_with(':') || s.starts_with('(') {
+            return s.to_string();
+        }
+        return format!(":{s}");
+    }
+    if !s.starts_with(':') {
+        if let Some((ns, name)) = s.split_once('/') {
+            return ns_to_wat_path(ns, name);
+        }
+        return s.to_string();
+    }
+    if let Some(body) = s.strip_prefix(':') {
+        if let Some((ns, name)) = body.split_once('/') {
+            return ns_to_wat_path(ns, name);
+        }
+    }
+    s.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -804,5 +851,22 @@ mod tests {
         assert_eq!(method(name), "apply");
         assert!(prime(receiver(name)));
         assert_eq!(deprimed(receiver(name)), ":sort");
+    }
+
+    /// The slash rule, pinned to the values `canonical_identity` returns today.
+    /// The expectations are literals. A test that recomputes the mapping checks nothing.
+    #[test]
+    fn canonical_identity_holds_todays_slash_rule() {
+        assert_eq!(canonical_identity("u/a/b"), ":u::a/b");
+        assert_eq!(
+            canonical_identity("u/pathological/name//foo"),
+            ":u::pathological/name//foo"
+        );
+        assert_eq!(canonical_identity("wat.core//"), ":wat::core::/");
+        assert_eq!(canonical_identity(":wat::core::Option"), ":wat::core::Option");
+        assert_eq!(
+            canonical_identity("(:wat::core::Vector :- [:wat::core::i64])"),
+            "(:wat::core::Vector :- [:wat::core::i64])"
+        );
     }
 }

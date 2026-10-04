@@ -1129,14 +1129,17 @@ fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<()
     if axes.len() <= 1 || !axes.contains(&Axis::RetePrimitive) {
         return Ok(());
     }
-    if let Some(WatAST::Keyword(k, s)) = items.first() {
-        if crate::rete::vocabulary::rete_op_for(k).is_none()
-            && matches!(
-                crate::rete::vocabulary::resolve_core_name(k),
-                ":wat::core::cond" | ":wat::core::match" | ":wat::core::fn"
-            )
-        {
-            return Err(AxisViolation::at(s.clone(), k.clone(), Axis::RetePrimitive));
+    if let Some(node) = items.first() {
+        // Keyword payload unchanged (`spelling_key`). A reference symbol takes the door.
+        if let Some(k) = crate::form_match::spelling_key(node) {
+            if crate::rete::vocabulary::rete_op_for(&k).is_none()
+                && matches!(
+                    crate::rete::vocabulary::resolve_core_name(&k),
+                    ":wat::core::cond" | ":wat::core::match" | ":wat::core::fn"
+                )
+            {
+                return Err(AxisViolation::at(node.span().clone(), k, Axis::RetePrimitive));
+            }
         }
     }
     Ok(())
@@ -1251,16 +1254,19 @@ fn classify_expr(
         // guards). `holon/CLAUDE.md`: suspect a string comparison before the type system.
         WatAST::List(items, _)
             if axes == [Axis::RetePrimitive]
-                && matches!(items.first(), Some(WatAST::Keyword(k, _))
-                    if crate::rete::vocabulary::rete_op_for(k).is_none()
+                && items.first().and_then(crate::form_match::spelling_key).is_some_and(|k| {
+                    crate::rete::vocabulary::rete_op_for(&k).is_none()
                         && matches!(
-                            crate::rete::vocabulary::resolve_core_name(k),
+                            crate::rete::vocabulary::resolve_core_name(&k),
                             ":wat::core::cond" | ":wat::core::match" | ":wat::core::fn"
-                        )) =>
+                        )
+                }) =>
         {
-            let (head, span) = match items.first() {
-                Some(WatAST::Keyword(k, s)) => (k.clone(), s.clone()),
-                _ => (String::from("<structural form>"), ast.span().clone()),
+            let (head, span) = match items.first().and_then(|n| {
+                crate::form_match::spelling_key(n).map(|k| (k, n.span().clone()))
+            }) {
+                Some(pair) => pair,
+                None => (String::from("<structural form>"), ast.span().clone()),
             };
             Err(AxisViolation::at(span, head, Axis::RetePrimitive))
         }
@@ -1280,7 +1286,7 @@ fn classify_expr(
         // indirection, never a duplicated arm), so `:wat::rete::core::cond` is recognised here
         // too. A non-rete head (the entire core corpus) round-trips through `resolve_core_name`
         // unchanged — zero behavior change for anything not in `RETE_OPS`.
-        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::cond") => {
+        WatAST::List(items, _) if items.first().and_then(crate::form_match::spelling_key).is_some_and(|k| crate::rete::vocabulary::resolve_core_name(&k) == ":wat::core::cond") => {
             for clause in &items[1..] {
                 match clause {
                     WatAST::List(parts, _) => {
@@ -1308,7 +1314,7 @@ fn classify_expr(
         // structural-guard widening is this one indirection, never a duplicated arm). A
         // non-rete head (the entire core corpus) round-trips through `resolve_core_name`
         // unchanged — zero behavior change for anything not in `RETE_OPS`.
-        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::match") => {
+        WatAST::List(items, list_span) if items.first().and_then(crate::form_match::spelling_key).is_some_and(|k| crate::rete::vocabulary::resolve_core_name(&k) == ":wat::core::match") => {
             let scrut = items.get(1).ok_or_else(|| {
                 AxisViolation::at(list_span.clone(), "<malformed match: no scrutinee>", axes[0])
             })?;
@@ -1353,7 +1359,7 @@ fn classify_expr(
         // keyed on the rete name (STOP-4: one indirection, never a duplicated arm). A non-rete
         // head (the entire core corpus) round-trips through `resolve_core_name` unchanged —
         // zero behavior change for anything not in `RETE_OPS`.
-        WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::fn") => {
+        WatAST::List(items, list_span) if items.first().and_then(crate::form_match::spelling_key).is_some_and(|k| crate::rete::vocabulary::resolve_core_name(&k) == ":wat::core::fn") => {
             match items.iter().position(crate::types::is_return_arrow) {
                 Some(i) => {
                     let body = items.get(i + 2..).ok_or_else(|| {

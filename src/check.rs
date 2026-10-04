@@ -14656,8 +14656,11 @@ fn infer_form_matches(
             return CheckResult::partial_with(bool_ty, local_errors);
         }
     };
-    let type_name = match &pattern_items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
+    let type_name_owned: std::borrow::Cow<'_, str> = match &pattern_items[0] {
+        WatAST::Keyword(k, _) => std::borrow::Cow::Borrowed(k.as_str()),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str()))
+        }
         _ => {
             local_errors.push(CheckError { span: pattern_items[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::form::matches?".into(),
@@ -14668,6 +14671,7 @@ fn infer_form_matches(
             return CheckResult::partial_with(bool_ty, local_errors);
         }
     };
+    let type_name: &str = type_name_owned.as_ref();
 
     // Resolve struct fields. Arc 293.2b — matches? only works on Struct aggregates.
     let fields: Vec<(String, TypeExpr)> = match env.types().get(type_name) {

@@ -120,20 +120,27 @@ pub(crate) fn eval_form_matches(
 
     // Pattern shape: `(:TYPE-NAME clause ...)`. The type checker
     // rejected anything else; here we just destructure.
-    let (type_name, clauses) = match &args[1] {
-        WatAST::List(items, _) if !items.is_empty() => match &items[0] {
-            WatAST::Keyword(k, _) => (k.as_str(), &items[1..]),
-            other_head => {
-                return Err(RuntimeError::new(
-                    other_head.span().clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: OP.into(),
-                        reason: "pattern head must be a struct type keyword".into(),
-                    },
-                )
-                .into());
+    let (type_name_owned, clauses): (std::borrow::Cow<'_, str>, &[WatAST]) = match &args[1] {
+        WatAST::List(items, _) if !items.is_empty() => {
+            let clauses = &items[1..];
+            match &items[0] {
+                WatAST::Keyword(k, _) => (std::borrow::Cow::Borrowed(k.as_str()), clauses),
+                WatAST::Symbol(id, _) if id.is_reference() => (
+                    std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str())),
+                    clauses,
+                ),
+                other_head => {
+                    return Err(RuntimeError::new(
+                        other_head.span().clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: OP.into(),
+                            reason: "pattern head must be a struct type keyword".into(),
+                        },
+                    )
+                    .into());
+                }
             }
-        },
+        }
         other_pat => {
             return Err(RuntimeError::new(
                 other_pat.span().clone(),
@@ -146,6 +153,7 @@ pub(crate) fn eval_form_matches(
         }
     };
 
+    let type_name: &str = type_name_owned.as_ref();
     // Arc 293.R2.1 — Aggregate with nature==Struct; class is colon-free, type_name has ':'.
     let bare_type = type_name.strip_prefix(':').unwrap_or(type_name);
     let struct_value = match &subject {

@@ -3737,44 +3737,11 @@ fn tagged_to_value(
     }
 }
 
-pub(crate) fn ns_to_wat_path(ns: &str, name: &str) -> String {
-    // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword path from an EDN-style dotted namespace; name is a call-head
-    format!(":{}::{}", ns.replace('.', "::"), name)
-}
-
-/// A name's identity is the `(namespace, name)` pair, not its spelling.
-///
-/// Stone 255.1: both `:wat::core::Option` and `wat.core/Option` (and the
-/// dotted-keyword `:wat.core/Option`) produce the TypeEnv key
-/// `:wat::core::Option`. Does **not** rewrite `wat.type` → `wat.core`;
-/// that namespace is real (members in `TypeEnv`).
-pub fn canonical_identity(s: &str) -> String {
-    // Rust-scheme paths contain `::` — including variant paths
-    // (`StdIn.read-frame::Request`, `.` is the enum/variant separator) and
-    // surface-op aliases (`StdOut::write/Request`, `/` is Type/method in the
-    // leaf). Do NOT clojure-round-trip: that would turn `.` into `::` and
-    // `/` into `::`. Dotted-keyword `:wat.core/Option` has `/` and no `::`.
-    if s.contains("::") { // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
-        // Rendered parametric forms `(:wat::core::Vector :- […])` contain `::`
-        // but are not a path to prefix.
-        if s.starts_with(':') || s.starts_with('(') {
-            return s.to_string();
-        }
-        return format!(":{s}");
-    }
-    if !s.starts_with(':') {
-        if let Some((ns, name)) = s.split_once('/') {
-            return ns_to_wat_path(ns, name);
-        }
-        return s.to_string();
-    }
-    if let Some(body) = s.strip_prefix(':') {
-        if let Some((ns, name)) = body.split_once('/') {
-            return ns_to_wat_path(ns, name);
-        }
-    }
-    s.to_string()
-}
+/// Re-export of the one door. The body lives in `wat-reader`, beside `Identifier`.
+/// Callers in this crate keep `crate::edn::render::canonical_identity`.
+pub use wat_reader::canonical_identity;
+/// Same door. `pub(crate)` here is the visibility this crate had before the move.
+pub(crate) use wat_reader::ns_to_wat_path;
 
 /// Colon-free fact-class key. `:wat::grep::Node` and `wat.grep/Node` are both
 /// `wat::grep::Node`. A keyword that is already that key is unchanged.

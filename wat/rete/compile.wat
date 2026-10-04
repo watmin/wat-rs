@@ -49,16 +49,53 @@
                         new-node (wat.core/assoc node :children new-ch)]
         (wat.core/assoc network node-id new-node)))))
 
-;; find-or-mint-alpha — find an existing AlphaNode whose tests == cond, or mint a new one.
-;; Dedup key: "alpha:<write-forms cond>".
-;; Returns a MintResult(id, updated-state).
-;; WHY write-forms for key: gives a canonical string from the WatAST form; structural
-;; equality on the form is span-agnostic so identical conditions always produce the same key.
+;; head-identity — a keyword head's text is the internal identity, unchanged.
+;; A symbol head is the other spelling of that same identity. A dotted keyword
+;; is left as written: rewriting it would change a keyword program.
+(wat.core/defn wat.rete/head-identity
+  [node :- wat.type/AST]
+  :- wat.type/String
+  (wat.core/let [nm (wat.core/ast-name node)]
+    (wat.core/if (wat.core/= (wat.core/ast-kind node) "symbol")
+      (wat.core/canonical-identity nm)
+      nm)))
+
+;; canon-cond — the cond with every reference symbol replaced by the keyword
+;; of its identity. Keyword payloads stay. Bare symbols stay. write-forms of
+;; this tree is the dedup string: two spellings of one cond share a node, and
+;; a keyword-only cond still shares with itself.
+(wat.core/defn wat.rete/canon-cond
+  [node :- wat.type/AST]
+  :- wat.type/AST
+  (wat.core/let [kind (wat.core/ast-kind node)]
+    (wat.core/cond
+      ((wat.core/= kind "keyword") node)
+      ((wat.core/and (wat.core/= kind "symbol")
+                     (wat.string/contains? (wat.core/ast-name node) "/"))
+       (wat.core/keyword-node (wat.core/canonical-identity (wat.core/ast-name node))))
+      (:else
+       (wat.core/let [ch (wat.core/ast->children node)]
+         (wat.core/with-children node
+           (wat.core/foldl
+             (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST])
+                              i   :- wat.type/i64]
+               :- (wat.type/Vector :- [wat.type/AST])
+               (wat.core/conj acc
+                 (wat.rete/canon-cond
+                   (wat.core.Option/expect
+                     (wat.core/get ch i)
+                     "canon-cond"))))
+             (wat.type/Vector :- [wat.type/AST])
+             (wat.core/range 0 (wat.core/length ch)))))))))
+
+;; find-or-mint-alpha — find an existing AlphaNode whose names match cond, or mint a new one.
+;; Dedup key: "alpha:" plus write-forms of the canonical cond. The stored :tests
+;; stay the source cond. Returns a MintResult(id, updated-state).
 (wat.core/defn wat.rete/find-or-mint-alpha
   [cond  :- wat.type/AST
    state :- wat.rete/CompileState]
   :- wat.rete/MintResult
-  (wat.core/let [cond-text (wat.core/write-forms cond)
+  (wat.core/let [cond-text (wat.core/write-forms (wat.rete/canon-cond cond))
                     dkey      (wat.string/interpolate "alpha:{cond-text}" :cond-text cond-text)
                     network   (wat.rete.CompileState/network state)
                     next-id   (wat.rete.CompileState/next-id state)
@@ -86,7 +123,7 @@
 ;; after accum is a where, not a reason to scan facts for the fact-shaped case).
 (wat.core/defn wat.rete/exists-uses-alpha-probe?
   [cond :- wat.type/AST] :- wat.type/bool
-  (wat.core/let [head-nm (wat.core/ast-name
+  (wat.core/let [head-nm (wat.rete/head-identity
                               (wat.core/first (wat.core/ast->children cond)))]
     (wat.core/not
       (wat.core/or (wat.core/= head-nm ":wat::rete::where")
@@ -120,7 +157,7 @@
   :- wat.rete/CompileState
   (wat.core/if (wat.rete/exists-uses-alpha-probe? cond)
     (wat.rete.MintResult/state (wat.rete/find-or-mint-alpha cond state))
-    (wat.core/let [head-nm (wat.core/ast-name
+    (wat.core/let [head-nm (wat.rete/head-identity
                                 (wat.core/first (wat.core/ast->children cond)))]
       (wat.core/cond
         ((wat.core/= head-nm ":wat::rete::where")
@@ -150,7 +187,7 @@
   [cond  :- wat.type/AST
    state :- wat.rete/CompileState]
   :- wat.rete/MintResult
-  (wat.core/let [cond-text (wat.core/write-forms cond)
+  (wat.core/let [cond-text (wat.core/write-forms (wat.rete/canon-cond cond))
                     dkey      (wat.string/interpolate "rootjoin:{cond-text}" :cond-text cond-text)
                     network   (wat.rete.CompileState/network state)
                     next-id   (wat.rete.CompileState/next-id state)
@@ -178,7 +215,7 @@
    parent-id :- wat.type/i64
    state     :- wat.rete/CompileState]
   :- wat.rete/MintResult
-  (wat.core/let [cond-text (wat.core/write-forms cond)
+  (wat.core/let [cond-text (wat.core/write-forms (wat.rete/canon-cond cond))
                     pid-s     (wat.i64/to-string parent-id)
                     dkey      (wat.string/interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
                     network   (wat.rete.CompileState/network state)
@@ -372,7 +409,7 @@
                     ;; or a symbol-headed fact-bind / accumulate. Non-empty list.
                     cond-ch   (wat.core/ast->children cond)
                     head      (wat.core/first cond-ch)
-                    head-nm        (wat.core/ast-name head)
+                    head-nm        (wat.rete/head-identity head)
                     is-where       (wat.core/= head-nm ":wat::rete::where")
                     is-not         (wat.core/= head-nm ":wat::rete::not")
                     is-exists      (wat.core/= head-nm ":wat::rete::exists")
@@ -574,7 +611,7 @@
                             ;; (purity.rs:classify_fn).
                             acc-ch       (wat.core/ast->children acc-form)
                             acc-hd       (wat.core/first acc-ch)
-                            acc-hd-nm    (wat.core/ast-name acc-hd)
+                            acc-hd-nm    (wat.rete/head-identity acc-hd)
                             is-builtin   (wat.string/starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (wat.core/quasiquote
                                             ((wat.core/unquote acc-hd) __acc__))
@@ -743,8 +780,9 @@
         (wat.core/if (wat.i64/= (wat.core/length ch) 0)
           false
           (wat.core/let [h (wat.core/first ch)
-                            hnm (wat.core/if (wat.core/= (wat.core/ast-kind h) "keyword")
-                                   (wat.core/ast-name h)
+                            hnm (wat.core/if (wat.core/or (wat.core/= (wat.core/ast-kind h) "keyword")
+                                                          (wat.core/= (wat.core/ast-kind h) "symbol"))
+                                   (wat.rete/head-identity h)
                                    "")]
             (wat.core/if (wat.core/= hnm ":wat::rete::core::match")
               true
@@ -822,7 +860,7 @@
                     ;; PRIME `:T'` to reach the constructor fn (see this defn's doc). A plain
                     ;; `defn` already resolved to a fn above and takes the `is-fn-val` branch.
                     prime-kw  (wat.core/keyword-node
-                                  (wat.string/concat (wat.core/ast-name head) "'"))
+                                  (wat.string/concat (wat.rete/head-identity head) "'"))
                     head-fn   (wat.core/if is-fn-val
                                   head-val0
                                   (wat.core.Result/expect
@@ -896,90 +934,84 @@
         (wat.type/PersistentVector :- [wat.type/String])
         (wat.core/let [head   (wat.core/first ch)
                           head-k (wat.core/ast-kind head)]
-          (wat.core/if (wat.core/= head-k "symbol")
-            (wat.core/let [hnm (wat.core/ast-name head)]
-              (wat.core/if (wat.rete/cond-is-fact-bind cond)
-                (wat.core/foldl
-                  (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
-                                   i   :- wat.type/i64]
-                    :- (wat.type/PersistentVector :- [wat.type/String])
-                    (wat.core/let [kid (wat.core.Option/expect
-                                            (wat.core/get ch i)
-                                            "cond-bind-keys: fact-bind clause")]
-                      (wat.core/foldl
-                        (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
-                                         nm  :- wat.type/String]
-                          :- (wat.type/PersistentVector :- [wat.type/String])
-                          (wat.core/if (wat.core/contains? out nm)
-                            out
-                            (wat.core/conj out nm)))
-                        acc
-                        (wat.rete/cond-bind-keys kid))))
-                  (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                  (wat.core/range 3 n))
-                (wat.core/if
-                  (wat.core/if (wat.string/starts-with? hnm "?")
-                    (wat.core/if (wat.core/= n 3)
-                      (wat.rete/bind-arrow?
-                        (wat.core.Option/expect
-                          (wat.core/get ch 1)
-                          "cond-bind-keys: bind arrow"))
-                      false)
-                    false)
-                  (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                  (wat.core/if
-                    (wat.core/if (wat.string/starts-with? hnm "?")
-                      (wat.core/if (wat.core/= n 5)
-                        (wat.core/= (wat.core/ast-name
-                                        (wat.core.Option/expect
-                                          (wat.core/get ch 3)
-                                          "cond-bind-keys: :from"))
-                                      ":from")
-                        false)
-                      false)
-                    (wat.core/foldl
-                      (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
-                                       nm  :- wat.type/String]
-                        :- (wat.type/PersistentVector :- [wat.type/String])
-                        (wat.core/if (wat.core/contains? acc nm)
-                          acc
-                          (wat.core/conj acc nm)))
-                      (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) hnm)
-                      (wat.rete/cond-bind-keys
-                        (wat.core.Option/expect
-                          (wat.core/get ch 4)
-                          "cond-bind-keys: :from inner")))
-                    (wat.type/PersistentVector :- [wat.type/String])))))
-            (wat.core/if (wat.core/= head-k "keyword")
-              (wat.core/let [hnm (wat.core/ast-name head)]
-                (wat.core/cond
-                  ((wat.core/= hnm ":wat::rete::not")
-                   (wat.type/PersistentVector :- [wat.type/String]))
-                  ((wat.core/= hnm ":wat::rete::where")
-                   (wat.type/PersistentVector :- [wat.type/String]))
-                  ((wat.core/= hnm ":wat::rete::exists")
+          (wat.core/if (wat.core/or (wat.core/= head-k "symbol") (wat.core/= head-k "keyword"))
+            (wat.core/let [hnm (wat.rete/head-identity head)
+                           written (wat.core/ast-name head)]
+              (wat.core/cond
+                ((wat.core/= hnm ":wat::rete::not")
+                 (wat.type/PersistentVector :- [wat.type/String]))
+                ((wat.core/= hnm ":wat::rete::where")
+                 (wat.type/PersistentVector :- [wat.type/String]))
+                ((wat.core/= hnm ":wat::rete::exists")
+                 (wat.rete/cond-bind-keys (wat.core/second ch)))
+                ((wat.core/and (wat.core/= head-k "symbol")
+                               (wat.rete/cond-is-fact-bind cond))
+                 (wat.core/foldl
+                   (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                    i   :- wat.type/i64]
+                     :- (wat.type/PersistentVector :- [wat.type/String])
+                     (wat.core/let [kid (wat.core.Option/expect
+                                             (wat.core/get ch i)
+                                             "cond-bind-keys: fact-bind clause")]
+                       (wat.core/foldl
+                         (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
+                                          nm  :- wat.type/String]
+                           :- (wat.type/PersistentVector :- [wat.type/String])
+                           (wat.core/if (wat.core/contains? out nm)
+                             out
+                             (wat.core/conj out nm)))
+                         acc
+                         (wat.rete/cond-bind-keys kid))))
+                   (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) written)
+                   (wat.core/range 3 n)))
+                ((wat.core/and (wat.core/= head-k "symbol")
+                               (wat.string/starts-with? written "?")
+                               (wat.core/= n 3)
+                               (wat.rete/bind-arrow?
+                                 (wat.core.Option/expect
+                                   (wat.core/get ch 1)
+                                   "cond-bind-keys: bind arrow")))
+                 (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) written))
+                ((wat.core/and (wat.core/= head-k "symbol")
+                               (wat.string/starts-with? written "?")
+                               (wat.core/= n 5)
+                               (wat.core/= (wat.core/ast-name
+                                             (wat.core.Option/expect
+                                               (wat.core/get ch 3)
+                                               "cond-bind-keys: :from"))
+                                           ":from"))
+                 (wat.core/foldl
+                   (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                    nm  :- wat.type/String]
+                     :- (wat.type/PersistentVector :- [wat.type/String])
+                     (wat.core/if (wat.core/contains? acc nm)
+                       acc
+                       (wat.core/conj acc nm)))
+                   (wat.core/conj (wat.type/PersistentVector :- [wat.type/String]) written)
                    (wat.rete/cond-bind-keys
-                     (wat.core/second ch)))
-                  (:else
-                   (wat.core/foldl
-                     (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
-                                      i   :- wat.type/i64]
-                       :- (wat.type/PersistentVector :- [wat.type/String])
-                       (wat.core/let [kid (wat.core.Option/expect
-                                               (wat.core/get ch i)
-                                               "cond-bind-keys: child")]
-                         (wat.core/foldl
-                           (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
-                                            nm  :- wat.type/String]
-                             :- (wat.type/PersistentVector :- [wat.type/String])
-                             (wat.core/if (wat.core/contains? out nm)
-                               out
-                               (wat.core/conj out nm)))
-                           acc
-                           (wat.rete/cond-bind-keys kid))))
-                     (wat.type/PersistentVector :- [wat.type/String])
-                     (wat.core/range 1 n)))))
-              (wat.type/PersistentVector :- [wat.type/String]))))))))
+                     (wat.core.Option/expect
+                       (wat.core/get ch 4)
+                       "cond-bind-keys: :from inner"))))
+                (:else
+                 (wat.core/foldl
+                   (wat.core/fn [acc :- (wat.type/PersistentVector :- [wat.type/String])
+                                    i   :- wat.type/i64]
+                     :- (wat.type/PersistentVector :- [wat.type/String])
+                     (wat.core/let [kid (wat.core.Option/expect
+                                             (wat.core/get ch i)
+                                             "cond-bind-keys: child")]
+                       (wat.core/foldl
+                         (wat.core/fn [out :- (wat.type/PersistentVector :- [wat.type/String])
+                                          nm  :- wat.type/String]
+                           :- (wat.type/PersistentVector :- [wat.type/String])
+                           (wat.core/if (wat.core/contains? out nm)
+                             out
+                             (wat.core/conj out nm)))
+                         acc
+                         (wat.rete/cond-bind-keys kid))))
+                   (wat.type/PersistentVector :- [wat.type/String])
+                   (wat.core/range 1 n)))))
+            (wat.type/PersistentVector :- [wat.type/String])))))))
 
 ;; cond-is-fact-bind — `(?p :- :ns::Type …)` (Clara `[?p <- Type]`). Type keyword has `::`.
 (wat.core/defn wat.rete/cond-is-fact-bind

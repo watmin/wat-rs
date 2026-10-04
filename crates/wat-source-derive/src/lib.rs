@@ -99,36 +99,10 @@ fn binder_vector(items: &[wat_reader::WatAST]) -> Option<&[wat_reader::WatAST]> 
     }
 }
 
-/// Compile-time sibling of `wat::edn::render::canonical_identity`. This crate
-/// cannot import `wat` (cycle: wat-macros → wat-doc → this). Identity is the
-/// `(namespace, name)` pair; the key is the rust-scheme keyword.
-fn canonical_identity(s: &str) -> String {
-    // Compile-time sibling of `wat::edn::render::canonical_identity`.
-    // `::` ⇒ rust-scheme (prefix `:` if needed), including `/` in the leaf.
-    if s.contains("::") { // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
-        if s.starts_with(':') || s.starts_with('(') {
-            return s.to_string();
-        }
-        return format!(":{s}");
-    }
-    if !s.starts_with(':') {
-        if let Some((ns, name)) = s.split_once('/') {
-            return format!(":{}::{}", ns.replace('.', "::"), name); // rune:lint(one-variant-separator, namespace) — clojure ns/name → rust-scheme TypeEnv key; not enum/variant
-        }
-        return s.to_string();
-    }
-    if let Some(body) = s.strip_prefix(':') {
-        if let Some((ns, name)) = body.split_once('/') {
-            return format!(":{}::{}", ns.replace('.', "::"), name); // rune:lint(one-variant-separator, namespace) — dotted-keyword ns/name → rust-scheme TypeEnv key; not enum/variant
-        }
-    }
-    s.to_string()
-}
-
 fn form_identity(node: &wat_reader::WatAST) -> Option<String> {
     match node {
-        wat_reader::WatAST::Keyword(k, _) => Some(canonical_identity(k)),
-        wat_reader::WatAST::Symbol(id, _) => Some(canonical_identity(id.as_str())),
+        wat_reader::WatAST::Keyword(k, _) => Some(wat_reader::canonical_identity(k)),
+        wat_reader::WatAST::Symbol(id, _) => Some(wat_reader::canonical_identity(id.as_str())),
         _ => None,
     }
 }

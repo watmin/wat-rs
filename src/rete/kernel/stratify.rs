@@ -713,7 +713,9 @@ fn binds_var_from(lhs: &[WatAST], ty: &str, field: &str, var: &str) -> bool {
     }
     lhs.iter().any(|cond| {
         let WatAST::List(items, _) = cond else { return false };
-        let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
+        let Some(head) = items.first().and_then(crate::form_match::spelling_key) else {
+            return false;
+        };
         head.trim_start_matches(':') == ty.trim_start_matches(':')
             && items[1..].iter().any(|p| is_binding(p, field, var))
     })
@@ -728,16 +730,22 @@ fn fences(lhs: &[WatAST]) -> Vec<(String, String, i64)> {
     let mut out = Vec::new();
     for form in lhs {
         let WatAST::List(items, _) = form else { continue };
-        let Some(WatAST::Keyword(head, _)) = items.first() else { continue };
+        let Some(head) = items.first().and_then(crate::form_match::spelling_key) else {
+            continue;
+        };
         if head.trim_start_matches(':') != "wat::rete::where" {
             continue;
         }
         for inner in &items[1..] {
             let WatAST::List(call, _) = inner else { continue };
-            let [WatAST::Keyword(op, _), WatAST::Symbol(v, _), WatAST::IntLit(n, _)] = &call[..]
-            else {
+            if call.len() != 3 {
+                continue;
+            }
+            let Some(op) = crate::form_match::spelling_key(&call[0]) else {
                 continue;
             };
+            let WatAST::Symbol(v, _) = &call[1] else { continue };
+            let WatAST::IntLit(n, _) = &call[2] else { continue };
             out.push((op.trim_start_matches(':').to_string(), v.as_str().to_string(), *n));
         }
     }
@@ -801,9 +809,8 @@ fn computed_head_is_monotone_bounded(
 
     // The step: `(i64::+ ?v C …)` or `(i64::- ?v C …)`. Trailing kwargs (the `:undefined 0` tail)
     // are ignored — only the first two operands carry the measure.
-    let WatAST::Keyword(op, _) = call.first()? else {
-        return None;
-    };
+    // Keyword payload unchanged. A reference symbol is the other spelling of the same step.
+    let op = call.first().and_then(crate::form_match::spelling_key)?;
     let op = op.trim_start_matches(':');
     let step_up = match op {
         "wat::rete::i64::+" => true,

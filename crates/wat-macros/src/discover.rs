@@ -290,37 +290,12 @@ fn collect_wat_files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), Discover
     Ok(())
 }
 
-/// Compile-time sibling of `wat::edn::render::canonical_identity`.
-/// `wat-macros` cannot depend on `wat` (cycle). A head's identity is the
-/// `(namespace, name)` pair: `:wat::test::deftest` and `wat.test/deftest`
-/// are one key. Keyword programs are unchanged — a keyword that already
-/// contains `::` is returned as written.
-fn canonical_identity(s: &str) -> String {
-    if s.contains("::") {
-        if s.starts_with(':') || s.starts_with('(') {
-            return s.to_string();
-        }
-        return format!(":{s}");
-    }
-    if !s.starts_with(':') {
-        if let Some((ns, name)) = s.split_once('/') {
-            return format!(":{}::{}", ns.replace('.', "::"), name);
-        }
-        return s.to_string();
-    }
-    if let Some(body) = s.strip_prefix(':') {
-        if let Some((ns, name)) = body.split_once('/') {
-            return format!(":{}::{}", ns.replace('.', "::"), name);
-        }
-    }
-    s.to_string()
-}
-
 /// The call head's identity, or `None` when the node is not a name.
+/// The door is `wat_reader::canonical_identity` — one copy, beside `Identifier`.
 fn head_identity(node: &WatAST) -> Option<String> {
     match node {
-        WatAST::Keyword(k, _) => Some(canonical_identity(k)),
-        WatAST::Symbol(id, _) => Some(canonical_identity(id.as_str())),
+        WatAST::Keyword(k, _) => Some(wat_reader::canonical_identity(k)),
+        WatAST::Symbol(id, _) => Some(wat_reader::canonical_identity(id.as_str())),
         _ => None,
     }
 }

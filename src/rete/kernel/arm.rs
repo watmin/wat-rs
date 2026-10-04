@@ -22,14 +22,14 @@
 //!
 //! ## Two indices over the same alphas, keyed differently — do not merge them
 //!
-//! - `alpha_index_by_cond_text` maps condition TEXT → one alpha id, and exists so
-//!   `compile_cond_driver` can resolve a driver leaf. Textually identical conditions in
-//!   different rules therefore SHARE an alpha — that sharing is the point.
+//! - `alpha_index_by_cond` maps a condition's identity → one alpha id, and exists so
+//!   `compile_cond_driver` can resolve a driver leaf. Conditions with the same names
+//!   therefore SHARE an alpha — that sharing is the point. The key is the cond tree
+//!   with reference names canonicalized (`cond_key`), not the printed EDN.
 //! - `build_alpha_index` maps fact TYPE → many alpha ids (plus id → cond AST), and exists so the
 //!   alpha pass can find the candidates for an incoming fact.
 //!
-//! One is a lookup, the other a grouping; one is keyed by how a condition is WRITTEN, the other
-//! by what it MATCHES. They answer different questions over the same nodes.
+//! One is a lookup, the other a grouping. They answer different questions over the same nodes.
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -44,7 +44,7 @@ use rustc_hash::FxHashMap;
 use wat_macros::restricted_to;
 
 use super::{
-    alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
+    alpha_cond_from_node, alpha_cond_of, cond_key, cond_text, get_node, kind_of, node_children,
     node_named_ast, session_named_field,
     session_network, rule_asts_field, rule_bag_consumes, rule_consumes, rule_name_of, rule_negates,
     rule_produces, sorted_node_ids,
@@ -76,15 +76,15 @@ pub(crate) enum CondDriver {
 ///
 /// The combinators (`and`/`or`/`not`/`exists`) recurse structurally and `where` lowers to an
 /// `expr_ir::Program`; everything else is FACT-SHAPED and becomes a `Leaf` holding an alpha id,
-/// resolved by the condition's TEXT through `alpha_by_text`.
+/// resolved by the condition's identity through `alpha_by_cond`.
 ///
-/// Resolving by text is what makes two rules with an identical condition share one alpha — the
+/// Resolving by identity is what makes two rules with the same names share one alpha — the
 /// sharing is deliberate, not incidental. A miss is therefore a setup contradiction (a
 /// fact-shaped cond that was never minted an alpha) and raises rather than inventing one, since
 /// a fabricated leaf would match nothing and read as an empty result.
 pub(crate) fn compile_cond_driver(
     cond: &WatAST,
-    alpha_by_text: &HashMap<String, i64>,
+    alpha_by_cond: &HashMap<super::CondKey, i64>,
     sym: &SymbolTable,
 ) -> Result<CondDriver, EvalBreak> {
     use crate::rete::clause::{classify_rete_clause, ReteClauseShape};
@@ -92,22 +92,22 @@ pub(crate) fn compile_cond_driver(
         ReteClauseShape::And(kids) => {
             let mut out = Vec::with_capacity(kids.len());
             for k in kids {
-                out.push(compile_cond_driver(k, alpha_by_text, sym)?);
+                out.push(compile_cond_driver(k, alpha_by_cond, sym)?);
             }
             Ok(CondDriver::And(out))
         }
         ReteClauseShape::Or(kids) => {
             let mut out = Vec::with_capacity(kids.len());
             for k in kids {
-                out.push(compile_cond_driver(k, alpha_by_text, sym)?);
+                out.push(compile_cond_driver(k, alpha_by_cond, sym)?);
             }
             Ok(CondDriver::Or(out))
         }
         ReteClauseShape::Not(inner) => Ok(CondDriver::Not(Box::new(compile_cond_driver(
-            inner, alpha_by_text, sym,
+            inner, alpha_by_cond, sym,
         )?))),
         ReteClauseShape::Exists(inner) => Ok(CondDriver::Exists(Box::new(compile_cond_driver(
-            inner, alpha_by_text, sym,
+            inner, alpha_by_cond, sym,
         )?))),
         ReteClauseShape::Where(expr) => {
             let program = crate::rete::expr_ir::lower(expr, sym)
@@ -115,7 +115,7 @@ pub(crate) fn compile_cond_driver(
             Ok(CondDriver::Where(Arc::new(program)))
         }
         _ => {
-            let id = alpha_by_text.get(&cond_text(cond)).copied().ok_or_else(|| {
+            let id = alpha_by_cond.get(&cond_key(cond)).copied().ok_or_else(|| {
                 RuntimeError::new(
                     cond.span().clone(),
                     RuntimeErrorKind::MalformedForm {
@@ -132,12 +132,12 @@ pub(crate) fn compile_cond_driver(
     }
 }
 
-/// Condition TEXT → alpha id, for `compile_cond_driver`'s leaf resolution.
+/// Condition identity → alpha id, for `compile_cond_driver`'s leaf resolution.
 ///
-/// Note the `insert`: identical text collapses to ONE entry, which is exactly the alpha sharing
-/// described above. Contrast `build_alpha_index`, which `push`es because many alphas legitimately
-/// share a fact type. Same nodes, different question, different collection.
-fn alpha_index_by_cond_text(network: &Value, node_ids: &[i64]) -> HashMap<String, i64> {
+/// Note the `insert`: the same identity collapses to ONE entry, which is exactly the alpha
+/// sharing described above. Contrast `build_alpha_index`, which `push`es because many alphas
+/// legitimately share a fact type. Same nodes, different question, different collection.
+fn alpha_index_by_cond(network: &Value, node_ids: &[i64]) -> HashMap<super::CondKey, i64> {
     let mut out = HashMap::new();
     for id in node_ids {
         let Some(node) = get_node(network, *id) else {
@@ -149,7 +149,7 @@ fn alpha_index_by_cond_text(network: &Value, node_ids: &[i64]) -> HashMap<String
         let Some(stored) = alpha_cond_of(network, *id) else {
             continue;
         };
-        out.insert(cond_text(&stored), *id);
+        out.insert(cond_key(&stored), *id);
     }
     out
 }
@@ -161,7 +161,7 @@ pub(crate) fn compile_all_cond_drivers(
     node_ids: &[i64],
     sym: &SymbolTable,
 ) -> Result<HashMap<i64, CondDriver>, EvalBreak> {
-    let alpha_by_text = alpha_index_by_cond_text(network, node_ids);
+    let alpha_by_cond = alpha_index_by_cond(network, node_ids);
     let mut out = HashMap::new();
     for id in node_ids {
         let Some(node) = get_node(network, *id) else {
@@ -173,7 +173,7 @@ pub(crate) fn compile_all_cond_drivers(
         let Some(cond) = alpha_cond_of(network, *id) else {
             continue;
         };
-        out.insert(*id, compile_cond_driver(&cond, &alpha_by_text, sym)?);
+        out.insert(*id, compile_cond_driver(&cond, &alpha_by_cond, sym)?);
     }
     Ok(out)
 }
@@ -366,13 +366,22 @@ pub(crate) fn compile_alpha_conds_from_index(
             };
             let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names, sym)
                 .ok_or_else(|| {
+                    let shaped = crate::rete::matcher::alpha_pattern(cond).is_some();
+                    let reason = if shaped {
+                        format!(
+                            "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
+                        )
+                    } else {
+                        format!(
+                            "alpha {aid} is not fact-shaped — a combinator was minted as an alpha: {}",
+                            cond_text(cond)
+                        )
+                    };
                     RuntimeError::new(
                         cond.span().clone(),
                         RuntimeErrorKind::MalformedForm {
                             head: ":wat::rete::fire-rules".into(),
-                            reason: format!(
-                                "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
-                            ),
+                            reason,
                         },
                     )
                 })?;

@@ -299,6 +299,9 @@ pub(crate) fn eval_rete_vocabulary_admitted_intrinsic(
     let name = match val {
         Value::wat__WatAST(ref a) => match a.as_ref() {
             WatAST::Keyword(k, _) => k.clone(),
+            WatAST::Symbol(id, _) if id.is_reference() => {
+                crate::edn::render::canonical_identity(id.as_str())
+            }
             other => {
                 return Err(RuntimeError::new(
                     head.span().clone(),

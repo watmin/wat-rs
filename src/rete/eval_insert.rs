@@ -137,10 +137,13 @@ pub(crate) fn build_insert_fact(
             }).into());
         }
     };
-    // Keyword `:ns::Type` and symbol `ns/Type` name one record.
-    let type_keyword = match &fact_items[0] {
-        WatAST::Keyword(k, _) => k.as_str(),
-        WatAST::Symbol(id, _) if id.is_reference() => id.as_str(),
+    // Keyword payload is the lookup key as written. A reference symbol is the
+    // other spelling: `defn` and the type registry are keyed by identity.
+    let type_keyword_owned: std::borrow::Cow<'_, str> = match &fact_items[0] {
+        WatAST::Keyword(k, _) => std::borrow::Cow::Borrowed(k.as_str()),
+        WatAST::Symbol(id, _) if id.is_reference() => {
+            std::borrow::Cow::Owned(crate::edn::render::canonical_identity(id.as_str()))
+        }
         other => {
             return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -149,6 +152,7 @@ pub(crate) fn build_insert_fact(
             }).into());
         }
     };
+    let type_keyword: &str = type_keyword_owned.as_ref();
     // Arc 278 Stone B, widening (a) — the item head may now be EITHER a fact-type constructor
     // (the fast path below, UNCHANGED) OR a fn whose declared return type is a fact type ("has
     // its own argument convention" — plain positional call args, not field values;

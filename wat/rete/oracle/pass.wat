@@ -510,7 +510,7 @@
    network   :- wat.type/PersistentMap
    alpha-mem :- wat.type/PersistentMap]
   :- (wat.type/PersistentVector :- [wat.type/PersistentMap])
-  (wat.core/let [head-nm (wat.core/ast-name
+  (wat.core/let [head-nm (wat.rete/head-identity
                               (wat.core/first (wat.core/ast->children cond)))]
     (wat.core/cond
       ((wat.core/= head-nm ":wat::rete::and")
@@ -587,7 +587,7 @@
    network   :- wat.type/PersistentMap
    alpha-mem :- wat.type/PersistentMap]
   :- wat.type/bool
-  (wat.core/let [head-nm (wat.core/ast-name
+  (wat.core/let [head-nm (wat.rete/head-identity
                               (wat.core/first (wat.core/ast->children cond)))]
     (wat.core/cond
       ((wat.core/= head-nm ":wat::rete::and")

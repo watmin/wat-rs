@@ -8993,21 +8993,37 @@ fn bind_map_value(
             .into()),
             _ => try_match_pattern(pat, value, env, sym),
         },
-        WatAST::Vector(items, span) => match items.as_slice() {
-            [WatAST::Keyword(k, kspan), WatAST::Map(pairs, _)]
-                if crate::match_arm::is_namespaced_variant(k) =>
-            {
-                match_variant_map(k, kspan, pairs, value, env, sym, span)
+        WatAST::Vector(items, span) => {
+            let variant = match items.as_slice() {
+                [WatAST::Keyword(k, kspan), WatAST::Map(pairs, _)]
+                    if crate::match_arm::is_namespaced_variant(k) =>
+                {
+                    Some((std::borrow::Cow::Borrowed(k.as_str()), kspan, pairs))
+                }
+                [WatAST::Symbol(id, kspan), WatAST::Map(pairs, _)] if id.is_reference() => {
+                    let canon = crate::edn::render::canonical_identity(id.as_str());
+                    if crate::match_arm::is_namespaced_variant(&canon) {
+                        Some((std::borrow::Cow::Owned(canon), kspan, pairs))
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            };
+            match variant {
+                Some((path, kspan, pairs)) => {
+                    match_variant_map(path.as_ref(), kspan, pairs, value, env, sym, span)
+                }
+                None => Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::match".into(),
+                        reason: "nested variant pattern is `[<Variant> {:k v}]`".into(),
+                    },
+                )
+                .into()),
             }
-            _ => Err(RuntimeError::new(
-                span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::match".into(),
-                    reason: "nested variant pattern is `[<Variant> {:k v}]`".into(),
-                },
-            )
-            .into()),
-        },
+        }
         other => try_match_pattern(other, value, env, sym),
     }
 }

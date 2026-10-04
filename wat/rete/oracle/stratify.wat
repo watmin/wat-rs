@@ -73,7 +73,7 @@
                           ;; against "wat::core::fn", not ":wat::core::fn".
                           is-fn-val (wat.core/= (wat.core/type head-val0) "wat::core::fn")
                           prime-kw  (wat.core/keyword-node
-                                      (wat.string/concat (wat.core/ast-name head) "'"))
+                                      (wat.string/concat (wat.rete/head-identity head) "'"))
                           head-fn   (wat.core/if is-fn-val head-val0
                                       (wat.core.Result/expect (wat/eval-ast! prime-kw)
                                         "rule-produces: :then item head failed to resolve to a fn"))

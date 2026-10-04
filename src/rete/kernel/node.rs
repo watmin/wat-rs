@@ -215,6 +215,74 @@ pub(crate) fn cond_text(cond: &WatAST) -> String {
     wat_edn::write(&crate::edn::bridge::watast_to_edn(cond))
 }
 
+/// Alpha-table key: the cond with every reference name canonicalized.
+///
+/// A keyword payload is copied unchanged — `canonical_identity` would rewrite a
+/// dotted keyword, and that is a keyword-side change. A reference symbol becomes
+/// the keyword of its identity, so `id89/W` and `:id89::W` are one key. A bare
+/// symbol keeps its spelling and drops scopes, which printed text already did.
+/// Spans are not part of `WatAST`'s equality. The key is this tree, not `cond_text`.
+pub(crate) fn cond_identity(cond: &WatAST) -> WatAST {
+    match cond {
+        WatAST::Keyword(k, span) => WatAST::Keyword(k.clone(), span.clone()),
+        WatAST::Symbol(id, span) => {
+            if id.is_reference() {
+                WatAST::Keyword(
+                    crate::edn::render::canonical_identity(id.as_str()),
+                    span.clone(),
+                )
+            } else {
+                WatAST::Symbol(crate::scope::Identifier::bare(id.as_str()), span.clone())
+            }
+        }
+        WatAST::List(items, span) => {
+            WatAST::List(items.iter().map(cond_identity).collect(), span.clone())
+        }
+        WatAST::Vector(items, span) => {
+            WatAST::Vector(items.iter().map(cond_identity).collect(), span.clone())
+        }
+        WatAST::Map(pairs, span) => WatAST::Map(
+            pairs
+                .iter()
+                .map(|(k, v)| (cond_identity(k), cond_identity(v)))
+                .collect(),
+            span.clone(),
+        ),
+        WatAST::Set(items, span) => {
+            WatAST::Set(items.iter().map(cond_identity).collect(), span.clone())
+        }
+        WatAST::IntLit(n, span) => WatAST::IntLit(*n, span.clone()),
+        WatAST::FloatLit(n, span) => WatAST::FloatLit(*n, span.clone()),
+        WatAST::RationalLit(n, span) => WatAST::RationalLit(n.clone(), span.clone()),
+        WatAST::BigIntLit(n, span) => WatAST::BigIntLit(n.clone(), span.clone()),
+        WatAST::CharLit(c, span) => WatAST::CharLit(*c, span.clone()),
+        WatAST::BoolLit(b, span) => WatAST::BoolLit(*b, span.clone()),
+        WatAST::StringLit(s, span) => WatAST::StringLit(s.clone(), span.clone()),
+        WatAST::NilLit(span) => WatAST::NilLit(span.clone()),
+    }
+}
+
+/// `HashMap` key for [`cond_identity`]. `WatAST` is `PartialEq` + `Hash` and not
+/// `Eq`, because `FloatLit` is `f64`. A cond key does not use NaN as its identity.
+#[derive(Clone)]
+pub(crate) struct CondKey(WatAST);
+
+impl PartialEq for CondKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl Eq for CondKey {}
+impl std::hash::Hash for CondKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+pub(crate) fn cond_key(cond: &WatAST) -> CondKey {
+    CondKey(cond_identity(cond))
+}
+
 pub(crate) fn alpha_cond_from_node(node: &Value) -> Option<WatAST> {
     match node_named_field(node, "tests") {
         Some(Value::wat__core__PersistentVector(pv)) => match pv.first() {
