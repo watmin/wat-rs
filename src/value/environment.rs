@@ -210,11 +210,19 @@ impl Environment {
     pub fn lookup(&self, name: &str, head_span: &Span) -> Option<TrackedValue> {
         if let Some(entry) = self.inner.bindings.get(name) {
             let value = entry.value.value().clone();
-            let provenance = match entry.value.provenance().clone() {
+            // Arc 2026-10 name-resolution part 2, P1 — match BY REFERENCE (no upfront
+            // `.clone()` of the stored provenance). The old code cloned the whole enum
+            // unconditionally, then threw that clone away on every arm except
+            // `RuntimeBuilt` (building a fresh `SymbolBound` instead) — a guaranteed
+            // clone-then-discard on the common path (`drop_glue::<Provenance>` showed up
+            // as its own named cost in the R2 profile, BRIEF-2.md). Only the `RuntimeBuilt`
+            // arm actually needs a clone now (of its `call_span`; `producer` is
+            // `&'static str`, already `Copy`).
+            let provenance = match entry.value.provenance() {
                 Provenance::RuntimeBuilt { producer, call_span } => {
                     // RuntimeBuilt: keep producer provenance. The producer context is
                     // more informative than binding coordinates for diagnostic errors.
-                    Provenance::RuntimeBuilt { producer, call_span }
+                    Provenance::RuntimeBuilt { producer: *producer, call_span: call_span.clone() }
                 }
                 _ => {
                     // Unknown / Literal / SymbolBound: replace with SymbolBound.
