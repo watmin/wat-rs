@@ -579,8 +579,10 @@ fn duplicate_defmacro_structurally_equivalent_is_noop() {
 fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
     // The builtin kwargs companion is the keyword spelling. A converted
     // defrecord emits the symbol spelling of that same body. Identity, so
-    // the second registration is a no-op. A member `/` is not that identity:
-    // `wat.core.Option/expect` canonicalizes to `::`, and the keyword keeps `/`.
+    // the second registration is a no-op. Stone 255.91: a member keyword
+    // (`:wat::core::Option/expect`) and the symbol `wat.core.Option/expect`
+    // are one `Name`, so that re-declaration is a no-op too. The old
+    // `canonical_identity` door kept the `/` divergent from `::`.
     let same = expand_src(
         r#"
         (:wat::core::defmacro :my::m [& call-args <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
@@ -604,14 +606,8 @@ fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
         "#,
     );
     assert!(
-        matches!(
-            member,
-            Err(MacroError {
-                kind: MacroErrorKind::DuplicateMacro(_),
-                ..
-            })
-        ),
-        "a member join is not the :: identity; got {:?}",
+        member.is_ok(),
+        "the member keyword and its symbol are one Name; got {:?}",
         member
     );
 }
