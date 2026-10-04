@@ -433,3 +433,20 @@ GE1 (the four eval-only kinds carry class + named frames), GE2, GE3 mutation-pro
 |---|---|---|
 | E | **33 scratch-pad probes deleted** (the `255-*` family; 16 read `EvalError/kind`, 17 more only annotated the type) — judged dead because arc 255 is closed. **5 closed arc-255 docs still cite them** (the files survive in git history). The brief said migrate-live / delete-dead; "the arc is closed" was the executor's deadness criterion | builder's call: accept (closed-arc citations resolve through history), or restore the cited probes migrated |
 | E | `eval-ast!`/`eval-edn!` run NO check pass (`parse_and_run` → `run_program` → `run_constrained` → `eval_inner`, straight against the frozen symbol table) — evaluated code meets only runtime refusals, never the type checker | a question for the record, not yet a defect: search the arcs for whether eval is deliberately unchecked before naming it |
+
+## Strike D3 landed (`426c3e27a`) — the activation census is a standing gate
+
+GD2a drives 30 of 40 `RuntimeErrorKind`s through real producers and asserts a PRESENT, named Rust
+frame; 7 are measured dead; 3 measured-not-driven, each with its reason in the table. Each of the four
+activation writers mutation-proven (writer 4 needed its own row — a keyword call was vacuous because
+writer 1 set the same name first). `Frame::rust_site` keeps its `Option` by the four questions (no real
+path reaches `None`; forcing a name onto ~100 bare unit tests would be a placeholder). Floor 6415/6415.
+The floor went red once on the executor's own new test file (two lint arms, `.floor/2026-10-04T09-42-03Z`),
+fixed before the committed floor.
+
+**Retirement candidates (measured dead — zero construction sites):** `ParamShadowsBuiltin`,
+`NoEncodingCtx`, `NoSourceLoader`, `NoMacroRegistry`, `ChannelDisconnected`, `SandboxScopeLeak`,
+`AssertionFailed` (as a `RuntimeErrorKind`; its doc's "outside a sandbox" path does not exist —
+corrected). **Measured, not driven:** `ReteCeiling` (only `…ExceededOnInsert` escapes, and only via
+insertion-during-fire), `EdnCoerceMismatch` (needs the real stdio services), `WriteStopped` (a
+pipe-full + SIGTERM race — a standing gate would be a flake).
