@@ -287,15 +287,25 @@ impl Frame {
     ///
     /// `activation` (read by the caller from [`current_activation`]) is `Some` for every
     /// REAL raise reached through the intrinsic/special-form dispatcher or the freeze
-    /// pipeline (this strike's measurement drives representative producers for each and
-    /// confirms it). It is honestly `None` for a `RuntimeError` built directly in Rust
-    /// with NO wat execution context at all — found, empirically, to be a pervasive,
-    /// pre-existing pattern: ~100 unit tests across this tree call `RuntimeError::new`
-    /// straight from a bare `#[test]` fn (no freeze, no eval, `CALL_STACK` never
-    /// pushed), to test the envelope's OWN Rust-level mechanics
-    /// (`tests/value/probe_runtime_error_one_door.rs`, `tests/diagnostics/
-    /// probe_arc298_3_runtime_derive_identical.rs`, …) — none of the three writers the
-    /// builder named can EVER fire for that construction shape, by its very nature.
+    /// pipeline — NOT individually re-driven per `RuntimeErrorKind` variant (a dedicated
+    /// 40-kind census was scoped out of this strike's remaining budget); the evidence is
+    /// the full `cargo nextest run --release` floor itself (6381 tests, this strike's own
+    /// report has the exact `Summary` line): every test that raises a `RuntimeError`
+    /// through REAL wat evaluation got a non-empty activation (a real intrinsic/
+    /// special-form/freeze-phase name, never a panic); the ONLY construction shape that
+    /// ever found this empty, across the whole floor, is the one named below. That is
+    /// evidence over most of the 40, not a per-kind proof over all of them — the
+    /// remaining gap (which of the 40 never got exercised by ANY existing test, through
+    /// any path) is unmeasured, not confirmed clean.
+    ///
+    /// It is honestly `None` for a `RuntimeError` built directly in Rust with NO wat
+    /// execution context at all — found, empirically, to be a pervasive, pre-existing
+    /// pattern: ~100 unit tests across this tree call `RuntimeError::new` straight from a
+    /// bare `#[test]` fn (no freeze, no eval, `CALL_STACK` never pushed), to test the
+    /// envelope's OWN Rust-level mechanics (`tests/value/probe_runtime_error_one_door.rs`,
+    /// `tests/diagnostics/probe_arc298_3_runtime_derive_identical.rs`, …) — none of the
+    /// three writers the builder named can EVER fire for that construction shape, by its
+    /// very nature.
     ///
     /// Returns `None` rather than inventing a name for that case — the builder's "no
     /// placeholder" ruling forecloses a fallback STRING, but says nothing against simply
