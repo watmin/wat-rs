@@ -783,9 +783,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
                 let key = Value::String(Arc::new(name.to_string()));
                 bindings.get(&key).cloned()
             } else if ident.is_reference() {
-                let Some(sym) = sym else {
-                    return None;
-                };
+                let sym = sym?;
                 let k = crate::runtime::reference_symbol_keyword(ident, sym);
                 let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
                 read_fact_field(fact_fields, field_names, field_name)
