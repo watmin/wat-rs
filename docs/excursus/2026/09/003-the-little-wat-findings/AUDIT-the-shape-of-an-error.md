@@ -470,3 +470,11 @@ returned — a fault constructed in stdlib takes the innermost frame in user sou
 stdlib fn calls another). Obvious YES (an error's location is your line), Simple YES (D4's existing
 derivation exposed to the fault mint sites — no second rule), Honest YES (your call caused it), Good UX
 YES. Strike F2.
+
+## Strike F2 landed (`ab769b878`) — one location rule
+
+`:wat::kernel::error-site` exposes D4's derivation (the same `derive_primary_location_and_frames`
+`RuntimeError::new` calls — one copy); every stdlib fault mint site and `Fault/of` use it. GF2a (each
+returned fault locates at the user's line) and GF2b (a raised and a returned error from one line agree)
+mutation-proven. Floor 6420/6420. Orchestrator drove it: a user's `(Lru/new … 0)` now carries
+`lru0.wat:2:22`, not `wat/cache.wat`. **C-114's defect is cured for raised and returned errors alike.**
