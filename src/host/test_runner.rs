@@ -425,10 +425,10 @@ pub fn run_and_assert_with_loader(
 /// failure summary on error so cargo's libtest sees the failure
 /// in its native shape.
 ///
-/// `deftest_name` is the full keyword name discovered by the macro
-/// (e.g. `:wat-tests::holon::lru::test-foo`). The function lookup
-/// is by symbol-table name; the deftest macro binds its body
-/// under exactly that name.
+/// `deftest_name` is the name the scanner stored as written
+/// (`:wat-tests::holon::lru::test-foo` or `wat-tests.holon.lru/test-foo`).
+/// `defn` registers the function under [`crate::edn::render::canonical_identity`]
+/// of that name, so the lookup is the identity.
 pub fn run_single_deftest(
     file: &Path,
     deftest_name: &str,
@@ -468,11 +468,12 @@ pub fn run_single_deftest(
         }
     };
 
-    let func = match frozen.symbols().get(deftest_name) {
+    let deftest_key = crate::edn::render::canonical_identity(deftest_name);
+    let func = match frozen.symbols().get(&deftest_key) {
         Some(f) => f.clone(),
         None => panic!(
-            "test-runner: {}: deftest {} not found in frozen symbols (arc 121: scanner found this name at compile time but the runtime symbol table doesn't have it)",
-            file.display(), deftest_name,
+            "test-runner: {}: deftest {} (identity {}) not found in frozen symbols (arc 121: scanner found this name at compile time but the runtime symbol table doesn't have it)",
+            file.display(), deftest_name, deftest_key,
         ),
     };
 
