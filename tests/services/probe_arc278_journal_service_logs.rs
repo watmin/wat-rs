@@ -10,7 +10,7 @@
 //! NOT diffed by a whole-blob golden `.edn` anymore (that would freeze this developer's absolute
 //! path into the corpus). Instead: parse the stored EDN and check fields individually — exact for
 //! the static ones, structural/portable for `:emitted-from` (`:file` checked by SUFFIX not full
-//! path, `:line` checked as present+positive, `:symbol` checked exactly since the callee name is
+//! path, `:line` checked as present+positive, `:fn` checked exactly since the callee name is
 //! checkout-independent).
 //!
 //! No literal EDN-esque string content lives in this file (the `no-inlined-edn` lint bans it):
@@ -80,11 +80,12 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
     assert_eq!(frame_tag.name(), "Frame", "Frame tag name: {frame_tag:?}");
     let frame_fields = frame_body.as_map().expect("Frame body is a map");
 
-    // Excursus 003 D3 — Frame's location moved off flat `:file`/`:line` fields onto a nested
-    // `:wat::core::Span` (`:span`); `:symbol`/`:span`/`:kind` are still concrete (non-`Option`).
-    let (span_tag, span_body) = map_get(frame_fields, "span")
+    // Excursus 003 D3/strike D — Frame's location moved off flat `:file`/`:line` fields onto a
+    // nested `:wat::core::Span` (`:at`); `:fn`/`:at` are concrete (non-`Option`). `:kind`
+    // (D3) is retired this strike — no replacement field.
+    let (span_tag, span_body) = map_get(frame_fields, "at")
         .as_tagged()
-        .expect("Frame :span is a tagged Span");
+        .expect("Frame :at is a tagged Span");
     assert_eq!(span_tag.namespace(), "wat.core", "Span tag namespace: {span_tag:?}");
     assert_eq!(span_tag.name(), "Span", "Span tag name: {span_tag:?}");
     let span_fields = span_body.as_map().expect("Span body is a map");
@@ -106,14 +107,13 @@ fn journal_writes_a_log_through_a_held_store_peer_on_a_thread() {
         .expect("Span :line is an i64");
     assert!(line_val > 0, "Span :line should be positive: {line_val}");
 
-    let symbol_val = map_get(frame_fields, "symbol")
+    let fn_val = map_get(frame_fields, "fn")
         .as_str()
-        .expect("Frame :symbol is a String");
-    assert_eq!(symbol_val, ":user::compute", "Frame :symbol should name the callee");
+        .expect("Frame :fn is a String");
+    assert_eq!(fn_val, ":user::compute", "Frame :fn should name the callee");
 
-    let (kind_tag, _) = map_get(frame_fields, "kind")
-        .as_tagged()
-        .expect("Frame :kind is a tagged FrameKind");
-    assert_eq!(kind_tag.namespace(), "wat.kernel", "FrameKind tag namespace: {kind_tag:?}");
-    assert_eq!(kind_tag.name(), "FrameKind.Wat", "FrameKind tag name: {kind_tag:?}");
+    let tail_elided_val = map_get(frame_fields, "tail-elided")
+        .as_i64()
+        .expect("Frame :tail-elided is an i64");
+    assert_eq!(tail_elided_val, 0, "call-site names a single live activation, never a tail-collapsed chain");
 }

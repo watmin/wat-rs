@@ -18,24 +18,24 @@
       }
       :frames [
         #wat.kernel/Frame {
-          :symbol ":user::main"
-          :span #wat.core/Span {
-            :file "src/freeze.rs"
-            :line 0
-            :col 13
-            :end #wat.core/Option.None {}
-          }
-          :kind #wat.kernel/FrameKind.Wat {}
-        }
-        #wat.kernel/Frame {
-          :symbol "<rust>"
-          :span #wat.core/Span {
+          :fn ":wat::hashset::conj"
+          :at #wat.core/Span {
             :file "src/collection/eval.rs"
             :line 0
             :col 28
             :end #wat.core/Option.None {}
           }
-          :kind #wat.kernel/FrameKind.Rust {}
+          :tail-elided 0
+        }
+        #wat.kernel/Frame {
+          :fn ":user::main"
+          :at #wat.core/Span {
+            :file "src/collection/eval.rs"
+            :line 0
+            :col 46
+            :end #wat.core/Option.None {}
+          }
+          :tail-elided 0
         }
       ]
       :frames-elided 0

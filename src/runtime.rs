@@ -962,6 +962,15 @@ pub(crate) fn eval_tail(
                     }
                 }
             }
+            // Excursus 003 strike D, item 4 — name the current activation for the whole TAIL
+            // dispatch attempt on `head` (after the rete re-mapping above, so a `Form` spelling
+            // names its `core_name`, not its rete alias). This door NEVER reaches
+            // `dispatch_keyword_head`/`_value` for a successfully tail-dispatched registered form
+            // (the `tail_handler` call just below returns directly) — so it needs its own entry;
+            // for an unregistered head, the match below (or its `eval_inner` fallthrough) re-
+            // enters through `eval`/`dispatch_keyword_head`, which re-enters with the SAME `head`,
+            // a harmless nested no-op.
+            let _activation = crate::value::frame::ActivationGuard::enter(head);
             // Arc 255 Stone the-tail-door — the registry's tail door. MUST sit here: after the
             // rete `Form` re-mapping above (so a `:wat::rete::core::*` spelling has already been
             // rewritten to its `:wat::core::*` `head` before this consults the registry — placed
@@ -1942,6 +1951,14 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
+    // Excursus 003 strike D, item 4 — name the current activation for the WHOLE dispatch
+    // attempt, not just a successful handler call: this covers a registered intrinsic OR
+    // special form (both reached via the SAME `handler` slot below) AND the "no handler
+    // found" raises (`UnboundSymbol` is reached from a DIFFERENT caller, but `NotCallable`/
+    // `MalformedForm`-shaped refusals this function's own fallthrough produces are named
+    // correctly by `head` either way). RAII — restores whatever the caller had on return,
+    // nesting correctly through a form that dispatches a sub-form.
+    let _activation = crate::value::frame::ActivationGuard::enter(head);
     // Arc 255 Stone G — the registry-first door, hoisted to THIS TrackedValue-returning
     // function (not `dispatch_keyword_head_value`, whose `Result<Value, _>` signature would
     // force a discard of whatever provenance the handler stamped). `NativeHandler` now returns
@@ -2048,6 +2065,11 @@ fn dispatch_keyword_head_value(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    // Excursus 003 strike D, item 4 — same reasoning as `dispatch_keyword_head`'s own guard:
+    // this fn is ALSO reached directly (bypassing that one) by callers like `dispatch_rete_op`'s
+    // recursive calls, so it needs its own entry. Re-entering with the SAME `head` when this
+    // fn runs nested inside `dispatch_keyword_head`'s own guard is a harmless no-op restore.
+    let _activation = crate::value::frame::ActivationGuard::enter(head);
     // Arc 278 #55 (S3b+S4) slice one — THE ONE TABLE (`rete::vocabulary::RETE_OPS`), consulted
     // FIRST for rete-namespaced heads. Routes generically by `class` (`dispatch_rete_op`, below)
     // — never a per-op match arm added to the giant match that follows (STOP-2: no rete op named
@@ -12075,28 +12097,33 @@ pub(crate) fn span_names() -> Arc<Vec<String>> {
         .clone()
 }
 
-/// Convert a `FrameInfo` (wat call-stack frame from the trampoline) into a
-/// `:wat::kernel::Frame` `Value::Aggregate(Record)` — a `:Wat`-kind frame. Thin
-/// wrapper over [`value_from_frame`], the one builder excursus 003 D3 asks for.
+/// Convert a `FrameInfo` (wat call-stack top, from the trampoline) plus `at` (the
+/// caller's own best-known "where inside it" span — the native verb's own `list_span`
+/// is the usual answer, never `frame`'s own `call_span`, which names the edge INTO
+/// this activation, not where it currently is) into a `:wat::kernel::Frame`
+/// `Value::Aggregate(Record)`. `tail-elided` is 0 — `:wat::kernel::call-site` names a
+/// SINGLE live activation, never a tail-collapsed chain's history.
 /// Arc 293.W.2b — Frame is now Nature::Record (pure EDN data).
-pub(crate) fn value_from_frame_info(frame: FrameInfo) -> Value {
-    value_from_frame(&crate::value::frame::Frame::from(frame))
+pub(crate) fn value_from_frame_info(frame: FrameInfo, at: Span) -> Value {
+    value_from_frame(&crate::value::frame::Frame {
+        fn_name: frame.callee_path,
+        at,
+        tail_elided: 0,
+    })
 }
 
 /// Convert a [`crate::value::frame::Frame`] into a `:wat::kernel::Frame`
-/// `Value::Aggregate(Record)`. Field order matches the excursus 003 D3 type
-/// registration: `(symbol, span, kind)`. Arc 109 — Frame's fields are concrete
-/// (non-`Option`): `symbol` and `kind` are always known, and `span` is always a
-/// real `Span` (a `:Rust` frame's `end` is `None`, never the field itself).
+/// `Value::Aggregate(Record)`. Field order matches the excursus 003 strike D type
+/// registration: `(fn, at, tail-elided)`. Arc 109 — `fn` is concrete (non-`Option`,
+/// never a placeholder).
 pub(crate) fn value_from_frame(frame: &crate::value::frame::Frame) -> Value {
-    use crate::intrinsic::ToEnumValue;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::kernel::Frame".into(),
         frame_names(),
         Arc::new(vec![
-            Value::String(Arc::new(frame.symbol.clone())),
-            value_from_span(frame.span.clone()),
-            frame.kind.to_enum_value(),
+            Value::String(Arc::new(frame.fn_name.clone())),
+            value_from_span(frame.at.clone()),
+            Value::i64(frame.tail_elided as i64),
         ]),
     )))
 }
@@ -12244,9 +12271,11 @@ pub(crate) fn edn_read_error_failure(e: &crate::edn::render::EdnReadError) -> Va
 /// `message` and the RAISING Rust site's own location — `#[track_caller]`, a `Span`
 /// with `end: None` (D1/D3: Rust knows only where a failure starts). `frames` is the
 /// SAME capped wat call-stack snapshot + the one Rust frame every `RuntimeError`
-/// carries (`crate::value::frame::capped_wat_frames` / `Frame::rust_site`, step 2) —
-/// captured HERE, once, since a flat message has no `RuntimeError` of its own to read
-/// captured frames from (no second capper).
+/// carries (`crate::value::frame::capped_frames_for_trace` / `Frame::rust_site`,
+/// step 2) — captured HERE, once, since a flat message has no `RuntimeError` of its
+/// own to read captured frames from (no second capper). The Rust frame is innermost
+/// (excursus 003 strike D item 2 — "the Rust frame takes its true innermost
+/// position"), so it is PREPENDED, not appended.
 ///
 /// ⚠ Per `Frame::rust_site`'s own convention: this fn is `#[track_caller]`, so the
 /// recorded Rust frame is whoever CALLS `flat_message_failure` — the builder
@@ -12261,11 +12290,12 @@ pub(crate) fn flat_message_failure(message: String) -> Value {
         loc.line() as i64,
         loc.column() as i64,
     );
-    let error_field = fault_value(message, span);
-    let (wat_frames, frames_elided) = crate::value::frame::capped_wat_frames();
-    let rust_frame = crate::value::frame::Frame::rust_site(loc);
-    let mut frames: Vec<Value> = wat_frames.iter().map(value_from_frame).collect();
-    frames.push(value_from_frame(&rust_frame));
+    let activation = crate::value::frame::current_activation();
+    let error_field = fault_value(message, span.clone());
+    let (wat_frames, frames_elided) = crate::value::frame::capped_frames_for_trace(Some(span));
+    let rust_frame = crate::value::frame::Frame::rust_site(loc, activation);
+    let mut frames: Vec<Value> = rust_frame.as_ref().map(value_from_frame).into_iter().collect();
+    frames.extend(wat_frames.iter().map(value_from_frame));
     failure_record(
         error_field,
         Value::Vec(Arc::new(frames)),
@@ -12282,8 +12312,11 @@ pub(crate) fn flat_message_failure(message: String) -> Value {
 /// second capper).
 pub(crate) fn runtime_error_failure(re: &RuntimeError) -> Value {
     let error_field = re.to_record();
-    let mut frames: Vec<Value> = re.wat_frames().iter().map(value_from_frame).collect();
-    frames.push(value_from_frame(re.rust_frame()));
+    // Innermost first, true order (excursus 003 strike D item 2): the Rust frame is
+    // PREPENDED, not appended — when one is known (see `RuntimeError::rust_frame`'s doc
+    // for the one case it is not).
+    let mut frames: Vec<Value> = re.rust_frame().map(value_from_frame).into_iter().collect();
+    frames.extend(re.wat_frames().iter().map(value_from_frame));
     failure_record(
         error_field,
         Value::Vec(Arc::new(frames)),
@@ -15032,17 +15065,22 @@ mod tests {
             other => panic!("StartupError payload must be a typed Failure record; got {other:?}"),
         };
         // Excursus 003 step 3c ruling (c): a `StartupError::Runtime` DOES have a captured
-        // call stack (step 2 snapshotted it at `RuntimeError::new` construction, above), so
-        // THIS Failure's `:frames` (declaration order 1) must be non-empty — before the fix
-        // `startup_error_chain_edn` hardcoded `frames: []` for every `StartupError` cause,
-        // including this one. At minimum the one Rust frame naming the raising site is
-        // always present.
+        // call stack (step 2 snapshotted it at `RuntimeError::new` construction, above) —
+        // before the fix `startup_error_chain_edn` hardcoded `frames: []` for every
+        // `StartupError` cause, including this one, regardless of what was captured.
+        //
+        // Excursus 003 strike D — THIS probe constructs `RuntimeError::new` directly, with
+        // no freeze/eval context at all (no activation, empty `CALL_STACK`), exactly the
+        // "direct Rust-level construction" case `Frame::rust_site`'s own doc names: no
+        // writer could EVER have named a Rust frame here, and the builder's ruling forbids
+        // inventing one, so `:frames` is honestly `[]` — not a regression, the SAME outcome
+        // `startup_error_chain_edn`'s match arm produces for `_` (every other StartupError
+        // cause). Assert the SHAPE (`:frames` is a Vector) rather than non-vacuity; a REAL
+        // startup-time unknown-function raise (reached through the freeze pipeline) is
+        // covered by this strike's activation-census tests instead, where it DOES carry
+        // its Rust frame.
         match failure.fields.get(1) {
-            Some(Value::Vec(frames)) => assert!(
-                !frames.is_empty(),
-                "a StartupError::Runtime's Failure must carry its RuntimeError's captured \
-                 frames (at least the one Rust frame); got an empty :frames"
-            ),
+            Some(Value::Vec(_frames)) => {}
             other => panic!(":frames must be a Vector; got {other:?}"),
         }
         // THE GATE: the cause is a fully-structured, navigable
@@ -15157,7 +15195,7 @@ mod tests {
         // Frames must contain at least one entry for failing-fn.
         assert!(!boxed.frames.is_empty(), "expected at least one frame");
         assert_eq!(
-            boxed.frames[0].symbol, ":my::app::failing-fn",
+            boxed.frames[0].fn_name, ":my::app::failing-fn",
             "top frame should be the user-defined function"
         );
     }

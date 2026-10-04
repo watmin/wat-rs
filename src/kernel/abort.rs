@@ -12,7 +12,7 @@ use crate::ast::WatAST;
 use crate::runtime::{eval_inner, record_field_by_name};
 use crate::span::Span;
 use crate::value::{
-    snapshot_call_stack, Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable,
+    Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable,
     Value,
 };
 
@@ -71,11 +71,8 @@ pub(crate) fn eval_kernel_raise(
         // `message` field), so this only fires for an out-of-band caller — fall
         // back to the EDN rendering rather than an empty message.
         .unwrap_or_else(|| crate::edn::render::value_to_edn_string_lossy(&data, types));
-    let frames: Vec<crate::value::frame::Frame> = snapshot_call_stack()
-        .into_iter()
-        .map(crate::value::frame::Frame::from)
-        .collect();
-    let location = frames.first().map(|f| f.span.clone());
+    let frames: Vec<crate::value::frame::Frame> = crate::value::frame::frames_for_trace(None);
+    let location = frames.first().map(|f| f.at.clone());
     let payload = crate::assertion::AssertionPayload {
         message,
         actual: None,

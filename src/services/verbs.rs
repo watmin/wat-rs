@@ -268,11 +268,8 @@ fn write_pretty_doc_row(
 /// `eval_in_frozen` / `apply_function`. The emitted value's EDN rides as the
 /// crash reason (`AssertionPayload.message`). NEVER returns.
 fn eprintln_terminate(reason: String) -> ! {
-    let frames: Vec<crate::value::frame::Frame> = crate::value::snapshot_call_stack()
-        .into_iter()
-        .map(crate::value::frame::Frame::from)
-        .collect();
-    let location = frames.first().map(|f| f.span.clone());
+    let frames: Vec<crate::value::frame::Frame> = crate::value::frame::frames_for_trace(None);
+    let location = frames.first().map(|f| f.at.clone());
     let payload = crate::assertion::AssertionPayload {
         message: reason,
         actual: None,

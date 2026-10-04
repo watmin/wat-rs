@@ -1491,10 +1491,7 @@ pub(crate) fn nth_of(
     // variant (not `Panic`) — measured directly: it broke `wat-tests/core/core-nth.wat`'s
     // pre-existing `nth-past-end-*-raises` rows (STOP-4, caught and fixed during this strike).
     fn out_of_range(span: Span) -> EvalBreak {
-        let frames: Vec<crate::value::frame::Frame> = crate::value::snapshot_call_stack()
-            .into_iter()
-            .map(crate::value::frame::Frame::from)
-            .collect();
+        let frames: Vec<crate::value::frame::Frame> = crate::value::frame::frames_for_trace(None);
         let payload = crate::assertion::AssertionPayload {
             message: "nth: index out of range".into(),
             actual: None,

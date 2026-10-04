@@ -717,8 +717,8 @@
                   locus-i (:wat::spawn::with-label locus
                             (:wat::process::Bracket
                               :id   i
-                              :file (:wat::core::Span/file (:wat::kernel::Frame/span origin))
-                              :line (:wat::core::Span/line (:wat::kernel::Frame/span origin))))
+                              :file (:wat::core::Span/file (:wat::kernel::Frame/at origin))
+                              :line (:wat::core::Span/line (:wat::kernel::Frame/at origin))))
                   p (:wat::spawn::Locus/spawn-runner locus-i work-fn)
                   ;; GRANT-BOOT: if the far end is a process (peer-pid → Some pid), grant that
                   ;; kernel-vouched pid — a SINGLE typed call (a no-op for a plain pool: its

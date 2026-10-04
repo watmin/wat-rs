@@ -20,9 +20,9 @@
     ;; Arc 109 — Frame's fields are concrete (non-Option): bare String / i64 /
     ;; String, read directly.
     [frame     (:probe::here)
-     file      (:wat::core::Span/file (:wat::kernel::Frame/span frame))
-     line      (:wat::core::Span/line (:wat::kernel::Frame/span frame))
-     symbol    (:wat::kernel::Frame/symbol frame)
+     file      (:wat::core::Span/file (:wat::kernel::Frame/at frame))
+     line      (:wat::core::Span/line (:wat::kernel::Frame/at frame))
+     symbol    (:wat::kernel::Frame/fn frame)
      file-ok   (:wat::string::contains? file "probe_arc278_call_site")
      line-ok   (:wat::core::> line 0)
      symbol-ok (:wat::string::contains? symbol "probe::here")]

@@ -51,24 +51,24 @@ impl crate::edn::contract::ToEdn for RuntimeError {
     /// `:span` appended via `span.to_edn()` (Stone B: the derive-generated
     /// typed record replaces the hand-built `splice_span` helper).
     ///
-    /// Excursus 003 D3 — wired now, not left captured-and-unseen: `:frames`
-    /// (wat frames innermost-first, THEN the one Rust frame — "user first",
-    /// D3's own ordering) and `:frames-elided` (always present; 0 when the live
-    /// stack fit under the cap) follow `:span`. Excursus 003 step 3c: this remains
-    /// the shape of this type's plain `ToEdn` impl (kept — see `WatError::variant`'s
-    /// own doc below for who still needs it), but it is NOT the wire anymore:
-    /// `WatError::variant()` strips `:span`/`:frames`/`:frames-elided` back out, so
-    /// `error_edn()` (`to_wire_edn`/`Debug`/`Display`, and every embedding via
-    /// `error_edn_of`/`error_edn_of_boxed`) never shows them — frames live on
+    /// Excursus 003 D3/strike D — wired now, not left captured-and-unseen: `:frames`
+    /// (the one Rust frame FIRST — its true innermost position, excursus 003 strike D
+    /// item 2 — THEN the wat frames, innermost first) and `:frames-elided` (always
+    /// present; 0 when the live stack fit under the cap) follow `:span`. Excursus 003
+    /// step 3c: this remains the shape of this type's plain `ToEdn` impl (kept — see
+    /// `WatError::variant`'s own doc below for who still needs it), but it is NOT the
+    /// wire anymore: `WatError::variant()` strips `:span`/`:frames`/`:frames-elided`
+    /// back out, so `error_edn()` (`to_wire_edn`/`Debug`/`Display`, and every embedding
+    /// via `error_edn_of`/`error_edn_of_boxed`) never shows them — frames live on
     /// `:wat::kernel::Failure` alone (step 3b).
     fn to_edn(&self) -> OwnedValue {
         use crate::edn::contract::edn_kw;
         let kind_val = self.kind().to_edn();
         let frames_val = OwnedValue::Vector(
-            self.wat_frames()
-                .iter()
+            self.rust_frame()
                 .map(crate::value::frame::Frame::to_edn)
-                .chain(std::iter::once(self.rust_frame().to_edn()))
+                .into_iter()
+                .chain(self.wat_frames().iter().map(crate::value::frame::Frame::to_edn))
                 .collect(),
         );
         match kind_val {

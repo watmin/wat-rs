@@ -1,10 +1,14 @@
-//! Excursus 003 D3 probe — "every runtime error carries its frames: wat frames and one
-//! Rust frame" (BRIEF-envelope-step-2-every-error-carries-its-frames.md, "Prove it" rows).
+//! Excursus 003 D3/strike D probe — "every runtime error carries its frames: wat frames
+//! and one Rust frame" (BRIEF-envelope-step-2-every-error-carries-its-frames.md, "Prove
+//! it" rows), reshaped to `{fn at tail-elided}` (BRIEF-shape-strike-D).
 //!
-//! `RuntimeError::new` now snapshots the live wat `CALL_STACK` (capped) plus the ONE Rust
-//! frame naming the constructing site (`#[track_caller]`), and wires both into `:frames` /
-//! `:frames-elided` on `RuntimeError::to_edn()`. `AssertionPayload` (assertion failures)
-//! captures through the same `Frame` shape.
+//! `RuntimeError::new` now snapshots the live wat `CALL_STACK` (capped, correctly
+//! reconstructed) plus the ONE Rust frame naming the constructing site
+//! (`#[track_caller]`) AND the activation currently dispatching
+//! (`current_activation`), and wires both into `:frames` / `:frames-elided` on
+//! `RuntimeError::to_edn()` — the Rust frame FIRST (its true innermost position), then
+//! the wat frames innermost-first. `AssertionPayload` (assertion failures) captures
+//! through the same `Frame` shape, never a Rust frame of its own.
 //!
 //! WAT fixture: tests/diagnostics/probe_ex003_stone_d3_frames.wat
 
@@ -23,38 +27,35 @@ fn get_field<'a>(pairs: &'a [(OwnedValue, OwnedValue)], key: &str) -> &'a OwnedV
     panic!("key :{key} not found in map {pairs:?}");
 }
 
-/// (namespace, name) of a tagged `Frame`'s `:kind` — NOT a `#ns/Name` string (that shape
-/// trips `no_inlined_edn`'s EDN-esque-literal heuristic on the caller's comparison).
-fn frame_kind_tag(frame: &OwnedValue) -> (String, String) {
+fn frame_fields(frame: &OwnedValue) -> &[(OwnedValue, OwnedValue)] {
     let (tag, body) = frame.as_tagged().expect("frame is a tagged Frame");
     assert_eq!(tag.namespace(), "wat.kernel", "frame tag namespace: {tag}");
     assert_eq!(tag.name(), "Frame", "frame tag name: {tag}");
-    let pairs = body.as_map().expect("Frame body is a map");
-    let kind = get_field(pairs, "kind");
-    let (kind_tag, _) = kind.as_tagged().expect("kind is a tagged FrameKind");
-    (kind_tag.namespace().to_string(), kind_tag.name().to_string())
+    body.as_map().expect("Frame body is a map")
 }
 
-fn frame_span_has_end(frame: &OwnedValue) -> bool {
-    let (_, body) = frame.as_tagged().expect("frame is a tagged Frame");
-    let pairs = body.as_map().expect("Frame body is a map");
-    let span = get_field(pairs, "span");
-    let (_, span_body) = span.as_tagged().expect("span is a tagged Span");
+fn frame_fn(frame: &OwnedValue) -> String {
+    get_field(frame_fields(frame), "fn").as_str().expect(":fn is a String").to_string()
+}
+
+fn frame_at_has_end(frame: &OwnedValue) -> bool {
+    let at = get_field(frame_fields(frame), "at");
+    let (_, span_body) = at.as_tagged().expect("at is a tagged Span");
     let span_pairs = span_body.as_map().expect("Span body is a map");
     let end = get_field(span_pairs, "end");
     let (end_tag, _) = end.as_tagged().expect("end is a tagged Option");
     end_tag.namespace() == "wat.core" && end_tag.name() == "Option.Some"
 }
 
-/// (a) A runtime error raised three user-calls deep shows three `:Wat` frames (innermost
-/// first) plus one `:Rust` frame naming the constructing Rust site.
-///
-/// Only the two genuinely wat-to-wat call sites (`inner`'s call written inside `middle`,
-/// `middle`'s call written inside `outer`) carry a real `Span` `end` — the THIRD `:Wat`
-/// frame is `outer`'s OWN invocation, made by this Rust test harness
-/// (`call_beside_value` → `apply_function(.., rust_caller_span!())`), so its span is
-/// itself Rust-originated (`end: None`, D1's own rule) even though the frame's `kind` is
-/// `:Wat` (it is a genuine `CALL_STACK` entry, not the error's constructing Rust site).
+/// (a) A runtime error raised three user-calls deep shows, innermost first: the ONE Rust
+/// frame (its true innermost position, excursus 003 strike D item 2), then three wat
+/// frames for `inner`/`middle`/`outer` — EVERY wat frame's `at` is a genuine wat span
+/// (carries a real `end`): none of them read `outer`'s own entry edge (the Rust test
+/// harness's `call_beside_value` → `apply_function(.., rust_caller_span!())` call site),
+/// because strike D's shift logic never surfaces a slot's OWN entry edge as anyone's
+/// `at` — "the Rust call site of a top-level fn disappears, because it is the `at` of no
+/// wat function" (BRIEF-shape-strike-D item 2). Only the Rust frame (frames[0]) lacks a
+/// real `end`.
 #[test]
 fn three_deep_raise_shows_three_wat_frames_plus_one_rust_frame() {
     let err = call_beside_value(file!(), ":user::outer")
@@ -66,27 +67,23 @@ fn three_deep_raise_shows_three_wat_frames_plus_one_rust_frame() {
     let elided = get_field(pairs, "frames-elided").as_i64().expect(":frames-elided is an int");
 
     assert_eq!(elided, 0, "a 3-deep stack fits under the cap — nothing elided");
-    assert_eq!(frames.len(), 4, "3 :Wat frames (inner/middle/outer calls) + 1 :Rust frame");
+    assert_eq!(frames.len(), 4, "1 Rust frame + 3 wat frames (inner/middle/outer)");
 
-    for f in &frames[..3] {
-        assert_eq!(
-            frame_kind_tag(f),
-            ("wat.kernel".to_string(), "FrameKind.Wat".to_string()),
-            "frame: {f:?}"
-        );
-    }
-    for f in &frames[..2] {
-        assert!(
-            frame_span_has_end(f),
-            "a genuine wat-to-wat call site's span must carry a real end: {f:?}"
-        );
-    }
-    assert_eq!(
-        frame_kind_tag(&frames[3]),
-        ("wat.kernel".to_string(), "FrameKind.Rust".to_string()),
-        "the last frame must be the one :Rust frame naming the constructing site: {:?}",
-        frames[3]
+    assert!(
+        !frame_at_has_end(&frames[0]),
+        "the Rust frame's `at` is a #[track_caller] point-span, never a real `end`: {:?}",
+        frames[0]
     );
+    for f in &frames[1..4] {
+        assert!(
+            frame_at_has_end(f),
+            "every wat frame's `at` must be a genuine wat-authored span (strike D never \
+             surfaces a slot's own Rust-originated entry edge): {f:?}"
+        );
+    }
+    assert_eq!(frame_fn(&frames[1]), ":user::inner");
+    assert_eq!(frame_fn(&frames[2]), ":user::middle");
+    assert_eq!(frame_fn(&frames[3]), ":user::outer");
 }
 
 /// (b) A tail-recursive loop that errors at depth 1,000,000 shows a small frame list — the
@@ -128,8 +125,9 @@ fn non_tail_recursion_deep_shows_capped_shape_with_elided_count() {
     );
 }
 
-/// (d) An assertion failure's `:frames` uses the new `Frame` shape (`:symbol`/`:span`/`:kind`),
-/// the same shape `RuntimeError`'s frames use.
+/// (d) An assertion failure's `:frames` uses the new `Frame` shape (`:fn`/`:at`/
+/// `:tail-elided`), the same shape `RuntimeError`'s frames use — never a Rust frame (an
+/// assertion fires from wat; `AssertionPayload` carries no `rust_frame` of its own).
 #[test]
 fn assertion_failure_frames_use_the_new_frame_shape() {
     let outcome = call_beside(file!(), ":user::assert-deep");
@@ -144,13 +142,18 @@ fn assertion_failure_frames_use_the_new_frame_shape() {
     let frames = get_field(pairs, "frames").as_vector().expect(":frames is a vector");
     assert!(!frames.is_empty(), "assert-eq three calls deep must capture at least one frame");
     for f in frames {
-        assert_eq!(
-            frame_kind_tag(f),
-            ("wat.kernel".to_string(), "FrameKind.Wat".to_string()),
-            "frame: {f:?}"
+        let fields = frame_fields(f);
+        assert!(
+            !frame_fn(f).is_empty(),
+            "fn must be a non-empty String, never a placeholder: {f:?}"
         );
-        let (_, fbody) = f.as_tagged().expect("frame is tagged");
-        let fpairs = fbody.as_map().expect("Frame body is a map");
-        assert!(get_field(fpairs, "symbol").as_str().is_some(), "symbol must be a String");
+        assert!(
+            get_field(fields, "at").as_tagged().is_some(),
+            ":at must be a tagged Span: {f:?}"
+        );
+        assert!(
+            get_field(fields, "tail-elided").as_i64().is_some(),
+            ":tail-elided must be an int: {f:?}"
+        );
     }
 }

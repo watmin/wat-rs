@@ -99,10 +99,10 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
     let (frames_val, frames_elided_val) = match e {
         crate::freeze::StartupError::Runtime(re) => (
             wat_edn::OwnedValue::Vector(
-                re.wat_frames()
-                    .iter()
+                re.rust_frame()
                     .map(crate::value::frame::Frame::to_edn)
-                    .chain(std::iter::once(re.rust_frame().to_edn()))
+                    .into_iter()
+                    .chain(re.wat_frames().iter().map(crate::value::frame::Frame::to_edn))
                     .collect(),
             ),
             re.frames_elided() as i64,

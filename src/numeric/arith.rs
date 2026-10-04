@@ -84,9 +84,19 @@ where
 // directly) and `intrinsic/i64.rs`'s `:wat::i64::*` registered handlers,
 // which are now these fns' only caller. One implementation of the
 // overflow/division contract, never two — the brief's STOP-1 concern.
-// `head` is a parameter (not a captured closure variable) so the
-// `IntegerOverflow`/`DivisionByZero` error's `op` field always names
-// whichever spelling the caller actually used.
+// `head` is a parameter (not a captured closure variable) so
+// `IntegerOverflow`'s `op` field always names whichever spelling the caller
+// actually used.
+//
+// ⛔ CORRECTED (excursus 003 strike D) — this comment used to also claim
+// "the IntegerOverflow/DivisionByZero error's op field"; `DivisionByZero`
+// carries NO fields at all (found as a side effect of strike D's item-4
+// census: a stale claim about a sibling variant's shape, sitting beside the
+// code that would have falsified it on a single read). `head` IS in scope
+// at every `DivisionByZero` construction below, same as at `IntegerOverflow`'s —
+// it is simply never threaded onto that variant, because naming the raise
+// site no longer goes through `RuntimeErrorKind` at all (strike D item 4:
+// `crate::value::frame::current_activation`, not the kind's own data).
 
 pub(crate) fn i64_add_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
     a.checked_add(b).ok_or_else(|| {

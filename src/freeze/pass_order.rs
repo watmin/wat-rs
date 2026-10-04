@@ -122,10 +122,21 @@ thread_local! {
 /// order gate). When [`timing_enabled`], also stamps an `Instant` into `TIMING` (the
 /// Excursus 003 D5 phase-timing instrument — see the module doc). Neither is state a
 /// normal, unmeasured `wat` run pays for beyond the one `OnceLock` read.
+///
+/// Excursus 003 strike D, item 4 — ALSO names `step` as the current activation
+/// (`crate::value::frame::set_activation`), so a `RuntimeError` raised during this
+/// phase (`UserMainMissing`, `EvalVerificationFailed` — the only two live producers
+/// before any wat activation exists) carries an honest innermost-Rust-frame name
+/// instead of a placeholder. A plain overwrite, unconditional — cheap (one `String`
+/// allocation per pass, a handful of passes per freeze) and, unlike `TRACE`/`TIMING`,
+/// not gated behind `cfg(test)`/`timing_enabled`: every build needs the name, not just
+/// a measured or tested one.
 #[inline]
 pub(crate) fn record(step: &'static str) {
     #[cfg(test)]
     TRACE.with(|t| t.borrow_mut().push(step));
+
+    crate::value::frame::set_activation(step);
 
     if timing_enabled() {
         TIMING.with(|t| t.borrow_mut().push((step, std::time::Instant::now())));

@@ -64,7 +64,15 @@ pub(crate) fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result
         .into());
     }
     match snapshot_call_stack().first().cloned() {
-        Some(frame) => Ok(value_from_frame_info(frame)),
+        // "caller" semantics (Ruby's `caller` / Rust's `Location::caller()`): `fn` names
+        // the caller (the current top-of-stack occupant), `at` is WHERE THAT CALLER WAS
+        // ITSELF INVOKED FROM — `frame.call_span`, the entry edge, unchanged from before
+        // this strike. (Not `list_span`: that would answer "where is this `(call-site)`
+        // form written", a different question this primitive has never asked.)
+        Some(frame) => {
+            let at = frame.call_span.clone();
+            Ok(value_from_frame_info(frame, at))
+        }
         // Arc 109 — an empty call stack cannot happen from wat: every wat
         // fn-call pushes a FrameGuard before evaluating its body, and all
         // wat runs inside a fn (there is no top-level `call-site` use in the
@@ -109,22 +117,20 @@ pub(crate) fn eval_kernel_call_site(args: &[WatAST], list_span: &Span) -> Result
 /// item 9a: machinery/generated code uses the prime ctor, never hand-rolled
 /// kwargs) — mirrors `eval_struct_to_form`'s ctor-form-building convention.
 /// Arc 109 — Frame's fields are non-`Option`, so the ctor form supplies bare
-/// `symbol`/`span`/`kind` values, never `(Some …)`/`None` wrappers for the
-/// mandatory ones. `symbol` is the NAME of the macro being expanded (threaded
+/// `fn`/`at`/`tail-elided` values, never `(Some …)`/`None` wrappers for the
+/// mandatory ones. `fn` is the NAME of the macro being expanded (threaded
 /// through `MacroCallSiteGuard`): at expand time there is no enclosing runtime
-/// fn, but the macro itself is known, so its name is the honest symbol — never
+/// fn, but the macro itself is known, so its name is the honest value — never
 /// absent.
 ///
-/// Excursus 003 D3 — `span` is now a nested `:wat::core::Span'` ctor form
+/// Excursus 003 D3/strike D — `at` is a nested `:wat::core::Span'` ctor form
 /// (`file`/`line`/`col`/`end`; `end` is the bare self-evaluating keyword
 /// `:wat::core::Option.None` — a macro invocation's call site names where it
-/// BEGINS, never a matched end), and `kind` is the bare self-evaluating
-/// keyword `:wat::kernel::FrameKind.Wat` — a macro-call-site frame is always a
-/// wat-side frame (`sym.unit_variant` resolves both bare nullary-variant
-/// keywords directly at eval time, `src/runtime.rs`'s `WatAST::Keyword` arm —
-/// the same door `:wat::core::Option.None` and `:wat::runtime::Purity.Pure`
-/// already go through elsewhere in this crate, so no wrapping ctor call is
-/// needed for either nullary value).
+/// BEGINS, never a matched end), and `tail-elided` is the bare literal `0` — a
+/// macro-call-site frame is a SINGLE live expansion, never a tail-collapsed
+/// chain's history (`:kind`/`FrameKind` retired this strike: it was
+/// derivable from `span.end`, D1, and duplicated information `at` already
+/// carries).
 pub(crate) fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::macro-call-site";
     if !args.is_empty() {
@@ -171,14 +177,15 @@ pub(crate) fn eval_kernel_macro_call_site(args: &[WatAST], list_span: &Span) -> 
     let form = WatAST::List(
         vec![
             WatAST::Keyword(":wat::kernel::Frame'".into(), span.clone()), // rune:lint(retired-name) — positional constructor idiom: Frame is the record, Frame' builds one
-            // symbol: "<macro name>" — at expand time there is no enclosing
+            // fn: "<macro name>" — at expand time there is no enclosing
             // runtime fn, but the macro BEING expanded IS known; its name is
-            // the honest symbol (never absent).
+            // the honest value (never absent).
             WatAST::StringLit(macro_name, span.clone()),
-            // span: the nested Span' ctor form built above.
+            // at: the nested Span' ctor form built above.
             span_form,
-            // kind: a macro-call-site frame is always a wat-side frame.
-            WatAST::Keyword(":wat::kernel::FrameKind.Wat".into(), span.clone()),
+            // tail-elided: a macro-call-site frame is a single live expansion,
+            // never a tail-collapsed chain.
+            WatAST::IntLit(0, span.clone()),
         ],
         span,
     );

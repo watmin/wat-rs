@@ -139,30 +139,38 @@ pub struct RuntimeError {
 struct RuntimeErrorEnvelope {
     kind: RuntimeErrorKind,
     /// The live wat call stack at the moment of construction, innermost first,
-    /// capped (`crate::value::frame::capped_wat_frames`).
+    /// capped (`crate::value::frame::capped_frames_for_trace`) — ALREADY carries the
+    /// raise-paired innermost frame (see that fn's doc); nothing is prepended
+    /// separately anymore (D4's old synthesized-frame step is retired).
     wat_frames: Vec<crate::value::frame::Frame>,
     /// Frames elided by the cap — 0 when the stack fit under it.
     frames_elided: usize,
-    /// The ONE Rust frame (`#[track_caller]`'s view of whoever called `new`) — see
-    /// [`Frame::rust_site`](crate::value::frame::Frame::rust_site) for the "helper
-    /// builds for many callers" caveat.
-    rust_frame: crate::value::frame::Frame,
+    /// The Rust frame (`#[track_caller]`'s view of whoever called `new`), named by
+    /// [`crate::value::frame::current_activation`] — see
+    /// [`Frame::rust_site`](crate::value::frame::Frame::rust_site) for both the "helper
+    /// builds for many callers" caveat and the activation-naming contract. `None` only
+    /// for a `RuntimeError` built with no wat execution context at all (no activation,
+    /// no call stack — a direct Rust-level construction, e.g. a unit test exercising the
+    /// envelope's own mechanics); every real raise reached through the dispatcher or the
+    /// freeze pipeline gets `Some`.
+    rust_frame: Option<crate::value::frame::Frame>,
 }
 
 impl RuntimeError {
-    /// The ONE door for construction. Excursus 003 D3: also captures BOTH halves of
-    /// the trace every failure now carries — the live wat call stack (innermost
-    /// first, capped) via [`capped_wat_frames`](crate::value::frame::capped_wat_frames),
-    /// and the ONE Rust frame naming the constructing site, via `#[track_caller]`.
-    /// No change to any of the ~1,255 call sites: capture happens here, once, for all
-    /// of them.
+    /// The ONE door for construction. Excursus 003 D3/strike D: also captures BOTH
+    /// halves of the trace every failure now carries — the live wat call stack
+    /// (innermost first, capped, correctly paired) via
+    /// [`capped_frames_for_trace`](crate::value::frame::capped_frames_for_trace), and
+    /// the ONE Rust frame naming the constructing site (`#[track_caller]`) AND the
+    /// activation currently dispatching (`current_activation`). No change to any of
+    /// the ~1,255 call sites: capture happens here, once, for all of them.
     #[track_caller]
     pub fn new(span: Span, kind: RuntimeErrorKind) -> Self {
-        let (wat_frames, frames_elided) = crate::value::frame::capped_wat_frames();
-        let rust_frame = crate::value::frame::Frame::rust_site(std::panic::Location::caller());
-        // Excursus 003 D4 — the primary `:location` is derived, not the raw raise span
-        // (retires C-114). See `derive_primary_location`'s own doc.
-        let (span, wat_frames) = derive_primary_location(span, wat_frames, &kind);
+        let activation = crate::value::frame::current_activation();
+        let rust_frame = crate::value::frame::Frame::rust_site(std::panic::Location::caller(), activation);
+        // Excursus 003 D4/strike D — the primary `:location` is derived, not the raw
+        // raise span (retires C-114). See `derive_primary_location_and_frames`'s own doc.
+        let (span, wat_frames, frames_elided) = derive_primary_location_and_frames(span);
         Self {
             span,
             envelope: Box::new(RuntimeErrorEnvelope {
@@ -183,7 +191,7 @@ impl RuntimeError {
         self.envelope.kind
     }
     /// The captured wat call stack, innermost first, capped — see
-    /// [`crate::value::frame::capped_wat_frames`].
+    /// [`crate::value::frame::capped_frames_for_trace`].
     pub(crate) fn wat_frames(&self) -> &[crate::value::frame::Frame] {
         &self.envelope.wat_frames
     }
@@ -192,9 +200,10 @@ impl RuntimeError {
     pub(crate) fn frames_elided(&self) -> usize {
         self.envelope.frames_elided
     }
-    /// The one Rust frame naming the constructing site.
-    pub(crate) fn rust_frame(&self) -> &crate::value::frame::Frame {
-        &self.envelope.rust_frame
+    /// The Rust frame naming the constructing site, when one is known — see
+    /// [`RuntimeErrorEnvelope::rust_frame`]'s doc for the one case it is `None`.
+    pub(crate) fn rust_frame(&self) -> Option<&crate::value::frame::Frame> {
+        self.envelope.rust_frame.as_ref()
     }
     /// Span stays inline — it is not what stone B2 boxes.
     pub fn span(&self) -> &Span {
@@ -202,125 +211,59 @@ impl RuntimeError {
     }
 }
 
-/// Excursus 003 D4 — the primary `:location` is the innermost frame whose file the
-/// loader read under USER privilege, never the raw raise site. Retires the-little-wat's
+/// Excursus 003 D4/strike D — the primary `:location` is the innermost frame whose file
+/// the loader read under USER privilege, never the raw raise site. Retires the-little-wat's
 /// C-114: an `i64` overflow inside `(:wat::core::+ …)` used to locate at
-/// `wat/core.wat:66` (the stdlib's own raise line) rather than the user's own line —
-/// even though the user's call site was ALREADY sitting one frame down, in `wat_frames`.
+/// `wat/core.wat:66` (the stdlib's own raise line) rather than the user's own line.
 ///
-/// - If `span` (the raise site) is already user source, nothing changes: it already
-///   names the caller's own line. This is already true today for every
-///   `:wat::test::assert-*` panic (`eval_kernel_assertion_failed` sets `location` from
-///   the top of the live call stack, which IS the caller's own call to `assert-eq`) and
-///   for a runtime error a user's own top-level code raises directly — both arms are
-///   the no-op G2 gates.
-/// - Otherwise, scan `wat_frames` (innermost first, already captured above) for the
-///   first frame whose file is user source. If found, that frame's span becomes the
-///   NEW primary `:location`, and the OLD raise `span` is preserved as a NEW frame,
-///   PREPENDED as the innermost of `:frames` — so the raise site survives exactly once
-///   across `:location` ∪ `:frames` (G1's invariant), never dropped, never duplicated.
-///   The new frame's `kind` is `:Wat` when the raise span is itself wat-authored
-///   (`span.end.is_some()` — D1's own test for "a wat span, not a Rust one"; the parser
-///   always stamps a real `end` on every wat-source token/form it builds — `end` is
-///   `None` only for a `rust_caller_span!()` point-span, never for a parsed AST node's
-///   span, so this test cannot misfire on a genuinely wat-authored span) and `:Rust`
-///   otherwise; its `symbol` is the kind's own `op` field when it has one
-///   (`RuntimeErrorKind::op`, an exhaustive match — builder ruling: "use the kind's `op`
-///   when it has one", not "guess from whatever key happens to be named `op`"), falling
-///   back to frame 0's own symbol (builder ruling) when the kind carries no `op`.
+/// Strike D folds what used to be a SEPARATE "fabricate a raise frame, prepend it"
+/// step directly into frame reconstruction: for the non-G2 case, `capped_frames_for_trace`
+/// is called WITH `span` as the raise span, so the innermost frame is correctly paired
+/// (the top-of-stack's CURRENT name, at the raise site) — there is no longer a second,
+/// hand-built `Frame` literal to keep in sync with that shape.
+///
+/// - If `span` (the raise site) is already user source, `:location` is `span` itself —
+///   it already names the caller's own line (G2: every `:wat::test::assert-*` panic,
+///   and a runtime error a user's own top-level code raises directly). `span` is NOT
+///   also passed as the raise span here: it is already `:location`, and injecting it a
+///   second time would duplicate it into `:frames` too — G1's invariant ("the raise site
+///   survives exactly once across `:location` ∪ `:frames`") forbids that; see
+///   `tests/diagnostics/probe_excursus003_step4_g2_user_raised_untouched.rs`.
+/// - Otherwise, scan the reconstructed `wat_frames` (innermost first, built WITH `span`
+///   as the raise span) for the first frame whose `at` is user source; its `at` becomes
+///   the new `:location` (G3).
 /// - If no frame is in user source (a stdlib error with no user caller — the
 ///   `UserMainMissing` startup path is the one live producer: `wat_frames` is empty
-///   because no `apply_function` call has run yet on this thread), the raise span is
-///   kept — there is nothing more local to point at (G4).
-fn derive_primary_location(
+///   because no `apply_function` call has run yet on this thread), `span` is kept —
+///   there is nothing more local to point at (G4).
+fn derive_primary_location_and_frames(
     span: Span,
-    wat_frames: Vec<crate::value::frame::Frame>,
-    kind: &RuntimeErrorKind,
-) -> (Span, Vec<crate::value::frame::Frame>) {
+) -> (Span, Vec<crate::value::frame::Frame>, usize) {
     if crate::value::frame::is_user_source_file(&span.file) {
-        return (span, wat_frames);
+        let (wat_frames, frames_elided) = crate::value::frame::capped_frames_for_trace(None);
+        return (span, wat_frames, frames_elided);
     }
-    let Some(idx) = wat_frames
+    let (wat_frames, frames_elided) = crate::value::frame::capped_frames_for_trace(Some(span.clone()));
+    match wat_frames
         .iter()
-        .position(|f| crate::value::frame::is_user_source_file(&f.span.file))
-    else {
-        return (span, wat_frames);
-    };
-    let new_location = wat_frames[idx].span.clone();
-    let raise_symbol = kind.op().map(str::to_string).unwrap_or_else(|| wat_frames[0].symbol.clone());
-    let raise_kind = if span.end.is_some() {
-        crate::value::frame::FrameKind::Wat
-    } else {
-        crate::value::frame::FrameKind::Rust
-    };
-    let raise_frame = crate::value::frame::Frame {
-        symbol: raise_symbol,
-        span,
-        kind: raise_kind,
-    };
-    let mut frames = Vec::with_capacity(wat_frames.len() + 1);
-    frames.push(raise_frame);
-    frames.extend(wat_frames);
-    (new_location, frames)
-}
-
-impl RuntimeErrorKind {
-    /// The `op` field, for every variant that carries one. Excursus 003 D4 — the builder
-    /// ruling was "use the kind's `op` when it has one", NOT "find a key named `op`
-    /// wherever it happens to sit": an earlier draft of this fn rendered the kind's full
-    /// EDN and searched the top-level map for a `:op` keyword, which (a) depended on the
-    /// `#[derive(ToEdn)]` writer this campaign already flagged as debt to retire
-    /// (`DESIGN-the-error-envelope-and-its-frames.md`'s RULING), and (b) is a catch-all —
-    /// a variant whose op-shaped field carried a different name would silently read as
-    /// `None` with no signal that anything was missed. This is an EXHAUSTIVE match with
-    /// NO `_` arm: every current variant is named below, in one of the two arms, so a
-    /// future variant fails to compile here until it states which arm it belongs in.
-    fn op(&self) -> Option<&str> {
-        match self {
-            RuntimeErrorKind::TypeMismatch { op, .. }
-            | RuntimeErrorKind::ArityMismatch { op, .. }
-            | RuntimeErrorKind::IntegerOverflow { op, .. }
-            | RuntimeErrorKind::ChannelDisconnected { op }
-            | RuntimeErrorKind::NoEncodingCtx { op }
-            | RuntimeErrorKind::NoSourceLoader { op }
-            | RuntimeErrorKind::NoMacroRegistry { op }
-            | RuntimeErrorKind::MacroExpansionFailed { op, .. }
-            | RuntimeErrorKind::EffectfulInStep { op }
-            | RuntimeErrorKind::NoStepRule { op }
-            | RuntimeErrorKind::ServiceNotRunning { op }
-            | RuntimeErrorKind::EdnCoerceMismatch { op, .. } => Some(op.as_str()),
-
-            RuntimeErrorKind::UnboundSymbol(_)
-            | RuntimeErrorKind::UnknownFunction(_)
-            | RuntimeErrorKind::NotValueDispatchable { .. }
-            | RuntimeErrorKind::NotCallable { .. }
-            | RuntimeErrorKind::BadCondition { .. }
-            | RuntimeErrorKind::MalformedForm { .. }
-            | RuntimeErrorKind::ParamShadowsBuiltin(_)
-            | RuntimeErrorKind::DivisionByZero
-            | RuntimeErrorKind::DuplicateDefine(_)
-            | RuntimeErrorKind::ReservedPrefix(_)
-            | RuntimeErrorKind::UnreachableClause { .. }
-            | RuntimeErrorKind::UnnamespacedName(_)
-            | RuntimeErrorKind::DottedName(_)
-            | RuntimeErrorKind::DeclarationInExpressionPosition(_)
-            | RuntimeErrorKind::EvalForbidsMutationForm { .. }
-            | RuntimeErrorKind::UserMainMissing
-            | RuntimeErrorKind::EvalVerificationFailed { .. }
-            | RuntimeErrorKind::ReteCeiling(_)
-            | RuntimeErrorKind::PatternMatchFailed { .. }
-            | RuntimeErrorKind::AssertionFailed { .. }
-            | RuntimeErrorKind::SandboxScopeLeak { .. }
-            | RuntimeErrorKind::UnknownField { .. }
-            | RuntimeErrorKind::NoMatchingClause { .. }
-            | RuntimeErrorKind::PostconditionFailed { .. }
-            | RuntimeErrorKind::MacroAbort { .. }
-            | RuntimeErrorKind::WriteStopped
-            | RuntimeErrorKind::ReteDefnAxisViolation { .. }
-            | RuntimeErrorKind::ReteDefnRecursive { .. } => None,
+        .find(|f| crate::value::frame::is_user_source_file(&f.at.file))
+    {
+        Some(f) => {
+            let new_location = f.at.clone();
+            (new_location, wat_frames, frames_elided)
         }
+        None => (span, wat_frames, frames_elided),
     }
 }
+
+// `RuntimeErrorKind::op()` (an exhaustive 12-vs-28 match, "use the kind's own `op`
+// field when it has one, naming the innermost Rust frame") RETIRED here — excursus 003
+// strike D item 4's ruling: a frame's identity is a property of the STACK, not of the
+// error's content, so naming now comes ONLY from `crate::value::frame::current_activation`
+// (set by the intrinsic/special-form dispatcher and the freeze pipeline), never read off
+// `RuntimeErrorKind`. The `op` FIELD itself, on the 12 variants that carry one, still
+// renders on EDN output — that is the derive macro reading the struct field directly, and
+// is untouched by this retirement.
 
 /// Arc 296 stone I — the taxonomy conversion `resolve::register`'s `?` performs at every
 /// runtime-registration call site. `Rejection::verdict` is never `Insert`/`NoOp` (see its

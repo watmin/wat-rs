@@ -2399,32 +2399,23 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // registration just above — unchanged by this stone, already generated from
     // `wat/core.wat`). No replacement registration belongs here: Span's is the only one.
 
-    // :wat::kernel::FrameKind — excursus 003 D3: whether a `Frame` came from the wat
-    // call stack (`:Wat`) or is the one Rust site that raised the error (`:Rust`).
-    // Registered BEFORE `Frame` below: `Frame.kind` names this type as a field, and
-    // registration reads field types against the TypeEnv built so far (Frame-before-
-    // AssertionFailure ordering, same reasoning, one row up in this file's history).
-    // ⛔ GENERATED FROM WAT. This row is emitted from
-    // `(:wat::core::defenum :wat::kernel::FrameKind …)` in `wat/kernel/diagnostics.wat`,
-    // read at BUILD time by `wat-source-derive`. wat is the source of truth.
-    ::wat_source_derive::wat_enum_register_from!(
-        env,
-        "wat/kernel/diagnostics.wat",
-        ":wat::kernel::FrameKind"
-    );
+    // :wat::kernel::FrameKind RETIRED — excursus 003 strike D (RULING 2026-09-27 item
+    // 2): derivable from `span.end` (D1) and duplicated information `at` already
+    // carries; the raise it used to distinguish ("the fabricated raise frame") is
+    // itself retired. No replacement registration belongs here.
 
-    // :wat::kernel::Frame — one entry in a captured trace: a wat call-stack entry,
-    // captured by `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline
-    // stack) or by `(:wat::kernel::macro-call-site)` (from the expand-time
-    // macro-invocation stack) — or the ONE Rust site that raised the error (excursus
-    // 003 D3, `RuntimeError::new`'s `#[track_caller]`). `symbol` is ALWAYS KNOWN — the
-    // older all-`Option` shape (justified by a never-built Rust-backtrace→Frame path
-    // where symbol resolution could fail per-frame) was a lie: every LIVE construction
-    // has a real symbol (a named fn's path, the `<anonymous>` marker for an anon fn,
-    // the macro name for a macro-call-site, or the `<rust>` marker for a `:Rust`
-    // frame). Arc 109 — concrete, non-`Option` fields. Excursus 003 D3 moved the
-    // location off this record's own `file`/`line` fields onto the shared
-    // `:wat::core::Span` (`span`), and added `kind` (`:wat::kernel::FrameKind`).
+    // :wat::kernel::Frame — one entry in a captured trace, pairing (*function*, *where
+    // inside it execution is*): a wat call-stack entry, captured by
+    // `(:wat::kernel::call-site)` (from the runtime `FrameInfo` trampoline stack) or by
+    // `(:wat::kernel::macro-call-site)` (from the expand-time macro-invocation stack) —
+    // or the ONE Rust site that raised the error (`RuntimeError::new`'s
+    // `#[track_caller]`, named by `crate::value::frame::current_activation()` since
+    // excursus 003 strike D item 4). `fn` is ALWAYS KNOWN — a named fn's path, the
+    // `<anonymous>` marker for an anon fn, the macro name for a macro-call-site, or the
+    // registered intrinsic/special-form/freeze-phase name currently dispatching. Arc
+    // 109 — concrete, non-`Option` fields; never a placeholder. `tail-elided`
+    // (excursus 003 strike D item 3) counts tail-collapsed activations missing beyond
+    // the one named here.
     // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::Frame …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the

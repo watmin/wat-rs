@@ -19,8 +19,18 @@
     }
     :frames [
       #wat.kernel/Frame {
-        :symbol ":wat::i64::+"
-        :span #wat.core/Span {
+        :fn ":wat::i64::+"
+        :at #wat.core/Span {
+          :file "src/numeric/arith.rs"
+          :line 0
+          :col 9
+          :end #wat.core/Option.None {}
+        }
+        :tail-elided 0
+      }
+      #wat.kernel/Frame {
+        :fn ":wat::core::+"
+        :at #wat.core/Span {
           :file "wat/core.wat"
           :line 66
           :col 62
@@ -31,11 +41,11 @@
             }
           }
         }
-        :kind #wat.kernel/FrameKind.Wat {}
+        :tail-elided 0
       }
       #wat.kernel/Frame {
-        :symbol ":wat::core::+"
-        :span #wat.core/Span {
+        :fn ":user::grow"
+        :at #wat.core/Span {
           :file "tests/diagnostics/probe_excursus003_step4_g5_thread_locus.wat"
           :line 9
           :col 3
@@ -46,32 +56,22 @@
             }
           }
         }
-        :kind #wat.kernel/FrameKind.Wat {}
+        :tail-elided 0
       }
       #wat.kernel/Frame {
-        :symbol ":wat::core::Fn"
-        :span #wat.core/Span {
-          :file "wat/spawn.wat"
-          :line 363
-          :col 5
+        :fn ":wat::core::Fn"
+        :at #wat.core/Span {
+          :file "tests/diagnostics/probe_excursus003_step4_g5_thread_locus.wat"
+          :line 15
+          :col 35
           :end #wat.core/Option.Some {
             :value #wat.core/Pos {
-              :line 363
-              :col 124
+              :line 15
+              :col 51
             }
           }
         }
-        :kind #wat.kernel/FrameKind.Wat {}
-      }
-      #wat.kernel/Frame {
-        :symbol "<rust>"
-        :span #wat.core/Span {
-          :file "src/numeric/arith.rs"
-          :line 0
-          :col 9
-          :end #wat.core/Option.None {}
-        }
-        :kind #wat.kernel/FrameKind.Rust {}
+        :tail-elided 0
       }
     ]
     :frames-elided 0

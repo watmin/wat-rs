@@ -233,10 +233,11 @@ mod tests {
             actual: Some("-1".into()),
             expected: Some("42".into()),
             location: Some(mk_span("wat-tests/foo.wat", 12, 5)),
-            frames: vec![crate::value::frame::Frame::from(crate::value::FrameInfo::pristine(
-                ":my::app::foo".into(),
-                mk_span("wat-tests/foo.wat", 12, 5),
-            ))],
+            frames: vec![crate::value::frame::Frame {
+                fn_name: ":my::app::foo".into(),
+                at: mk_span("wat-tests/foo.wat", 12, 5),
+                tail_elided: 0,
+            }],
             upstream_chain: None,
             thread_name: Some("wat-test::my-deftest".into()),
             raised_error: None,

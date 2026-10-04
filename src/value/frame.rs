@@ -146,38 +146,42 @@ pub fn snapshot_call_stack() -> Vec<FrameInfo> {
 // RULING 2026-10-03 item 1. `Frame` (today `{symbol span kind}`, pairing
 // (*callee*, *where it was called from*)) is being reshaped to `{fn at}`,
 // pairing (*function*, *where inside it execution is*) — the Clojure/Java
-// convention. That reshape also needs the innermost Rust activation to carry
-// an honest `fn` name (never the `<rust>` placeholder), which — per the
-// builder's "no placeholder" ruling — this strike found it could not supply
-// for every `RuntimeErrorKind` variant from data the kind already carries
-// (`DivisionByZero`, `NotCallable`, `BadCondition`, `UserMainMissing`,
-// `EvalVerificationFailed`, `WriteStopped`, `PatternMatchFailed`,
-// `AssertionFailed`, `MacroAbort`, and three of `ReteCeiling`'s four inner
-// variants carry no name-bearing field at all — see the strike's report for
-// the full census). That is a STOP: completing the wire reshape (the `Frame`
-// type itself, `RuntimeError`'s EDN, every consumer, every golden) is OUT
-// until the builder rules on it.
+// convention.
 //
-// What is NOT blocked by that gap: the tail-collapse bookkeeping itself
-// (`FrameInfo`'s three new fields above, `replace_top_frame`'s O(1) update)
-// and the pure reconstruction algorithm below, which the eventual wire
-// reshape will call once item 4 is resolved. Proven here at the Rust level
-// (GD1–GD4, `mod strike_d_tests` below) against a throwaway `DisplayFrame`
-// shape — not yet `crate::value::frame::Frame`, not yet wired into
-// `RuntimeError`/EDN/goldens (that's GD5 and the wire work, still blocked).
+// That reshape also needs the innermost Rust activation to carry an honest
+// `fn` name (never the `<rust>` placeholder). An earlier pass of this strike
+// tried to find that name ON THE `RuntimeErrorKind` ITSELF (the way `op()`
+// already does for 12 variants) and STOPped: ~10 of 40 variants carry no
+// name-bearing field at all (`DivisionByZero`, `NotCallable`, `BadCondition`,
+// `UserMainMissing`, `EvalVerificationFailed`, `WriteStopped`,
+// `PatternMatchFailed`, `AssertionFailed`, `MacroAbort`, three of
+// `ReteCeiling`'s four inner variants).
+//
+// The builder's ruling (§ "Strike D, first boundary"): a frame's identity is
+// a property of the STACK, not of the error's content — threading name
+// fields onto ~10 kinds is Simple NO (ten wire changes for a framing
+// concern), and any fallback name is Honest NO. Instead, `CURRENT_ACTIVATION`
+// below: ONE thread-local slot naming whatever native/special-form/freeze-
+// phase activation is CURRENTLY running, written by exactly three call
+// sites (never by `RuntimeErrorKind`), read by `Frame::rust_site` for every
+// kind uniformly. `RuntimeErrorKind::op()` is no longer used for naming —
+// only for the `op` FIELD each of its 12 carrying variants still has.
 
-/// A reconstructed, correctly-paired display frame — `{fn at}` plus the
-/// tail-collapse count. The eventual `Frame` (once item 4 unblocks the wire
-/// reshape) carries exactly this shape; kept separate for now so this
-/// strike's proven half doesn't masquerade as the (still-blocked) whole.
+/// One frame in a captured trace — `{fn at tail-elided}`, pairing (*function*,
+/// *where inside it execution is*) — the Clojure/Java convention. `pub` (not
+/// `pub(crate)`): `AssertionPayload` (`src/assertion.rs`) is itself a `pub`
+/// struct with a `pub frames: Vec<Frame>` field, so `Frame` must be reachable
+/// at the same visibility.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct DisplayFrame {
-    /// The function this frame is about. Mandatory — no placeholder.
-    pub(crate) fn_name: String,
+pub struct Frame {
+    /// The function this frame is about. Mandatory — no placeholder (item 1's
+    /// ruling struck `<rust>`; item 4's ruling struck naming it off
+    /// `RuntimeErrorKind` — see `CURRENT_ACTIVATION` below).
+    pub fn_name: String,
     /// Where, INSIDE `fn_name`, execution is (or where it made its next
     /// call, or — for the innermost frame when a raise span is supplied —
     /// where it raised).
-    pub(crate) at: Span,
+    pub at: Span,
     /// How many tail-collapsed activations are missing BEYOND the one named
     /// here. `0` for an ordinary (never tail-replaced) frame, and ALSO for a
     /// tail-collapsed frame whose own single substitution lost nothing
@@ -185,12 +189,12 @@ pub(crate) struct DisplayFrame {
     /// The value is honest either way — it states exactly how many named
     /// activations are absent at this position, and 0 is the true answer in
     /// both cases.
-    pub(crate) tail_elided: usize,
+    pub tail_elided: usize,
 }
 
 /// Reconstruct display frames from a tail-aware call-stack slice, innermost
 /// first. `stack` must be in storage order (outermost first, innermost /
-/// top-of-stack last) — exactly `capped_wat_frames`' internal slice, or
+/// top-of-stack last) — exactly `capped_frames_for_trace`' internal slice, or
 /// `snapshot_call_stack()`'s result reversed back to storage order.
 ///
 /// `raise_span`, when given, is the actual location execution reached when it
@@ -223,7 +227,7 @@ pub(crate) struct DisplayFrame {
 ///   for the same identity); otherwise its own `call_span` is the best
 ///   available answer (the "no raise_span" contexts don't have a
 ///   shift target either).
-pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) -> Vec<DisplayFrame> {
+pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) -> Vec<Frame> {
     let n = stack.len();
     let mut out = Vec::with_capacity(n + raise_span.is_some() as usize);
     for idx in (0..n).rev() {
@@ -231,7 +235,7 @@ pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) 
         let is_top = idx == n - 1;
         if is_top {
             if let Some(span) = &raise_span {
-                out.push(DisplayFrame {
+                out.push(Frame {
                     fn_name: slot.callee_path.clone(),
                     at: span.clone(),
                     tail_elided: 0,
@@ -248,7 +252,7 @@ pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) 
             }
         }
         if slot.tail_hops > 0 {
-            out.push(DisplayFrame {
+            out.push(Frame {
                 fn_name: slot.last_tail_caller.clone(),
                 at: slot.call_span.clone(),
                 tail_elided: slot.tail_hops - 1,
@@ -258,7 +262,7 @@ pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) 
                 Some(inner) => inner.entry_call_site.clone(),
                 None => slot.call_span.clone(),
             };
-            out.push(DisplayFrame {
+            out.push(Frame {
                 fn_name: slot.callee_path.clone(),
                 at,
                 tail_elided: 0,
@@ -268,14 +272,99 @@ pub(crate) fn reconstruct_frames(stack: &[FrameInfo], raise_span: Option<Span>) 
     out
 }
 
+impl Frame {
+    /// The ONE Rust frame every `RuntimeError` carries: the `#[track_caller]` view of
+    /// whoever wrote the call to `RuntimeError::new` — "like Clojure has Java in its
+    /// traces" — paired with the honest activation name [`current_activation`] supplies
+    /// (excursus 003 strike D item 4). `end` is always `None`: Rust's `Location` knows
+    /// only where the call began, never where it ends (D1's own `end`-is-`Option`
+    /// distinction for `Span`).
+    ///
+    /// ⚠ Records the Rust function that CALLED `new`, not `new`'s own body — so where a
+    /// helper builds the error for MANY callers (e.g. `eval_opt_string`,
+    /// `src/assertion.rs`), that helper is the recorded site, not each of ITS callers.
+    /// Accepted per BRIEF-envelope-step-2-every-error-carries-its-frames.md.
+    ///
+    /// `activation` (read by the caller from [`current_activation`]) is `Some` for every
+    /// REAL raise reached through the intrinsic/special-form dispatcher or the freeze
+    /// pipeline (this strike's measurement drives representative producers for each and
+    /// confirms it). It is honestly `None` for a `RuntimeError` built directly in Rust
+    /// with NO wat execution context at all — found, empirically, to be a pervasive,
+    /// pre-existing pattern: ~100 unit tests across this tree call `RuntimeError::new`
+    /// straight from a bare `#[test]` fn (no freeze, no eval, `CALL_STACK` never
+    /// pushed), to test the envelope's OWN Rust-level mechanics
+    /// (`tests/value/probe_runtime_error_one_door.rs`, `tests/diagnostics/
+    /// probe_arc298_3_runtime_derive_identical.rs`, …) — none of the three writers the
+    /// builder named can EVER fire for that construction shape, by its very nature.
+    ///
+    /// Returns `None` rather than inventing a name for that case — the builder's "no
+    /// placeholder" ruling forecloses a fallback STRING, but says nothing against simply
+    /// not having a Rust frame when nothing is honestly known about one: the caller
+    /// (`RuntimeError::new`) omits this frame from `:frames` entirely rather than
+    /// rendering a guess. A real production raise never takes this branch (freeze
+    /// always runs before the first eval, and eval always sets the activation before
+    /// anything it dispatches can raise) — see this strike's report for the finding and
+    /// why it was decided this way rather than a panic (which would turn ~100
+    /// pre-existing, unrelated tests red) or a fallback string (ruled out).
+    pub(crate) fn rust_site(loc: &std::panic::Location<'_>, activation: Option<String>) -> Option<Self> {
+        let fn_name = activation?;
+        Some(Frame {
+            fn_name,
+            at: Span::new(
+                std::sync::Arc::new(loc.file().to_string()),
+                loc.line() as i64,
+                loc.column() as i64,
+            ),
+            tail_elided: 0,
+        })
+    }
+
+    /// Render one frame to `#wat.kernel/Frame {:fn :at :tail-elided}` — the ONE EDN
+    /// builder for a frame, shared by `RuntimeError`'s `:frames` (`src/edn/error.rs`) and
+    /// `AssertionPayload`'s `:frames` (`src/panic_hook.rs`).
+    pub(crate) fn to_edn(&self) -> wat_edn::OwnedValue {
+        use crate::edn::contract::ToEdn;
+        wat_edn::OwnedValue::Tagged(
+            wat_edn::Tag::ns("wat.kernel", "Frame"),
+            Box::new(wat_edn::OwnedValue::Map(vec![
+                (
+                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("fn")),
+                    wat_edn::OwnedValue::String(std::borrow::Cow::Owned(self.fn_name.clone())),
+                ),
+                (
+                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("at")),
+                    self.at.to_edn(),
+                ),
+                (
+                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("tail-elided")),
+                    wat_edn::OwnedValue::Integer(self.tail_elided as i64),
+                ),
+            ])),
+        )
+    }
+}
+
+/// Reconstruct the FULL (uncapped) wat call stack into display frames, innermost first —
+/// the shared door for every consumer that isn't `RuntimeError` (which caps, below):
+/// `AssertionPayload` (`src/assertion.rs`), `src/kernel/abort.rs`, `src/collection/eval.rs`,
+/// `src/services/verbs.rs`. `raise_span` is `None` for all four TODAY — each derives its
+/// own `location` field from the top frame's OWN `call_span` (preserved exactly: with no
+/// raise_span, the top slot has no shift target either and falls back to its own
+/// `call_span`, the same value these callers read today), not from a separate raise site.
+pub(crate) fn frames_for_trace(raise_span: Option<Span>) -> Vec<Frame> {
+    let stack = CALL_STACK.with(|s| s.borrow().clone());
+    reconstruct_frames(&stack, raise_span)
+}
+
 #[cfg(test)]
 mod strike_d_tests {
-    //! Excursus 003 strike D — GD1–GD4 at the Rust level (the valid boundary
-    //! this strike stopped at; see the report for why item 4 blocks the wire
-    //! reshape these would otherwise feed). Each test drives `CALL_STACK`
-    //! directly via `FrameGuard::push` / `replace_top_frame`, exactly as
-    //! `apply_function`'s trampoline does, then asserts `reconstruct_frames`'
-    //! output field-for-field.
+    //! Excursus 003 strike D — GD1–GD4 at the pure-reconstruction level, driving
+    //! `CALL_STACK` directly via `FrameGuard::push` / `replace_top_frame`, exactly as
+    //! `apply_function`'s trampoline does, then asserting `reconstruct_frames`'s
+    //! output field-for-field. GD5 (no synthesized/placeholder frame; the lint's RED
+    //! anchor on today's goldens) and the wire-level probes against the REAL
+    //! `RuntimeError`/`AssertionPayload` EDN live in `tests/diagnostics/` — this module
+    //! proves the algorithm in isolation, those prove it wired end to end.
     use super::*;
 
     fn span(file: &str, line: i64, col: i64) -> Span {
@@ -316,12 +405,12 @@ mod strike_d_tests {
         assert_eq!(
             frames,
             vec![
-                DisplayFrame {
+                Frame {
                     fn_name: ":wat::core::+".into(),
                     at: span("wat/core.wat", 66, 62),
                     tail_elided: 0,
                 },
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::grow".into(),
                     at: span("c114.wat", 10, 3),
                     tail_elided: 1,
@@ -361,17 +450,17 @@ mod strike_d_tests {
         assert_eq!(
             frames,
             vec![
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::h".into(),
                     at: span("chain.wat", 13, 3),
                     tail_elided: 0,
                 },
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::g".into(),
                     at: span("chain.wat", 9, 3),
                     tail_elided: 1, // f's own identity is the one missing frame
                 },
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::main".into(),
                     at: span("chain.wat", 1, 3), // f's entry_call_site, inside main
                     tail_elided: 0,
@@ -414,12 +503,12 @@ mod strike_d_tests {
         assert_eq!(
             frames,
             vec![
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::leaf".into(),
                     at: span("plain.wat", 4, 5),
                     tail_elided: 0,
                 },
-                DisplayFrame {
+                Frame {
                     fn_name: ":user::main".into(),
                     at: span("plain.wat", 2, 3),
                     tail_elided: 0,
@@ -427,7 +516,7 @@ mod strike_d_tests {
             ]
         );
         // Every tail_elided is 0 — "no marker" here IS the no-tail-hops case
-        // (see DisplayFrame's own doc: 0 is honest in both readings; what
+        // (see Frame's own doc: 0 is honest in both readings; what
         // distinguishes a tail frame from an ordinary one is WHICH name
         // (`last_tail_caller` vs `callee_path`) got reported, not this count).
         assert!(frames.iter().all(|f| f.tail_elided == 0));
@@ -476,6 +565,76 @@ mod strike_d_tests {
         assert_eq!(frames[1].tail_elided, ITERS - 1);
         clear_stack();
     }
+}
+
+// ─── Excursus 003 strike D, item 4 — the current-activation slot ─────────────
+//
+// `AUDIT-the-shape-of-an-error.md` § RULING "Strike D, first boundary". Names the
+// innermost Rust activation for `Frame::rust_site`, replacing the retired `<rust>`
+// placeholder and `RuntimeErrorKind::op()`'s former naming role. A frame's identity
+// is a property of the STACK (what is CURRENTLY running), not of the error's
+// content — so this is written by exactly three call sites, each naming what IT
+// knows is currently executing, never by the error kind itself:
+//
+// 1. **The intrinsic/special-form dispatcher** (`src/runtime.rs`'s
+//    `dispatch_keyword_head`/`dispatch_keyword_head_value`/`eval_tail`'s own
+//    keyword-head arm) — `ActivationGuard::enter(head)`, RAII, around the whole
+//    dispatch attempt for that head (not just a successful handler call): this
+//    covers a registered intrinsic, a registered special form (the registry
+//    folds both into the same `handler`/`tail_handler` slot — see
+//    `src/intrinsic/mod.rs`'s `registry()`), AND the "no handler found" raises
+//    (`UnboundSymbol`, `NotCallable`, `MalformedForm`, …) that happen in the
+//    SAME dispatch attempt once the registry comes up empty.
+// 2. **The freeze pipeline's `pass_order::record`** (`src/freeze/pass_order.rs`)
+//    — a plain overwrite, no restore: freeze runs linearly, before any wat
+//    activation exists, so there is nothing to nest under. Names the startup
+//    phase for `UserMainMissing`/`EvalVerificationFailed`.
+//
+// RAII (enter/restore) for (1) so nested dispatch — a special form evaluating a
+// sub-form that itself dispatches — reports the INNERMOST activation, exactly
+// the way `CALL_STACK`'s own push/pop nests. A plain overwrite for (2) because
+// freeze has no call-stack to nest under at all.
+thread_local! {
+    static CURRENT_ACTIVATION: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// RAII guard naming the currently-dispatching native/special-form head —
+/// restores whatever was there before (nesting correctly through recursive
+/// dispatch) on drop. Mirrors [`UserSourceGuard`]'s save/restore shape.
+#[must_use = "ActivationGuard must be bound to a local (let _g = ...); dropping it immediately restores the prior activation"]
+pub(crate) struct ActivationGuard {
+    prior: Option<String>,
+}
+
+impl ActivationGuard {
+    pub(crate) fn enter(name: impl Into<String>) -> Self {
+        let prior = CURRENT_ACTIVATION.with(|c| c.replace(Some(name.into())));
+        ActivationGuard { prior }
+    }
+}
+
+impl Drop for ActivationGuard {
+    fn drop(&mut self) {
+        CURRENT_ACTIVATION.with(|c| *c.borrow_mut() = self.prior.take());
+    }
+}
+
+/// Plain overwrite (no restore) — the freeze pipeline's own writer. Freeze runs
+/// linearly, before any wat activation exists on this thread, so there is
+/// nothing to nest under; each `pass_order::record` call simply names the
+/// phase now running.
+pub(crate) fn set_activation(name: &'static str) {
+    CURRENT_ACTIVATION.with(|c| *c.borrow_mut() = Some(name.to_string()));
+}
+
+/// Read the currently-named activation, for `Frame::rust_site` to name the
+/// innermost Rust frame. `None` means no writer has named anything on this
+/// thread yet (should not happen for any REAL raise once the three writers
+/// above are in place — a raise that finds this empty is this strike's own
+/// measurement's STOP condition, not a case to paper over with a guess).
+pub(crate) fn current_activation() -> Option<String> {
+    CURRENT_ACTIVATION.with(|c| c.borrow().clone())
 }
 
 // ─── Excursus 003 D4 item 1 — the user-source-file record ────────────────────
@@ -633,120 +792,6 @@ pub(crate) fn current_macro_call_site() -> Option<(Span, String)> {
     MACRO_CALL_SITE.with(|s| s.borrow().last().cloned())
 }
 
-// ─── Excursus 003 D3 — one frame shape, whether it came from wat or Rust ──────
-//
-// `:wat::kernel::FrameKind` (`wat/kernel/diagnostics.wat`) names WHERE a frame came
-// from: a wat call-stack entry (`:Wat`) or the one Rust site that raised the error
-// carrying it (`:Rust`). Generated from the wat `defenum` — wat is the source of
-// truth (mirrors `DefinedIn`/`Layer`/`Kind` in `src/intrinsic/mod.rs`).
-::wat_source_derive::wat_enum_from!(
-    pub enum FrameKind,
-    "wat/kernel/diagnostics.wat",
-    ":wat::kernel::FrameKind"
-);
-
-impl crate::intrinsic::ToEnumValue for FrameKind {
-    const WAT_TYPE_PATH: &'static str = <FrameKind>::WAT_TYPE_PATH;
-    fn variant_str(&self) -> &'static str {
-        self.as_str()
-    }
-}
-
-/// EDN tag for a nullary `FrameKind` variant: `#wat.kernel/FrameKind.Wat {}` /
-/// `#wat.kernel/FrameKind.Rust {}` — the same `<Enum>.<Variant>` shape every other
-/// nullary enum in this crate renders (`#wat.core/Option.None {}`, `wat/core.wat`'s
-/// `:purity :wat::runtime::Purity.Pure` bare-keyword convention). Hand-written rather
-/// than routed through `Value::Enum`'s renderer: this fn serves `Frame::to_edn`, which
-/// builds `OwnedValue` directly from Rust data (a `RuntimeError`/`AssertionPayload`
-/// has no live `Value`/`TypeRegistry` in hand at the point it renders its frames).
-impl crate::edn::contract::ToEdn for FrameKind {
-    fn to_edn(&self) -> wat_edn::OwnedValue {
-        wat_edn::OwnedValue::Tagged(
-            wat_edn::Tag::ns("wat.kernel", format!("FrameKind.{}", self.as_str())),
-            Box::new(wat_edn::OwnedValue::Map(vec![])),
-        )
-    }
-}
-
-/// The `symbol` marker for a `:Rust` frame — mirrors [`ANON_FN_SYMBOL`]'s role for an
-/// anonymous wat fn: `symbol` is a mandatory, non-`Option` field (arc 109), and a
-/// `:Rust` frame has no wat keyword-path name to put there. Honest rather than
-/// fabricated: this says plainly "this frame's origin is Rust, not a wat symbol" —
-/// the frame's `span` (file/line/col of the `#[track_caller]` site) is where the real
-/// identifying information lives.
-pub(crate) const RUST_FRAME_SYMBOL: &str = "<rust>";
-
-/// One frame in a captured trace — a wat call-stack entry or the Rust site that raised
-/// the error. Excursus 003 D3: ONE shape and ONE builder for both, so a consumer
-/// (`RuntimeError`'s frames, `AssertionPayload`'s frames) never has to special-case
-/// which door a frame came through. `pub` (not `pub(crate)`): `AssertionPayload`
-/// (`src/assertion.rs`) is itself a `pub` struct with a `pub frames: Vec<Frame>`
-/// field, so `Frame` must be reachable at the same visibility.
-#[derive(Debug, Clone)]
-pub struct Frame {
-    pub symbol: String,
-    pub span: Span,
-    pub kind: FrameKind,
-}
-
-impl From<FrameInfo> for Frame {
-    fn from(fi: FrameInfo) -> Self {
-        Frame {
-            symbol: fi.callee_path,
-            span: fi.call_span,
-            kind: FrameKind::Wat,
-        }
-    }
-}
-
-impl Frame {
-    /// The ONE Rust frame D3 asks for: the `#[track_caller]` view of whoever wrote
-    /// the call to `RuntimeError::new` — "like clojure has java in its traces". `end`
-    /// is always `None`: Rust's `Location` knows only where the call began, never
-    /// where it ends (the same `end`-is-`Option` distinction D1 drew for `Span`).
-    ///
-    /// ⚠ Records the Rust function that CALLED `new`, not `new`'s own body — so where
-    /// a helper builds the error for MANY callers (e.g. `eval_opt_string`,
-    /// `src/assertion.rs`), that helper is the recorded site, not each of ITS
-    /// callers. Accepted per BRIEF-envelope-step-2-every-error-carries-its-frames.md.
-    pub(crate) fn rust_site(loc: &std::panic::Location<'_>) -> Self {
-        Frame {
-            symbol: RUST_FRAME_SYMBOL.into(),
-            span: Span::new(
-                std::sync::Arc::new(loc.file().to_string()),
-                loc.line() as i64,
-                loc.column() as i64,
-            ),
-            kind: FrameKind::Rust,
-        }
-    }
-
-    /// Render one frame to `#wat.kernel/Frame {:symbol :span :kind}` — the ONE EDN
-    /// builder for a frame, shared by `RuntimeError`'s `:frames` (`src/edn/error.rs`)
-    /// and `AssertionPayload`'s `:frames` (`src/panic_hook.rs`), so the two capture
-    /// paths D3's brief asks to unify render identically rather than by coincidence.
-    pub(crate) fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::edn::contract::ToEdn;
-        wat_edn::OwnedValue::Tagged(
-            wat_edn::Tag::ns("wat.kernel", "Frame"),
-            Box::new(wat_edn::OwnedValue::Map(vec![
-                (
-                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("symbol")),
-                    wat_edn::OwnedValue::String(std::borrow::Cow::Owned(self.symbol.clone())),
-                ),
-                (
-                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("span")),
-                    self.span.to_edn(),
-                ),
-                (
-                    wat_edn::OwnedValue::Keyword(wat_edn::Keyword::new("kind")),
-                    self.kind.to_edn(),
-                ),
-            ])),
-        )
-    }
-}
-
 // ─── Excursus 003 D3 — the cap ─────────────────────────────────────────────────
 //
 // Non-tail recursion can reach ~110,000 frames before the Rust stack overflows
@@ -763,7 +808,7 @@ impl Frame {
 //
 // Cost is linear in depth (a `Vec` clone of every `FrameInfo`, one `Arc` clone each)
 // — a 100,000-deep non-tail recursion that errors pays ~4.1ms PER RAISE to copy
-// frames nobody asked to see 100,000 of. **This is why `capped_wat_frames` does NOT
+// frames nobody asked to see 100,000 of. **This is why `capped_frames_for_trace` does NOT
 // call `snapshot_call_stack()`** — an earlier draft of this fn did, measured, and was
 // wrong: it paid the full linear cost above and then threw most of it away, capping
 // the OUTPUT while leaving the COST exactly as depth-dependent as the thing being
@@ -771,7 +816,7 @@ impl Frame {
 // M elements bounds the cost itself to O(cap), independent of depth — MEASURED (same
 // method, `measure_capped_snapshot_cost_by_depth`):
 //
-//   depth        capped_wat_frames() cost                            run 1      run 2
+//   depth        capped_frames_for_trace() cost                            run 1      run 2
 //   10           ~240ns (n <= cap, no capping needed)                239ns      —
 //   1,000        ~1.6µs (bounded by the 40-frame cap, not depth)     1,635ns    —
 //   100,000      ~1.6µs (SAME — does not grow with depth)            1,559ns    —
@@ -786,10 +831,12 @@ impl Frame {
 pub(crate) const FRAME_CAP_INNERMOST: usize = 32;
 pub(crate) const FRAME_CAP_OUTERMOST: usize = 8;
 
-/// Snapshot the wat call stack for a new `RuntimeError`, capped to innermost
-/// [`FRAME_CAP_INNERMOST`] + outermost [`FRAME_CAP_OUTERMOST`] frames. Returns the
-/// (possibly capped) frames, innermost first, plus the count elided from the middle
-/// (0 when the stack fit under the cap).
+/// Snapshot the wat call stack for a new `RuntimeError`, reconstructed and capped to
+/// innermost [`FRAME_CAP_INNERMOST`] + outermost [`FRAME_CAP_OUTERMOST`] frames. Returns
+/// the (possibly capped) display frames, innermost first, plus the count elided from the
+/// middle (0 when the stack fit under the cap). `raise_span` is the raw raise site
+/// (`RuntimeError`'s own `span` argument) — see [`reconstruct_frames`]'s doc for what it
+/// does to the innermost frame.
 ///
 /// ⚠ Deliberately reads `CALL_STACK` directly rather than calling
 /// [`snapshot_call_stack`] — that fn clones the WHOLE stack (measured linear in depth,
@@ -797,32 +844,40 @@ pub(crate) const FRAME_CAP_OUTERMOST: usize = 8;
 /// depth-dependent cost this cap exists to avoid before throwing the middle away.
 /// Cloning only the `FRAME_CAP_INNERMOST + FRAME_CAP_OUTERMOST` elements this fn
 /// actually keeps bounds the COST to the cap, not just the rendered output.
-pub(crate) fn capped_wat_frames() -> (Vec<Frame>, usize) {
+///
+/// Over the cap, the innermost-N and outermost-M windows are reconstructed
+/// SEPARATELY (not concatenated into one slice first): `reconstruct_frames`'s shift
+/// logic reads a slot's TRUE next-inner neighbour via `stack.get(idx + 1)`, and the two
+/// windows are NOT truly adjacent (a real, elided middle sits between them) — splicing
+/// them into one contiguous slice would make the outer window's innermost slot
+/// incorrectly read the inner window's outermost slot as if it were its real neighbour.
+/// Reconstructing each window on its own means that boundary slot instead takes
+/// `reconstruct_frames`' own "no next slot" fallback (its own `call_span`) — not a wrong
+/// answer, the honest "nothing more local is available here" one, exactly as it would be
+/// for a true outermost/innermost slot. `frames-elided` already states a gap exists;
+/// this is never-before-exercised (F6: "`frames-elided` was never non-zero in any
+/// golden"), so there is no existing golden shape to preserve here, only the invariant:
+/// no frame ever attributes a location to a function that does not contain it.
+/// `raise_span` is `None` for G2 (the raw raise site is ALREADY user source, so
+/// `:location` IS the raise site — injecting it a second time as a synthesized frame
+/// would duplicate it across `:location` ∪ `:frames`, which G1's invariant forbids;
+/// see `tests/diagnostics/probe_excursus003_step4_g2_user_raised_untouched.rs`). Callers
+/// pass `Some(span)` only for the non-G2 case, where the top slot's `at` needs the
+/// raw raise site to locate it (G3/G4).
+pub(crate) fn capped_frames_for_trace(raise_span: Option<Span>) -> (Vec<Frame>, usize) {
     CALL_STACK.with(|s| {
         let stack = s.borrow(); // storage order: oldest (outermost) first, newest (innermost) last
         let n = stack.len();
         let cap = FRAME_CAP_INNERMOST + FRAME_CAP_OUTERMOST;
         if n <= cap {
-            // Fits whole — innermost-first order is the reverse of storage order.
-            return (stack.iter().rev().cloned().map(Frame::from).collect(), 0);
+            return (reconstruct_frames(&stack, raise_span), 0);
         }
-        // Innermost N: the last N elements of storage, innermost (top) first.
-        let mut frames: Vec<Frame> = stack[n - FRAME_CAP_INNERMOST..]
-            .iter()
-            .rev()
-            .cloned()
-            .map(Frame::from)
-            .collect();
-        // Outermost M: the first M elements of storage, continuing the same
-        // innermost-first convention (the one closest to the elided middle comes
-        // first, the true outermost — e.g. :user::main — comes last).
-        frames.extend(
-            stack[..FRAME_CAP_OUTERMOST]
-                .iter()
-                .rev()
-                .cloned()
-                .map(Frame::from),
-        );
+        // Innermost N: the last N elements of storage — the TRUE top of stack, so the
+        // raise span (when there is one) belongs here.
+        let mut frames = reconstruct_frames(&stack[n - FRAME_CAP_INNERMOST..], raise_span);
+        // Outermost M: the first M elements of storage — no raise happens here; these
+        // are the anchor frames ("where this ultimately started").
+        frames.extend(reconstruct_frames(&stack[..FRAME_CAP_OUTERMOST], None));
         let elided = n - FRAME_CAP_INNERMOST - FRAME_CAP_OUTERMOST;
         (frames, elided)
     })
@@ -870,10 +925,11 @@ mod cap_measurement {
 
     fn median_capped_ns(depth: usize, runs: usize) -> u128 {
         push_n(depth);
+        let raise_span = Span::new(std::sync::Arc::new("bench.wat".to_string()), 0, 0);
         let mut samples = Vec::with_capacity(runs);
         for _ in 0..runs {
             let start = Instant::now();
-            let capped = capped_wat_frames();
+            let capped = capped_frames_for_trace(Some(raise_span.clone()));
             let elapsed = start.elapsed();
             std::hint::black_box(&capped);
             samples.push(elapsed.as_nanos());
@@ -883,7 +939,7 @@ mod cap_measurement {
         samples[runs / 2]
     }
 
-    /// Confirms the fix `capped_wat_frames`'s own doc comment claims: reading
+    /// Confirms the fix `capped_frames_for_trace`'s own doc comment claims: reading
     /// `CALL_STACK` directly and cloning only the cap bounds the cost to O(cap),
     /// independent of depth — unlike `snapshot_call_stack()` above, this should NOT
     /// grow ~40x from depth 1,000 to depth 100,000.

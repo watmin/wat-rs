@@ -2672,8 +2672,8 @@
                                  (:wat::spawn::with-label ~locus-sym
                                    (:wat::process::Service
                                      :name (:wat::keyword::from-string ~fqdn-base)
-                                     :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                     :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                     :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                     :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                  (~admin-init-kw ~init-arg-map-ast)
                                  (:wat::keyword::from-string ~dispatch-admin-name-str)
                                  (:wat::keyword::from-string ~serve-name-str)
@@ -2689,8 +2689,8 @@
                                      (:wat::spawn::with-label ~locus-sym
                                        (:wat::process::Service
                                          :name (:wat::keyword::from-string ~fqdn-base)
-                                         :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                         :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                         :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                         :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                      (~admin-init-kw ~init-arg-map-ast)
                                      (:wat::keyword::from-string ~dispatch-admin-name-str)
                                      (:wat::keyword::from-string ~serve-name-str)
@@ -2704,8 +2704,8 @@
                                       (:wat::spawn::with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
-                                          :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                          :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                          :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                          :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                       (~admin-init-kw ~init-arg-map-ast)
                                       (:wat::keyword::from-string ~dispatch-admin-name-str)
                                       (:wat::keyword::from-string ~serve-name-str)
@@ -2797,8 +2797,8 @@
                                   (:wat::spawn::with-label ~locus-sym
                                     (:wat::process::Service
                                       :name (:wat::keyword::from-string ~fqdn-base)
-                                      :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                      :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                      :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                      :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                   (~admin-resume-kw ~init-arg-map-ast)
                                   (:wat::keyword::from-string ~dispatch-admin-name-str)
                                   (:wat::keyword::from-string ~serve-name-str)
@@ -2813,8 +2813,8 @@
                                       (:wat::spawn::with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::keyword::from-string ~fqdn-base)
-                                          :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                          :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                          :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                          :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                       (~admin-resume-kw ~init-arg-map-ast)
                                       (:wat::keyword::from-string ~dispatch-admin-name-str)
                                       (:wat::keyword::from-string ~serve-name-str)
@@ -2828,8 +2828,8 @@
                                        (:wat::spawn::with-label ~locus-sym
                                          (:wat::process::Service
                                            :name (:wat::keyword::from-string ~fqdn-base)
-                                           :file (:wat::core::Span/file (:wat::kernel::Frame/span ~origin-sym))
-                                           :line (:wat::core::Span/line (:wat::kernel::Frame/span ~origin-sym))))
+                                           :file (:wat::core::Span/file (:wat::kernel::Frame/at ~origin-sym))
+                                           :line (:wat::core::Span/line (:wat::kernel::Frame/at ~origin-sym))))
                                        (~admin-resume-kw ~init-arg-map-ast)
                                        (:wat::keyword::from-string ~dispatch-admin-name-str)
                                        (:wat::keyword::from-string ~serve-name-str)

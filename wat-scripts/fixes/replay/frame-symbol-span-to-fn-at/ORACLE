@@ -1,0 +1,13 @@
+# ORACLE for frame-symbol-span-to-fn-at — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the strike-D surface change it migrates for (Frame's
+# {symbol span kind} -> {fn at tail-elided} reshape), so there is no prior commit in which
+# the after-shape exists. The oracle is the header's own SPEC quotes.
+
+spec-before   (:wat::core::defn :u::file-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::core::Span/file (:wat::kernel::Frame/span f))) :: (:wat::kernel::Frame/span X)
+
+spec-before   (:wat::core::defn :u::name-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::kernel::Frame/symbol f)) :: (:wat::kernel::Frame/symbol X)
+
+spec   (:wat::core::defn :u::file-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::core::Span/file (:wat::kernel::Frame/at f))) :: (:wat::kernel::Frame/at X)
+
+spec   (:wat::core::defn :u::name-of [f <- :wat::kernel::Frame] -> :wat::core::String (:wat::kernel::Frame/fn f)) :: (:wat::kernel::Frame/fn X)
