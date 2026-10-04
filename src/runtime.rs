@@ -1114,6 +1114,14 @@ pub(crate) fn eval_tail(
                 if let Value::wat__core__fn(f) = tv.value() {
                     emit_tail_call(f.clone(), args, env, sym, list_span)
                 } else {
+                    // Excursus 003 strike D2, item 1 (3) — name the activation by the
+                    // head SYMBOL AS WRITTEN before we know whether it is callable: the
+                    // one honest fact in hand at this point. `apply_tracked_callee`'s own
+                    // `NotCallable` raise (not callable here, by the `if` above having
+                    // already failed) carries this name; a callable value can't reach
+                    // this branch (that's the `if` above), so no apply_function guard
+                    // ever needs to supersede it here.
+                    let _activation = crate::value::frame::ActivationGuard::enter(ident.as_str());
                     // Already-fetched non-fn value: apply directly via the same
                     // path eval_list uses — avoids a second key derivation + lookup.
                     apply_tracked_callee(tv, args, env, sym).map(|tv| tv.value_owned())
@@ -1913,6 +1921,16 @@ fn eval_list(
             // provenance — it reads the plain Value — but the lookup itself still
             // tracks it; see Environment::lookup).
             // Arc 233 Stone 233.2.e: pass span so lookup constructs SymbolBound.
+            //
+            // Excursus 003 strike D2, item 1 (3) — name the activation by the head
+            // SYMBOL AS WRITTEN before we know whether `ident` is even BOUND, let alone
+            // callable: the one honest fact in hand at this point, and the whole reason
+            // this call form raises at all. Covers BOTH raises this arm can produce —
+            // `UnboundSymbol` (the lookup below) and `NotCallable`
+            // (`apply_tracked_callee`'s own, if the bound value isn't a function). If
+            // `tv` resolves to a function, `apply_function`'s own guard supersedes this
+            // one the instant it is entered — before any of the callee's body runs.
+            let _activation = crate::value::frame::ActivationGuard::enter(ident.as_str());
             let tv = env
                 .lookup(crate::scope::env_key(ident).as_ref(), span)
                 .ok_or_else(|| {
@@ -11166,6 +11184,14 @@ pub fn apply_function(
         Some(name) => name,
         None => fn_display_name(&cur_func),
     };
+    // Excursus 003 strike D2, item 1 (4) — name the current activation for the WHOLE
+    // apply, the callee's own resolved display name (same value `FrameGuard` is pushed
+    // with, just above). Supersedes whatever an outer caller guarded (the application
+    // path's written-head name, or an enclosing dispatch's keyword) the instant a
+    // callee is actually resolved to a function — RAII, restored to the caller's own
+    // activation when this whole apply (including every nested dispatch inside the
+    // callee's body) returns.
+    let _activation = crate::value::frame::ActivationGuard::enter(callee_name_initial.clone());
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
     loop {
@@ -11276,6 +11302,11 @@ pub fn apply_function(
                     Some(name) => name,
                     None => fn_display_name(&cur_func),
                 };
+                // Excursus 003 strike D2 item 1 (4) — same substitution for the
+                // activation slot: the tail call is still THIS apply, just a new
+                // callee at the same depth, so overwrite in place (never a nested
+                // `enter`, which would restore to the PRE-tail-call name on drop).
+                crate::value::frame::replace_activation(next_name.clone());
                 replace_top_frame(next_name, cur_span.clone());
                 continue;
             }

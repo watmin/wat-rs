@@ -579,12 +579,14 @@ mod strike_d_tests {
 
 // ─── Excursus 003 strike D, item 4 — the current-activation slot ─────────────
 //
-// `AUDIT-the-shape-of-an-error.md` § RULING "Strike D, first boundary". Names the
-// innermost Rust activation for `Frame::rust_site`, replacing the retired `<rust>`
-// placeholder and `RuntimeErrorKind::op()`'s former naming role. A frame's identity
-// is a property of the STACK (what is CURRENTLY running), not of the error's
-// content — so this is written by exactly three call sites, each naming what IT
-// knows is currently executing, never by the error kind itself:
+// `AUDIT-the-shape-of-an-error.md` § RULING "Strike D, first boundary", extended by
+// excursus 003 strike D2 item 1 (`BRIEF-shape-strike-D2-every-raise-names-its-
+// activation.md`). Names the innermost Rust activation for `Frame::rust_site`,
+// replacing the retired `<rust>` placeholder and `RuntimeErrorKind::op()`'s former
+// naming role. A frame's identity is a property of the STACK (what is CURRENTLY
+// running), not of the error's content — so this is written by exactly four kinds of
+// call site, each naming what IT knows is currently executing, never by the error
+// kind itself:
 //
 // 1. **The intrinsic/special-form dispatcher** (`src/runtime.rs`'s
 //    `dispatch_keyword_head`/`dispatch_keyword_head_value`/`eval_tail`'s own
@@ -599,11 +601,32 @@ mod strike_d_tests {
 //    — a plain overwrite, no restore: freeze runs linearly, before any wat
 //    activation exists, so there is nothing to nest under. Names the startup
 //    phase for `UserMainMissing`/`EvalVerificationFailed`.
+// 3. **The application path's SYMBOL-headed call sites** (`src/runtime.rs`'s
+//    `eval_list`/`eval_tail`, the `WatAST::Symbol` arms that resolve a local
+//    binding and apply it) — `ActivationGuard::enter(ident.as_str())`, around the
+//    whole resolve-then-apply attempt, BEFORE the callee is known to be callable.
+//    Names the head exactly as the user wrote it (e.g. `f`) — the honest fact in
+//    hand before resolution — and is immediately superseded by (4) the moment
+//    resolution finds a function; if it does not (`NotCallable`), this is the name
+//    the raise carries. Deliberately scoped to a SYMBOL head only: a LIST/expression
+//    head (`((f) x)`, the inline-fn-literal shape) carries no written name to read —
+//    see strike D2's report for why that narrower shape is left unaddressed rather
+//    than naming it from invented text.
+// 4. **`apply_function`** (below) — `ActivationGuard::enter(callee_name_initial)` at
+//    entry, naming the callee being applied (its own name, or the same
+//    anonymous/native display-name fallback its `FrameGuard` push already computes);
+//    `replace_activation` on each tail-call continuation, paralleling
+//    `replace_top_frame`'s plain substitution (same identity, not a new nesting
+//    level). Covers every apply — not just ones reached through (3) — so an
+//    `ArityMismatch` or a raise from deep inside the callee's own body is named by
+//    the function actually running, uniformly.
 //
-// RAII (enter/restore) for (1) so nested dispatch — a special form evaluating a
-// sub-form that itself dispatches — reports the INNERMOST activation, exactly
-// the way `CALL_STACK`'s own push/pop nests. A plain overwrite for (2) because
-// freeze has no call-stack to nest under at all.
+// RAII (enter/restore) for (1), (3) and the OUTER entry of (4) so nested
+// dispatch/application — one activation calling into another — reports the
+// INNERMOST activation, exactly the way `CALL_STACK`'s own push/pop nests. A plain
+// overwrite for (2) because freeze has no call-stack to nest under at all, and for
+// (4)'s tail continuations because a tail call substitutes the running activation's
+// identity without growing nesting depth (the `replace_top_frame` analog).
 thread_local! {
     static CURRENT_ACTIVATION: std::cell::RefCell<Option<String>> =
         const { std::cell::RefCell::new(None) };
@@ -636,6 +659,16 @@ impl Drop for ActivationGuard {
 /// phase now running.
 pub(crate) fn set_activation(name: &'static str) {
     CURRENT_ACTIVATION.with(|c| *c.borrow_mut() = Some(name.to_string()));
+}
+
+/// Plain overwrite of an ALREADY-ENTERED [`ActivationGuard`]'s current value — never
+/// touches that guard's captured `prior`, so its eventual `Drop` still restores
+/// whatever was active before `enter` ran. The `apply_function` tail-call trampoline's
+/// own writer: a tail call substitutes the running activation's identity (the new
+/// callee) at the SAME nesting depth, exactly the way `replace_top_frame` substitutes
+/// the top `FrameInfo` in place rather than pushing a new one.
+pub(crate) fn replace_activation(name: impl Into<String>) {
+    CURRENT_ACTIVATION.with(|c| *c.borrow_mut() = Some(name.into()));
 }
 
 /// Read the currently-named activation, for `Frame::rust_site` to name the
