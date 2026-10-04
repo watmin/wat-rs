@@ -11182,6 +11182,11 @@ pub fn apply_function(
     let _frame_guard = FrameGuard::push(callee_name_initial, cur_span.clone());
 
     loop {
+        // docs/arc/2026/10/lowered-bodies/BRIEF.md L0 — the census hook. A
+        // no-op (one `OnceLock` read) unless `WAT_LOWER_CENSUS=1`. Counts
+        // ONE application per loop iteration, so a tail-call hop counts
+        // the same as a fresh call — both are "this function ran once."
+        crate::body_lower::record_application(&cur_func, sym);
         let fixed_arity = cur_func.params.len();
         let actual_arity = cur_args.len();
         // Arc 150 — variadic arity: when the callee has a rest-param,

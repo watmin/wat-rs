@@ -63,6 +63,7 @@ pub mod assertion;
 pub mod ast;
 pub mod check;
 pub mod closure_extract;
+pub(crate) mod body_lower;
 pub(crate) mod collection;
 pub(crate) mod declare;
 pub(crate) mod numeric;
