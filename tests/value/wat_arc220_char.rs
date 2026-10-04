@@ -14,6 +14,8 @@
 //!   8 — `(:wat::core::char "\u{1F600}")` errors with "supplementary-plane"
 //!   9 — Round-trip: `\x` in wat source → Value → EDN write → reparse → identical
 //!  10 — `(= \a \a)` true; `(= \a \b)` false
+//!  11 — Excursus 003 strike G item 3: `LexErrorKind::UnexpectedChar`'s `char`
+//!       field decodes typed as `:wat::core::char`, not a one-character String
 //!
 //! Wat source lives in the co-located fixture: wat_arc220_char.wat
 //! (slurped via startup_beside(file!())).
@@ -184,4 +186,46 @@ fn char_equality() {
     let world = startup_beside(file!()).expect("startup");
     let ok = run_bool(&world, ":t::test10-char-equality");
     assert!(ok, "Char equality must be correct for same and different chars");
+}
+
+// ─── 11: LexErrorKind::UnexpectedChar's char field decodes typed ────────────
+
+/// Excursus 003 strike G item 3 — `:wat::core::char` registered as a `TypeEnv`
+/// leaf; `LexErrorKind::UnexpectedChar`'s `char` field (`wat/lex-errors.wat`)
+/// retyped from its one-character `:wat::core::String` stand-in to the real
+/// `:wat::core::char`. Hand-constructs the Rust value directly (never through
+/// the lexer — this is a decode-typing proof, not a lex proof), serializes via
+/// `ToEdn`, and decodes through the GENERAL typed decoder to assert the field
+/// lands as `Value::wat__core__char`, not a one-character `String`.
+///
+/// Mutation (strike report): retype `UnexpectedChar`'s field back to
+/// `:wat::core::String` in `wat/lex-errors.wat` — the `Value::wat__core__char`
+/// assertion below goes RED (decodes as `Value::String` instead).
+#[test]
+fn lex_error_unexpected_char_field_decodes_typed_as_char() {
+    use wat::edn::contract::ToEdn;
+    use wat::edn::render::edn_to_value;
+    use wat::types::TypeEnv;
+
+    let kind = LexErrorKind::UnexpectedChar('€');
+    let edn = kind.to_edn();
+    let wire = wat_edn::write(&edn);
+    let reparsed = wat_edn::parse_owned(&wire).expect("EDN must re-parse");
+
+    let types = TypeEnv::with_builtins();
+    let decoded = edn_to_value(&reparsed, Some(&types), None)
+        .unwrap_or_else(|e| panic!("LexErrorKind::UnexpectedChar must decode typed: {e:?}"));
+
+    match decoded {
+        Value::Enum(ev) => {
+            assert_eq!(ev.type_path, ":wat::lex::LexErrorKind", "must decode AS THE ENUM");
+            assert_eq!(ev.variant_name, "UnexpectedChar");
+            assert!(
+                matches!(ev.fields[0], Value::wat__core__char('€')),
+                "`char` field must decode as Value::wat__core__char('€'), not a String; got {:?}",
+                ev.fields[0]
+            );
+        }
+        other => panic!("expected Value::Enum, got {other:?}"),
+    }
 }

@@ -194,16 +194,18 @@ pub type Position = usize;
 pub(crate) const LEX_NS: &str = "wat.lex";
 
 /// `UnexpectedChar`/`UnknownEscape` carry the offending `char` itself —
-/// serialized as its one-character `String` form, NOT `:wat::core::char`:
-/// measured (`src/types.rs`'s `TABLE-STONE-Q` test), `:wat::core::char` is a
-/// DELIBERATE hole in the type registry today (constructible as a runtime
-/// `Value` via `(:wat::core::char "x")`, but never a `TypeEnv` member, so a
-/// field declared with it is `UndeclaredFieldType` at decode — driven, not
-/// assumed). A one-character `String` is the honest, already-registered
-/// alternative; `wat/lex-errors.wat`'s own fields type `:wat::core::String`
-/// to match.
-pub(crate) fn char_to_edn_string(c: &char) -> wat_edn::OwnedValue {
-    wat_edn::OwnedValue::String(std::borrow::Cow::Owned(c.to_string()))
+/// serialized as a genuine EDN character literal (`\c`), `:wat::core::char`.
+/// Excursus 003 strike G item 3: `:wat::core::char` registered as a `TypeEnv`
+/// leaf, closing the hole `src/types.rs`'s `TABLE-STONE-Q` test used to pin
+/// (constructible as a runtime `Value` via `(:wat::core::char "x")` since arc
+/// 220, but never a `TypeEnv` member before this strike, so a field declared
+/// with it refused at decode with `UndeclaredFieldType`). Before this strike
+/// these fields typed `:wat::core::String` (the one-character string stand-in
+/// this fn used to produce) to match. Still routed through a `#[to_edn(via =
+/// ...)]` fn, not a bare field, because `wat_edn::ToEdn` has no blanket impl
+/// for the bare Rust `char` — `OwnedValue::Char` is the EDN-side type.
+pub(crate) fn char_to_edn_char(c: &char) -> wat_edn::OwnedValue {
+    wat_edn::OwnedValue::Char(*c)
 }
 
 /// Lex error. Pattern A (Stone 243.7e): position at the outer struct level;
@@ -235,10 +237,10 @@ pub struct LexError {
 #[to_edn(namespace = crate::lexer::LEX_NS, qualified)]
 pub enum LexErrorKind {
     #[to_edn(key = "char")]
-    UnexpectedChar(#[to_edn(via = crate::lexer::char_to_edn_string)] char),
+    UnexpectedChar(#[to_edn(via = crate::lexer::char_to_edn_char)] char),
     UnterminatedString,
     #[to_edn(key = "char")]
-    UnknownEscape(#[to_edn(via = crate::lexer::char_to_edn_string)] char),
+    UnknownEscape(#[to_edn(via = crate::lexer::char_to_edn_char)] char),
     #[to_edn(key = "literal")]
     InvalidNumber(String),
     /// Whitespace inside an unclosed `(` in a keyword. The spec forbids

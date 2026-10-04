@@ -34,13 +34,14 @@
 ;;
 ;; `usize`/`u32` fields (`position`, `codepoint`) type `:wat::core::i64`,
 ;; matching every other such field in this sweep. The offending `char` on
-;; `UnexpectedChar`/`UnknownEscape` types `:wat::core::String` (its
-;; one-character string form, via `crate::lexer::char_to_edn_string` on the
-;; Rust side), NOT `:wat::core::char`: measured (`src/types.rs`'s
-;; `TABLE-STONE-Q` test) — `:wat::core::char` is a DELIBERATE hole in the
-;; type registry today (a real runtime `Value` via `(:wat::core::char "x")`,
-;; but never a `TypeEnv` member), so a field declared with it refuses at
-;; decode (`UndeclaredFieldType`) — driven, not assumed.
+;; `UnexpectedChar`/`UnknownEscape` types `:wat::core::char` itself (excursus
+;; 003 strike G item 3 — `:wat::core::char` registered as a `TypeEnv` leaf,
+;; closing the TABLE-STONE-Q hole this field used to measure around). Before
+;; that strike it typed `:wat::core::String` (a one-character string stand-in,
+;; via `crate::lexer::char_to_edn_string` on the Rust side) because a field
+;; declared `:wat::core::char` refused at decode (`UndeclaredFieldType`) —
+;; `:wat::core::char` was a real runtime `Value` via `(:wat::core::char "x")`
+;; but never a `TypeEnv` member.
 ;;
 ;; Loads after `wat/core.wat` (`:wat::core::i64`/`String`). See
 ;; `src/load/stdlib.rs`. Loads BEFORE `wat/parse-errors.wat` (`Lex.cause`
@@ -49,11 +50,11 @@
 ;; The 10 structural failure modes a lex pass can raise.
 (:wat::core::defenum :wat::lex::LexErrorKind :wat::enum::Pure
 ;; An unrecognized character at the current lex position.
-  :UnexpectedChar           [char <- :wat::core::String]
+  :UnexpectedChar           [char <- :wat::core::char]
 ;; A string literal's closing quote was never found before end of input.
   :UnterminatedString
 ;; `\<c>` inside a string names an escape sequence the lexer does not know.
-  :UnknownEscape            [char <- :wat::core::String]
+  :UnknownEscape            [char <- :wat::core::char]
 ;; A numeric token failed to parse as either `i64` or `f64`.
   :InvalidNumber            [literal <- :wat::core::String]
 ;; Whitespace inside an unclosed `(` in a keyword body.

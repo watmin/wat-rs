@@ -3545,6 +3545,13 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::core::bigint",
         ":wat::core::rational",
         ":wat::core::keyword",
+        // Excursus 003 strike G item 3 — `char` leaves the TABLE-STONE-Q hole: a
+        // runtime `Value` via `(:wat::core::char "x")` since arc 220, but never
+        // declarable as a field type until now. First real occurrence:
+        // `wat/lex-errors.wat`'s `UnexpectedChar`/`UnknownEscape` fields, which
+        // this same strike retypes from their one-character `:wat::core::String`
+        // stand-in to the real thing.
+        ":wat::core::char",
         // AST leaves — `wat-tests/holon/Reject.wat:31` (`HolonAST` param+return),
         // `tests/resolve/probe_arc251_decl_migrator.wat:4` `[kw <- :wat::WatAST] -> :wat::WatAST`.
         ":wat::holon::HolonAST",
@@ -8545,8 +8552,10 @@ mod tests {
     /// Stone Q — the DESIGN census, asked of `contains` / `get`, not of `type-of`.
     /// Membership goes through THE DOOR (`registrations`) so `no_loose_string_assert`
     /// cannot confuse `TypeEnv::contains` with `String::contains`. Structure is
-    /// `get`. The holes (`char`, `Tuple`, `Fn`) are asserted, not papered over:
+    /// `get`. The remaining holes (`Tuple`, `Fn`) are asserted, not papered over:
     /// they are why the verb unions `contains` with `is_builtin_primitive`.
+    /// `char` left the hole list excursus 003 strike G item 3 — registered as a
+    /// leaf below (a deliberate test edit, not silent completion).
     #[test]
     fn stone_q_census_contains_is_membership_get_is_structure() {
         let env = TypeEnv::with_builtins();
@@ -8592,6 +8601,7 @@ mod tests {
             ":wat::core::PersistentMap",
             ":wat::core::bigint",
             ":wat::core::rational",
+            ":wat::core::char",
             ":wat::core::Value",
             ":wat::WatAST",
         ];
@@ -8609,8 +8619,8 @@ mod tests {
         }
 
         // Holes vs the runtime primitive table. Asserted so a future leaf-register
-        // of char/Tuple is a deliberate test edit, not silent completion.
-        for name in [":wat::core::char", ":wat::core::Tuple", ":wat::core::Fn"] {
+        // of Tuple/Fn is a deliberate test edit, not silent completion.
+        for name in [":wat::core::Tuple", ":wat::core::Fn"] {
             let regs = sym.registrations(name);
             assert!(
                 !regs.contains(type_facet),
