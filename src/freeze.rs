@@ -2003,7 +2003,7 @@ mod tests {
         let world = startup_bare().expect("bare");
         let _collisions = crate::name_map::collision_log();
         let i64_is_a_name = world.types.contains(":wat::type::i64");
-        assert_eq!(i64_is_a_name, true);
+        assert!(i64_is_a_name);
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────
