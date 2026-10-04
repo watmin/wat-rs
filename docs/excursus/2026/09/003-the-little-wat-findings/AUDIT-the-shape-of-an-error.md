@@ -379,3 +379,21 @@ for a framing concern, braiding *what went wrong* with *where it ran*); any fall
 
 Side finding: `src/numeric/arith.rs:~88`'s doc claims `DivisionByZero`'s `op` names the caller's
 spelling — `DivisionByZero` has no `op` field. A false comment; correct it.
+
+## Strike D landed (`0df5038e2`, `f4a873146`, `0dfcdb5ea`)
+
+`Frame` is `{fn at tail-elided}`, innermost first in true order, the Rust activation innermost and
+named by the `CURRENT_ACTIVATION` slot (intrinsic/special-form dispatch + freeze phases); `kind`,
+`<rust>` and D4's synthesized frame are gone; tail calls name their last caller and count the rest.
+C-114 reads `{:fn ":wat::i64::+" :at arith.rs} {:fn ":wat::core::+" :at core.wat:66}
+{:fn ":user::grow" :at …:10 :tail-elided 1}`. 70 goldens recaptured (nothing outside Frame fields
+moved); GD5 lint anchor 95 violations / 70 goldens; corpus migrated by codemod. Floor 6381/6381.
+
+Orchestrator check (5 real producers through the binary, since no test asserts the Rust frame is
+PRESENT): DivisionByZero → `:wat::i64::/`, IntegerOverflow → `:wat::i64::*`, MalformedForm ×2 →
+`:wat::keyword::from-string` / `:wat::core::first`, NotCallable → `:wat::core::let`. All named.
+
+| from | finding | the cure owed |
+|---|---|---|
+| D | the Rust frame is `Option`: OMITTED when the activation slot is empty. The floor cannot see an omission (no assertion of presence); the only known empty shape is a bare `RuntimeError::new` in a unit test. The per-kind census of all 40 kinds was not built | build the census as a standing gate: every kind's real producer carries a NAMED Rust frame — a presence assertion, so an omission goes RED |
+| D | a call whose head is a SYMBOL (`(f 1)`, `f` a local) sets no activation, so its raise is named by the enclosing form (`NotCallable` → `:wat::core::let`) | the application path names its own activation (the callee's resolved name, or the symbol) |
