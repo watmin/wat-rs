@@ -224,3 +224,94 @@ reason to keep it."
 `NEXTEST_TEST_THREADS=4 cargo nextest run --release` → **5405 tests run: 5405 passed (4 slow),
 22 skipped (1510.776s). ALL GREEN** — same result as the baseline. **Gate 2 (after P2)
 satisfied.**
+
+## P3 — the slot question, sized, not done
+
+Status: DONE (a map, not a strike — no code changed for this row, no floor/gate run needed).
+
+### What "resolving a local to a slot once" would take off each workload
+
+Estimate method: sum the SAME name-resolution symbol bucket used throughout this arc (the
+hashing symbols — `sip::Hasher::write`, `RandomState`/`FxBuildHasher::hash_one` — plus
+`Environment::lookup`, `EnvBuilder::bind_unknown_span`, the `BoundEntry` map's `insert`/
+`reserve_rehash`, `bind_let_binding`), taken as the UPPER BOUND of what a slot scheme removes:
+a resolved-once local becomes a direct index into a flat per-frame `Vec`/array — no hash
+computation, no bucket probe, no parent-chain walk, and binding becomes a `Vec::push`/indexed
+write instead of a hashed insert. **Not** included in the bucket, and NOT expected to shrink
+much: the separately-counted `drop_glue::<Provenance>` (2.00–4.64% across the three) and the
+bare `Value`/`String` clones — a slot still has to clone the stored value and still has to
+build a `Provenance` for diagnostics on each reference (P1 already made that construction as
+cheap as this representation allows); indexing changes how the storage is FOUND, not what is
+done once it is found.
+
+| workload | current name-resolution bucket (post-P1/P2) | read as |
+|---|---|---|
+| conj-build (N=1e6) | **~11.76%** of instructions | upper-bound estimate of what a slot scheme removes |
+| call-heavy | **~16.3%** | upper-bound estimate |
+| deep-scope (64-deep, adversarial) | **~22.7%** | upper-bound estimate, but see caveat below |
+
+Caveat on `deep-scope`: it is a DELIBERATELY adversarial micro-benchmark built for this arc to
+force a visible parent-walk signal (P2) — no ordinary wat program nests 64 single-binding
+lexical scopes with no closer binding shadowing the outer name. Its 22.7% is the CEILING a
+slot scheme could claim on a pathological case, not a representative number; conj-build and
+call-heavy (ordinary benchmarks, pre-dating this arc) are the more honest guide to a typical
+program's gain. Read together: a slot scheme's benefit scales with how deep/frequent a
+program's lexical nesting is — small on shallow, ordinary code (conj-build, call-heavy:
+roughly a eighth to a sixth of total instructions), large on code that nests deeply (whatever
+fraction of real wat programs that turns out to be — unmeasured here; the-little-wat's own
+self-hosting compiler would be the natural next corpus to check, OUT OF THIS ARC'S TERRITORY).
+
+### What files it would touch, by grep
+
+A slot scheme needs, at minimum: (1) a resolution PASS that assigns each local reference a
+`(depth, slot)` pair once (naturally hooking into the checker's EXISTING per-scope walk,
+`infer_let` at `src/check.rs:8375`, which already tracks `let`-binding lexical scope during
+type inference — REUSE is a candidate, not a given; the project's own standing caution is that
+"a reused walk flips safety" (feedback memory), so this is named as a candidate site for the
+builder's decision, not verified safe here); (2) a slot-indexed storage shape for
+`Environment`/`EnvBuilder` (`src/value/environment.rs`) alongside or instead of the current
+`BindingMap`; (3) every call site that resolves a name TODAY, updated to use a slot once one
+exists.
+
+Grepped call-site counts (`grep -n` on `src/`, this clone, post-P2):
+
+| call | total sites | files touched | heaviest file |
+|---|---|---|---|
+| `.lookup(` (`Environment::lookup`) | 35 | 6 (`closure_extract.rs`, `runtime.rs`, `reflect/match.rs`, `intrinsic/mod.rs`, `rete/purity.rs`, `value/environment.rs`) | `runtime.rs` — 29 |
+| `.bind(` / `.bind_unknown_span(` (`EnvBuilder`) | 29 | 10 (`lib.rs`, `freeze.rs`, `runtime.rs`, `declare/register.rs`, `kernel/spawn.rs`, `macros/expand.rs`, `reflect/match.rs`, `rete/eval_test.rs`, `value/mod.rs`, `value/environment.rs`) | `runtime.rs` — 20 |
+| `.child()` (`Environment::child`) | 23 | 8 (`freeze.rs`, `declare/register.rs`, `function/eval.rs`, `runtime.rs`, `kernel/spawn.rs`, `macros/expand.rs`, `rete/eval_test.rs`, `reflect/match.rs`) | `runtime.rs` — 15 |
+
+`runtime.rs` (22,028 lines) and `check.rs` (24,506 lines, 405 `fn`s) are the two files any slot
+scheme cannot avoid: `runtime.rs` is where almost every `.lookup`/`.bind`/`.child` call
+actually lives (the eval dispatch), and `check.rs` is where slot numbers would most naturally
+get ASSIGNED (it already walks lexical scope once per `let`/`fn`/`defn` to type-check; the
+assignment pass would ride that same walk or a sibling one). `src/value/environment.rs`
+(this arc's own file, 275 lines before this arc, now larger) is the representation itself and
+would need the new slot-indexed storage shape. The AST (`crates/wat-reader/src/ast.rs`)
+represents every name reference as a bare `Keyword(String, Span)` (grepped — no existing
+"resolved identifier" variant) — a slot scheme needs SOMEWHERE to carry the resolved
+`(depth, slot)` per reference: either a new `WatAST` variant (touches the reader crate, a
+dependency boundary this arc never crossed) or a side-table keyed by node identity/span
+(cheaper to land, more at risk of staleness if the AST is later mutated post-resolution).
+
+**This is the map, not the strike.** The builder's decision is whether ~12–16% off two
+ordinary workloads (and more on pathologically deep ones) is worth a change that reaches into
+the checker's scope-walk, the AST's name-reference representation, and ~90 call sites across
+~15 files in the interpreter's two largest modules — versus a narrower, lower-risk cut (e.g.
+caching a resolution per `WatAST` node after its first lookup, which would help repeated calls
+of the SAME function without touching the checker or the AST shape at all, at a smaller but
+nonzero fraction of this ceiling).
+
+## STOP triggers fired
+
+None of STOP-1/STOP-2 fired. STOP-2 was checked directly (not assumed) at P1 — see that row —
+and found not to apply: `Provenance`/`Span` carry no custom `Drop`/`Clone`, so nothing outside
+`lookup` could have observed a side effect of the clone P1 removed.
+
+## Summary of rows
+
+| row | status | code changed | floor gate |
+|---|---|---|---|
+| P1 — no discarded clone | DONE | yes (`environment.rs`) | green, same result |
+| P2 — parent walk measured + looped | DONE | yes (`environment.rs`, new `deep-scope.wat`) | green, same result |
+| P3 — slot question sized | DONE | no | not applicable (no code change) |
