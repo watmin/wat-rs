@@ -179,7 +179,7 @@ impl Name {
 
     /// A spelling enters a registry here, once.
     ///
-    /// A keyword [`from_keyword`] accepts is that pair. A rust-scheme path
+    /// A keyword [`Self::from_keyword`] accepts is that pair. A rust-scheme path
     /// with no leading colon (`wat::core::foo`) is the keyword `:{path}`.
     /// Anything else — a clojure symbol, a binder, a value keyword — is
     /// [`Identifier::bare`]'s pair. A rendered parametric form (`(`, `<`, or a
