@@ -413,3 +413,11 @@ The 40-kind census reached 26 kinds: 17 real producers, all named; 9 with no rea
 | D2 | `src/freeze/pass_order.rs`'s `record()` doc says `UserMainMissing`/`EvalVerificationFailed` are the only freeze-phase producers; six more raise during `6-register-defines`/`7-resolve-references` | correct the comment when the census lands |
 
 Sequencing: **E → finish the census (GD2a as a standing gate, 40 kinds, on the path each actually takes) → the `Option` decision → F → the post-F strikes.**
+
+## CORRECTION 2026-10-04 — F4's headline number was contaminated
+
+F4 said `EvalError` was "the most-read error type in the language" — 204 `EvalError/kind` reads, 215
+`EvalError/message`, 453 mentions. Re-measured at `f2d4375ca`: those counts include
+`wat-scripts/scratch-pad/` (16 files carry nearly all the `kind` reads — stone-probe scratch).
+Outside scratch-pad: **32 mentions; 2 readers** — `wat/doctest.wat` and `tests/value/wat_eval_result.wat`.
+The verdict (carry the real error) stands; its blast radius is a fraction of what F4 claimed.
