@@ -45,8 +45,6 @@ use crate::ast::WatAST;
 use crate::name_map::{NameMap, NameSet};
 use crate::span::Span;
 use std::collections::HashMap;
-#[cfg(test)]
-use std::collections::HashSet;
 use wat_macros::wat_special_form_impl;
 
 /// Arc 215 stone 1 — type-placeholder path for HM-style inference.
@@ -1095,12 +1093,12 @@ pub struct TypeEnv {
     /// parent FQDNs (e.g. `[":wat::type::Record"]`). Populated by `register_subtype`;
     /// walked (transitively) by `is_subtype`. Distinct from `typeunion` membership:
     /// this is the Clojure `derive`/`isa?` axis — an open directional is-a hierarchy.
-    subtype_edges: NameMap<Vec<String>>,
+    subtype_edges: std::collections::HashMap<crate::type_key::TypeKey, Vec<crate::type_key::TypeKey>>,
     /// Parents named by `subtype_edges`, so `is_subtype_parent` is a lookup.
     /// The edge lists stay the source of the child walk; this set is the
     /// same parents, indexed at registration. A linear scan of every edge
     /// on each symbol head was the converted-stdlib startup cost.
-    subtype_parents: NameSet,
+    subtype_parents: std::collections::HashSet<crate::type_key::TypeKey>,
     /// Arc 170 — the ORIGINAL source decl form for each user (non-reserved)
     /// type, retained verbatim at registration time. Freeze ships these
     /// across a process fork instead of reconstructing via `type_def_to_ast`
@@ -1122,7 +1120,7 @@ pub struct TypeEnv {
     /// Written only by [`Self::register_parametric_extension`], which writes the
     /// string edge in the same call, so the two cannot be written apart; retracted
     /// beside it in [`Self::retract_for_door_replace`].
-    parametric_extensions: NameMap<Vec<TypeExpr>>,
+    parametric_extensions: std::collections::HashMap<crate::type_key::TypeKey, Vec<TypeExpr>>,
     /// Stone 255.22 — every GENERIC `extend-type` edge (one whose form declares a binder,
     /// `(extend-type :- [P…] <child> <target> …)`), kept STRUCTURED with the parameters the
     /// binder declared, keyed by the child's HEAD (`:hello::Box`). The binder is what makes a
@@ -1209,35 +1207,6 @@ impl TypeEnv {
         self.types.contains_key(name) || self.builtin_names.contains(name)
     }
 
-    /// Spellings `Name::enter` refused, by store. Measurement for stone 255.92.
-    #[cfg(test)]
-    pub(crate) fn rendered_key_report(&self) -> Vec<(&'static str, String)> {
-        let mut out = Vec::new();
-        for s in self.types.rendered_spellings() {
-            out.push(("types", s.clone()));
-        }
-        for s in self.builtin_names.rendered_spellings() {
-            out.push(("builtin_names", s.clone()));
-        }
-        for s in self.subtype_edges.rendered_spellings() {
-            out.push(("subtype_edges", s.clone()));
-        }
-        for s in self.subtype_parents.rendered_spellings() {
-            out.push(("subtype_parents", s.clone()));
-        }
-        for s in self.source_forms.rendered_spellings() {
-            out.push(("source_forms", s.clone()));
-        }
-        for s in self.parametric_extensions.rendered_spellings() {
-            out.push(("parametric_extensions", s.clone()));
-        }
-        for s in self.generic_edges.rendered_spellings() {
-            out.push(("generic_edges", s.clone()));
-        }
-        out.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
-        out
-    }
-
     /// Lookup by the pair. A spelling enters through [`Self::get`].
     pub fn get_name(&self, name: &crate::scope::Name) -> Option<&TypeDef> {
         self.types.get_name(name)
@@ -1258,18 +1227,16 @@ impl TypeEnv {
             return TypeMembership::Builtin;
         }
         if self.is_subtype_parent(kw) {
-            let want = crate::scope::Name::enter(kw);
-            let mut children: Vec<String> = self
-                .subtype_edges
-                .iter()
-                .filter(|(_, parents)| {
-                    parents.iter().any(|p| match &want {
-                        Some(want) => crate::scope::Name::enter(p).as_ref() == Some(want),
-                        None => p == kw,
-                    })
-                })
-                .map(|(child, _)| child.clone())
-                .collect();
+            let want = crate::type_key::type_key_from_spelling(kw);
+            let mut children: Vec<String> = match &want {
+                Some(want) => self
+                    .subtype_edges
+                    .iter()
+                    .filter(|(_, parents)| parents.iter().any(|p| p == want))
+                    .map(|(child, _)| child.to_string())
+                    .collect(),
+                None => Vec::new(),
+            };
             children.sort();
             return TypeMembership::Marker { children };
         }
@@ -1309,7 +1276,7 @@ impl TypeEnv {
     fn membership_hit(&self, name: &str) -> bool {
         self.types.contains_key(name)
             || self.builtin_names.contains(name)
-            || self.subtype_parents.contains(name)
+            || self.is_subtype_parent(name)
     }
 
     #[cfg(test)]
@@ -1318,15 +1285,19 @@ impl TypeEnv {
     }
 
     #[cfg(test)]
+    /// Name-parents, as the keyword a diagnostic prints. An application parent
+    /// is a `TypeKey`, not a string this list can round-trip.
     pub(crate) fn subtype_parent_names(&self) -> Vec<String> {
-        let mut s: HashSet<String> = HashSet::new();
-        for parents in self.subtype_edges.values() {
-            for p in parents {
-                s.insert(p.clone());
-            }
-        }
-        let mut v: Vec<String> = s.into_iter().collect();
+        let mut v: Vec<String> = self
+            .subtype_parents
+            .iter()
+            .filter_map(|k| match k {
+                crate::type_key::TypeKey::Name(n) => Some(crate::type_key::name_as_keyword(n)),
+                _ => None,
+            })
+            .collect();
         v.sort();
+        v.dedup();
         v
     }
 
@@ -1361,12 +1332,12 @@ impl TypeEnv {
         for fqdn in &variant_fqdns {
             self.types.remove(fqdn);
             self.unindex_subtype_child(fqdn);
-            self.parametric_extensions.remove(fqdn);
+            self.remove_parametric_extension(fqdn);
             self.source_forms.remove(fqdn);
         }
         self.types.remove(name);
         self.unindex_subtype_child(name);
-        self.parametric_extensions.remove(name);
+        self.remove_parametric_extension(name);
         self.generic_edges.remove(name);
         self.source_forms.remove(name);
     }
@@ -1705,9 +1676,30 @@ impl TypeEnv {
         parent: &str,
         span: Span,
     ) -> Result<(), TypeError> {
-        // Cycle check: if parent is already transitively is-a child, adding this
-        // edge closes a cycle.
-        if is_subtype(parent, child, self) {
+        let child_k = crate::type_key::require_type_key_spelling(child, "register_subtype child");
+        let parent_k = crate::type_key::require_type_key_spelling(parent, "register_subtype parent");
+        self.register_subtype_keys(child_k, parent_k, span)
+    }
+
+    pub(crate) fn register_subtype_expr(
+        &mut self,
+        child: &TypeExpr,
+        parent: &TypeExpr,
+        span: Span,
+    ) -> Result<(), TypeError> {
+        let child_k = crate::type_key::require_type_key_expr(child, "register_subtype_expr child");
+        let parent_k =
+            crate::type_key::require_type_key_expr(parent, "register_subtype_expr parent");
+        self.register_subtype_keys(child_k, parent_k, span)
+    }
+
+    fn register_subtype_keys(
+        &mut self,
+        child: crate::type_key::TypeKey,
+        parent: crate::type_key::TypeKey,
+        span: Span,
+    ) -> Result<(), TypeError> {
+        if is_subtype_key(&parent, &child, self) {
             return Err(TypeError::new(
                 span,
                 TypeErrorKind::CyclicSubtype {
@@ -1716,16 +1708,24 @@ impl TypeEnv {
                 },
             ));
         }
-        self.subtype_edges
-            .or_default(child.to_string())
-            .push(parent.to_string());
-        self.subtype_parents.insert(parent.to_string());
+        self.subtype_edges.entry(child).or_default().push(parent.clone());
+        self.subtype_parents.insert(parent);
         Ok(())
+    }
+
+    fn remove_parametric_extension(&mut self, spelling: &str) {
+        let Some(key) = crate::type_key::type_key_from_spelling(spelling) else {
+            return;
+        };
+        self.parametric_extensions.remove(&key);
     }
 
     /// Drop `child`'s edges and any parent no remaining edge still names.
     fn unindex_subtype_child(&mut self, child: &str) {
-        let Some(parents) = self.subtype_edges.remove(child) else {
+        let Some(child_k) = crate::type_key::type_key_from_spelling(child) else {
+            return;
+        };
+        let Some(parents) = self.subtype_edges.remove(&child_k) else {
             return;
         };
         for parent in parents {
@@ -1752,7 +1752,7 @@ impl TypeEnv {
     /// edge must never read as two candidate bindings.
     pub(crate) fn register_parametric_extension(
         &mut self,
-        child: &str,
+        child: &TypeExpr,
         target: &TypeExpr,
         span: Span,
     ) -> Result<(), TypeError> {
@@ -1770,13 +1770,16 @@ impl TypeEnv {
         // only caller), so it sees every binding a type makes. The child is compared by
         // denotation — the key `parametric_extensions_of` reads — so two spellings of one type
         // cannot hold two bindings in two slots.
+        let child_k =
+            crate::type_key::require_type_key_expr(child, "register_parametric_extension child");
+        let parent_k =
+            crate::type_key::require_type_key_expr(target, "register_parametric_extension target");
         if let TypeExpr::Parametric { head, .. } = target {
-            let child_key = crate::edn::render::type_denotation(child);
             let prior = self
                 .parametric_extensions
-                .iter()
-                .filter(|(k, _)| k.as_str() == child || crate::edn::render::type_denotation(k) == child_key)
-                .flat_map(|(_, ts)| ts.iter())
+                .get(&child_k)
+                .into_iter()
+                .flatten()
                 .find(|t| {
                     matches!(t, TypeExpr::Parametric { head: h, .. } if parametric_heads_unify(h, head))
                         && !type_exprs_same(t, target)
@@ -1785,15 +1788,15 @@ impl TypeEnv {
                 return Err(TypeError::new(
                     span,
                     TypeErrorKind::ParametricSurfaceBoundTwice {
-                        ty: child.to_string(),
+                        ty: crate::check::format_type(child),
                         existing: crate::check::format_type(existing),
                         second: crate::check::format_type(target),
                     },
                 ));
             }
         }
-        self.register_subtype(child, &crate::check::format_type(target), span)?;
-        let slot = self.parametric_extensions.or_default(child.to_string());
+        self.register_subtype_keys(child_k.clone(), parent_k, span)?;
+        let slot = self.parametric_extensions.entry(child_k).or_default();
         if !slot.iter().any(|t| type_exprs_same(t, target)) {
             slot.push(target.clone());
         }
@@ -1839,15 +1842,14 @@ impl TypeEnv {
         }
     }
 
-    fn subtype_parents(&self, name: &str) -> Option<&[String]> {
-        self.subtype_edges.get(name).map(|v| v.as_slice())
-    }
-
     /// Arc 296 P-1 RELAND-1 — is `name` a derive-marker / typesub parent?
     /// Markers are stored as VALUES of `subtype_edges` (`(derive :Child :Parent)`
     /// pushes Parent onto Child's parent list) and are not `types` keys.
     pub(crate) fn is_subtype_parent(&self, name: &str) -> bool {
-        self.subtype_parents.contains(name)
+        match crate::type_key::type_key_from_spelling(name) {
+            Some(k) => self.subtype_parents.contains(&k),
+            None => false,
+        }
     }
 
     // ─── Arc 296 A-2 RELAND-1 — a variant is a type, no scope cut ──────────
@@ -2046,29 +2048,13 @@ impl TypeEnv {
     }
 }
 
-/// Extract a RENDERED type string's base — the head before any parametric suffix.
-/// `check::format_type` has one surviving parametric spelling, `(Head :- [args])`
-/// (STONE-defservice-emits-the-binder); a non-parenthesized `s` has no suffix to strip.
-/// `family_extends`'s own base-extraction, below, is the ONE consumer that compares against a
-/// `check::format_type`-rendered string rather than a literal declared name, so it is the one
-/// taught the new form.
-fn base_of_rendered_type(s: &str) -> &str {
-    if let Some(rest) = s.strip_prefix('(') {
-        if let Some(sp) = rest.find(' ') {
-            return &rest[..sp];
-        }
-    }
-    s
-}
-
 /// Does `sub`'s FAMILY extend `sup`'s family — existence only, arguments ignored?
 ///
-/// `sub` is a type as a string: a bare name (`:wat::core::Vector`, what a runtime value's class
-/// answers) or a `format_type` rendering (`(:hello::Box :- [:wat::core::String])`). Walk the
-/// `extend-type` edges from `sub` itself, from its HEAD, and from every GENERIC edge declared on
-/// its head ([`generic_edge_matches`]'s store — the binder is what makes those edges generic),
-/// and at each parent compare its BASE name (via [`base_of_rendered_type`], just above)
-/// against `sup`'s base name.
+/// `sub` is a type name (`:wat::core::Vector`, what a runtime value's class answers).
+/// A `TypeExpr` uses [`family_extends_expr`] — the rendered text is not parsed back.
+/// Walk the `extend-type` edges from `sub` itself, from its head, and from every generic
+/// edge declared on its head ([`generic_edge_matches`]'s store), and compare bases as
+/// `TypeKey`s.
 ///
 /// Stone 255.22 — this used to start from GUESSED keys (`transport_satisfier_heads`: the bare
 /// head, `(Head :- [:T])`, `(Head :- [:Xt])`), so a generic edge was found iff its child
@@ -2077,35 +2063,58 @@ fn base_of_rendered_type(s: &str) -> &str {
 ///
 /// NOT a substitute for [`is_subtype`], which answers the EXACT question.
 pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
-    let sup_base = base_of_rendered_type(sup);
-    let head = base_of_rendered_type(sub);
-    if is_subtype(sub, sup, env) || is_subtype(head, sup, env) {
+    let (Some(sub_k), Some(sup_k)) = (
+        crate::type_key::type_key_from_spelling(sub),
+        crate::type_key::type_key_from_spelling(sup),
+    ) else {
+        return false;
+    };
+    family_extends_key(&sub_k, &sup_k, env)
+}
+
+pub(crate) fn family_extends_expr(sub: &TypeExpr, sup: &TypeExpr, env: &TypeEnv) -> bool {
+    let (Some(sub_k), Some(sup_k)) = (
+        crate::type_key::type_key_from_expr(sub),
+        crate::type_key::type_key_from_expr(sup),
+    ) else {
+        return false;
+    };
+    family_extends_key(&sub_k, &sup_k, env)
+}
+
+fn family_extends_key(
+    sub: &crate::type_key::TypeKey,
+    sup: &crate::type_key::TypeKey,
+    env: &TypeEnv,
+) -> bool {
+    let sup_base = crate::type_key::type_key_base(sup);
+    let head = crate::type_key::type_key_base(sub);
+    if is_subtype_key(sub, sup, env) || is_subtype_key(&head, sup, env) {
         return true;
     }
-    let mut stack: Vec<String> = Vec::new();
-    for key in [sub, head] {
-        if let Some(parents) = env.subtype_parents(key) {
+    let mut stack: Vec<crate::type_key::TypeKey> = Vec::new();
+    for key in [sub, &head] {
+        if let Some(parents) = env.subtype_edges.get(key) {
             stack.extend(parents.iter().cloned());
         }
     }
-    if let Some(edges) = env.generic_edges.get(&crate::edn::render::type_denotation(head)) {
-        // Stone 255.52 — a bounded edge is conditional. Pushing its target here
-        // would admit `(Vector :- [:u::Out])` as `:u::Mark`. Only unbounded
+    if let Some(edges) = env.generic_edges.get(&head.to_string()) {
+        // Stone 255.52 — a bounded edge is conditional. Only unbounded
         // edges answer an existence question. The checker decides a bound.
         stack.extend(
             edges
                 .iter()
                 .filter(|e| e.tuple_each.is_none() && e.bounds.iter().all(|b| b.is_none()))
-                .map(|e| crate::check::format_type(&e.target)),
+                .filter_map(|e| crate::type_key::type_key_from_expr(&e.target)),
         );
     }
     let mut visited = std::collections::HashSet::new();
     while let Some(p) = stack.pop() {
-        if base_of_rendered_type(&p) == sup_base {
+        if crate::type_key::type_key_base(&p) == sup_base {
             return true;
         }
         if visited.insert(p.clone()) {
-            if let Some(parents) = env.subtype_parents(&p) {
+            if let Some(parents) = env.subtype_edges.get(&p) {
                 stack.extend(parents.iter().cloned());
             }
         }
@@ -2129,7 +2138,9 @@ pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
 /// deduplicated at registration; the caller decides what more than one means (for
 /// inference: ambiguity, refused).
 pub(crate) fn parametric_extensions_of(sub: &str, surface: &str, env: &TypeEnv) -> Vec<TypeExpr> {
-    let key = crate::edn::render::type_denotation(sub);
+    let Some(key) = crate::type_key::type_key_from_spelling(sub) else {
+        return Vec::new();
+    };
     env.parametric_extensions
         .get(&key)
         .map(|targets| {
@@ -5068,37 +5079,6 @@ fn splice_type_decls(
             // `check::format_type`
             // is the substrate's ONE authoritative TypeExpr renderer (types.rs:1987), so
             // re-render through it rather than hand-rolling a second stringifier.
-            let type_name = match &child_node {
-                // K1 (AMEND-STONE-255.67, `canonical_type_key`) — BOTH arms now denote,
-                // not just the Symbol one. Without it, `(extend-type wat.type/String
-                // :wat::core::Equatable)` registered the subtype edge under
-                // `:wat::type::String`, not `:wat::core::String` — a KEY every OTHER
-                // consumer (`classify`, `is_subtype_parent`) looks up denoted, so the
-                // edge was invisible and `String` silently lost `Equatable` membership.
-                // Found by this stone's own corpus conversion of `wat/class.wat`'s
-                // leaf-Equatable/Orderable rows. The Keyword arm (a literal
-                // `:wat::type::X` keyword — the retired spelling the ruling also names)
-                // was left un-denoted by the first agent's fix; K1 covers it too.
-                Some(WatAST::Keyword(k, _)) => canonical_type_key(k),
-                Some(WatAST::Symbol(id, _)) if id.is_reference() => {
-                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
-                        id.receiver(),
-                        id.method(),
-                    ))
-                }
-                Some(node @ WatAST::List(_, _)) => {
-                    crate::check::format_type(&parse_type_node(node)?)
-                }
-                _ => {
-                    return Err(TypeError::new(
-                        decl_span,
-                        TypeErrorKind::MalformedDecl {
-                            head: "extend-type".into(),
-                            reason: "expected keyword or type form type name at position 1".into(),
-                        },
-                    ))
-                }
-            };
             if let Some(node) = &target_node {
                 if let Err((sp, reason)) = stray_rest_marker(node) {
                     return Err(TypeError::new(
@@ -5279,26 +5259,14 @@ fn splice_type_decls(
             // `(extend-type :A (:Proto :- [S R]))` registered `":Proto"` — two spellings of one
             // declaration, two different keys, and `is_subtype`'s exact-string query for the full
             // name never found the second. Renders the FULL name, exactly as the child arm does.
-            let protocol_name = match (&target_node, &target_te) {
-                // K1 (AMEND-STONE-255.67, `canonical_type_key`) — same door as the child
-                // arm above, both arms now (currently theoretical, for the 24 hard
-                // primitives — none is a protocol target in the corpus).
-                (Some(WatAST::Keyword(k, _)), _) => canonical_type_key(k),
-                (Some(WatAST::Symbol(id, _)), _) => {
-                    canonical_type_key(&crate::edn::render::ns_to_wat_path(
-                        id.receiver(),
-                        id.method(),
-                    ))
+            match &target_te {
+                target @ TypeExpr::Parametric { .. } => {
+                    env.register_parametric_extension(&child_te, target, decl_span)?;
                 }
-                // Stone 255.15 — a PARAMETRIC target keeps its structure: the one door
-                // writes the rendered edge AND the `TypeExpr` it was rendered from.
-                (_, target @ TypeExpr::Parametric { .. }) => {
-                    env.register_parametric_extension(&type_name, target, decl_span)?;
-                    return Ok(WatAST::List(items, span));
+                target => {
+                    env.register_subtype_expr(&child_te, target, decl_span)?;
                 }
-                (_, target) => crate::check::format_type(target),
-            };
-            env.register_subtype(&type_name, &protocol_name, decl_span)?;
+            }
             Ok(WatAST::List(items, span))
         }
         _ => Ok(WatAST::List(items, span)),
@@ -7749,49 +7717,79 @@ fn check_union_member_reaches(
 /// Acyclic: edges are registered acyclically (see [`TypeEnv::register_subtype`]);
 /// the `visited` guard also bounds the walk defensively.
 pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
-    // `wat.type/Record` and `:wat::core::Record` are one type. Edges are
-    // stored under the core spelling.
-    let sub_owned = crate::edn::render::type_denotation(sub);
-    let sup_owned = crate::edn::render::type_denotation(sup);
-    let sub = sub_owned.as_str();
-    let sup = sup_owned.as_str();
-    if sub == sup {
-        return true; // reflexive
-    }
-    // Arc 278 Stone-Value — :wat::core::Value is the universal subtype-top: every type
-    // <: Value. UP is free (this rule); DOWN stays checked — for any specific `sup ≠ Value`
-    // this rule is skipped, the parents-walk finds no edge, and `assignable`'s (check.rs:13962)
-    // fall-through `unify(Value, T)` fails. No registration: Value is recognized as an opaque
-    // Path already; a TypeDef::Struct would wrongly synthesize a constructor (Value is
-    // un-constructible). Naming the top of the lattice the directional `assignable` already built.
-    if sup == ":wat::type::Value" {
+    // The spellings the lattice is written in. The other join of the same
+    // name still reaches the `TypeKey` walk below.
+    if sub == sup || sup == ":wat::type::Value" || sub == ":wat::type::Never" {
         return true;
     }
-    // Arc 278 Stone 2 — :wat::type::Never is the universal subtype-BOTTOM: Never <: every type
-    // (the exact DUAL of Value's top). DOWN is free (this rule); UP stays checked — nothing is
-    // <: Never except Never itself (reflexive, above). Uninhabited: it is the honest send-type of
-    // a timer peer (`after` → `(Peer' :- [Never O])`), which never sends, so `send'`-to-a-timer is a
-    // compile error (the wrong thing has no form). No registration: like Value, Never is an opaque
-    // Path; a TypeDef::Struct would wrongly synthesize a constructor (Never is un-constructible).
-    if sub == ":wat::type::Never" {
-        return true;
-    }
-    let mut visited = std::collections::HashSet::new();
-    let mut stack: Vec<String> = if let Some(parents) = env.subtype_parents(sub) {
-        parents.to_vec()
-    } else {
+    let (Some(sub_k), Some(sup_k)) = (
+        crate::type_key::type_key_from_spelling(sub),
+        crate::type_key::type_key_from_spelling(sup),
+    ) else {
         return false;
     };
+    is_subtype_key(&sub_k, &sup_k, env)
+}
+
+pub(crate) fn is_subtype_expr(sub: &TypeExpr, sup: &TypeExpr, env: &TypeEnv) -> bool {
+    let (Some(sub_k), Some(sup_k)) = (
+        crate::type_key::type_key_from_expr(sub),
+        crate::type_key::type_key_from_expr(sup),
+    ) else {
+        return false;
+    };
+    is_subtype_key(&sub_k, &sup_k, env)
+}
+
+fn value_name() -> &'static crate::scope::Name {
+    static N: std::sync::OnceLock<crate::scope::Name> = std::sync::OnceLock::new();
+    N.get_or_init(|| {
+        crate::scope::Name::from_keyword(":wat::type::Value")
+            .expect("`:wat::type::Value` is a name")
+    })
+}
+
+fn never_name() -> &'static crate::scope::Name {
+    static N: std::sync::OnceLock<crate::scope::Name> = std::sync::OnceLock::new();
+    N.get_or_init(|| {
+        crate::scope::Name::from_keyword(":wat::type::Never")
+            .expect("`:wat::type::Never` is a name")
+    })
+}
+
+fn is_subtype_key(
+    sub: &crate::type_key::TypeKey,
+    sup: &crate::type_key::TypeKey,
+    env: &TypeEnv,
+) -> bool {
+    if sub == sup {
+        return true;
+    }
+    // `:wat::type::Value` is the universal subtype-top. `:wat::core::Value` is a
+    // different name. UP is free; DOWN stays checked.
+    if let crate::type_key::TypeKey::Name(n) = sup {
+        if n == value_name() {
+            return true;
+        }
+    }
+    // `:wat::type::Never` is the universal subtype-bottom.
+    if let crate::type_key::TypeKey::Name(n) = sub {
+        if n == never_name() {
+            return true;
+        }
+    }
+    let mut visited = std::collections::HashSet::new();
+    let mut stack: Vec<crate::type_key::TypeKey> = match env.subtype_edges.get(sub) {
+        Some(parents) => parents.clone(),
+        None => return false,
+    };
     while let Some(p) = stack.pop() {
-        if p == sup {
+        if &p == sup {
             return true;
         }
         if visited.insert(p.clone()) {
-            // Extend with p's own parents (transitive).
-            if let Some(parents) = env.subtype_parents(&p) {
-                for parent in parents {
-                    stack.push(parent.clone());
-                }
+            if let Some(parents) = env.subtype_edges.get(&p) {
+                stack.extend(parents.iter().cloned());
             }
         }
     }

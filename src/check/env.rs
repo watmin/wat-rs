@@ -76,6 +76,11 @@ impl Drop for ParamBoundGuard<'_> {
 #[derive(Debug)]
 pub struct CheckEnv<'a> {
     pub(super) schemes: HashMap<String, TypeScheme>,
+    /// First spelling registered for each name. A later lookup of the other
+    /// join (`:ns::a/b` vs `:ns::a::b`) finds this spelling's scheme. The
+    /// string map stays the authority for an exact key; this index is only
+    /// the miss path. A name `Name::enter` refuses is not indexed.
+    scheme_by_name: HashMap<crate::scope::Name, String>,
     /// Stone 255.51 — bounds of the function bodies currently being checked,
     /// innermost last. A path `:T` is assignable to its bound.
     pub(crate) param_bounds: std::cell::RefCell<Vec<HashMap<String, TypeExpr>>>,
@@ -329,6 +334,7 @@ impl<'a> CheckEnv<'a> {
         let unit_variant_types = types.build_unit_variant_map();
         CheckEnv {
             schemes: HashMap::new(),
+            scheme_by_name: HashMap::new(),
             param_bounds: std::cell::RefCell::new(Vec::new()),
             pending_bounds: std::cell::RefCell::new(Vec::new()),
             membership_miss: std::cell::RefCell::new(None),
@@ -358,7 +364,17 @@ impl<'a> CheckEnv<'a> {
     /// could disagree with. Anything layering ON TOP of that base must go through
     /// [`register_overlay`], which asks the gate.
     pub fn register(&mut self, name: String, scheme: TypeScheme) {
+        self.note_scheme_name(&name);
         self.schemes.insert(name, scheme);
+    }
+
+    /// Remember the first spelling of this name. Exact-key lookup does not
+    /// consult the index; the other join does.
+    fn note_scheme_name(&mut self, name: &str) {
+        let Some(entered) = crate::scope::Name::enter(name) else {
+            return;
+        };
+        self.scheme_by_name.entry(entered).or_insert_with(|| name.to_string());
     }
 
     /// Register an OVERLAY scheme — a definition landing on top of the base table.
@@ -400,6 +416,7 @@ impl<'a> CheckEnv<'a> {
         // honest answer.
         let span = crate::rust_caller_span!();
         crate::resolve::register_replayed(&name, privilege, existing, &span, || -> Result<(), crate::resolve::Rejection> {
+            self.note_scheme_name(&name);
             self.schemes.insert(name.clone(), scheme);
             Ok(())
         })?;
@@ -427,7 +444,15 @@ impl<'a> CheckEnv<'a> {
     /// Look up a function or builtin scheme by FQDN. For `def`-bound value types
     /// use `get_defined_value_type`; for defclause dispatch use `get_defclause_clauses`.
     pub fn get(&self, name: &str) -> Option<&TypeScheme> {
-        self.schemes.get(name)
+        if let Some(scheme) = self.schemes.get(name) {
+            return Some(scheme);
+        }
+        // The definition kept one spelling. The other join of that name is
+        // the same scheme. `Name::enter` refuses a rendered type; that stays
+        // an exact-key miss.
+        let want = crate::scope::Name::enter(name)?;
+        let kept = self.scheme_by_name.get(&want)?;
+        self.schemes.get(kept)
     }
 
     /// Arc 255 Stone the-membership-gap-gets-a-ratchet — every FQDN this env has a

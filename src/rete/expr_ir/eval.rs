@@ -729,7 +729,10 @@ fn pat_matches(
                 let last = wat_reader::identifier::decompose_variant(name)
                     .map_or(name.as_str(), |(_, v)| v)
                     .trim_start_matches(':');
-                if composed != *name && e.variant_name != *name && e.variant_name != last {
+                if !wat_reader::identifier::Name::same_entered_name(&composed, name)
+                    && e.variant_name != *name
+                    && e.variant_name != last
+                {
                     return Ok(false);
                 }
                 match payload {

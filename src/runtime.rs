@@ -9110,7 +9110,7 @@ fn match_variant_map(
             Value::Enum(ev) => {
                 let composed =
                     wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
-                if composed != path {
+                if !wat_reader::identifier::Name::same_entered_name(&composed, path) {
                     return Ok(None);
                 }
                 bind_named_fields(pairs, ev.names.as_slice(), &ev.fields, env, sym, span)
@@ -9120,7 +9120,7 @@ fn match_variant_map(
                     &format!(":{}", fv.enum_class),
                     &fv.variant,
                 );
-                if composed != path {
+                if !wat_reader::identifier::Name::same_entered_name(&composed, path) {
                     return Ok(None);
                 }
                 bind_named_fields(pairs, &fv.names, &fv.fields, env, sym, span)
@@ -9324,7 +9324,9 @@ pub(crate) fn try_match_pattern(
             Value::Enum(ev) => {
                 let composed =
                     wat_reader::identifier::compose_variant(&ev.type_path, &ev.variant_name);
-                if composed == *k && ev.fields.is_empty() {
+                if wat_reader::identifier::Name::same_entered_name(&composed, k)
+                    && ev.fields.is_empty()
+                {
                     Ok(Some(outer.clone()))
                 } else {
                     Ok(None)
@@ -9461,7 +9463,8 @@ pub(crate) fn try_match_pattern(
                             &ev.type_path,
                             &ev.variant_name,
                         );
-                        if composed != *variant_path {
+                        if !wat_reader::identifier::Name::same_entered_name(&composed, variant_path)
+                        {
                             return Ok(None);
                         }
                         let sub_pats = &items[1..];

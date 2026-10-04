@@ -17694,10 +17694,10 @@ pub(crate) fn assignable(
         // (`conditional_edge`). `family_extends` and the two `is_subtype`s do
         // not see a bounded edge: it is not a string subtype, and the existence
         // walk skips it. Unbounded edges still pass all four.
-        let rendered = crate::types::is_subtype(&format_type(&a), ep, types);
+        let rendered = crate::types::is_subtype_expr(&a, &TypeExpr::Path(ep.clone()), types);
         let head_edge =
             crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types);
-        let family = crate::types::family_extends(&format_type(&a), ep, types);
+        let family = crate::types::family_extends_expr(&a, &TypeExpr::Path(ep.clone()), types);
         let (held, miss) = conditional_edge(&a, ep, subst, env);
         if rendered || head_edge || family || held {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
@@ -17738,7 +17738,7 @@ pub(crate) fn assignable(
     if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, args: eargs }) = (&a, &e) {
         let surface_key = crate::types::parametric_head_fqdn(head);
         if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
-            if crate::types::is_subtype(ap, &format_type(&e), types) {
+            if crate::types::is_subtype_expr(&TypeExpr::Path(ap.clone()), &e, types) {
                 // Nature floor uses the BARE surface key (the full-args string is not a
                 // registered surface); mirrors the flipped branch's `nature_floor_ok(&a, ep, …)`.
                 return nature_floor_ok(&a, &surface_key, types);
@@ -17802,10 +17802,10 @@ pub(crate) fn assignable(
         // (TypedCapability :- [S R Shared]) via an extend-type edge. An EXACT edge — the actual's own
         // rendering, or its bare head, extends exactly `e` — decides first.
         if ah != eh
-            && (crate::types::is_subtype(&format_type(&a), &format_type(&e), types)
-                || crate::types::is_subtype(
-                    &crate::types::parametric_head_fqdn(ah),
-                    &format_type(&e),
+            && (crate::types::is_subtype_expr(&a, &e, types)
+                || crate::types::is_subtype_expr(
+                    &TypeExpr::Path(crate::types::parametric_head_fqdn(ah)),
+                    &e,
                     types,
                 ))
         {

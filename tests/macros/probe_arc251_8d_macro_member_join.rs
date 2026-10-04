@@ -33,6 +33,9 @@ use wat::runtime::Value;
 
 const CURE_FIXTURE: &str = "tests/macros/probe_arc251_8d_macro_member_join.wat";
 const CONTROL_FIXTURE: &str = "tests/macros/probe_arc251_8d_macro_member_join_control.wat";
+/// Amend 255.92 rewrote the direction-control `.wat.bad` (it refused
+/// `:user::helper::of`) into this `.wat`. Both joins are one name.
+const ONE_NAME_FIXTURE: &str = "tests/macros/probe_arc251_8d_macro_member_join_wrong_join.wat";
 
 /// A `.wat.bad` fixture that must fail startup, and the name its refusal has to carry.
 const REFUSALS: &[(&str, &str, &str)] = &[
@@ -40,11 +43,6 @@ const REFUSALS: &[(&str, &str, &str)] = &[
         "tests/macros/probe_arc251_8d_macro_member_join_unknown_member.wat.bad",
         ":user::Box/nope",
         "a member no macro declares, on a TYPE parent — the spelling widened, the population did not",
-    ),
-    (
-        "tests/macros/probe_arc251_8d_macro_member_join_wrong_join.wat.bad",
-        ":user::helper::of",
-        "THE DIRECTION CONTROL — a keyword author writing the OTHER join must stay refused",
     ),
     (
         "tests/macros/probe_arc251_8d_macro_member_join_non_type_parent.wat.bad",
@@ -124,4 +122,24 @@ fn a_faithful_macro_name_answers_to_its_keyword_spelling() {
         wrong.len(),
         wrong.join("\n")
     );
+}
+
+/// Amend 255.92. The direction-control row used to refuse `:user::helper::of`.
+/// Both joins are `{user.helper, of}`: one macro, both calls return 8.
+#[test]
+fn both_joins_of_helper_of_are_one_macro() {
+    let world = startup_from_file(ONE_NAME_FIXTURE).expect("one name freezes");
+    let slash = entry_value(ONE_NAME_FIXTURE, ":user::slash").expect("slash");
+    let colon = entry_value(ONE_NAME_FIXTURE, ":user::colon").expect("colon");
+    assert_eq!(slash, Value::i64(8));
+    assert_eq!(colon, Value::i64(8));
+    let macros = world.macros();
+    let a = macros
+        .get(":user::helper/of")
+        .expect("slash spelling");
+    let b = macros
+        .get(":user::helper::of")
+        .expect("colon spelling");
+    assert!(std::ptr::eq(a, b));
+    assert_eq!(macros.retained_spellings(":user::helper/of").len(), 1);
 }

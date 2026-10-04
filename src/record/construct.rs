@@ -370,7 +370,8 @@ pub(crate) fn try_eval_enum_map_ctor(
         }
     }
     Some(Ok(enum_runtime_value(
-        type_path,
+        // The declared keyword, so a `/` call head and a `::` pattern are one variant.
+        enum_def.name.as_str(),
         variant_name,
         Arc::new(names),
         fields,

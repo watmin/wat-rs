@@ -14,7 +14,8 @@
 //! That is the claim this file pins, and it is why the respelling is not a rename.
 //!
 //! ⛔ **What must NOT have moved**, each its own row: a legitimate `Type/member` join
-//! (row 3), the refusal of the retired `/` spelling (row 4 — the side that DID move), the
+//! (row 3), one registry key for both spellings of `runner-count` (row 4 — amend 255.92
+//! retired the " `/` is absent" gate; the two joins are one name), the
 //! refusal of an unknown member under the new join (row 5), and the refusal of an unknown
 //! member under a TYPE parent, still `/`-joined (row 6).
 //!
@@ -29,11 +30,6 @@ const FIXTURE: &str = "tests/services/probe_arc255_14_namespace_join.wat";
 
 /// A `.wat.bad` fixture that must fail startup, and the name its refusal has to carry.
 const REFUSALS: &[(&str, &str, &str)] = &[
-    (
-        "tests/services/probe_arc255_14_namespace_join_old_join.wat.bad",
-        ":wat::spawn::process/runner-count",
-        "THE SIDE THAT MOVED — the retired `/` join at a non-type parent must be refused, by name",
-    ),
     (
         "tests/services/probe_arc255_14_namespace_join_unknown_member.wat.bad",
         ":wat::spawn::process::nope",
@@ -97,21 +93,44 @@ fn a_namespace_member_answers_to_both_surfaces_and_only_the_new_join() {
         )),
     }
 
-    // ⛔ ROW 4 — SAME IDENTITY, STATED ON THE REGISTRY. The declaration lives under exactly
-    // one key. If both spellings were registered, rows 1–2 could agree for the wrong reason.
+    // ⛔ ROW 4 — SAME IDENTITY. Amend 255.92: the gate that wanted
+    // `:wat::spawn::process/runner-count` ABSENT pinned the retired rule.
+    // Both spellings answer one function. One retained spelling.
     match startup_from_file(FIXTURE) {
         Ok(world) => {
-            for (key, want_present) in [
-                (":wat::spawn::process::runner-count", true),
-                (":wat::spawn::process/runner-count", false),
-            ] {
-                let present = world.symbols().get(key).is_some();
-                if present != want_present {
-                    wrong.push(format!(
-                        "  registry: {key} present={present}, want {want_present} — the \
-                         respelled declaration must hold ONE key, not two"
-                    ));
+            let slash = world.symbols().get(":wat::spawn::process/runner-count");
+            let colon = world.symbols().get(":wat::spawn::process::runner-count");
+            match (slash, colon) {
+                (Some(a), Some(b)) if std::sync::Arc::ptr_eq(a, b) => {
+                    let n = world
+                        .symbols()
+                        .functions_iter()
+                        .filter(|(s, _)| {
+                            wat::scope::Name::enter(s)
+                                == wat::scope::Name::enter(":wat::spawn::process::runner-count")
+                        })
+                        .count();
+                    if n != 1 {
+                        wrong.push(format!(
+                            "  registry: {n} spellings of runner-count, want 1"
+                        ));
+                    }
                 }
+                (slash, colon) => wrong.push(format!(
+                    "  registry: slash {} colon {} — both joins are one function value",
+                    slash.is_some(),
+                    colon.is_some()
+                )),
+            }
+            // History: `old_join.wat.bad` refused `:wat::spawn::process/runner-count`.
+            // That refusal was the retired rule. The call now resolves.
+            match startup_from_file(
+                "tests/services/probe_arc255_14_namespace_join_old_join.wat",
+            ) {
+                Ok(_) => {}
+                Err(e) => wrong.push(format!(
+                    "  old_join.wat.bad -> refused, want the `/` call to resolve: {e:?}"
+                )),
             }
         }
         Err(e) => wrong.push(format!("  {FIXTURE} -> did not freeze: {e:?}")),

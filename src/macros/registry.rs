@@ -92,12 +92,16 @@ impl MacroRegistry {
         self.macros.is_empty()
     }
 
-    /// Spellings `Name::enter` refused. Measurement for stone 255.92.
-    #[cfg(test)]
-    pub(crate) fn rendered_key_report(&self) -> Vec<String> {
-        let mut out: Vec<String> = self.macros.rendered_spellings().cloned().collect();
-        out.sort();
-        out
+    /// Retained spellings of this one name. One name is one entry.
+    pub fn retained_spellings(&self, spelling: &str) -> Vec<&str> {
+        let Some(want) = crate::scope::Name::enter(spelling) else {
+            return Vec::new();
+        };
+        self.macros
+            .iter()
+            .filter(|(s, _)| crate::scope::Name::enter(s).as_ref() == Some(&want))
+            .map(|(s, _)| s.as_str())
+            .collect()
     }
 
     /// Register a macro through the ONE gate (resolve::registration). `privilege` is

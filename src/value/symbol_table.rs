@@ -229,26 +229,6 @@ impl RegistrationSet {
 }
 
 impl SymbolTable {
-    /// Spellings `Name::enter` refused, by store. Measurement for stone 255.92.
-    #[cfg(test)]
-    pub(crate) fn rendered_key_report(&self) -> Vec<(&'static str, String)> {
-        let mut out = Vec::new();
-        for s in self.functions.rendered_spellings() {
-            out.push(("functions", s.clone()));
-        }
-        for s in self.unit_variants.rendered_spellings() {
-            out.push(("unit_variants", s.clone()));
-        }
-        for s in self.runtime_def_values.rendered_spellings() {
-            out.push(("runtime_def_values", s.clone()));
-        }
-        for s in self.binding_metadata.rendered_spellings() {
-            out.push(("binding_metadata", s.clone()));
-        }
-        out.sort_by(|a, b| a.0.cmp(b.0).then(a.1.cmp(&b.1)));
-        out
-    }
-
     pub fn new() -> Self {
         Self::default()
     }
@@ -351,7 +331,8 @@ impl SymbolTable {
     // purpose. These exist so the fields can stay private.
 
     pub fn register_function(&mut self, path: String, f: Arc<Function>) {
-        self.functions.insert(path, f);
+        self.functions
+            .insert_with(path, f, |a, b| Some(std::sync::Arc::ptr_eq(a, b)));
     }
 
     /// Stone 251.8c — replace a stored wat function body in place.

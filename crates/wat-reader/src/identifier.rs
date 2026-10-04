@@ -202,6 +202,18 @@ impl Name {
         }
         Some(Identifier::bare(spelling).pair().clone())
     }
+
+    /// Two spellings of one name. Equal text is the fast path; otherwise the pairs.
+    /// A rendered form [`Self::enter`] refuses does not compare equal to a name.
+    pub fn same_entered_name(a: &str, b: &str) -> bool {
+        if a == b {
+            return true;
+        }
+        match (Self::enter(a), Self::enter(b)) {
+            (Some(x), Some(y)) => x == y,
+            _ => false,
+        }
+    }
 }
 
 fn is_rendered_type_text(spelling: &str) -> bool {

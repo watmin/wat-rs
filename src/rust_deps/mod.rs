@@ -295,21 +295,37 @@ impl UseDeclarations {
         self.declared.iter().map(|s| s.as_str())
     }
 
-    /// Prefix coverage: `head` equals a declared type or starts with it
-    /// followed by the member join. 255.4: the live join is `/`
-    /// (`:rust::cache::Lru/new`); `::` is the retired spelling so an old
-    /// call still reaches the retirement table rather than dying as
-    /// "not covered by use!". Same consumer as `resolve/walk.rs`.
-    /// Allocation-free: path segments are ASCII, so `decl.len()` is a
-    /// char boundary.
+    /// A declared rust namespace covers `head` when the names are equal, or
+    /// `head`'s namespace is that declaration's `namespace.name` (or a
+    /// further `.` segment under it). `$bound` covers nothing beyond itself.
+    /// `Lru` does not cover `LruExtra`.
     pub fn covers(&self, head: &str) -> bool {
-        self.list().any(|decl| {
-            if head == decl || !head.starts_with(decl) {
-                return head == decl;
-            }
-            let rest = &head[decl.len()..];
-            // rune:lint(one-variant-separator, namespace) — member join `/` or retired `::`
-            rest.starts_with('/') || rest.starts_with("::")
-        })
+        let Some(head_name) = crate::scope::Name::enter(head) else {
+            return false;
+        };
+        self.declared.names().any(|(decl, _)| namespace_covers(decl, &head_name))
     }
+}
+
+fn namespace_covers(decl: &crate::scope::Name, head: &crate::scope::Name) -> bool {
+    if decl == head {
+        return true;
+    }
+    if decl.namespace() == wat_reader::identifier::BOUND_NAMESPACE {
+        return false;
+    }
+    let ns = head.namespace();
+    let prefix_ns = decl.namespace();
+    if !ns.starts_with(prefix_ns) {
+        return false;
+    }
+    let rest = &ns[prefix_ns.len()..];
+    if !rest.starts_with('.') {
+        return false;
+    }
+    let after = &rest[1..];
+    let prefix_name = decl.name();
+    after == prefix_name
+        || (after.starts_with(prefix_name)
+            && after.as_bytes().get(prefix_name.len()) == Some(&b'.'))
 }

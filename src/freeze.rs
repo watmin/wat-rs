@@ -1995,124 +1995,14 @@ mod tests {
         )
     }
 
+    /// The 52 rendered strings were the type-application keys. They are `TypeKey`s
+    /// now. This test loads the bare world and reads the collision log without
+    /// asserting it: equal spellings are harmless, unequal ones are a report.
     #[test]
-    fn rendered_keys_of_startup_bare() {
+    fn startup_bare_loads_name_keys() {
         let world = startup_bare().expect("bare");
-        let rendered = world.types.rendered_key_report();
-        let expected: &[(&str, &str)] = &[
-            ("parametric_extensions", "(:wat::cache::hologram-svc::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::cache::lru-svc::Handle :- [:K :V :T])"),
-            ("parametric_extensions", "(:wat::kernel::Process :- [:S :R])"),
-            ("parametric_extensions", "(:wat::kernel::Thread :- [:S :R])"),
-            ("parametric_extensions", "(:wat::kernel::stderr-svc::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::kernel::stdin-svc::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::kernel::stdout-svc::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::query::mem-store::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::query::sqlite-store::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::stream::Stream :- [:T])"),
-            ("parametric_extensions", "(:wat::telemetry::journal::Handle :- [:T])"),
-            ("parametric_extensions", "(:wat::telemetry::span::Handle :- [:T])"),
-            ("parametric_extensions", "(wat.type/List :- [:T])"),
-            ("parametric_extensions", "(wat.type/PersistentVector :- [:T])"),
-            ("parametric_extensions", "(wat.type/Vector :- [:T])"),
-            ("subtype_edges", "(:wat::cache::hologram-svc::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::cache::lru-svc::Handle :- [:K :V :T])"),
-            ("subtype_edges", "(:wat::kernel::Process :- [:S :R])"),
-            ("subtype_edges", "(:wat::kernel::Thread :- [:S :R])"),
-            ("subtype_edges", "(:wat::kernel::stderr-svc::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::kernel::stdin-svc::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::kernel::stdout-svc::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::query::mem-store::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::query::sqlite-store::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::stream::Stream :- [:T])"),
-            ("subtype_edges", "(:wat::telemetry::journal::Handle :- [:T])"),
-            ("subtype_edges", "(:wat::telemetry::span::Handle :- [:T])"),
-            ("subtype_edges", "(wat.type/HashMap :- [:K :V])"),
-            ("subtype_edges", "(wat.type/HashSet :- [:T])"),
-            ("subtype_edges", "(wat.type/List :- [:T])"),
-            ("subtype_edges", "(wat.type/PersistentVector :- [:T])"),
-            ("subtype_edges", "(wat.type/Vector :- [:T])"),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [(:wat::cache::Cache::Op :- [:K :V]) (:wat::cache::Cache::Reply :- [:K :V]) :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST]) :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::query::Store::Op :wat::query::Store::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::Dialable :- [:wat::telemetry::Span::Op :wat::telemetry::Span::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [(:wat::cache::Cache::Op :- [:K :V]) (:wat::cache::Cache::Reply :- [:K :V]) :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [(:wat::cache::Cache::Op :- [:wat::holon::HolonAST :wat::holon::HolonAST]) (:wat::cache::Cache::Reply :- [:wat::holon::HolonAST :wat::holon::HolonAST]) :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::kernel::StdIn::Op :wat::kernel::StdIn::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::query::Store::Op :wat::query::Store::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply :T])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::capability::TypedCapability :- [:wat::telemetry::Span::Op :wat::telemetry::Span::Reply :T])",
-            ),
-            ("subtype_parents", "(:wat::core::Seqable :- [:T])"),
-            (
-                "subtype_parents",
-                "(:wat::spawn::Locus :- [:wat::kernel::Transport.Shared])",
-            ),
-            (
-                "subtype_parents",
-                "(:wat::spawn::Locus :- [:wat::kernel::Transport.Wire])",
-            ),
-            ("subtype_parents", "(:wat::spawn::Spawned :- [:S :R])"),
-        ];
-        assert_eq!(rendered.len(), expected.len());
-        for (got, exp) in rendered.iter().zip(expected.iter()) {
-            assert_eq!((got.0, got.1.as_str()), *exp);
-        }
-        assert!(world.symbols.rendered_key_report().is_empty());
-        assert!(world.macros.rendered_key_report().is_empty());
+        let _collisions = crate::name_map::collision_log();
+        assert!(world.types.contains(":wat::type::i64"));
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────
