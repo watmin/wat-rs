@@ -421,3 +421,15 @@ F4 said `EvalError` was "the most-read error type in the language" — 204 `Eval
 `wat-scripts/scratch-pad/` (16 files carry nearly all the `kind` reads — stone-probe scratch).
 Outside scratch-pad: **32 mentions; 2 readers** — `wat/doctest.wat` and `tests/value/wat_eval_result.wat`.
 The verdict (carry the real error) stands; its blast radius is a fraction of what F4 claimed.
+
+## Strike E landed (`4dc349549`)
+
+The eval family's `Err` is a `:wat::kernel::Failure` (`{error frames frames-elided}`, the death
+shape) built by the existing `runtime_error_failure`; `EvalError`, `runtime_error_to_eval_error_value`
+and every `kind` string are gone. Branching by class is `(:wat::core::type (Failure/error e))`.
+GE1 (the four eval-only kinds carry class + named frames), GE2, GE3 mutation-proven. Floor 6385/6385.
+
+| from | finding | the cure owed |
+|---|---|---|
+| E | **33 scratch-pad probes deleted** (the `255-*` family; 16 read `EvalError/kind`, 17 more only annotated the type) — judged dead because arc 255 is closed. **5 closed arc-255 docs still cite them** (the files survive in git history). The brief said migrate-live / delete-dead; "the arc is closed" was the executor's deadness criterion | builder's call: accept (closed-arc citations resolve through history), or restore the cited probes migrated |
+| E | `eval-ast!`/`eval-edn!` run NO check pass (`parse_and_run` → `run_program` → `run_constrained` → `eval_inner`, straight against the frozen symbol table) — evaluated code meets only runtime refusals, never the type checker | a question for the record, not yet a defect: search the arcs for whether eval is deliberately unchecked before naming it |
