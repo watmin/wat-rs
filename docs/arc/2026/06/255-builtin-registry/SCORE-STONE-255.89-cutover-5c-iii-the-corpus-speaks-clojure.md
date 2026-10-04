@@ -1995,3 +1995,166 @@ Each of the 154 is in one row. Rows are sites. Several rows are the same mechani
 That is more than twelve deciding sites. The five unfiled tests and the six diffs whose line was not isolated do not shrink the count. No corpus cure was started. Member-join, the acronym law, sift, peers, `normalize.rs`, the retirement table, and the two remaining load-gate files were not edited. `negated-types-under` and `rule-negates-in` were left on raw `ast-name`.
 
 5c-iv and 5d were not started.
+
+## AMEND-3 — one image, and the floor stops at one hundred eight
+
+Continues at `edc0804be`. The amend markdown is `04fa40773` (that commit carries `Co-Authored-By: Claude Opus 5.5`; it is the brief). The implementation is `b203584ec` (11 files, +347/−92) and `f3ce709e8` (4 files, +19/−23). Both are watmin, on local `main`, with no `Co-Authored-By`. The floor below ran on `f3ce709e8`. After it, `3f6b0247d` rewrites one `let-else` as `?`. Nothing here is pushed. 5c-iv and 5d were not started.
+
+### The correction, and rete's last two raw reads
+
+AMEND-2 said `wat-scripts/perf/grid/where-inline-computed.wat` stays `Unrecognized` for both spellings of that head. The pre-image at KEEP `9d85da5a5` line 147 is `(:wat::rete::core::cond ((:wat::rete::i64::> :k 100) true) (:else false))` inside a fact form, so the keyword spelling was recognized. The deciding site is `expand_make_rule_condition` (`src/macros/expand.rs:1232`), which now takes `spelling_key`. It is not `classify_rete_clause`.
+
+`wat.rete/negated-types-under` (`wat/rete/oracle/stratify.wat:114`) and `wat.rete/rule-negates-in` (`:151`) bind the head with `(wat.rete/head-identity (wat.core/first ch))`. No `exists` arm was added. `cond-bind-keys` was left balanced.
+
+`tests/rete/probe_arc255_89_amend3.{rs,wat}` asserts i64 `1` for both spellings: `inline_cond_keeps_the_row_above_one_hundred_in_each_spelling` and `rule_negates_in_sees_a_nested_not_in_each_spelling`. Those two names are the whole addition against the AMEND-2 floor (6431 → 6433). The load-gate file was not hand-edited. On the scored floor it is no longer in the load-gate block.
+
+### The member join
+
+Census before the fold (the census module was deleted; the counts are `/tmp/amend3-census.txt`):
+
+```
+FN_SLASH 1766
+FN_BOTH_DIFF 0
+FN_BOTH_SAME 0
+FN_SLASH_ONLY 1766
+FN_MULTI 0
+TYPE_SLASH 52
+TYPE_BOTH 0
+MACRO_SLASH 18
+MACRO_BOTH 0
+VAR_SLASH 0
+VAR_BOTH 0
+RETIRED_COLLIDE 8
+RETIRED_G1_LIVE 8
+RETIRED_STOP2 0
+```
+
+R-a holds. `FN_BOTH_DIFF` is 0. STOP-2 did not fire.
+
+The registry function key is `/`. `rekey_type_member_functions` (`src/freeze/env.rs:301`) registers `{parent}/{method}` and removes the `::` key. A type name stays `::`. A fold of every capitalised `::` onto `/` was rejected at startup: the response-type law required `:wat::cache::Cache::GetResponse` and the door had produced `:wat::cache::Cache/GetResponse` (`wat/cache.wat` line 177). `wat/cache.wat` was not edited.
+
+`fold_member_twin` (`crates/wat-reader/src/identifier.rs:555`) returns `Option<String>`. `None` means the string is unchanged. `canonical_identity` (`:544`) is `fold_member_twin(&raw).unwrap_or(raw)`, so an unchanged name is not copied twice. The parent leaf must be ASCII alphanumeric and start uppercase, with no `.`. A method that contains `/`, `.`, or `:` stays. A capitalised method is a type, and a `/` twin folds onto `::`. A lowercase method is a function, and a `::` twin folds onto `/`. `:wat::core::Option` stays. `:wat::core::i64::to-string` stays, because `i64` is not a type-shaped parent. `:wat::spawn::Locus/with-label` is the function key.
+
+The eight collisions are Lru, and each replacement is already the live `/` name:
+
+```
+:wat::cache::Lru::{new,put,get,len}
+:wat::cache::HolographicLru::{new,put,get,len}
+```
+
+`RETIRED_G1_LIVE` is 8 and `RETIRED_STOP2` is 0. `wat-scripts/fixes/one-name-per-operation.wat` contains neither `Lru` nor `to-string`. The codemod was not run.
+
+`:wat::core::i64/to-string` is not in that collision list. The live intrinsic is `#[wat_intrinsic(":wat::i64::to-string")]` (`src/intrinsic/i64.rs:727`). The retirement row (`src/remedy/retirement.rs:210`) retires `:wat::core::i64::to-string` in favour of `:wat::i64::to-string`. `src/intrinsic/mod.rs:1675` still lists `":wat::core::i64/to-string"` (the comment at `:1663` says it was not deleted). `canonical_identity("wat.core.i64/to-string")` is `:wat::core::i64::to-string` because the parent leaf `i64` is not uppercase. A keyword written in that retired spelling still diagnoses. The symbol spelling is what the load gate still holds. It was not auto-rewritten.
+
+`reconstruct_call_path_uncached` (`src/types.rs:606`) walks a lowercase or `_` method from the right and returns `{key}/{name}`. A capitalised name (`GetResult`, `Op`, `Some`) returns `ns_to_wat_path` and does not slash-join. The namespace join at `src/types.rs:627` carries `// rune:lint(one-variant-separator, namespace) — dotted namespace segments joined into a type key, not an enum/variant pair` on the line above (`:626`).
+
+### The 28 unresolved references, and the variant controls
+
+A value position that fails to resolve stores `canonical_identity` (`src/resolve/normalize.rs:487`). A `def` name accepts a keyword or a reference symbol through `ns_to_wat_path`. A reference symbol in eval goes through `reference_symbol_keyword` (`src/runtime.rs:1872`). Call heads stay on `normalize_form` and still error.
+
+These call-head refusals are still FAIL on the scored floor: `a_bad_line_does_not_end_the_session` (`:usr::nope`), `bogus_rete_head_is_refused_at_check_the_blanket_is_dead` (`:wat::rete::f64::>X`), `a_bogus_call_head_carrying_a_type_binder_is_still_refused` (`:my::app::totally-bogus`), `accessor_typechecks_at_parse_time` (`:wat::spawn::ProcessLaunch/bogus-field`). `the_colon_spelling_no_longer_resolves` is still FAIL. `:wat::core::Option/Some` as a call was not made to resolve.
+
+`a_real_enum_variant_in_a_rete_constraint_matches` and `legitimate_keyword_constants_are_still_keywords` are in the cured set. The wall still refuses. `the_misspelled_variant_refusal_names_the_enum_and_its_real_variants` and `the_bare_tagged_variant_keeps_the_unknown_field_route` are still FAIL. Those goldens were not recaptured. `classify_keyword_constant` was not widened. The deciding sites are `compile_operand_expr` (`src/rete/compiled_cond.rs`) and `resolve_operand` (`src/rete/matcher.rs`).
+
+### The floor this amend turned red, then the cure
+
+Do not re-run `.floor/2026-10-04T02-14-54Z`. It ran on `b203584ec`. ARM.txt says `exit=100`. Nextest compiled `Finished release profile [optimized] target(s) in 13.79s`.
+
+```
+Summary [ 454.292s] 6433 tests run: 6321 passed (29 slow), 112 failed, 24 skipped
+```
+
+Against `.floor/2026-10-04T01-11-11Z` that floor had NEW_FAIL 4. All four are cured in `f3ce709e8` and absent from the next floor. The arms:
+
+- `only_identifier_rs_spells_the_variant_separator` panicked at `tests/lint/one_variant_separator.rs:260`. The offender was `src/types.rs:626 let head = format!(":{}", parts[..i].join("::"));`. That join is a namespace. The rune above is the cure.
+- `a_locus_head_is_compared_as_an_identity` panicked at `tests/services/probe_arc255_87_name_not_substring.rs:53`: left `:wat::spawn::Locus/with-label`, right `:wat::spawn::Locus::with-label`. `with-label` is a function member. Both arms now expect the `/` key.
+- `duplicate_defmacro_symbol_spelling_is_the_same_macro` panicked at `src/macros/tests.rs:606`: `a member join is not the :: identity; got Ok([])`. `:wat::core::Option/expect` and `wat.core.Option/expect` are one key, so the second `defmacro` is a no-op. The test now expects `member.is_ok()`.
+- `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` FAIL [90.022s]. The arm is `exceeded time-limit of 90000ms` at `wat-tests/rete/differential-fuzz.wat:422:1`. The suite moved 392.179s → 454.292s because `fold_member_twin` copied every name after `canonical_identity` had already allocated it. The `Option` return is the cure. The 90s limit was not raised.
+
+### The scored floor
+
+Do not re-run `.floor/2026-10-04T02-26-49Z`. It ran with `git status` clean on `f3ce709e8`. ARM.txt line 2 is `exit=100`. Nextest compiled `Finished release profile [optimized] target(s) in 13.66s`.
+
+```
+Summary [ 443.537s] 6433 tests run: 6325 passed (29 slow), 108 failed, 24 skipped
+```
+
+Doctests exited 0. wat: 5 passed, 1 ignored. wat_edn: 3 passed. wat_macros: 0 passed, 4 ignored. wat_doc, wat_reader, and wat_to_edn_derive: 0 tests. `doc-link.log` is 39578 bytes and ends `Finished release profile [optimized] target(s) in 12.72s`. `doc-link-judge.log` is 0 bytes. The judge is not claimed.
+
+Unique names from `^\s*(PASS|FAIL|SLOW)\s+\[[^\]]+\]\s+\(\s*\d+/\d+\)\s+(\S+)\s+(\S+)\s*$`, keyed by binary plus test. The same unique counts come from the regex with `SLOW` removed. `.floor/2026-10-03T13-09-11Z` 6412, `.floor/2026-10-04T01-11-11Z` 6431, the intermediate floor 6433, this floor 6433. Printed lines on this floor are 6541; the extra lines are duplicates of the same name. Against the 255.88 green floor: MISSING 0, ADDED 21 (the previous amend's 19 plus the two probes above). Against `.floor/2026-10-04T01-11-11Z`: PREV_FAIL 154, CUR_FAIL 108, NEW_FAIL 0, CURED 46. Against the intermediate floor: NEW_FAIL 0, CURED 4 (the four arms above). 154 − 46 = 108.
+
+The four default limits passed. `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` PASS [89.349s] (limit 90s). Reachability shards PASS 25.152 / 25.268 / 23.559 / 23.063 / 23.395 / 23.431s (shards 0, 1, 2, 3, 4, 5). `retirement_table_is_fully_reachable` PASS [187.760s] (limit 240s). `keyed_gather_visits_match_the_keyed_prediction` PASS [18.026s]. The suite is 443.537s against AMEND-2's 392.179s. The residual was not chased. No limit was raised.
+
+The load gate is still FAIL [443.529s]. The arm, from ARM.txt:
+
+```
+thread 'wat_scripts_fixes_load::every_wat_scripts_file_loads_on_the_current_runtime' (1021504) panicked at /home/john/work/holon/wat-rs/tests/lint/wat_scripts_fixes_load.rs:64:5:
+1 of 782 wat-scripts/ files do not load on the current runtime (rotted):
+  wat-scripts/scratch-pad/probe-arc278-reap-serve-event.wat
+      #wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/MalformedForm {:message "malformed :wat::core::i64::to-string form: ':wat::core::i64::to-string' is retired; use ':wat::i64::to-string' instead" :location #wat.core/Span {:file "wat-scripts/scratch-pad/probe-arc278-reap-serve-event.wat" :line 61 :col 46 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 61 :col 68}}} :causes [] :head ":wat::core::i64::to-string" :reason "':wat::core::i64::to-string' is retired; use ':wat::i64::to-string' instead" :remedies [#wat.kernel/Remedy {:form ":wat::i64::to-string" :kind :retirement :score 0 :note nil}]}]}
+```
+
+`where-inline-computed.wat` is not in that block. `probe-arc278-reap-serve-event.wat` was not hand-edited. The two compile shards that cited the load gate are in the cured 46.
+
+The 46 cured names:
+
+```
+native_stratify_numbers_against_the_oracle_scratch
+native_stratify_numbers_nested_or_and_not_against_the_oracle
+deftest_wat_tests_service_cache_lru_multi_client_on_process
+deftest_wat_tests_service_cache_lru_multi_client_on_thread
+nested_program_literals_start_on_the_child_path
+every_wat_scripts_rete_rule_compiles_shard_04
+every_wat_scripts_rete_rule_compiles_shard_05
+the_quasiquote_markers_are_identities_and_a_near_miss_is_still_not_one
+differential_three_stratum_negation
+a_tagged_enum_operand_is_named_not_dropped
+a_unit_enum_constraint_reaches_the_explain_payload
+record_accessor_is_deterministic
+record_accessor_is_pure
+derived_exists_and_acc_spec_matches_native
+a_real_enum_variant_in_a_rete_constraint_matches
+legitimate_keyword_constants_are_still_keywords
+foreign_pred_is_deterministic
+foreign_pred_is_pure
+grid_axes_run_and_derive_nonvacuously
+spec_equals_native_on_every_where_family
+every_grid_axis_native_matches_its_oracle
+defservice_generates_dispatch_loop_round_trips_on_thread
+sift_logs_pure_predicate_returns_only_survivors
+sift_logs_pure_predicate_returns_only_survivors_on_process
+parametric_variant_accessor_runs
+parametric_variant_accessor_yields_the_argument
+named_variant_accessor_truth_still_accepted
+named_define_as_map_fn
+named_define_is_a_function_value
+named_define_passes_to_higher_order_fn
+polymorphic_named_define_instantiates_at_use_site
+unregistered_keyword_still_a_literal
+probe_def_at_expression_position_emits_position_error_at_runtime
+probe_def_at_fn_body_do_prefix_lifts_to_prologue_end_to_end
+probe_def_at_top_level_still_works
+probe_mixed_declaration_prelude_now_includes_def
+def_basic_float_literal
+def_position_illegal_inside_define_body
+def_position_illegal_inside_if
+def_position_legal_direct_top_level
+def_position_legal_let_splice_with_closure
+def_redef_set_redef_true_same_type_succeeds
+def_runtime_let_splice_closure_capture
+def_runtime_pi_in_let_addition
+def_runtime_pi_resolves_to_value
+def_set_eval_redef_form_recognized
+```
+
+### Clippy and the ignore ledger
+
+The first `cargo clippy --release --all-targets -- -D warnings` exited `CLIPPY_RC=101` on `clippy::question_mark` at the operand arm this amend added (`src/rete/matcher.rs`, the `let Some(sym) = sym else { return None }`). `3f6b0247d` is `let sym = sym?` in the same `Option`-returning function. The floor was not re-run for that rewrite. The second clippy finished `Finished release profile [optimized] target(s) in 12.67s`, `CLIPPY_RC=0`, and printed no warning.
+
+Ignore ledger, the same walker as `tests/lint/ignore_reason_justified.rs` (`//` comments and `"…"` strings skipped, `bootstrap/` excluded): 16 under `tests/`, plus `src/edn/render.rs:6156` and `crates/wat-reader/tests/clj_oracle_source_parity.rs:20`, which is 18. `crates/wat-macros/src/lib.rs:837` is `quote! { #[ignore = #reason] }`, the emitter, and is not one of the 18. `nextest list` was not re-run. This floor's start line is `Starting 6433 tests across 49 binaries (24 tests skipped, including 5 tests via profile.default.default-filter)`.
+
+### What this floor leaves
+
+108 failures remain, and none of them is a new name. The next amend is the 56 EDN mismatches, the verbatim-`::` printer, the head-spelling fixture, the field-span caret, the Law-A diagnostic that names `:wat::core::=`, the comm purity golden, the acronym law, sift, peers, and the native/oracle diffs whose line was not isolated, plus the one load-gate file above. The response-type law was not moved. No golden was recaptured. No `.wat` corpus file was hand-edited.
+
+5c-iv and 5d were not started.
