@@ -960,9 +960,13 @@ fn the_discriminator_reaches_the_tree_and_its_passes_converge() {
         "only {} fn bodies collected (3690 measured 2026-09-22) — pass A lost the tree",
         c.fns
     );
+    // 255.92 removed the two `is_subtype` keyword compares. The floor
+    // `.floor/2026-10-04T07-32-46Z` found 300 decision sites, and `> 300`
+    // then failed on that count. The bound stays under the live count so a
+    // walk that stops early still fails. 364 was the 2026-09-22 measurement.
     assert!(
-        !c.sites.is_empty() && c.sites.len() > 300,
-        "only {} decision sites found (364 measured 2026-09-22) — the shape detector is not firing",
+        !c.sites.is_empty() && c.sites.len() > 250,
+        "only {} decision sites found (300 measured 2026-10-04) — the shape detector is not firing",
         c.sites.len()
     );
     // The DOOR SET is derived, not declared: seeded at two roots and grown by fixpoint. If it
