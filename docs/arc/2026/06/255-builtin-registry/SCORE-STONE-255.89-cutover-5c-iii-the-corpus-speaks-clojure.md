@@ -1887,3 +1887,111 @@ wat-reader::clj_oracle_source_parity source_reader_tracks_the_clj_oracle
 Rows 1 through 15 are more than twelve deciding sites. The sift producer, the `MalformedClause` on `wat.rete.core/cond`, and the fourteen unfiled tests were not given a line, so they do not shrink the count. No corpus cure was started. The alpha door, the totality classifier, the `matches?` keyword gate, the retirement canonicalization, the vocabulary `Keyword` arm, the lowerer, the old goldens, the acronym law, sift, peers, and `normalize.rs` were not edited.
 
 5c-iv and 5d were not started.
+
+## AMEND-2 — one door, and a rete head is that identity
+
+Continues at `2b566f772`. The amend markdown is `7a310e1d3`. The implementation is `c5fb3e0fe` (20 files, +685/−284), author watmin, on local `main`. The floor below ran on that commit. This appendix is the score. Nothing here is pushed.
+
+### One door
+
+`canonical_identity` and `ns_to_wat_path` live in `crates/wat-reader/src/identifier.rs` (`ns_to_wat_path` at line 492, `canonical_identity` at line 507). `src/edn/render.rs` re-exports them (`pub use wat_reader::canonical_identity` at line 3742, `pub(crate) use wat_reader::ns_to_wat_path` at line 3744), so `crate::edn::render::canonical_identity` stays where callers already were. `fact_class_key` still calls that name. `crates/wat-macros/src/discover.rs` calls `wat_reader::canonical_identity` and its local copy is gone. A third copy in `crates/wat-source-derive/src/lib.rs` (`form_identity`) was the same function and now calls `wat_reader::canonical_identity` too. The heresy ledger seeds a door by its last path segment, so the re-export is the same door. The unit test `canonical_identity_holds_todays_slash_rule` (`identifier.rs:859`) holds `u/a/b` → `:u::a/b`, `u/pathological/name//foo` → `:u::pathological/name//foo`, `wat.core//` → `:wat::core::/`, a `::` keyword returned unchanged, and a parametric `(…)` rendering that contains `::` returned unchanged. A name that contains `::` and starts with `:` or `(` is returned unchanged, which is why `:wat::cache::Cache/GetResult` stays distinct from `:wat::cache::Cache::GetResult`.
+
+### Rete heads read by identity
+
+Keyword payloads stay the written keyword. A reference symbol goes through `canonical_identity`. `form_match::spelling_key` is that split. `canonical_identity_of` canonicalizes both spellings and was left off keyword arms.
+
+- Alpha lookup is `CondKey` (`src/rete/kernel/node.rs` `cond_identity` / `cond_key`). `arm.rs` looks up `HashMap<CondKey, i64>`. `cond_text` remains the diagnostic print.
+- `compile_condition_local` returning none splits the message: a fact-shaped / `CoreGeneric` cond keeps the old sentence; a combinator minted as an alpha says the alpha is not fact-shaped. `CoreGeneric` stays a refusal.
+- `wat/rete/compile.wat` gained `wat.rete/head-identity` and `wat.rete/canon-cond`. Head compares and the three mint dedup keys use them. `cond-bind-keys` was restructured; an extra `)` on its `range` line failed parse (`UnexpectedRParen` at line 1014 col 66) and was reverted. The balanced close is the five parens on the `range` line plus the seven on the following line. `:wat::core::length` was left partial.
+- `src/intrinsic/rete.rs` `vocabulary-admitted?`: keyword cloned; reference symbol canonicalized.
+- `src/rete/purity.rs` guards at the six structural cond/match/fn arms go through `spelling_key`. The general arm at 1411 and `walk_rete_defn_callees` at 2097 were already dual-arm and were left.
+- `src/rete/eval_insert.rs` symbol type key is the canonical identity. The keyword arm stays borrowed.
+- `src/check.rs` `wat.form/matches?` and the runtime twin `src/reflect/match.rs` both take a symbol pattern head through the door. The check-only cure left the runtime refusing; the probe's symbol head panicked with "pattern head must be a struct type keyword", and the runtime arm was cured the same way.
+- `src/runtime.rs` nested variant accepts a reference symbol whose canonical identity passes `is_namespaced_variant`. `decompose_variant` is still `rfind('.')`.
+- `src/rete/kernel/stratify.rs` `binds_var_from`, `fences`, and the step op use `spelling_key`. The step op then `trim_start_matches(':')` and matches `wat::rete::i64::+` / `wat::rete::i64::-`.
+- `src/rete/expr_ir/mod.rs` `lower_hof_callee`, `lower_bracket_arm`, the list-pattern head, and the vector-pattern symbol arm take the door. The keyword arms of those matches stay first. The fallthrough `cannot lower head` at the old line 745 was left.
+- `wat/rete/oracle/pass.wat` `binding-extensions` and `exists-cond-under` use `wat.rete/head-identity`. No `exists` arm was added to the oracle.
+- `wat/rete/oracle/stratify.wat` `prime-kw` uses `wat.rete/head-identity`. `type-name-of` stays `canonical-identity` of `ast-name`, keywords included.
+
+`tests/rete/probe_arc255_89_identity.{rs,wat}` asserts the same value in each spelling: exists derives i64 1, make-rate derives i64 7, pure cond is true, vocabulary admits `cond` and refuses `i64/+`, `matches?` is true, nested `Option.Some` binds 42, `total?` of `length` is false, of `i64/<` is true, of `i64/+` is false, of `string/subs` is false. Those seven tests are in the passing set.
+
+### Other keyword arms
+
+`rg WatAST::Keyword` under `src/rete/` and `ast-name` / `head-identity` under `wat/rete/` after the commit:
+
+Head decisions moved onto the door this amend: the alpha key, the purity structural guards, vocabulary admission, eval-insert's symbol type key, the stratify step op, the expr_ir pattern and higher-order-function heads, and the `head-identity` compares in `compile.wat`, `oracle/pass.wat`, and `stratify.wat` `prime-kw`.
+
+Value keywords and already-dual reads left in place: `:from` (`src/rete/clause.rs:380`, `wat/rete/compile.wat:660`), bind-arrow `:-` (`compile.wat:920`, exact `ast-name`, keyword or symbol), `?` prefixes (`compile.wat:1027`, `:1060`), field names (`src/rete/alpha_tree.rs:397`, eval-insert `pair[0]`, `stratify.rs:706`), `syntax.wat` and `oracle/accum-pass.wat` already call `canonical-identity` on `ast-name`, `rule-consumes` (`stratify.wat:228`) already canonicalizes its head. `classify_rete_clause` (`src/rete/clause.rs:420`) already sends keyword and symbol through `canonical_identity` before the combinator match.
+
+Two head decisions were left on raw `ast-name`. `wat.rete/negated-types-under` (`stratify.wat:114`) and `wat.rete/rule-negates-in` (`stratify.wat:151`) compare that text to `:wat::rete::and`, `:wat::rete::or`, and `:wat::rete::not`. They were still raw when the floor started. No `exists` arm was added.
+
+### Floor
+
+Do not re-run `.floor/2026-10-04T01-11-11Z`. It ran with `git status` clean on `c5fb3e0fe`.
+
+```
+Summary [ 392.179s] 6431 tests run: 6277 passed (25 slow), 154 failed, 24 skipped
+```
+
+Nextest exit 100. The shell printed `FLOOR_RC=100`.
+
+Name set, unique names from `^ *(PASS|FAIL|SLOW) \[.*?\] \(\s*\d+/\d+\) (.+)$`: `.floor/2026-10-03T13-09-11Z` 6412, `.floor/2026-10-04T00-08-26Z` 6423, this floor 6431. Against the 255.88 green floor: MISSING 0, ADDED 19 (the previous amend's 11, `canonical_identity_holds_todays_slash_rule`, and the seven identity probes). Against the previous red floor's fail set: PREV_FAIL 313, CUR_FAIL 154, NEW_FAIL 0, CURED 159. A first extractor that captured only the binary token printed a false 41 and is discarded.
+
+The four default limits passed. `deftest_wat_tests_rete_fuzz_test_native_matches_oracle` PASS [75.840s] (limit 90s). Reachability shards PASS 22.936 / 22.327 / 21.184 / 20.889 / 20.887 / 20.831s (shards 1, 0, 2, 3, 4, 5). `retirement_table_is_fully_reachable` PASS [166.217s]. `keyed_gather_visits_match_the_keyed_prediction` PASS [15.939s].
+
+`doc-link-judge.log` is 0 bytes. The judge is not claimed. `doc-link.log` is 38941 bytes and ends `Finished release profile [optimized] target(s) in 11.92s` after rustdoc HTML-tag warnings. Doctests exit 0 (`doctest.log` 2168 bytes).
+
+Clippy `--release --all-targets -- -D warnings` finished `in 13.76s`, wall `CLIPPY_SEC 13.82`, and printed no warning.
+
+Ignore ledger, this amend's count of Rust `#[ignore]` attributes with comments and strings skipped: 16 under `tests/`, plus `src/edn/render.rs:6156` and `crates/wat-reader/tests/clj_oracle_source_parity.rs:20`, which is 18. `crates/wat-macros/src/lib.rs:837` is `quote! { #[ignore = #reason] }`, the emitter for a `.wat` annotation, not an ignored Rust test. The 19th nextest name from the previous floor, `deftest_wat_tests_lint_lint_stdlib_runs`, is that `.wat` annotation. `nextest list` was not re-run. This floor's start line is `Starting 6431 tests across 49 binaries (24 tests skipped, including 5 tests via profile.default.default-filter)`.
+
+Sentences the named doors were asked to quiet, counted on the 154 failing blocks, are 0: `did not compile`, `no minted alpha`, `is not total`, `is not deterministic`, `cannot lower head`, `pattern head must be a struct type keyword`, `holding a Keyword`, `malformed match arm`.
+
+The load gate dropped from 4 of 782 to 2 of 782. The two pattern-head scratch-pad files went green with the `matches?` cure. The two that remain were not hand-edited. `every_wat_scripts_file_loads_on_the_current_runtime` FAIL [392.172s]:
+
+```
+2 of 782 wat-scripts/ files do not load on the current runtime (rotted):
+  wat-scripts/perf/grid/where-inline-computed.wat
+      MalformedClause: defrule `wic::inline-cond` (`:wic/Req`): clause
+      `(wat.rete.core/cond ((wat.rete.i64/> :k 100) true) (:else false))`
+      — not a recognized :when shape
+      span line 147 col 12..77
+  wat-scripts/scratch-pad/probe-arc278-reap-serve-event.wat
+      MalformedForm: ':wat::core::i64::to-string' is retired; use ':wat::i64::to-string' instead
+      span line 61 col 46..68
+```
+
+`classify_rete_clause` already canonicalizes the head (`clause.rs:420`). `:wat::rete::core::cond` is not `:wat::rete::and|or|not|exists|where`, so the clause stays `Unrecognized` for both spellings of that head. The two compile shards `every_wat_scripts_rete_rule_compiles_shard_04` FAIL [12.019s] and `shard_05` FAIL [9.292s] point at the same load-gate files.
+
+Substring counts on the 154 blocks are not a partition (one block hits several): `left == right` 89, `unresolved reference` 28, `TypeMismatch` 25, `is retired` 19, `UnknownField` 10, `verbatim` 5, `sift` 5, `is not pure` 4, `MalformedClause` 4, `not a recognized :when shape` 4, `LAW` 3, `head spelling` 3, `acronym` 3, `CreateWebAcl` 3, `frozen` 3, `is not a rete primitive` 2, `not declared in :peers` 2, `UnknownEnumVariant` 1, `i64(0)` 1, `a comm carries only pure data` 1. The four `is not pure` blocks are compile shard 04, the two `grid_axes_live` tests, and `struct_rejected_at_wire_SEND` (its golden says "is not pure"). The accessor and foreign-pred purity tests fail on their own sentences and are not those four.
+
+### Residue, one deciding site per test
+
+Each of the 154 is in one row. Rows are sites. Several rows are the same mechanism counted once at the STOP.
+
+| tests | site |
+|---:|---|
+| 3 | Load gate. The two files above, plus the two compile shards that cite it. |
+| 4 | Enum-variant wall controls in `probe_arc278_enum_variant_typo`. The misspelled-variant golden still wants `UnknownEnumVariant` for enum `evt::G` variant `Hii`. `a_real_enum_variant_in_a_rete_constraint_matches` printed 0 against 1. `legitimate_keyword_constants_are_still_keywords` printed 1 against 3. The wall was not widened. |
+| 4 | Field-span caret (`probe_arc278_field_span`). The golden wants the field keyword's extent. |
+| 4 | Nested-constructor wall (`probe_arc278_nested_wall`). |
+| 2 | Rete-primitive diagnostic (`src/rete/validate/error.rs:482`). `untyped_equality_constraint_is_refused` and `untyped_ordering_constraint_is_refused` require the refusal to name `:wat::core::=` and `:wat::core::>`. Law A was not loosened. |
+| 7 | Member-join, the early return kept. Accessor `:wat::telemetry::Log/level` (pure and deterministic), foreign `ForeignRecord/get` (pure and deterministic), `service-cache-lru` (expects `:wat::cache::Cache::GetResult`, got `:wat::cache::Cache/GetResult`, both the process and the thread deftest), `defservice_generates_dispatch_loop_round_trips_on_thread` (expects `:my::Counter::Op`, got `:my::Counter/Op`). |
+| 2 | Verbatim `::` printer. `ast_to_source_is_verbatim_colon_colon`, `sieve_pred_captures_verbatim_colon_colon_source`. |
+| 3 | Head-spelling fixture `probe_arc251_stone9_symbol_head_declaration`. The converted pair's source lines are the same symbol form. |
+| 4 | Peers bijection (`probe_arc278_peers_bijection`). |
+| 2 | Sift (`probe_arc278_sift_logs`). The producer line was not isolated. The substring `sift` also occurs in three other blocks; those three are filed on their own rows. |
+| 4 | Acronym files: `declared_types_acronym_create_web_acl`, `declared_types_oracle_matches_type_of_after_startup`, and the two `probe_arc265_acronym_registry` tests. The `CreateWebAcl` substring is 3 of these blocks. `src/types.rs` acronym law was not edited. |
+| 2 | Stratify-number tests still red: `native_stratify_numbers_against_the_oracle_scratch`, `native_stratify_numbers_nested_or_and_not_against_the_oracle`. The oracle combinator walks named above still read raw `ast-name`. |
+| 6 | Other native/oracle diffs, deciding line not isolated: `where_tree_branch_agrees_with_the_reference_filter`, `differential_three_stratum_negation` (the panic text has native and oracle both shaped `[N, N, N]`), `derived_exists_and_acc_spec_matches_native`, `every_grid_axis_native_matches_its_oracle`, `grid_axes_run_and_derive_nonvacuously`, `spec_equals_native_on_every_where_family`. |
+| 17 | Blocks whose text contains `is retired` and that were not claimed by a row above. One further `is retired` block is the load-gate witness (the reap-serve file). Retirement canonicalization was not edited. |
+| 28 | `unresolved reference`. `normalize.rs` was not edited. |
+| 1 | `struct_rejected_at_wire_SEND`. The golden is the comm purity wall: "a comm carries only pure data". |
+| 56 | `left == right` / EDN mismatch after every row above was removed. Old goldens. None were recaptured. |
+| 5 | Unfiled, read and not given a line: `every_wat_scripts_grep_program_matches_a_known_target` (0 matches), `type_record_records_element_type_from_call_site` (no recorded line at `tests/cli/wat_cli__check_types.wat:11:23`), the two D6 fixtures (`:wat::core::first` on an empty sequence, tagged wat line 40 col 60, unit wat line 39 col 60), `export_without_arm_refusal_names_the_wat_line` (`import-and-hits defn`). |
+
+3+4+4+4+2+7+2+3+4+2+4+2+6+17+28+1+56+5 = 154.
+
+That is more than twelve deciding sites. The five unfiled tests and the six diffs whose line was not isolated do not shrink the count. No corpus cure was started. Member-join, the acronym law, sift, peers, `normalize.rs`, the retirement table, and the two remaining load-gate files were not edited. `negated-types-under` and `rule-negates-in` were left on raw `ast-name`.
+
+5c-iv and 5d were not started.
