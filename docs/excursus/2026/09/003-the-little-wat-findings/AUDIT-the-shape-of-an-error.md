@@ -450,3 +450,23 @@ fixed before the committed floor.
 corrected). **Measured, not driven:** `ReteCeiling` (only `…ExceededOnInsert` escapes, and only via
 insertion-during-fire), `EdnCoerceMismatch` (needs the real stdio services), `WriteStopped` (a
 pipe-full + SIGTERM race — a standing gate would be a flake).
+
+## Strike F landed (`a9cf8670d`, `578c34124`) — and its locations repeat C-114
+
+`cache::Fault`, `sqlite::Fault`, `query::Fault` conform to `:wat::core::Error` (gain `location`);
+`doctest::Failure` → `doctest::Violation` (a verdict, never an error; matches `deporder::Violation`).
+GF1 (each conformer is an Error) and GF2 (every `::Fault`/`::Failure` conforms or is the envelope)
+standing, mutation-proven. Floor 6419/6419.
+
+**Finding (orchestrator):** each conformed fault's `location` is minted by `(:wat::kernel::here)` INSIDE
+the stdlib (`wat/cache.wat`, `wat/sqlite.wat`, `wat/query.wat`, `wat/telemetry/*`) — GF1's own fixture
+says so: "carries a REAL `:location` (the lift site inside wat/cache.wat)". A user's `Lru/new` with
+capacity 0 is located in the stdlib — C-114's defect, now in RETURNED values. D4 cured it for RAISED
+errors only.
+
+**Answer, by the four questions:** the location rule is ONE rule (D4) for every error, raised or
+returned — a fault constructed in stdlib takes the innermost frame in user source, the same derivation
+`RuntimeError::new` applies; never `here` (the stdlib line) and never `call-site` (still stdlib when one
+stdlib fn calls another). Obvious YES (an error's location is your line), Simple YES (D4's existing
+derivation exposed to the fault mint sites — no second rule), Honest YES (your call caused it), Good UX
+YES. Strike F2.
