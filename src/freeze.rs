@@ -2002,7 +2002,8 @@ mod tests {
     fn startup_bare_loads_name_keys() {
         let world = startup_bare().expect("bare");
         let _collisions = crate::name_map::collision_log();
-        assert!(world.types.contains(":wat::type::i64"));
+        let i64_is_a_name = world.types.contains(":wat::type::i64");
+        assert_eq!(i64_is_a_name, true);
     }
 
     // ─── Happy path ─────────────────────────────────────────────────────

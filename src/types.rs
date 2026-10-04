@@ -1204,7 +1204,18 @@ impl TypeEnv {
     /// does NOT gain the same `||`: a builtin leaf's whole point is that it
     /// has no structure to return.
     pub fn contains(&self, name: &str) -> bool {
-        self.types.contains_key(name) || self.builtin_names.contains(name)
+        if self.types.contains_key(name) || self.builtin_names.contains(name) {
+            return true;
+        }
+        // A dotted keyword (`:wat.grep/Node`) is not the spelling the insert
+        // kept. `canonical_identity` is the pre-Name door: no `::` and a `/`
+        // becomes the keyword. A spelling that already contains `::` is
+        // unchanged, so this is not a second join.
+        let id = crate::edn::render::canonical_identity(name);
+        if id == name {
+            return false;
+        }
+        self.types.contains_key(&id) || self.builtin_names.contains(&id)
     }
 
     /// Lookup by the pair. A spelling enters through [`Self::get`].
@@ -1306,7 +1317,17 @@ impl TypeEnv {
     /// membership (`contains` → true) but no `TypeDef` to return, so this stays
     /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
-        self.types.get(name)
+        if let Some(hit) = self.types.get(name) {
+            return Some(hit);
+        }
+        // Same door as `contains`. Fact classes arrive as `:{class}` where
+        // `class` is the colon-free clojure spelling (`wat.grep/Node` →
+        // `:wat.grep/Node`). The registry kept `:wat::grep::Node`.
+        let id = crate::edn::render::canonical_identity(name);
+        if id == name {
+            return None;
+        }
+        self.types.get(&id)
     }
 
     /// 2a4 — the stdlib-mode door's private copy only. A divergent re-declaration
@@ -7717,9 +7738,11 @@ fn check_union_member_reaches(
 /// Acyclic: edges are registered acyclically (see [`TypeEnv::register_subtype`]);
 /// the `visited` guard also bounds the walk defensively.
 pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
-    // The spellings the lattice is written in. The other join of the same
-    // name still reaches the `TypeKey` walk below.
-    if sub == sup || sup == ":wat::type::Value" || sub == ":wat::type::Never" {
+    // Equal text is the same key. `:wat::type::Value` and `:wat::type::Never`
+    // are names, compared in `is_subtype_key` after both spellings enter.
+    // A string compare against those keywords misses the other join and is
+    // a second decision.
+    if sub == sup {
         return true;
     }
     let (Some(sub_k), Some(sup_k)) = (
