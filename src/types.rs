@@ -1825,40 +1825,12 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // in `wat/holon.wat`.
     ::wat_source_derive::wat_alias_register_from!(env, "wat/core.wat", ":wat::holon::Holons");
 
-    // :wat::core::EvalError — populated in the Err slot of a :Result
-    // returned by the eval-family forms (:wat::eval-ast! /
-    // eval-edn! / eval-digest! / eval-signed!) when dynamic evaluation
-    // fails. Carries a `kind` discriminator (short machine-readable
-    // variant name) and a `message` diagnostic (human-readable detail).
-    //
-    // `kind` values emitted by the dispatchers:
-    //   "verification-failed"   — digest or signature check failed
-    //   "parse-failed"          — EDN source couldn't be parsed
-    //   "mutation-form-refused" — AST contained define/defmacro/struct/
-    //                             enum/newtype/typealias/load! which
-    //                             constrained eval refuses (FOUNDATION
-    //                             line 663 invariant)
-    //   "unknown-function"      — AST referenced a function not in the
-    //                             frozen symbol table
-    //   "type-mismatch"         — arg types at a call site didn't match
-    //   "arity-mismatch"        — wrong number of args at a call site
-    //   "channel-disconnected"  — send to a dropped receiver inside
-    //                             eval'd code
-    //   "runtime-error"         — any other RuntimeError surfaced by
-    //                             the inner eval, with the variant's
-    //                             Display as the message
-    //
-    // Two auto-generated accessors land alongside:
-    //   :wat::core::EvalError/kind    — :fn(:EvalError) -> :String
-    //   :wat::core::EvalError/message — :fn(:EvalError) -> :String
-    // Plus the constructor :wat::core::EvalError/new for cases where
-    // user code wants to synthesize one (rare — normally produced by
-    // the runtime).
-    // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
-    // is DELETED; this row is now emitted from `(:wat::core::defstruct :wat::core::EvalError …)`
-    // in `wat/core.wat`, read at BUILD time by `wat-source-derive`. wat is the source of truth;
-    // Rust consumes it.
-    ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::EvalError");
+    // :wat::core::EvalError — RETIRED (excursus 003 strike E, F4/D2). The eval family's
+    // `Err` now carries the real `:wat::kernel::Failure` (the declared record the failure
+    // raised, plus its captured frames) — see `runtime_error_failure` (runtime.rs) and
+    // `wrap_as_eval_result`'s call to it. `EvalError`'s flattened `{kind message}` struct
+    // and its `runtime_error_to_eval_error_value` builder are deleted; nothing registers
+    // this name any more.
 
     // :wat::core::Bytes — substrate-general byte buffer. Alias for
     // (:Vec :- [u8]). Per arc 062 + /gaze: the universal name "Bytes" wins
@@ -2250,10 +2222,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // The static/dynamic split is not stylistic — collapsing both into one `cause`
     // slot is the overloaded-bucket Ruling A forbids (DESIGN-service-io-budgets.md),
-    // and the two carriers are genuinely different types: every `EvalError.kind` is a
-    // dynamic-eval kind (see the EvalError doc above — "unknown-function",
-    // "type-mismatch", "runtime-error"), none of which can describe a freeze
-    // rejection. `StartupError` is what the freeze itself returns (freeze.rs) — it is
+    // and the two carriers are genuinely different types: `:Raised`'s cause is the real
+    // `:wat::kernel::Failure` the dynamic eval produced (excursus 003 strike E — the
+    // flattened `EvalError{kind message}` retired), which describes a RUNTIME failure and
+    // cannot describe a freeze rejection. `StartupError` is what the freeze itself returns (freeze.rs) — it is
     // reused rather than duplicated. Its single `message` field is thin for a REPL
     // (which wants the location); growing it is that type's own follow-up, exactly
     // the "extensible … if a real consumer surfaces" its comment invites.
@@ -8553,6 +8525,29 @@ mod tests {
         );
     }
 
+    /// Excursus 003 strike E, GE3 — `EvalError` is gone. DRIVE a lookup through the same
+    /// door `stone_255b_never_is_deliberately_unregistered` uses (never a grep over source
+    /// text, which can only say a string is absent, not that the TYPE is unregistered):
+    /// `TypeEnv::get` must answer `None`, and `SymbolTable::registrations` — THE door, every
+    /// facet — must answer empty, against the real `with_builtins()` registry that used to
+    /// carry it.
+    #[test]
+    fn excursus_003_ge3_evalerror_resolves_nowhere() {
+        let env = TypeEnv::with_builtins();
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(env.clone()));
+        assert_eq!(
+            env.get(":wat::core::EvalError"),
+            None,
+            "`:wat::core::EvalError` must resolve to nothing — retired, excursus 003 strike E"
+        );
+        let regs = sym.registrations(":wat::core::EvalError");
+        assert!(
+            regs.is_empty(),
+            "`:wat::core::EvalError` must be contains-false in every facet; registrations = {regs:?}"
+        );
+    }
+
     /// Stone Q — the DESIGN census, asked of `contains` / `get`, not of `type-of`.
     /// Membership goes through THE DOOR (`registrations`) so `no_loose_string_assert`
     /// cannot confuse `TypeEnv::contains` with `String::contains`. Structure is
@@ -8567,7 +8562,6 @@ mod tests {
 
         let structured: &[(&str, &str)] = &[
             (":wat::core::Bytes", "Alias"),
-            (":wat::core::EvalError", "Aggregate"),
             (":wat::core::Record", "Aggregate"),
             (":wat::core::Struct", "Aggregate"),
             (":wat::core::Option", "Enum"),

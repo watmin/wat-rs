@@ -2193,21 +2193,20 @@
   -> :wat::WatAST
   `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) ))
 
-;; ─── Arc 296: :wat::core::EvalError — moving the source of truth to wat ───
+;; ─── Excursus 003 strike E: :wat::core::EvalError — RETIRED ────────────────
 ;;
-;; Mirrors the Rust registration in `register_builtin_types` (src/types.rs).
-;; Arc 296 moves the source of truth for wat's own aggregate types from the
-;; hand-written Rust literal to a wat declaration; the Rust side is meant to
-;; become generated FROM this form rather than hand-maintained alongside it.
+;; Was a stringly-flattened `{kind message}` struct populated in the Err slot
+;; of a :Result returned by the eval-family forms (:wat::eval-ast! / eval-step!
+;; / eval-edn! / eval-digest! / eval-signed! / eval-with-defs!) when dynamic
+;; evaluation failed — `kind` a hand-maintained kebab-case echo of whichever
+;; RuntimeErrorKind raised, `message` its rendered sentence. Both the error's
+;; own declared record (its class, its fields) and its captured frames were
+;; discarded before any observer (AUDIT-the-shape-of-an-error.md F4, D2).
 ;;
-;; Populated in the Err slot of a :Result returned by the eval-family forms
-;; (:wat::eval-ast! / eval-edn! / eval-digest! / eval-signed!) when dynamic
-;; evaluation fails. Carries a `kind` discriminator (short machine-readable
-;; variant name, e.g. "verification-failed", "parse-failed", "type-mismatch")
-;; and a `message` diagnostic (human-readable detail).
-(:wat::core::defstruct :wat::core::EvalError
-  [kind    <- :wat::core::String
-   message <- :wat::core::String])
+;; The eval family's `Err` now carries the real `:wat::kernel::Failure` — see
+;; `wat/eval.wat`'s `FormOutcome.Raised` and `runtime_error_failure`
+;; (src/runtime.rs). A consumer that branched on `EvalError/kind` strings now
+;; asks the error's own class via `(:wat::core::type (:wat::kernel::Failure/error e))`.
 
 ;; ─── Arc 296: :wat::core::Span — moving the source of truth to wat ────────
 ;;

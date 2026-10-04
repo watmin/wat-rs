@@ -4972,8 +4972,9 @@ fn build_foreign_variant(
 //
 // It hardcoded `None` for the type registry, so every caller silently rendered record
 // fields POSITIONALLY (`{:field-0 1 :field-1 2}`) instead of by name. The names were
-// never missing: `:wat::core::EvalError` is registered as `Aggregate`/`Nature::Struct`
-// WITH its fields, and the sibling `value_to_edn_string_with` reaches them fine — the
+// never missing: a declared record (e.g. `:wat::kernel::Failure`) is registered as
+// `Aggregate`/`Nature::Record` WITH its fields, and the sibling `value_to_edn_string_with`
+// reaches them fine — the
 // lookup simply was not wired through this door. Three unrelated symptoms, one cause:
 // the `field-N` diagnostics blob (296/NOTE-value-to-edn-renders-fields-positionally.md),
 // `send'`'s `field-0`/`field-1` (bridged with a thread-local in 258.5b, killed by

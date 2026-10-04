@@ -4,14 +4,14 @@
 
 ;; ─── Test 1: eval-ast! returns Ok(holon) ─────────────────────────────────────
 
-(:wat::core::defn :t::test1 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test1 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::core::let
     [program (:wat::core::quote (:wat::holon::to-holon "hello"))]
     (:wat::eval-ast! program)))
 
 ;; ─── Test 2: eval-ast! mutation form surfaces as Err ─────────────────────────
 
-(:wat::core::defn :t::test2 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test2 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::core::let
     [program
       (:wat::core::quote
@@ -20,12 +20,12 @@
 
 ;; ─── Test 3: eval-edn! parse failure surfaces as Err ─────────────────────────
 
-(:wat::core::defn :t::test3 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test3 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-edn! "(:wat::core::i64::+ 1"))
 
 ;; ─── Test 4: eval-digest-string! hash mismatch surfaces as Err ───────────────
 
-(:wat::core::defn :t::test4 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test4 [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-digest-string!
     "(:wat::holon::to-holon \"x\")"
     :wat::verify::digest-sha256
@@ -36,7 +36,7 @@
 
 ;; ─── Test 6: try propagates eval err through helper ──────────────────────────
 
-(:wat::core::defn :t::test6-run-dynamic [program <- :wat::WatAST] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::test6-run-dynamic [program <- :wat::WatAST] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::core::Result.Ok {:value (:wat::core::Result/try (:wat::eval-ast! program))}))
 
 (:wat::core::defn :t::test6 [] -> :wat::core::String
@@ -46,7 +46,7 @@
         (:wat::core::defstruct :injected::T [x <- :wat::core::i64]))]
     (:wat::core::match (:t::test6-run-dynamic bad) 
       [:wat::core::Result.Ok {:value _} "should-not-reach"]
-      [:wat::core::Result.Err {:error e} (:wat::core::EvalError/kind e)])))
+      [:wat::core::Result.Err {:error e} (:wat::core::type (:wat::kernel::Failure/error e))])))
 
 ;; ─── Test 7: eval-err exposes both kind and message ─────────────────────────
 
@@ -62,5 +62,5 @@
         (:wat::core::Tuple "unreachable" "unreachable")]
       [:wat::core::Result.Err {:error e}
         (:wat::core::Tuple
-          (:wat::core::EvalError/kind e)
-          (:wat::core::EvalError/message e))])))
+          (:wat::core::type (:wat::kernel::Failure/error e))
+          (:wat::kernel::Failure/message e))])))

@@ -1,0 +1,19 @@
+# ORACLE for eval-error-to-failure — HISTORY or header spec, never the tool.
+
+# spec: this codemod ships WITH the strike-E surface change it migrates for (EvalError's
+# retirement; the eval family's Err becomes :wat::kernel::Failure), so there is no PRIOR
+# commit in which the after-shape already exists for these three rewrites. The oracle is
+# the header's own SPEC quotes — same shape as the sibling `frame-symbol-span-to-fn-at`'s
+# ORACLE, which ships with excursus 003 strike D for the identical reason.
+
+spec-before   (:wat::core::defn :u::row [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError]) (:wat::eval-ast! :- [:wat::core::i64] program)) :: `(:wat::core::Result :- [T :wat::core::EvalError])`) -> `:wat::kernel::Failure`.
+
+spec-before   (:wat::core::defn :u::msg [e <- :wat::core::EvalError] -> :wat::core::String (:wat::core::EvalError/message e)) :: `(:wat::core::EvalError/message X)` -> `(:wat::kernel::Failure/message X)`.
+
+spec-before   (:wat::core::defn :u::kind [e <- :wat::core::EvalError] -> :wat::core::String (:wat::core::EvalError/kind e)) :: `(:wat::core::EvalError/kind X)` -> `(:wat::core::type (:wat::kernel::Failure/error X))`.
+
+spec   (:wat::core::defn :u::row [] -> (:wat::core::Result :- [:wat::core::i64 :wat::kernel::Failure]) (:wat::eval-ast! :- [:wat::core::i64] program)) :: `(:wat::core::Result :- [T :wat::core::EvalError])`) -> `:wat::kernel::Failure`.
+
+spec   (:wat::core::defn :u::msg [e <- :wat::kernel::Failure] -> :wat::core::String (:wat::kernel::Failure/message e)) :: `(:wat::core::EvalError/message X)` -> `(:wat::kernel::Failure/message X)`.
+
+spec   (:wat::core::defn :u::kind [e <- :wat::kernel::Failure] -> :wat::core::String (:wat::core::type (:wat::kernel::Failure/error e))) :: `(:wat::core::EvalError/kind X)` -> `(:wat::core::type (:wat::kernel::Failure/error X))`.

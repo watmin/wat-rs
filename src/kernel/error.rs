@@ -26,12 +26,12 @@
 //! `src/kernel/spawn.rs`, orphaned in the megafile exactly as stone A's
 //! `accept_outcome_*` were.
 //!
-//! `eval_error_names` — an `_error_`-named, `_names`-suffixed helper right
-//! beside this cluster in `runtime.rs` — is NOT part of this home: its only
-//! caller is `runtime_error_to_eval_error_value`, the `:wat::core::EvalError`
-//! vocabulary beside `wrap_as_eval_result`/`eval_form_ast` that serves
-//! `intrinsic/holon/atom.rs`'s `eval-*` verbs. A `_names` suffix is a naming
-//! convention, not a membership test.
+//! Excursus 003 strike E retired `eval_error_names` and its only caller
+//! `runtime_error_to_eval_error_value` outright (the `:wat::core::EvalError`
+//! vocabulary beside `wrap_as_eval_result`/`eval_form_ast` that served
+//! `intrinsic/holon/atom.rs`'s `eval-*` verbs) — `wrap_as_eval_result` now calls
+//! `runtime_error_failure` (below) directly, so there is no longer a sibling
+//! helper near this cluster to carve a boundary against.
 //!
 //! The `:wat::core::Fault`/`Failure` diagnostic vocabulary this cluster
 //! CALLS (`fault_value`, `failure_names`, `span_names`, `frame_names`,

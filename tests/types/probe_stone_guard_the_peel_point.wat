@@ -17,12 +17,12 @@
 
 ;; ─── Row 3 — empty binder against a zero-param callee; identical to no binder. ─────────────
 
-(:wat::core::defn :t::row3_empty_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::row3_empty_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-edn! :- [] "42"))
 
 ;; ─── Row 4 — exact declared count (one param, one arg). ────────────────────────────────────
 
-(:wat::core::defn :t::row4_exact_count [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
+(:wat::core::defn :t::row4_exact_count [] -> (:wat::core::Result :- [:wat::core::i64 :wat::kernel::Failure])
   (:wat::core::let
     [program (:wat::core::quote (:wat::i64::+ 40 2))]
     (:wat::eval-ast! :- [:wat::core::i64] program)))

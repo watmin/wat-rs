@@ -73,9 +73,10 @@
 ;;
 ;; The static/dynamic split is not stylistic — collapsing both into one `cause`
 ;; slot is the overloaded-bucket Ruling A forbids (DESIGN-service-io-budgets.md),
-;; and the two carriers are genuinely different types: every `EvalError.kind` is a
-;; dynamic-eval kind (see the EvalError doc above — "unknown-function",
-;; "type-mismatch", "runtime-error"), none of which can describe a freeze
+;; and the two carriers are genuinely different types: `:Raised`'s cause is the real
+;; `:wat::kernel::Failure` the dynamic eval produced (excursus 003 strike E — the
+;; flattened `:wat::core::EvalError{kind message}` retired; see `runtime_error_failure`,
+;; src/runtime.rs), which describes a RUNTIME failure and cannot describe a freeze
 ;; rejection. `StartupError` is what the freeze itself returns (freeze.rs) — it is
 ;; reused rather than duplicated. Its single `message` field is thin for a REPL
 ;; (which wants the location); growing it is that type's own follow-up, exactly
@@ -102,4 +103,4 @@
   :Declared
   :Evaluated [value <- :T]
   :CheckFailed [cause <- :wat::core::Error]
-  :Raised [cause <- :wat::core::EvalError])
+  :Raised [cause <- :wat::kernel::Failure])

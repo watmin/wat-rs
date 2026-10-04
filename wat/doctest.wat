@@ -129,7 +129,7 @@
                             :fqdn fqdn
                             :reason (:wat::string::concat
                                       "expected eval failed: "
-                                      (:wat::core::EvalError/message err)))))])]
+                                      (:wat::kernel::Failure/message err)))))])]
                 [:wat::core::Result.Err {:error err}
                   (:wat::core::concat acc1
                     (:wat::core::Vector :- [:wat::doctest::Failure]
@@ -137,7 +137,7 @@
                         :fqdn fqdn
                         :reason (:wat::string::concat
                                   "expr eval failed: "
-                                  (:wat::core::EvalError/message err)))))])]
+                                  (:wat::kernel::Failure/message err)))))])]
             [:wat::core::Option.None {}
               (:wat::core::concat acc1
                 (:wat::core::Vector :- [:wat::doctest::Failure]

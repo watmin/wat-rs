@@ -2454,7 +2454,7 @@ pub(crate) fn eval_algebra_coincident_explain(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-coincident?")]
 pub(crate) fn eval_form_ast_coincident_q(
@@ -2464,7 +2464,7 @@ pub(crate) fn eval_form_ast_coincident_q(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     // Structural pre-check — matches eval-ast! pattern. Arity errors
-    // fire before the EvalError wrap; they're caller-syntactic issues.
+    // fire before the Failure wrap; they're caller-syntactic issues.
     if args.len() != 2 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -2500,7 +2500,7 @@ pub(crate) fn eval_form_ast_coincident_q(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-edn-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-edn-coincident?")]
 pub(crate) fn eval_form_edn_coincident_q(
@@ -2542,7 +2542,7 @@ pub(crate) fn eval_form_edn_coincident_q(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-digest-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-digest-coincident?")]
 pub(crate) fn eval_form_digest_coincident_q(
@@ -2568,7 +2568,7 @@ pub(crate) fn eval_form_digest_coincident_q(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-digest-string-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-digest-string-coincident?")]
 pub(crate) fn eval_form_digest_string_coincident_q(
@@ -2594,7 +2594,7 @@ pub(crate) fn eval_form_digest_string_coincident_q(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-signed-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-signed-coincident?")]
 pub(crate) fn eval_form_signed_coincident_q(
@@ -2620,7 +2620,7 @@ pub(crate) fn eval_form_signed_coincident_q(
 /// @ExpandTime    Unreviewed
 /// @Category      Probe
 /// @arg     args… :wat::core::Value the two sources compared, in order
-/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::core::EvalError]) an `EvalResult`-wrapped `:bool`
+/// @ret     (:wat::core::Result :- [:wat::core::bool :wat::kernel::Failure]) an `EvalResult`-wrapped `:bool`
 /// @example-norun (eval-signed-string-coincident? a b) #=> true
 #[wat_intrinsic(":wat::holon::eval-signed-string-coincident?")]
 pub(crate) fn eval_form_signed_string_coincident_q(

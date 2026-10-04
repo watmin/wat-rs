@@ -13,9 +13,9 @@
 
 ;; ─── Row 1 — generic form, NON-empty binder. Load-bearing: this is the one that failed
 ;; before the fix ("takes exactly 1 argument; got 3"). `:wat::eval-ast!` is registered
-;; `∀T. WatAST -> Result<T, EvalError>`; the caller binds T = i64 explicitly. ──────────
+;; `∀T. WatAST -> Result<T, Failure>`; the caller binds T = i64 explicitly. ──────────
 
-(:wat::core::defn :t::row1_generic_binder [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
+(:wat::core::defn :t::row1_generic_binder [] -> (:wat::core::Result :- [:wat::core::i64 :wat::kernel::Failure])
   (:wat::core::let
     [program (:wat::core::quote (:wat::i64::+ 40 2))]
     (:wat::eval-ast! :- [:wat::core::i64] program)))
@@ -25,10 +25,10 @@
 ;; 109's own ruling is that the empty binder is *absent*, not merely harmless. Both must
 ;; behave identically. ─────────────────────────────────────────────────────────────────
 
-(:wat::core::defn :t::row2_empty_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::row2_empty_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-edn! :- [] "42"))
 
-(:wat::core::defn :t::row3_no_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::row3_no_binder [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-edn! "42"))
 
 ;; ─── Row 4 — structural, not one-armed: repeat the row-2 shape (non-generic, empty
@@ -38,14 +38,14 @@
 ;; cluster covers a form reached through a shared helper too, not just the five with an
 ;; inline arity message. ──────────────────────────────────────────────────────────────
 
-(:wat::core::defn :t::row4_empty_binder_second_form [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::row4_empty_binder_second_form [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-digest-string!
     :- []
     "(:wat::holon::to-holon \"x\")"
     :wat::verify::digest-sha256
     :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"))
 
-(:wat::core::defn :t::row4_no_binder_second_form [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::row4_no_binder_second_form [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-digest-string!
     "(:wat::holon::to-holon \"x\")"
     :wat::verify::digest-sha256

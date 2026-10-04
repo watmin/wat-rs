@@ -20,7 +20,7 @@ fn eval_i64(entry: &str) -> i64 {
         other => panic!("expected i64, got {other:?}"),
     }
 }
-/// Extract the `Ok` i64 payload of a `:wat::core::Result<wat::core::i64,wat::core::EvalError>`
+/// Extract the `Ok` i64 payload of a `:wat::core::Result<wat::core::i64,wat::kernel::Failure>`
 /// entry, panicking with the full value on anything else (including `Err`) so a failure names
 /// what actually came back rather than just "not Ok".
 fn eval_result_ok_i64(entry: &str) -> i64 {
@@ -121,7 +121,7 @@ fn ann_form_tail_shallow_answer_is_unchanged() {
 /// last operand, on the one path where it's observable — a `:wat::core::fn` literal built inside
 /// `quote` (never type-checked) and invoked via `:wat::eval-ast!` + `:wat::core::apply`. The last
 /// operand (`5`, not a bool) is tail-called away instead of raising `TypeMismatch`, so calling the
-/// fn returns `Ok(5)` rather than `Err(EvalError{TypeMismatch, ..})`.
+/// fn returns `Ok(5)` rather than `Err(Failure{error: TypeMismatch, ..})`.
 ///
 /// If `eval_and_tail`'s arm were removed from `eval_tail`'s match, this comes back `Err` instead
 /// (verified by hand alongside the TCO removal cycle — see the module doc).

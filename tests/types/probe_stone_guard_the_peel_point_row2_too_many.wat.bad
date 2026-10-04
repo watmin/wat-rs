@@ -8,5 +8,5 @@
 ;; silently swallowed. Post-fix this must be REFUSED at check time, naming the callee and both
 ;; counts (0 declared, 1 supplied).
 
-(:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+(:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::kernel::Failure])
   (:wat::eval-edn! :- [:wat::core::i64] "42"))

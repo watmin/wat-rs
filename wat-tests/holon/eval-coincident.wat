@@ -141,7 +141,7 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-bad-hex-errs
 
   ;; Side A carries a zero-hex digest that doesn't match the source;
-  ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
+  ;; verify fires before parse → Err(Failure{error: EvalVerificationFailed, ..}).
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
@@ -194,7 +194,7 @@
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-wrong-sig-errs
 
   ;; Side A carries src-B's sig against src-A; verify fails →
-  ;; Err(EvalError{kind=verification-failed}).
+  ;; Err(Failure{error: EvalVerificationFailed, ..}).
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?

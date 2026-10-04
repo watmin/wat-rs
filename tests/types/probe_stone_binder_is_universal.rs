@@ -79,31 +79,68 @@ fn row2_and_row3_empty_binder_is_identical_to_no_binder() {
 /// literal-message grep does not surface it. Proves the fix is structural — every form
 /// reached through the dispatch cluster is covered, not only the ones easy to find by
 /// grepping the error text.
+/// The `(class, message)` of a `Value::Result(Err(Record(Failure)))`'s `error` field —
+/// excursus 003 strike E: `Failure` also carries `frames` (the RAISING call's own
+/// activation and `:location`), which legitimately DIFFER between row4's two wrapper
+/// functions (`:t::row4_empty_binder_second_form` vs `:t::row4_no_binder_second_form` are
+/// two different functions at two different source lines, so the raise's own frame and
+/// derived `:location` differ by construction — that is correct, not a regression). The
+/// binder-equivalence this test actually claims is about the verification OUTCOME, so the
+/// comparison below is scoped to the error's class and message, not the whole Failure.
+fn error_class_and_message(v: &Value) -> (String, String) {
+    match v {
+        Value::Result(r) => match &**r {
+            Err(Value::Aggregate(failure)) if failure.class.as_ref() == "wat::kernel::Failure" => {
+                match failure.fields.first() {
+                    Some(Value::Aggregate(error)) => {
+                        let message = match error.fields.first() {
+                            Some(Value::String(s)) => (**s).clone(),
+                            other => panic!("error.message not String; got {:?}", other),
+                        };
+                        (error.class.to_string(), message)
+                    }
+                    other => panic!("Failure.error not Aggregate; got {:?}", other),
+                }
+            }
+            other => panic!("expected Err(Record(Failure)); got {:?}", other),
+        },
+        other => panic!("expected Value::Result; got {:?}", other),
+    }
+}
+
 #[test]
 fn row4_second_form_empty_binder_is_also_identical_to_no_binder() {
     let world = wat::freeze::startup_beside(file!()).expect("startup");
     let with_binder = run(&world, ":t::row4_empty_binder_second_form");
     let without_binder = run(&world, ":t::row4_no_binder_second_form");
     assert_eq!(
-        format!("{with_binder:?}"),
-        format!("{without_binder:?}"),
-        "an empty `:- []` binder on eval-digest-string! must be indistinguishable from no binder"
+        error_class_and_message(&with_binder),
+        error_class_and_message(&without_binder),
+        "an empty `:- []` binder on eval-digest-string! must be indistinguishable from no binder \
+         (compared by the error's class + message — `:location`/`:frames` legitimately differ \
+         between the two wrapper functions' own call sites)"
     );
     // Non-vacuity: the fixture's hash is deliberately wrong, so both sides must be the SAME
     // verification-failed Err, not two things that happen to Debug-format the same nil.
     match &with_binder {
         // `Value::Result` is wat's OWN `:wat::core::Result` value (Ok/Err over `Value`, not a
         // Rust `Result<_, StartupError>`) — `eval-digest-string!` catches its `RuntimeError` and
-        // lowers it to a `#wat.core/EvalError {:kind :message}` Value (arc 296:
-        // `runtime_error_to_eval_error_value`). The `:kind` field IS the stable discriminant
-        // (its own doc: "a short machine-readable variant name"); a bare `is_err()` here is
-        // satisfied by ANY EvalError, not just the deliberate hash mismatch this test claims.
+        // carries it as the real `#wat.kernel/Failure {:error :frames :frames-elided}` Value
+        // (excursus 003 strike E: `runtime_error_failure`, retiring the flattened
+        // `#wat.core/EvalError {:kind :message}`). `Failure/error`'s own declared record CLASS
+        // is now the stable discriminant (never a hand-maintained `kind` string); a bare
+        // `is_err()` here is satisfied by ANY Failure, not just the deliberate hash mismatch
+        // this test claims.
         Value::Result(r) => match &**r {
-            Err(Value::Aggregate(a))
-                if a.class.as_ref() == "wat::core::EvalError"
-                    && matches!(a.fields.first(), Some(Value::String(k)) if k.as_str() == "verification-failed") => {}
+            Err(Value::Aggregate(failure))
+                if failure.class.as_ref() == "wat::kernel::Failure"
+                    && matches!(
+                        failure.fields.first(),
+                        Some(Value::Aggregate(error))
+                            if error.class.as_ref() == "wat::runtime::EvalVerificationFailed"
+                    ) => {}
             other => panic!(
-                "expected Err(EvalError{{kind: \"verification-failed\", ..}}) (deliberate hash \
+                "expected Err(Failure{{error: EvalVerificationFailed, ..}}) (deliberate hash \
                  mismatch); got {:?}",
                 other
             ),

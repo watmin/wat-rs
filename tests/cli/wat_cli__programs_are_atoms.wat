@@ -18,8 +18,9 @@
     ;; HolonAST (the form lowered onto the algebra grid). to-watast
     ;; was the original reverse path (HolonAST → WatAST) but is no
     ;; longer available; use the original quoted WatAST directly.
-    ;; eval-ast! returns (:Result :- [wat::holon::HolonAST EvalError]) per
-    ;; the 2026-04-20 INSCRIPTION. Match both arms to preserve main's
+    ;; eval-ast! returns (:Result :- [wat::holon::HolonAST wat::kernel::Failure]) per
+    ;; the 2026-04-20 INSCRIPTION (excursus 003 strike E: Failure, not EvalError).
+    ;; Match both arms to preserve main's
     ;; declared return type of :(). Err arm is unreachable here
     ;; (the quoted program is well-formed and non-mutating).
     (:wat::core::match (:wat::eval-ast! program)

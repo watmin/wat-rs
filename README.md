@@ -199,7 +199,7 @@ test --release` from `wat-rs/`.
 - [`types`] — type declarations, `TypeEnv`, `TypeExpr` (Path / Parametric
   / Fn / Tuple / Var). `:Any` refused at parse. `TypeEnv::with_builtins()`
   seeds wat-rs's own `:wat::*` types (Failure, Location, Frame,
-  RunResult, CapacityExceeded, EvalError).
+  RunResult, CapacityExceeded).
 - [`resolve`] — call-site reference validation; reserved-prefix gate
   (`:wat::*` catch-all covering every sub-namespace + root-level load/eval
   forms, plus `:rust::*` — arc 028 consolidation).

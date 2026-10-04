@@ -47,8 +47,8 @@
     ;; arc 057 Story-2 recovery: the presence measurements above proved
     ;; the vector dynamics (absent/present). to-watast (HolonAST → WatAST)
     ;; is no longer available; run the original quoted WatAST directly.
-    ;; eval-ast! returns (:Result :- [wat::holon::HolonAST EvalError]) per
-    ;; the 2026-04-20 INSCRIPTION.
+    ;; eval-ast! returns (:Result :- [wat::holon::HolonAST wat::kernel::Failure]) per
+    ;; the 2026-04-20 INSCRIPTION (excursus 003 strike E: Failure, not EvalError).
     (:wat::core::match (:wat::eval-ast! program)
       [:wat::core::Result.Ok {:value _} nil]
       [:wat::core::Result.Err {:error _} nil])))

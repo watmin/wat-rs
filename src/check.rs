@@ -20026,13 +20026,18 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
-    // (:Result :- [wat::holon::HolonAST :wat::core::EvalError]) as the uniform
+    // (:Result :- [wat::holon::HolonAST :wat::kernel::Failure]) as the uniform
     // return type. Every dynamic evaluation failure (verification,
     // parse, mutation-form refused, unknown function, type mismatch,
     // etc.) becomes an Err value in the Result rather than an
     // unwinding RuntimeError. `:wat::core::try` inside eval'd code
     // continues to propagate as before — the EvalSignal::TryPropagate signal
     // passes through the dispatcher's wrap.
+    //
+    // Excursus 003 strike E: the Err type moved from the flattened
+    // `:wat::core::EvalError{kind message}` to the real `:wat::kernel::Failure`
+    // the dynamic eval raised — the declared record class, its fields, and the
+    // frames it produced, never discarded (AUDIT-the-shape-of-an-error.md F4, D2).
     //
     // Arg types keep the pre-inscription looseness (the structural
     // keywords and payload strings aren't type-validated in fine
@@ -20044,7 +20049,7 @@ fn register_builtins(env: &mut CheckEnv) {
         head: "wat::core::Result".into(),
         args: vec![
             holon_ty(),
-            TypeExpr::Path(":wat::core::EvalError".into()),
+            TypeExpr::Path(":wat::kernel::Failure".into()),
         ],
     };
     let wat_ast_ty = || TypeExpr::Path(":wat::WatAST".into());
@@ -20055,7 +20060,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // source/path directly as the first arg; no interface keyword.
     // eval-edn! narrowed to string-only (one source shape per form,
     // like load! / load-string!).
-    // Arc 102 — `:wat::eval-ast!` returns `Result<:T, :EvalError>`
+    // Arc 102 — `:wat::eval-ast!` returns `Result<:T, :wat::kernel::Failure>`
     // polymorphic. Same trust-the-caller discipline as
     // `:wat::edn::read` / `:wat::eval-edn!`: the caller annotates
     // T with the type they expect the inner eval to produce; the
@@ -20072,7 +20077,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Path("T".into()),
-                    TypeExpr::Path(":wat::core::EvalError".into()),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
                 ],
             },
             rest_param_type: None,
@@ -20117,7 +20122,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // :wat::eval-step! (arc 068) — one CBV reduction at the leftmost-
     // outermost redex. Returns Ok(StepResult) on progress (StepNext,
-    // StepTerminal, or AlreadyTerminal — arc 070); Err(EvalError) for
+    // StepTerminal, or AlreadyTerminal — arc 070); Err(Failure) for
     // malformed forms, effectful ops in step mode, or shapes the
     // stepper hasn't been taught yet.
     env.register(
@@ -20129,7 +20134,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Path(":wat::eval::StepResult".into()),
-                    TypeExpr::Path(":wat::core::EvalError".into()),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
                 ],
             },
             rest_param_type: None,
@@ -20168,7 +20173,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 head: "wat::core::Result".into(),
                 args: vec![
                     TypeExpr::Tuple(vec![wat_ast_ty(), TypeExpr::Path("A".into())]),
-                    TypeExpr::Path(":wat::core::EvalError".into()),
+                    TypeExpr::Path(":wat::kernel::Failure".into()),
                 ],
             },
             rest_param_type: None,
@@ -20503,13 +20508,13 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // eval-coincident? family — arc 026. Each variant mirrors its
     // eval-*! parent's arg shape, applied per-side (2 sides per
-    // variant). Return is uniform (Result :- [bool EvalError]) — any
-    // failure on either side arrives as an Err(EvalError).
+    // variant). Return is uniform (Result :- [bool wat::kernel::Failure]) — any
+    // failure on either side arrives as an Err(Failure).
     let eval_coincident_ret = || TypeExpr::Parametric {
         head: "wat::core::Result".into(),
         args: vec![
             bool_ty(),
-            TypeExpr::Path(":wat::core::EvalError".into()),
+            TypeExpr::Path(":wat::kernel::Failure".into()),
         ],
     };
     // slice 1 — base (AST). Takes two WatAST args (quote-captured).

@@ -12466,122 +12466,27 @@ pub(crate) fn runtime_error_failure(re: &RuntimeError) -> Value {
 // Arc 109 Stone A — the kernel outcome vocabulary — `connect_outcome_failed` moved to
 // `src/kernel/outcome.rs` (docs/arc/2026/04/109-kill-std/). Behaviour unchanged.
 
-/// Map a [`RuntimeError`] to an [`EvalError`] struct value — the
-/// Err payload returned by the eval-family forms on any failure
-/// that isn't a control-flow signal.
-///
-/// Matches struct-field order `(kind, message)` from
-/// [`crate::types::TypeEnv::with_builtins`]'s registration of
-/// `:wat::core::EvalError`.
-fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
-    let (kind, message): (&'static str, String) = match err.kind() {
-        RuntimeErrorKind::EvalVerificationFailed { err } => {
-            ("verification-failed", format!("{}", err))
-        }
-        RuntimeErrorKind::EvalForbidsMutationForm { head, .. } => (
-            "mutation-form-refused",
-            format!("eval refused mutation form: {}", head),
-        ),
-        RuntimeErrorKind::UnknownFunction(path) => {
-            ("unknown-function", format!("unknown function: {}", path))
-        }
-        RuntimeErrorKind::UnboundSymbol(name) => {
-            ("unbound-symbol", format!("unbound symbol: {}", name))
-        }
-        RuntimeErrorKind::TypeMismatch {
-            op, expected, got, ..
-        } => (
-            "type-mismatch",
-            format!("{}: expected {}, got {}", op, expected, got),
-        ),
-        RuntimeErrorKind::ArityMismatch {
-            op, expected, got, ..
-        } => (
-            "arity-mismatch",
-            format!("{}: expected {} args, got {}", op, expected, got),
-        ),
-        RuntimeErrorKind::ChannelDisconnected { op, .. } => (
-            "channel-disconnected",
-            format!("{}: channel disconnected", op),
-        ),
-        RuntimeErrorKind::BadCondition { got, .. } => (
-            "bad-condition",
-            format!("if/when condition not :bool; got {}", got),
-        ),
-        RuntimeErrorKind::DivisionByZero => ("division-by-zero", "division by zero".into()),
-        RuntimeErrorKind::PatternMatchFailed { value_type, .. } => (
-            "pattern-match-failed",
-            format!("no match arm fired for {} scrutinee", value_type),
-        ),
-        RuntimeErrorKind::EffectfulInStep { op, .. } => (
-            "effectful-in-step",
-            format!("eval-step! refuses effectful op: {}", op),
-        ),
-        RuntimeErrorKind::NoStepRule { op, .. } => (
-            "no-step-rule",
-            format!("eval-step! has no rule for op: {}", op),
-        ),
-        RuntimeErrorKind::MalformedForm { head, reason, .. } => {
-            ("malformed-form", format!("{}: {}", head, reason))
-        }
-        RuntimeErrorKind::NotCallable { got, .. } => {
-            ("not-callable", format!("not callable: {}", got))
-        }
-        // Arc 255 Stone O-iv-a. This arm is NOT cosmetic: without it the variant falls to the
-        // wildcard below, whose `format!("{}", err)` renders `RuntimeError`'s Display — the full
-        // EDN WIRE FORM, not the prose. So `EvalError/message` would hand a wat program a nested
-        // blob for the one diagnostic this stone exists to make READABLE, while every other error
-        // on the same path returns a sentence. The rider that struck O-iv-a stayed inside its
-        // measured blast radius and reported this rather than widening scope — correctly; the
-        // orchestrator then ruled it part of the deliverable, because a stone about an honest
-        // message that ships an unreadable one has not shipped.
-        RuntimeErrorKind::NotValueDispatchable { name, .. } => (
-            "not-value-dispatchable",
-            format!(
-                "{} is registered, but no handler taking EVALUATED arguments is registered under \
-                 that name, and apply dispatches with evaluated arguments. Call it directly.",
-                name
-            ),
-        ),
-        // Fallback for variants that don't deserve a dedicated kind.
-        _ => ("runtime-error", format!("{}", err)),
-    };
-    Value::Aggregate(Arc::new(AggregateValue::struct_(
-        "wat::core::EvalError".into(),
-        eval_error_names(),
-        vec![
-            Value::String(Arc::new(kind.into())),
-            Value::String(Arc::new(message)),
-        ],
-    )))
-}
-
-::wat_source_derive::wat_field_names_from!(
-    EVAL_ERROR_FIELDS,
-    "wat/core.wat",
-    ":wat::core::EvalError"
-);
-fn eval_error_names() -> Arc<Vec<String>> {
-    static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
-    N.get_or_init(|| crate::value::value::names_arc_from_static(EVAL_ERROR_FIELDS))
-        .clone()
-}
-
 /// Wrap an inner evaluation's `Result<Value, EvalBreak>` as the
-/// `Value::Result` — a `(Result :- [V EvalError])` — the eval-family forms return.
+/// `Value::Result` — a `(Result :- [V :wat::kernel::Failure])` — the
+/// eval-family forms return.
 ///
 /// Preserves `EvalBreak::Signal(TryPropagate)` / `EvalBreak::Signal(OptionPropagate)`
 /// so `:wat::core::Result/try` and `:wat::core::Option/try` inside eval'd
 /// code still propagate to the calling function. Every diagnostic break
-/// becomes `Err(EvalError{...})` as a value. TailCall signals pass through
-/// (they originate from within an apply_function and will be caught there).
+/// becomes `Err(Failure{...})` as a value, via [`runtime_error_failure`] — the
+/// error's OWN declared `:wat::runtime::<Kind>` record (step 3a's `to_record()`)
+/// plus its already-captured frames, never flattened into a `kind` string and a
+/// rendered sentence the way the retired `:wat::core::EvalError` did (excursus 003
+/// strike E, F4/D2: a correctly-named frame was raised, then discarded before any
+/// observer). TailCall signals pass through (they originate from within an
+/// apply_function and will be caught there).
 pub(crate) fn wrap_as_eval_result(inner: Result<Value, EvalBreak>) -> Result<Value, EvalBreak> {
     match inner {
         Ok(v) => Ok(Value::Result(Arc::new(Ok(v)))),
         Err(EvalBreak::Signal(_)) => inner, // pass through all signals
         Err(EvalBreak::Diagnostic(e)) => {
-            let err_struct = runtime_error_to_eval_error_value(&e);
-            Ok(Value::Result(Arc::new(Err(err_struct))))
+            let failure = runtime_error_failure(&e);
+            Ok(Value::Result(Arc::new(Err(failure))))
         }
     }
 }
@@ -12956,7 +12861,7 @@ pub(crate) fn eval_form_against_defs(
             Err(EvalBreak::Signal(s)) => return Err(EvalBreak::Signal(s)),
             Err(EvalBreak::Diagnostic(e)) => {
                 return Ok((
-                    form_outcome("Raised", vec![runtime_error_to_eval_error_value(&e)]),
+                    form_outcome("Raised", vec![runtime_error_failure(&e)]),
                     None,
                 ));
             }
@@ -16044,28 +15949,36 @@ mod tests {
         }
     }
 
-    /// Unwrap an eval-family Err and return its (kind, message) as
-    /// strings. Panics if the value isn't a Result or isn't Err or
-    /// isn't a Struct with the expected EvalError field shape.
-    fn eval_err_kind_and_message(v: Value) -> (String, String) {
+    /// Unwrap an eval-family Err and return its error's declared record-
+    /// class FQDN and `message`, as strings — excursus 003 strike E: the
+    /// Err is the real `:wat::kernel::Failure {error frames frames-elided}`
+    /// (`runtime_error_failure`), not the retired flattened
+    /// `:wat::core::EvalError {kind message}`. `Failure.error` is whichever
+    /// `:wat::runtime::<Kind>` record `RuntimeError::to_record()` produced;
+    /// every such record's floor is `(message, location, ...)` in that
+    /// order (`src/value/runtime_records.rs`). Panics if the value isn't a
+    /// Result, isn't Err, or isn't a Record of the expected Failure shape.
+    fn eval_err_class_and_message(v: Value) -> (String, String) {
         match v {
             Value::Result(r) => match &*r {
                 Err(err) => match err {
-                    Value::Aggregate(sv)
-                        if sv.nature == Nature::Struct
-                            && sv.class.as_ref() == "wat::core::EvalError" =>
+                    Value::Aggregate(failure)
+                        if failure.nature == Nature::Record
+                            && failure.class.as_ref() == "wat::kernel::Failure" =>
                     {
-                        let kind = match &sv.fields[0] {
-                            Value::String(s) => (**s).clone(),
-                            _ => panic!("EvalError.kind not String"),
-                        };
-                        let msg = match &sv.fields[1] {
-                            Value::String(s) => (**s).clone(),
-                            _ => panic!("EvalError.message not String"),
-                        };
-                        (kind, msg)
+                        match &failure.fields[0] {
+                            Value::Aggregate(error) => {
+                                let class = error.class.to_string();
+                                let msg = match &error.fields[0] {
+                                    Value::String(s) => (**s).clone(),
+                                    _ => panic!("Failure.error.message not String"),
+                                };
+                                (class, msg)
+                            }
+                            other => panic!("expected Failure.error to be an Aggregate; got {:?}", other),
+                        }
                     }
-                    other => panic!("expected Aggregate(EvalError); got {:?}", other),
+                    other => panic!("expected Aggregate(Failure); got {:?}", other),
                 },
                 Ok(inner) => panic!("expected Err from eval-family; got Ok({:?})", inner),
             },
@@ -16099,23 +16012,23 @@ mod tests {
             crate::parse_one!(r#"(:wat::core::defstruct :evil::T [x <- :wat::core::i64])"#)
                 .unwrap();
         let result = run_with_ast_local("(:wat::eval-ast! program)", program).unwrap();
-        let (kind, _msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "mutation-form-refused");
+        let (class, _msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalForbidsMutationForm");
     }
 
     #[test]
     fn eval_ast_bang_rejects_non_ast_value() {
         // Binding a string as program; eval-ast! refuses because it
         // only accepts Value::wat__WatAST (not Value::String).
-        // The refusal lands as Err(EvalError{kind="type-mismatch"}),
+        // The refusal lands as Err(Failure{error: TypeMismatch, ..}),
         // NOT a RuntimeError unwind — the eval-family Result-wrap
         // per the 2026-04-20 INSCRIPTION.
         let form = crate::parse_one!(r#"(:wat::eval-ast! "oops")"#).unwrap();
         let result = eval_inner(&form, &Environment::new(), &SymbolTable::new())
             .unwrap()
             .value_owned();
-        let (kind, msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "type-mismatch");
+        let (class, msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::TypeMismatch");
         assert_eq!(
             msg,
             r#":wat::eval-ast!: expected Ast, got wat::core::String `"oops"`"#
@@ -17018,15 +16931,15 @@ mod tests {
     #[test]
     fn eval_coincident_q_err_on_non_ast_arg() {
         // Passing a non-WatAST value (e.g., a string literal directly,
-        // not quoted) yields EvalError{kind="type-mismatch"}. Mirrors
+        // not quoted) yields Err(Failure{error: TypeMismatch, ..}). Mirrors
         // eval-ast!'s rejection of non-AST input.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-coincident? "not-ast" "also-not-ast")"#,
             1024,
         )
         .unwrap();
-        let (kind, msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "type-mismatch");
+        let (class, msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::TypeMismatch");
         assert_eq!(
             msg,
             r#":wat::holon::eval-coincident?: expected Ast, got wat::core::String `"not-ast"`"#
@@ -17065,8 +16978,8 @@ mod tests {
 
     #[test]
     fn eval_edn_coincident_q_err_on_parse_failure() {
-        // Side B has an unclosed paren — parse fails → EvalError with
-        // kind="malformed-form" propagates.
+        // Side B has an unclosed paren — parse fails → Err(Failure{error:
+        // MalformedForm, ..}) propagates.
         let result = eval_with_ctx(
             r#"(:wat::holon::eval-edn-coincident?
  "(:wat::i64::+ 2 2)"
@@ -17074,8 +16987,8 @@ mod tests {
             1024,
         )
         .unwrap();
-        let (kind, _msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "malformed-form");
+        let (class, _msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::MalformedForm");
     }
 
     // --- eval-digest-coincident? — arc 026 slice 3 ------------------------
@@ -17127,8 +17040,8 @@ mod tests {
                  :wat::verify::string "{h_b}")"#
         );
         let result = eval_with_ctx(&program, 1024).unwrap();
-        let (kind, _msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "verification-failed");
+        let (class, _msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalVerificationFailed");
     }
 
     // --- eval-signed-coincident? — arc 026 slice 4 ------------------------
@@ -17232,8 +17145,8 @@ mod tests {
         let (_sig_a, pk_a) = sign_src_ed25519(src_a);
         let (sig_b, pk_b) = sign_src_ed25519(src_b);
         // Side A carries a signature for a DIFFERENT source (src_b's
-        // sig over src_a) → verification fails → EvalError
-        // kind="verification-failed".
+        // sig over src_a) → verification fails → Err(Failure{error:
+        // EvalVerificationFailed, ..}).
         let wrong_sig = sig_b.clone();
         let program = format!(
             r#"(:wat::holon::eval-signed-string-coincident?
@@ -17247,8 +17160,8 @@ mod tests {
                  :wat::verify::string "{pk_b}")"#
         );
         let result = eval_with_ctx(&program, 1024).unwrap();
-        let (kind, _msg) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "verification-failed");
+        let (class, _msg) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalVerificationFailed");
     }
 
     #[test]
@@ -17394,8 +17307,8 @@ mod tests {
         let result =
             eval_expr(r#"(:wat::eval-edn! "(:wat::core::defstruct :evil::T [x <- :i64])")"#)
                 .unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "mutation-form-refused");
+        let (class, _) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalForbidsMutationForm");
     }
 
     #[test]
@@ -17428,8 +17341,8 @@ mod tests {
             wrong
         );
         let result = eval_expr(&form).unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "verification-failed");
+        let (class, _) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalVerificationFailed");
     }
 
     #[test]
@@ -17439,10 +17352,10 @@ mod tests {
             :wat::verify::signed-ed25519
             :wat::verify::string "abc")"#;
         let result = eval_expr(form).unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
+        let (class, _) = eval_err_class_and_message(result);
         // signed-ed25519 in a digest slot is a grammar error surfaced
-        // as malformed-form inside the wrap.
-        assert_eq!(kind, "malformed-form");
+        // as a MalformedForm record inside the wrap.
+        assert_eq!(class, "wat::runtime::MalformedForm");
     }
 
     #[test]
@@ -17492,8 +17405,8 @@ mod tests {
             tampered_source, sig_b64, pk_b64
         );
         let result = eval_expr(&form).unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "verification-failed");
+        let (class, _) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::EvalVerificationFailed");
     }
 
     #[test]
@@ -17505,8 +17418,8 @@ mod tests {
             :wat::verify::string "sig"
             :wat::verify::string "pk")"#;
         let result = eval_expr(form).unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "malformed-form");
+        let (class, _) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::MalformedForm");
     }
 
     // ─── File-path interface (real runtime I/O) ─────────────────────────
@@ -17543,8 +17456,8 @@ mod tests {
     fn eval_file_bang_missing_path_errors() {
         let form = r#"(:wat::eval-file! "/nonexistent/path/abc.xyz")"#;
         let result = eval_expr_with_fs(form).unwrap();
-        let (kind, _) = eval_err_kind_and_message(result);
-        assert_eq!(kind, "malformed-form");
+        let (class, _) = eval_err_class_and_message(result);
+        assert_eq!(class, "wat::runtime::MalformedForm");
     }
 
     #[test]
@@ -20050,10 +19963,12 @@ mod tests {
                 :my::test::count-visit)
               [:wat::core::Result.Ok {{:value _}} -2]
               [:wat::core::Result.Err {{:error e}}
-                ;; struct-field 0 is the kind tag.
+                ;; excursus 003 strike E: `e` is the real `:wat::kernel::Failure`;
+                ;; its error's declared record class is the stable discriminant now,
+                ;; read via the same `:wat::core::type` mechanism item 4 chose.
                 (:wat::core::if
-                  (:wat::core::= "no-step-rule"
-                                 (:wat::core::struct-field e 0))
+                  (:wat::core::= "wat::runtime::NoStepRule"
+                                 (:wat::core::type (:wat::kernel::Failure/error e)))
                   1
                   -3)])
             "#,
@@ -20061,7 +19976,139 @@ mod tests {
         );
         match run(&src).unwrap() {
             Value::i64(1) => {}
-            other => panic!("expected Err(no-step-rule), got {:?}", other),
+            other => panic!("expected Err(NoStepRule), got {:?}", other),
+        }
+    }
+
+    /// Excursus 003 strike E, GE1 — "nothing raised is discarded": drive each of
+    /// `BadCondition`, `PatternMatchFailed`, `EffectfulInStep` and `NoStepRule` through its
+    /// REAL producer (D2's census: all four are reachable ONLY via `:wat::eval-ast!` /
+    /// `:wat::eval-step!`) and assert the `Err` carries that kind's declared
+    /// `:wat::runtime::<Kind>` record (its own class) AND at least one captured frame naming
+    /// the Rust activation that raised it — never the retired flattened `EvalError{kind
+    /// message}`, which had no frames field at all to carry one.
+    ///
+    /// Mutation proof (run by hand, not committed — the deleted flattener has no type to
+    /// restore it onto any more): pointing `wrap_as_eval_result` back at
+    /// `runtime_error_to_eval_error_value` turns every one of these four RED — the class
+    /// assertion fails (`EvalError` has no per-kind class, only a hand-written `kind` string)
+    /// and the frames assertion fails outright (`EvalError` has no `frames` field).
+    #[test]
+    fn excursus_003_ge1_eval_family_carries_class_and_frames_for_eval_only_kinds() {
+        // Each case: (source driving the kind through eval-ast!/eval-step!, expected error
+        // class, the activation's own Rust frame name).
+        let cases: [(&str, &str, &str); 4] = [
+            (
+                // The activation is `:wat::core::if` itself (the special-form head that
+                // raised), not the outer `:wat::eval-ast!` dispatcher — strike D's "a frame's
+                // identity is a property of the STACK" ruling, measured here rather than
+                // assumed.
+                r#"(:wat::eval-ast! (:wat::core::quote (:wat::core::if 5 1 0)))"#,
+                "wat::runtime::BadCondition",
+                ":wat::core::if",
+            ),
+            (
+                r#"(:wat::eval-ast! (:wat::core::quote
+                     (:wat::core::match 5
+                       [:wat::core::Option.Some {:value n} n]
+                       [:wat::core::Option.None {} 0])))"#,
+                "wat::runtime::PatternMatchFailed",
+                ":wat::core::match",
+            ),
+            (
+                r#"(:wat::eval-step! (:wat::core::quote
+                     (:wat::kernel::assertion-failed!' "x" :wat::core::Option.None :wat::core::Option.None)))"#,
+                "wat::runtime::EffectfulInStep",
+                ":wat::eval-step!",
+            ),
+            (
+                r#"(:wat::eval-step! (:wat::core::quote (:wat::holon::from-wat x)))"#,
+                "wat::runtime::NoStepRule",
+                ":wat::eval-step!",
+            ),
+        ];
+        for (src, expected_class, expected_activation) in cases {
+            let result = eval_expr(src).unwrap();
+            match result {
+                Value::Result(r) => match &*r {
+                    Err(Value::Aggregate(failure)) => {
+                        assert_eq!(
+                            failure.class.as_ref(),
+                            "wat::kernel::Failure",
+                            "case {src:?}: Err must be a Failure"
+                        );
+                        let error = match &failure.fields[0] {
+                            Value::Aggregate(e) => e,
+                            other => {
+                                panic!("case {src:?}: Failure.error not Aggregate; got {:?}", other)
+                            }
+                        };
+                        assert_eq!(
+                            error.class.as_ref(),
+                            expected_class,
+                            "case {src:?}: Failure.error must be the kind's own declared record"
+                        );
+                        let frames = match &failure.fields[1] {
+                            Value::Vec(v) => v,
+                            other => panic!("case {src:?}: Failure.frames not Vec; got {:?}", other),
+                        };
+                        assert!(
+                            !frames.is_empty(),
+                            "case {src:?}: frames must not be empty — the activation that raised \
+                             must be named, never discarded"
+                        );
+                        let names_activation = frames.iter().any(|f| match f {
+                            Value::Aggregate(frame) => matches!(
+                                &frame.fields[0],
+                                Value::String(s) if s.as_str() == expected_activation
+                            ),
+                            _ => false,
+                        });
+                        assert!(
+                            names_activation,
+                            "case {src:?}: frames must include the raising activation {expected_activation:?}; got {:?}",
+                            frames
+                        );
+                    }
+                    other => panic!("case {src:?}: expected Err(Failure); got Err({:?})", other),
+                },
+                other => panic!("case {src:?}: expected Value::Result; got {:?}", other),
+            }
+        }
+    }
+
+    /// Excursus 003 strike E, GE2 — "a check failure inside eval is typed": an
+    /// `:wat::eval-edn!` of source whose call-site argument types don't match (the dynamic
+    /// equivalent of what a static checker would also refuse — `eval-edn!`/`eval-ast!` run
+    /// NO freeze/check pass of their own, measured via `parse_and_run` → `run_program` →
+    /// `run_constrained`, which goes straight to `eval_inner` against the already-frozen
+    /// `sym`; see that chain's doc comments) yields the real `:wat::runtime::TypeMismatch`
+    /// record — never prose, never the retired `EvalError{kind="type-mismatch" message}`.
+    ///
+    /// Mutation proof (run by hand, not committed; same mutation GE1 used): reverting
+    /// `wrap_as_eval_result` to the flattener turns this RED — the class assertion fails.
+    #[test]
+    fn excursus_003_ge2_a_type_mismatch_inside_eval_is_typed_not_prose() {
+        let result = eval_expr(r#"(:wat::eval-edn! "(:wat::i64::+ 1 \"x\")")"#).unwrap();
+        match result {
+            Value::Result(r) => match &*r {
+                Err(Value::Aggregate(failure)) => {
+                    assert_eq!(failure.class.as_ref(), "wat::kernel::Failure");
+                    match &failure.fields[0] {
+                        Value::Aggregate(error) => {
+                            assert_eq!(
+                                error.class.as_ref(),
+                                "wat::runtime::TypeMismatch",
+                                "the call-site type mismatch must carry its own declared record, \
+                                 not a hand-maintained kind string or a rendered sentence"
+                            );
+                        }
+                        other => panic!("Failure.error not Aggregate; got {:?}", other),
+                    }
+                }
+                other => panic!("expected Err(Failure); got Err({:?})", other),
+            },
+            other => panic!("expected Value::Result; got {:?}", other),
         }
     }
 
@@ -20137,9 +20184,13 @@ mod tests {
         // case documents that boundary.
         // Arc 225 Stone 225.1: from-watast renamed to from-wat.
         let s = step_to_show("(:wat::eval-step! (:wat::core::quote (:wat::holon::from-wat x)))");
+        // Excursus 003 strike E: the Err is the real `:wat::kernel::Failure` — its
+        // `error` is the declared `:wat::runtime::NoStepRule` record (class, message,
+        // location, op), and `frames` names the `:wat::eval-step!` activation that
+        // raised it. Nothing is flattened into a `kind` string any more.
         assert_eq!(
             s,
-            r#":wat::core::EvalError{#0: "no-step-rule", #1: "eval-step! has no rule for op: :wat::holon::from-wat"}"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::NoStepRule{#0: ":wat::eval-step!: no step rule for op :wat::holon::from-wat; v1 covers arithmetic / logical / control flow / let / match / function call / holon constructors. Fall back to :wat::eval-ast! for unrecognized heads.", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 1, #2: 57, #3: (Some <wat::core::Pos{#0: 1, #1: 82}>)}>, #2: ":wat::holon::from-wat"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13450, #2: 21, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 
@@ -20156,11 +20207,12 @@ mod tests {
     #[test]
     fn step_non_watast_arg_yields_eval_error() {
         // Arg evaluates to an i64, not a WatAST — caught inside the
-        // wrap_as_eval_result block, surfaces as EvalError(type-mismatch).
+        // wrap_as_eval_result block, surfaces as a real Failure whose error is
+        // the declared `:wat::runtime::TypeMismatch` record (excursus 003 strike E).
         let s = step_to_show("(:wat::eval-step! 42)");
         assert_eq!(
             s,
-            r#":wat::core::EvalError{#0: "type-mismatch", #1: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`"}"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::TypeMismatch{#0: ":wat::eval-step!: expected wat::WatAST, got wat::core::i64 `42`", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 1, #2: 38, #3: (Some <wat::core::Pos{#0: 1, #1: 40}>)}>, #2: ":wat::eval-step!", #3: "wat::WatAST", #4: <wat::runtime::ValueSnapshot{#0: "wat::core::i64", #1: "42"}>}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 12941, #2: 28, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 
@@ -20186,6 +20238,9 @@ mod tests {
         // satisfy a `:wat::WatAST` parameter. It is a wart (building a
         // holon only to immediately convert it) — the follow-up is a
         // `:wat::core::`-native WatAST leaf constructor, not minted here.
+        // Excursus 003 strike E: the Err arm now packs `:wat::kernel::Failure/message`
+        // (the DERIVED accessor reading `error.message`) instead of the retired
+        // `EvalError`'s positional `struct-field e 1`.
         r#"
         (:wat::core::defn :my::test::step-to-terminal [form <- :wat::WatAST] -> :wat::WatAST
           (:wat::core::match (:wat::eval-step! form)
@@ -20196,7 +20251,7 @@ mod tests {
                           [:wat::eval::StepResult.StepTerminal {:value h} h]
                           [:wat::eval::StepResult.AlreadyTerminal {:value h} h])]
                       [:wat::core::Result.Err {:error e}
-                        (:wat::holon::to-wat (:wat::holon::leaf (:wat::core::struct-field e 1)))]))
+                        (:wat::holon::to-wat (:wat::holon::leaf (:wat::kernel::Failure/message e)))]))
         "#
     }
 
@@ -20371,9 +20426,9 @@ mod tests {
 
     #[test]
     fn step_effectful_kernel_rejected() {
-        // `:wat::kernel::*` ops are effectful; step-mode refuses with
-        // EvalError kind="effectful-in-step". We pick `assertion-failed!`
-        // because it doesn't need a channel/mailbox to be quoted.
+        // `:wat::kernel::*` ops are effectful; step-mode refuses with the real
+        // `:wat::runtime::EffectfulInStep` record (excursus 003 strike E). We pick
+        // `assertion-failed!` because it doesn't need a channel/mailbox to be quoted.
         let s = step_to_show(
             r#"(:wat::eval-step!
                  (:wat::core::quote
@@ -20381,7 +20436,7 @@ mod tests {
         );
         assert_eq!(
             s,
-            r#":wat::core::EvalError{#0: "effectful-in-step", #1: "eval-step! refuses effectful op: :wat::kernel::assertion-failed!'"}"#
+            r#"<wat::kernel::Failure{#0: <wat::runtime::EffectfulInStep{#0: ":wat::eval-step!: refuses to step effectful op :wat::kernel::assertion-failed!'; the BOOK Chapter 59 dual-LRU cache assumes form IS its return value (no side effects). Fall back to :wat::eval-ast! for sub-forms with effects.", #1: <wat::core::Span{#0: "src/runtime.rs:14908", #1: 3, #2: 21, #3: (Some <wat::core::Pos{#0: 3, #1: 53}>)}>, #2: ":wat::kernel::assertion-failed!'"}>, #1: [<wat::kernel::Frame{#0: ":wat::eval-step!", #1: <wat::core::Span{#0: "src/runtime.rs", #1: 13350, #2: 20, #3: :None}>, #2: 0}>], #2: 0}>"#
         );
     }
 

@@ -1,0 +1,3 @@
+(:wat::core::defn :u::row [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError]) (:wat::eval-ast! :- [:wat::core::i64] program))
+(:wat::core::defn :u::msg [e <- :wat::core::EvalError] -> :wat::core::String (:wat::core::EvalError/message e))
+(:wat::core::defn :u::kind [e <- :wat::core::EvalError] -> :wat::core::String (:wat::core::EvalError/kind e))
