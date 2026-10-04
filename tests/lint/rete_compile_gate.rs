@@ -144,6 +144,8 @@ fn form_written(node: &wat_reader::WatAST) -> Option<String> {
 fn rule_namespace(raw: &str) -> Option<String> {
     let id = wat::edn::render::canonical_identity(raw);
     let body = id.trim_start_matches(':');
+    // rune:lint(one-variant-separator, namespace) — `path` splits the rule name's
+    // namespace segments (`fix::g1-keyword`), not an enum from its variant.
     let ns = wat_reader::identifier::path(body);
     if !ns.is_empty() {
         Some(ns.to_string())
