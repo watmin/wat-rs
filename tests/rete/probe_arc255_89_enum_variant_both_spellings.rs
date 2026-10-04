@@ -30,24 +30,11 @@ fn a_nonexistent_variant_is_refused_in_both_spellings() {
         !ok,
         "both spellings must refuse\nstdout:{out}\nstderr:{err}"
     );
-    assert!(
-        !out.contains("admitted"),
-        "main ran, so a spelling was admitted\n{out}{err}"
-    );
-    assert!(
-        err.contains("UnknownEnumVariant"),
-        "the refusal is UnknownEnumVariant\n{err}"
-    );
-    assert!(
-        err.contains("symbol-typo"),
-        "the symbol spelling evt.G/Hii was not refused\n{err}"
-    );
-    assert!(
-        err.contains("keyword-typo"),
-        "the keyword spelling :evt::G::Hii was not refused\n{err}"
-    );
-    assert!(
-        err.contains("Hii"),
-        "the refusal names the variant that was written\n{err}"
+    assert_eq!(out, "", "main must not print\n{err}");
+    wat::assert_edn_eq!(
+        err.trim().to_string(),
+        include_str!("probe_arc255_89_enum_variant_both_spellings__refusal.edn"),
+        "two UnknownEnumVariant errors, one per spelling: rules evt::symbol-typo and \
+         evt::keyword-typo, enum-path evt::G, variant Hii, available Hi and Lo"
     );
 }
