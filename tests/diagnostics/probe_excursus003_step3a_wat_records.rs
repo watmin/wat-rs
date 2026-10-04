@@ -469,18 +469,18 @@ fn gate_gb2a_clause_failure_reason_wire_is_dotted() {
 //
 // Mirrors `gate_gb2a_clause_failure_reason_wire_is_dotted` above, for the other
 // data (non-Error) sum type item 2 converts: drives `LoadErrorKind::Fetch`'s
-// hand-written `ToEdn` (`LoadFetchError`, `src/load/loader.rs` — kept
-// hand-written because `Other`'s wire tag renames to `LoadOther`, which the
-// derive's `qualified` directive cannot express) for all 3 variants, and
-// asserts the tag is `#wat.kernel/LoadFetchError.<Variant>` and decodes, via
-// `LoadErrorKind::Fetch.cause`'s now-concrete field type
+// `ToEdn` (`LoadFetchError`, `src/load/loader.rs` — excursus 003 strike G item 2
+// renamed the Rust variant `Other` to `LoadOther` so `#[derive(ToEdn)]` covers
+// it uniformly; the hand-written writer that used to stand here is gone) for
+// all 3 variants, and asserts the tag is `#wat.kernel/LoadFetchError.<Variant>`
+// and decodes, via `LoadErrorKind::Fetch.cause`'s now-concrete field type
 // (`:wat::kernel::LoadFetchError`, not `:wat::core::Value`), typed AS THE
 // ENUM.
 //
-// Mutation (this strike): revert `LoadFetchError::NotFound`'s arm from
-// `edn_tag_dotted("LoadFetchError", "NotFound", ...)` back to the old
-// `edn_tag("NotFound", ...)` (flat) — RED for that one variant, green for the
-// other two, proving the gate reads the ACTUAL writer.
+// Mutation (strike G item 2): drop the `qualified` directive from
+// `LoadFetchError`'s derive attribute — every variant's tag reverts to flat
+// (`#wat.kernel/<Variant>`), RED for all 3 (the derive has no per-variant
+// granularity to revert just one, unlike the old hand-written writer).
 #[test]
 fn gate_gb2a_load_fetch_error_wire_is_dotted() {
     use wat::load::loader::{LoadError, LoadErrorKind, LoadFetchError};
@@ -489,7 +489,7 @@ fn gate_gb2a_load_fetch_error_wire_is_dotted() {
 
     let cases: [(&str, LoadFetchError); 3] = [
         ("NotFound", LoadFetchError::NotFound("missing.wat".into())),
-        ("LoadOther", LoadFetchError::Other { path: "x.wat".into(), reason: "boom".into() }),
+        ("LoadOther", LoadFetchError::LoadOther { path: "x.wat".into(), reason: "boom".into() }),
         ("OutOfScope", LoadFetchError::OutOfScope { path: "../x.wat".into(), scope: "/root".into() }),
     ];
 

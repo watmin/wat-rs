@@ -188,12 +188,22 @@ pub trait SourceLoader: Send + Sync {
 }
 
 /// Errors the loader itself can raise (fetching, path resolution).
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Excursus 003 strike G item 2: `Other` renamed to `LoadOther` so the
+/// `#[derive(ToEdn)]` below covers it — the derive has no variant-level
+/// tag-rename directive (only a field-level `key` and a single-field-tuple-
+/// variant `key`), so the only way to get the wire tag `LoadOther` honestly
+/// is for the Rust variant to BE named `LoadOther`. The wire tag itself is
+/// unchanged (`#wat.kernel/LoadFetchError.LoadOther`) — this is a Rust-side
+/// rename only, confirmed by every existing golden staying byte-identical.
+#[derive(Debug, Clone, PartialEq, wat_edn::ToEdn)]
+#[to_edn(namespace = crate::error_ns::KERNEL, qualified)]
 pub enum LoadFetchError {
     /// Path doesn't exist under the loader's domain.
+    #[to_edn(key = "path")]
     NotFound(String),
     /// Loader-specific I/O or resolution error; prose describes.
-    Other { path: String, reason: String },
+    LoadOther { path: String, reason: String },
     /// Path resolves to a location outside the loader's allowed scope.
     /// Raised by [`ScopedLoader`] when the canonical target of a
     /// request escapes the loader's root (e.g., `../../etc/passwd` or
@@ -205,7 +215,7 @@ impl fmt::Display for LoadFetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LoadFetchError::NotFound(p) => write!(f, "load: file not found: {}", p),
-            LoadFetchError::Other { path, reason } => {
+            LoadFetchError::LoadOther { path, reason } => {
                 write!(f, "load: failed to read {}: {}", path, reason)
             }
             LoadFetchError::OutOfScope { path, scope } => write!(
@@ -219,7 +229,7 @@ impl fmt::Display for LoadFetchError {
 
 impl std::error::Error for LoadFetchError {}
 
-// ─── Excursus 003 strike B2, item 2 — structured, DOTTED EDN form ────────────
+// ─── Excursus 003 strike B2, item 2 / strike G item 2 — structured, DOTTED EDN form ──
 //
 // `LoadFetchError` is DATA (a reason code), not an Error: unlike `HashError`,
 // nothing here ever needs it to carry `message`/`location` or satisfy
@@ -229,44 +239,9 @@ impl std::error::Error for LoadFetchError {}
 // (`:wat::kernel::LoadFetchError`, `wat/kernel/diagnostics.wat`,
 // `wat_enum_register_from!`) with no floor of its own.
 //
-// Hand-written, not `#[derive(ToEdn)]`: `Other`'s wire tag is RENAMED to
-// `LoadOther` (the derive has no variant-level tag-rename directive — only a
-// field-level `key` and a single-field-tuple-variant `key`, neither of which
-// renames the TAG). Calls the SAME dot-join helper `#[to_edn(qualified)]`
-// emits (`edn_tag_dotted` → `wat_edn::Tag::enum_variant`) — one place the
-// `Enum.Variant` shape lives on the write side, same as `ClauseFailureReason`.
-impl crate::edn::contract::ToEdn for LoadFetchError {
-    /// `#wat.kernel/LoadFetchError.NotFound {:path "…"}` /
-    /// `#wat.kernel/LoadFetchError.LoadOther {:path :reason}` /
-    /// `#wat.kernel/LoadFetchError.OutOfScope {:path :scope}`.
-    fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::edn::contract::{edn_kw, edn_str, edn_tag_dotted};
-        use wat_edn::OwnedValue;
-        match self {
-            LoadFetchError::NotFound(path) => edn_tag_dotted(
-                "LoadFetchError",
-                "NotFound",
-                OwnedValue::Map(vec![(edn_kw("path"), edn_str(path))]),
-            ),
-            LoadFetchError::Other { path, reason } => edn_tag_dotted(
-                "LoadFetchError",
-                "LoadOther",
-                OwnedValue::Map(vec![
-                    (edn_kw("path"), edn_str(path)),
-                    (edn_kw("reason"), edn_str(reason)),
-                ]),
-            ),
-            LoadFetchError::OutOfScope { path, scope } => edn_tag_dotted(
-                "LoadFetchError",
-                "OutOfScope",
-                OwnedValue::Map(vec![
-                    (edn_kw("path"), edn_str(path)),
-                    (edn_kw("scope"), edn_str(scope)),
-                ]),
-            ),
-        }
-    }
-}
+// Strike G item 2: now `#[derive(ToEdn)]`, covering every variant uniformly
+// — the hand-written writer that used to stand here (rewriting `Other`'s tag
+// to `LoadOther`) retired now that the Rust variant IS named `LoadOther`.
 
 /// Errors raised by the load-resolution driver.
 /// Pattern A (Stone 243.7e): span at the outer struct level; variant data
@@ -1370,12 +1345,12 @@ impl SourceLoader for FsLoader {
         let resolved = resolve_relative(path, base_canonical);
         let canonical = std::fs::canonicalize(&resolved).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => LoadFetchError::NotFound(path.to_string()),
-            _ => LoadFetchError::Other {
+            _ => LoadFetchError::LoadOther {
                 path: resolved.display().to_string(),
                 reason: e.to_string(),
             },
         })?;
-        let source = std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::Other {
+        let source = std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::LoadOther {
             path: canonical.display().to_string(),
             reason: e.to_string(),
         })?;
@@ -1393,7 +1368,7 @@ impl SourceLoader for FsLoader {
         let resolved = resolve_relative(path, base_canonical);
         std::fs::read_to_string(&resolved).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => LoadFetchError::NotFound(path.to_string()),
-            _ => LoadFetchError::Other {
+            _ => LoadFetchError::LoadOther {
                 path: resolved.display().to_string(),
                 reason: e.to_string(),
             },
@@ -1427,7 +1402,7 @@ impl ScopedLoader {
         let root = root.as_ref();
         let canonical_root = std::fs::canonicalize(root).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => LoadFetchError::NotFound(root.display().to_string()),
-            _ => LoadFetchError::Other {
+            _ => LoadFetchError::LoadOther {
                 path: root.display().to_string(),
                 reason: e.to_string(),
             },
@@ -1482,7 +1457,7 @@ impl ScopedLoader {
         // against the real target (handles intermediate symlinks).
         let canonical = std::fs::canonicalize(&pre_canonical).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => LoadFetchError::NotFound(path.to_string()),
-            _ => LoadFetchError::Other {
+            _ => LoadFetchError::LoadOther {
                 path: pre_canonical.display().to_string(),
                 reason: e.to_string(),
             },
@@ -1504,7 +1479,7 @@ impl SourceLoader for ScopedLoader {
         base_canonical: Option<&str>,
     ) -> Result<LoadedSource, LoadFetchError> {
         let canonical = self.resolve_within_scope(path, base_canonical)?;
-        let source = std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::Other {
+        let source = std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::LoadOther {
             path: canonical.display().to_string(),
             reason: e.to_string(),
         })?;
@@ -1520,7 +1495,7 @@ impl SourceLoader for ScopedLoader {
         base_canonical: Option<&str>,
     ) -> Result<String, LoadFetchError> {
         let canonical = self.resolve_within_scope(path, base_canonical)?;
-        std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::Other {
+        std::fs::read_to_string(&canonical).map_err(|e| LoadFetchError::LoadOther {
             path: canonical.display().to_string(),
             reason: e.to_string(),
         })
