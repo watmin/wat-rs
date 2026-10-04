@@ -158,7 +158,7 @@ pub use freeze::{
 };
 pub use host::guest::{Guest, GuestError, RunOutput};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
-pub use scope::{fresh_scope, Identifier, ScopeId};
+pub use scope::{fresh_scope, Identifier, Name, ScopeId};
 pub use lexer::{LexError, LexErrorKind};
 pub use load::loader::{
     resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadErrorKind, LoadFetchError, LoadSpec, LoadedSource,

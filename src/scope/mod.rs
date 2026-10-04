@@ -39,5 +39,5 @@
 
 pub mod resolution;
 
-pub use wat_reader::identifier::{fresh_scope, Identifier, ScopeId};
+pub use wat_reader::identifier::{fresh_scope, Identifier, Name, ScopeId};
 pub use resolution::env_key;

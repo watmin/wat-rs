@@ -54,7 +54,7 @@ use crate::scope::Identifier;
 
 /// Derive the environment key for an identifier.
 ///
-/// - **Bare** (empty scope set) → borrows the name unchanged (zero alloc).
+/// - **Bare** (empty scope set) → borrows [`Identifier::local_spelling`] unchanged (zero alloc).
 ///   All non-macro code that never calls `add_scope` continues to use bare
 ///   names as keys; no behavioural change for any existing binding or lookup.
 /// - **Scoped** → owned `"name\u{1}<sorted-scope-ids>"`. The scoped suffix
@@ -78,7 +78,7 @@ use crate::scope::Identifier;
 /// before this function is called.
 pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
     if ident.scopes().is_empty() {
-        std::borrow::Cow::Borrowed(ident.as_str())
+        std::borrow::Cow::Borrowed(ident.local_spelling())
     } else {
         // BTreeSet iterates in ascending order → canonical encoding.
         // \u{1} (SOH) is chosen because the lexer now REJECTS all raw control
@@ -91,7 +91,7 @@ pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
         // Scoped identifiers are evaluated post-expansion (every scoped-symbol
         // eval calls env_key), so this path is not expansion-time-only — hence
         // the single-alloc form rather than Vec+join.
-        let name = ident.as_str();
+        let name = ident.local_spelling();
         let mut key = String::with_capacity(name.len() + 16);
         key.push_str(name);
         key.push('\u{1}');
@@ -117,7 +117,7 @@ pub fn env_key(ident: &Identifier) -> std::borrow::Cow<'_, str> {
 ///
 /// Logic: let `me = env_key(ident)`. For each key `k` in `local_keys`, extract
 /// the NAME part (everything before the first `'\u{1}'`, or the whole key if
-/// none). If `name_part(k) == ident.as_str()` AND `k != me`, return
+/// none). If `name_part(k) == ident.local_spelling()` AND `k != me`, return
 /// `k.to_owned()` (a same-name, different-scope binder). Else `None`.
 ///
 /// Examples:
@@ -131,7 +131,7 @@ pub fn scope_divergent_binder<'a>(
 ) -> Option<String> {
     let me = env_key(ident);
     let me_ref: &str = me.as_ref();
-    let my_name = ident.as_str();
+    let my_name = ident.local_spelling();
     for k in local_keys {
         // Extract name part: everything before the first SOH separator.
         let name_part = k.split('\u{1}').next().unwrap_or(k);
@@ -186,6 +186,16 @@ mod tests {
         let key = env_key(&scoped);
         assert!(key.contains('\u{1}'), "scoped key must contain separator byte");
         assert!(!env_key(&Identifier::bare("tmp")).contains('\u{1}'));
+    }
+
+    #[test]
+    fn slashed_binder_and_body_reference_share_an_env_key() {
+        let binder = Identifier::bare("foo/bar").into_bound();
+        let body = Identifier::bare("foo/bar");
+        assert_ne!(binder, body);
+        assert!(binder.same_local(&body));
+        assert_eq!(env_key(&binder), "foo/bar");
+        assert_eq!(env_key(&body), "foo/bar");
     }
 
     #[test]

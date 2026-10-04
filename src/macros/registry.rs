@@ -182,9 +182,9 @@ impl MacroRegistry {
 /// `register_aggregate_kwargs_companions` bakes the keyword spelling before
 /// expand; a converted `defrecord` then emits the symbol spelling of that
 /// same companion. Byte equality called that a second macro. Identity does
-/// not. `canonical_identity` is the door: a string that already contains
-/// `::` keeps a member `/` (`:wat::core::Option/expect`), and a clojure
-/// `Type/method` symbol becomes `::`, so the two stay divergent.
+/// not. The keyword/symbol cross arm compares `Name::from_keyword` with the
+/// identifier's `Name`. Keyword against keyword still goes through
+/// `canonical_identity`. Symbol against symbol is pair equality.
 fn macro_structurally_equivalent(a: &MacroDef, b: &MacroDef) -> bool {
     a.params == b.params && a.rest_param == b.rest_param && ast_same_identity(&a.body, &b.body)
 }
@@ -199,8 +199,7 @@ fn ast_same_identity(a: &crate::ast::WatAST, b: &crate::ast::WatAST) -> bool {
         (WatAST::Keyword(k, _), WatAST::Symbol(id, _))
         | (WatAST::Symbol(id, _), WatAST::Keyword(k, _)) => {
             id.is_reference()
-                && crate::edn::render::canonical_identity(id.as_str())
-                    == crate::edn::render::canonical_identity(k)
+                && crate::scope::Name::from_keyword(k).as_ref() == Some(id.pair())
         }
         (WatAST::List(xs, _), WatAST::List(ys, _))
         | (WatAST::Vector(xs, _), WatAST::Vector(ys, _))

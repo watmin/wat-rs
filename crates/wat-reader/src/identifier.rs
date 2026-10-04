@@ -30,10 +30,14 @@
 //! ⚠ The rule lives HERE and nowhere else. `tests/lint/one_name_grammar.rs`
 //! fails any second implementation of it (`rfind('/')`, `rsplit_once('/')`,
 //! …) elsewhere in the tree — which is why changing it is a four-line edit
-//! in one file rather than a corpus census. Two identifiers are "the same" iff both their
-//! spellings AND their scope sets are equal. Lexical scope lookups
-//! therefore distinguish `tmp` the user wrote from `tmp` a macro
-//! introduced — same name, different scope sets, different identity.
+//! in one file rather than a corpus census. Two identifiers are "the same"
+//! iff their `(namespace, name)` pairs AND their scope sets are equal.
+//! `flat` is the print cache of that pair (`"{namespace}/{name}"`, or the
+//! bare name when the namespace is `$bound`) and does not decide equality.
+//! A slashed local's binder (`{$bound, foo/bar}`) and its body reference
+//! (`{foo, bar}`) are not equal; [`Identifier::same_local`] finds the binder.
+//! Lexical scope lookups therefore distinguish `tmp` the user wrote from
+//! `tmp` a macro introduced — same name, different scope sets, different identity.
 //!
 //! # When scopes are added
 //!
@@ -62,6 +66,102 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// `src/resolve/reserved.rs`'s `RESERVED_PREFIXES` (entry `":$bound::"`,
 /// doubled-colon form to match `is_reserved_prefix`'s stripping).
 pub const BOUND_NAMESPACE: &str = "$bound";
+
+/// A name is the pair `(namespace, name)`. No string is the identity.
+/// [`Display`] is the one stringification: `"{namespace}/{name}"`, or the
+/// bare `name` when the namespace is [`BOUND_NAMESPACE`].
+///
+/// `Eq` and `Hash` are the contents of the two fields. A pointer-equality
+/// fast path in `Eq` is allowed; `Hash` always hashes the text, never the
+/// pointer. There is no global interner.
+#[derive(Clone, Debug)]
+pub struct Name {
+    pub namespace: std::sync::Arc<str>,
+    pub name: std::sync::Arc<str>,
+}
+
+impl PartialEq for Name {
+    fn eq(&self, other: &Self) -> bool {
+        (std::sync::Arc::ptr_eq(&self.namespace, &other.namespace)
+            || self.namespace == other.namespace)
+            && (std::sync::Arc::ptr_eq(&self.name, &other.name) || self.name == other.name)
+    }
+}
+
+impl Eq for Name {}
+
+impl Hash for Name {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Contents, not the Arc pointer. Derived `Hash` for `Arc<str>` already
+        // hashes the `str`; written out so a pointer hash cannot replace it.
+        self.namespace.as_ref().hash(state);
+        self.name.as_ref().hash(state);
+    }
+}
+
+impl std::fmt::Display for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.namespace.as_ref() == BOUND_NAMESPACE {
+            f.write_str(&self.name)
+        } else {
+            write!(f, "{}/{}", self.namespace, self.name)
+        }
+    }
+}
+
+impl Name {
+    /// A binder's pair: namespace [`BOUND_NAMESPACE`], name the whole spelling.
+    pub fn bound(name: impl Into<std::sync::Arc<str>>) -> Self {
+        Self {
+            namespace: std::sync::Arc::from(BOUND_NAMESPACE),
+            name: name.into(),
+        }
+    }
+
+    pub fn namespace(&self) -> &str {
+        &self.namespace
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// The pair a keyword spelling of a name has, as the recorded converter
+    /// rewrites it (`wat.keyword/to-symbol`, plus a trailing-`::` marker).
+    ///
+    /// A keyword that is not a name (`:k`, `:else` — no `::`) is `None`.
+    /// One spelling has one image; there is no position argument. Deleted
+    /// at the wall, with keywords.
+    pub fn from_keyword(kw: &str) -> Option<Self> {
+        let body = kw.strip_prefix(':')?;
+        // A trailing `::` is a namespace marker (`:my::kernel::` → `my.kernel`),
+        // which `wat_keyword_to_clojure_symbol` declines. The name is the whole
+        // dotted spelling and the namespace is [`BOUND_NAMESPACE`], matching
+        // `Identifier::bare` of that symbol (no `/`).
+        if let Some(rest) = body.strip_suffix("::") {
+            let dotted = rest.replace("::", ".");
+            return Some(Name::bound(dotted));
+        }
+        if !body.contains("::") {
+            return None;
+        }
+        // `body` contains `::` and does not end in `::`, so there are at least
+        // two non-empty segments. Same split `wat_keyword_to_clojure_symbol` uses.
+        let final_seg = leaf(body);
+        let mut ns_parts: Vec<&str> = path(body).split("::").collect();
+        let name: &str = if final_seg.contains('/') && !receiver(final_seg).is_empty() {
+            ns_parts.push(receiver(final_seg));
+            method(final_seg)
+        } else {
+            final_seg
+        };
+        let namespace = ns_parts.join(".");
+        Some(Name {
+            namespace: std::sync::Arc::from(namespace),
+            name: std::sync::Arc::from(name),
+        })
+    }
+}
 
 /// A unique integer identifying a lexical scope — macro invocation,
 /// `let` / `fn` / `match` scope, etc.
@@ -109,24 +209,20 @@ pub fn fresh_scope() -> ScopeId {
 /// doc for why.
 #[derive(Clone)]
 pub struct Identifier {
-    /// The namespace half of the tuple. [`BOUND_NAMESPACE`] (`$bound`) for a
-    /// binder; the spelling before the first `/` for a reference.
-    /// `Arc` so a macro template clone shares the bytes instead of copying them.
-    ns: std::sync::Arc<str>,
-    /// The name half of the tuple. The whole spelling for a binder; the
-    /// spelling after the first `/` for a reference. A later `/` stays in
-    /// the name.
-    name: std::sync::Arc<str>,
-    /// The original spelling, so [`as_str`](Self::as_str) / [`leaf`](Self::leaf)
-    /// / [`path`](Self::path) keep returning `&str`. Derived once in [`bare`](Self::bare).
+    /// The `(namespace, name)` pair. Equality and hashing read this, not `flat`.
+    pair: Name,
+    /// Print cache of the pair: the spelling [`as_str`](Self::as_str) returns.
+    /// Derived once in [`bare`](Self::bare). Stone 5 deletes it. Nothing
+    /// decides identity by it; [`local_spelling`](Self::local_spelling) borrows
+    /// it for a reference only because [`Display`] of that pair is this string.
     flat: std::sync::Arc<str>,
-    /// Macro hygiene — orthogonal to the `(ns, name)` tuple.
+    /// Macro hygiene — orthogonal to the `(namespace, name)` pair.
     scopes: BTreeSet<ScopeId>,
 }
 
 impl PartialEq for Identifier {
     fn eq(&self, other: &Self) -> bool {
-        self.flat == other.flat && self.scopes == other.scopes
+        self.pair == other.pair && self.scopes == other.scopes
     }
 }
 
@@ -134,7 +230,7 @@ impl Eq for Identifier {}
 
 impl Hash for Identifier {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.flat.hash(state);
+        self.pair.hash(state);
         self.scopes.hash(state);
     }
 }
@@ -184,25 +280,28 @@ impl Identifier {
         // definition. (`wat-edn`'s EDN-TEXT parser separately rejects 2+ slashes
         // per the EDN spec; that stays, and is a different question from how a
         // name that reaches us anyway is split.)
-        let (ns, name) = match flat.find('/') {
-            Some(slash) => (
-                std::sync::Arc::<str>::from(&flat[..slash]),
-                std::sync::Arc::<str>::from(&flat[slash + 1..]),
-            ),
-            None => (std::sync::Arc::from(BOUND_NAMESPACE), std::sync::Arc::clone(&flat)),
+        let pair = match flat.find('/') {
+            Some(slash) => Name {
+                namespace: std::sync::Arc::<str>::from(&flat[..slash]),
+                name: std::sync::Arc::<str>::from(&flat[slash + 1..]),
+            },
+            None => Name::bound(std::sync::Arc::clone(&flat)),
         };
         Identifier {
-            ns,
-            name,
+            pair,
             flat,
             scopes: BTreeSet::new(),
         }
     }
 
     /// Binder position. The whole spelling is the name, whatever `/` it
-    /// holds; the namespace is [`BOUND_NAMESPACE`]. `flat` and `scopes` are
-    /// unchanged, so equality and `env_key` still match a body
-    /// reference that spells the same name in the same scopes.
+    /// holds; the namespace is [`BOUND_NAMESPACE`]. `flat` is unchanged,
+    /// so [`as_str`](Self::as_str) still prints the spelling. Equality is
+    /// the pair: a slashed binder (`{$bound, foo/bar}`) does not compare
+    /// equal to the body reference (`{foo, bar}`). [`same_local`](Self::same_local)
+    /// is how `substitute` and `env_key` find that binder — the binder's
+    /// name against the reference's print cache, plus the scope set — not
+    /// a second split of `flat`.
     ///
     /// Idempotent: a symbol that is already a binder is returned as-is.
     /// The reader does not call this. Normalize and argspec parsing do,
@@ -212,8 +311,7 @@ impl Identifier {
             return self;
         }
         Identifier {
-            ns: std::sync::Arc::from(BOUND_NAMESPACE),
-            name: std::sync::Arc::clone(&self.flat),
+            pair: Name::bound(std::sync::Arc::clone(&self.flat)),
             flat: self.flat,
             scopes: self.scopes,
         }
@@ -226,11 +324,38 @@ impl Identifier {
         let mut scopes = self.scopes.clone();
         scopes.insert(scope);
         Identifier {
-            ns: std::sync::Arc::clone(&self.ns),
-            name: std::sync::Arc::clone(&self.name),
+            pair: self.pair.clone(),
             flat: std::sync::Arc::clone(&self.flat),
             scopes,
         }
+    }
+
+    /// The `(namespace, name)` pair.
+    pub fn pair(&self) -> &Name {
+        &self.pair
+    }
+
+    /// The spelling a local binding is known by.
+    ///
+    /// A binder borrows its name field (the whole spelling). A reference
+    /// borrows `flat`, the print cache, because [`Display`] of its pair is
+    /// that same `namespace/name`. The branch is which pair this is, not a
+    /// re-split of the cache.
+    pub fn local_spelling(&self) -> &str {
+        if self.is_reference() {
+            &self.flat
+        } else {
+            &self.pair.name
+        }
+    }
+
+    /// Whether `self` and `other` resolve to the same local binder.
+    ///
+    /// Scope sets match, and [`local_spelling`](Self::local_spelling) matches.
+    /// Pair equality is stricter and does not hold for a slashed binder
+    /// against its body reference.
+    pub fn same_local(&self, other: &Self) -> bool {
+        self.scopes == other.scopes && self.local_spelling() == other.local_spelling()
     }
 
     /// The bare name, scope-free. For env keying route through `env_key` —
@@ -247,7 +372,7 @@ impl Identifier {
     /// STONE 251.8b: stored at construction ([`bare`](Self::bare)), not
     /// re-derived. Same `&str` signature 251.8a promised.
     pub fn namespace(&self) -> &str {
-        &self.ns
+        &self.pair.namespace
     }
 
     /// True when this symbol names something defined elsewhere, false when
@@ -275,7 +400,7 @@ impl Identifier {
     /// `flat`, so its receiver is the stored namespace (`$bound`).
     pub fn receiver(&self) -> &str {
         if self.flat.contains('/') {
-            &self.ns
+            &self.pair.namespace
         } else {
             ""
         }
@@ -284,7 +409,7 @@ impl Identifier {
     /// Everything after the `/` of a surface-method call head. See [`method`].
     /// The stored name half of the tuple (the whole spelling, for a binder).
     pub fn method(&self) -> &str {
-        &self.name
+        &self.pair.name
     }
 
     /// Is the spelling primed (ends in `'`)? See [`prime`].
@@ -493,7 +618,7 @@ mod tests {
     #[test]
     fn bare_has_empty_scopes() {
         let id = Identifier::bare("x");
-        assert_eq!(&*id.name, "x");
+        assert_eq!(id.method(), "x");
         assert!(id.scopes.is_empty());
     }
 
@@ -552,7 +677,7 @@ mod tests {
         let id = Identifier::bare("wat.core/+");
         assert_eq!(id.namespace(), "wat.core");
         assert!(id.is_reference());
-        assert_eq!(&*id.name, "+");
+        assert_eq!(id.method(), "+");
         assert_eq!(id.method(), "+");
     }
 
@@ -560,7 +685,7 @@ mod tests {
     fn foo_is_bound_foo() {
         let id = Identifier::bare("foo");
         assert_eq!(id.namespace(), BOUND_NAMESPACE);
-        assert_eq!(&*id.name, "foo");
+        assert_eq!(id.method(), "foo");
         assert_eq!(id.as_str(), "foo");
         assert!(!id.is_reference());
     }
@@ -572,13 +697,13 @@ mod tests {
     fn namespace_borrows_the_stored_field() {
         let id = Identifier::bare("wat.core/+");
         assert!(
-            std::ptr::eq(id.namespace(), &*id.ns),
-            "namespace() must return the stored ns field"
+            std::ptr::eq(id.namespace(), &*id.pair.namespace),
+            "namespace() must return the stored namespace field"
         );
         let binder = Identifier::bare("foo");
         assert!(
-            std::ptr::eq(binder.namespace(), &*binder.ns),
-            "binder namespace() must return the stored ns field, not the static BOUND_NAMESPACE"
+            std::ptr::eq(binder.namespace(), &*binder.pair.namespace),
+            "binder namespace() must return the stored namespace field, not the static BOUND_NAMESPACE"
         );
     }
 
@@ -599,7 +724,7 @@ mod tests {
         // `clojure.core//`), NOT the empty string.
         let id = Identifier::bare("wat.core//");
         assert_eq!(id.namespace(), "wat.core");
-        assert_eq!(&*id.name, "/");
+        assert_eq!(id.method(), "/");
         assert_eq!(id.receiver(), "wat.core");
         assert_eq!(id.method(), "/");
         assert_eq!(id.as_str(), "wat.core//");
@@ -609,7 +734,7 @@ mod tests {
         // NAME instead of corrupting the NAMESPACE.
         let id = Identifier::bare("user/whatever/name/here/");
         assert_eq!(id.namespace(), "user");
-        assert_eq!(&*id.name, "whatever/name/here/");
+        assert_eq!(id.method(), "whatever/name/here/");
         assert_eq!(id.receiver(), "user");
         assert_eq!(id.method(), "whatever/name/here/");
         assert_eq!(id.as_str(), "user/whatever/name/here/");
@@ -621,7 +746,7 @@ mod tests {
     fn into_bound_keeps_the_whole_spelling_as_the_name() {
         let id = Identifier::bare("foo/bar").into_bound();
         assert_eq!(id.namespace(), "$bound");
-        assert_eq!(&*id.name, "foo/bar");
+        assert_eq!(id.method(), "foo/bar");
         assert_eq!(id.as_str(), "foo/bar");
         assert!(!id.is_reference());
         assert_eq!(id.receiver(), "$bound");
@@ -631,6 +756,78 @@ mod tests {
 
         let slashless = Identifier::bare("acc");
         assert_eq!(slashless.clone().into_bound(), slashless);
+    }
+
+    /// Stone 255.91 — pair equality. `a.b/c` is the image of both keyword
+    /// spellings. A scoped copy is a different identifier. A slashed binder
+    /// and its body reference do not compare equal; `same_local` resolves them.
+    #[test]
+    fn the_name_is_the_pair() {
+        let bare = Identifier::bare("a.b/c");
+        let from_colons = Name::from_keyword(":a::b::c").expect("path keyword");
+        let from_slash = Name::from_keyword(":a::b/c").expect("member keyword");
+        assert_eq!(bare.pair(), &from_colons);
+        assert_eq!(bare.pair(), &from_slash);
+        assert_eq!(from_colons.to_string(), "a.b/c");
+        assert!(Name::from_keyword(":else").is_none());
+        assert!(Name::from_keyword(":k").is_none());
+
+        let scoped = bare.add_scope(fresh_scope());
+        assert_ne!(scoped, bare);
+        assert_eq!(scoped.pair(), bare.pair());
+
+        let binder = Identifier::bare("foo/bar").into_bound();
+        let body = Identifier::bare("foo/bar");
+        assert_ne!(binder, body);
+        assert!(binder.same_local(&body));
+        assert!(body.same_local(&binder));
+        assert_eq!(binder.local_spelling(), "foo/bar");
+        assert_eq!(body.local_spelling(), "foo/bar");
+
+        let mut set = std::collections::HashSet::new();
+        set.insert(from_colons);
+        set.insert(Name::from_keyword(":a::b::c").unwrap());
+        assert_eq!(set.len(), 1, "equal pairs hash as one");
+    }
+
+    /// Stone 255.91 — the committed sample of the keyword→symbol zip.
+    /// `KW_PAIRS_FULL` points at the full unique-pair list (three columns:
+    /// count, keyword, symbol) and checks every row the same way.
+    #[test]
+    fn from_keyword_matches_bare_of_the_converted_symbol() {
+        let sample = include_str!("../tests/fixtures/keyword-symbol-pairs.tsv");
+        let n = assert_keyword_pairs(sample);
+        assert!(n > 200, "sample shrank to {n}");
+        if let Ok(path) = std::env::var("KW_PAIRS_FULL") {
+            let full = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("read {path}: {e}"));
+            let full_n = assert_keyword_pairs(&full);
+            eprintln!("KW_PAIRS_FULL {full_n}");
+        }
+    }
+
+    fn assert_keyword_pairs(text: &str) -> usize {
+        let mut n = 0;
+        for (line_no, line) in text.lines().enumerate() {
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            let mut cols = line.split('\t');
+            let a = cols.next().unwrap_or("");
+            let b = cols.next().unwrap_or("");
+            let c = cols.next();
+            let (kw, sym) = if let Some(sym) = c { (b, sym) } else { (a, b) };
+            let got = Name::from_keyword(kw);
+            let expect = Identifier::bare(sym);
+            assert_eq!(
+                got.as_ref(),
+                Some(expect.pair()),
+                "line {} keyword {kw:?} symbol {sym:?}",
+                line_no + 1
+            );
+            n += 1;
+        }
+        n
     }
 
     /// ⛔ NON-VACUITY CONTROL for the ruling. Single-slash spellings are
@@ -650,14 +847,14 @@ mod tests {
         ] {
             let id = Identifier::bare(spelling);
             assert_eq!(id.namespace(), ns, "namespace {spelling}");
-            assert_eq!(&*id.name, name, "name {spelling}");
+            assert_eq!(id.method(), name, "name {spelling}");
             assert_eq!(id.receiver(), ns, "receiver {spelling}");
             assert_eq!(id.method(), name, "method {spelling}");
         }
         // And a name with NO slash is still bound, under either rule.
         let id = Identifier::bare("foo");
         assert_eq!(id.namespace(), BOUND_NAMESPACE);
-        assert_eq!(&*id.name, "foo");
+        assert_eq!(id.method(), "foo");
         assert!(!id.is_reference());
     }
 

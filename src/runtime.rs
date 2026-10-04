@@ -14179,14 +14179,15 @@ fn is_match_canonical(form: &WatAST) -> bool {
     }
 }
 
-/// Capture-free textual substitution. Replace every `Symbol(ident)`
-/// equal to `target` with `replacement`. Wat's hygiene model means
-/// `Identifier` equality already covers (name, scope-set) — distinct
-/// bindings of the same name carry distinct scope sets and never
-/// alias accidentally. No α-renaming required.
+/// Capture-free textual substitution. Replace every `Symbol(ident)` that
+/// [`Identifier::same_local`](crate::scope::Identifier::same_local) resolves
+/// to `target`. Pair equality does not match a slashed binder
+/// (`{$bound, foo/bar}`) to its body reference (`{foo, bar}`); `same_local`
+/// does, and it is the same function `env_key` uses. Distinct scope sets
+/// still do not alias. No α-renaming required.
 fn substitute(form: &WatAST, target: &crate::scope::Identifier, replacement: &WatAST) -> WatAST {
     match form {
-        WatAST::Symbol(ident, _) if ident == target => replacement.clone(),
+        WatAST::Symbol(ident, _) if ident.same_local(target) => replacement.clone(),
         WatAST::List(items, span) => WatAST::List(
             items
                 .iter()
