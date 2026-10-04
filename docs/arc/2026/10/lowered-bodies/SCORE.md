@@ -204,7 +204,7 @@ rather than leaving a half-green row uncommitted in the clone.
 A full, buildable copy of the reverted code (the LAST state reached, i.e. with the keyword-lift
 fix and the `values_equal_for_check` fix both applied, immediately before the pause) is saved
 OUTSIDE the clone, for reference only, at:
-- `/tmp/claude-1000/-home-watmin-Work-holon/5373d366-7a52-4a05-a9b4-198d0c5a4a95/scratchpad/lowered-bodies-l1-paused/body_lower_mod.rs`
+- `/var/tmp/wat-rs-lowered-bodies-l1-paused/body_lower_mod.rs`
   (the full `src/body_lower/mod.rs`)
 - `.../lowered-bodies-l1-paused/runtime.rs.diff` (the `apply_function` hook diff against `bb957790a`)
 - `.../lowered-bodies-l1-paused/floor-l1-check-v2.log` (the full check-mode floor log this row's
