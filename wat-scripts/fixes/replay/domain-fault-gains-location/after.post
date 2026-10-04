@@ -1,0 +1,8 @@
+(:wat::core::defrecord :wat::query::Fault
+  [message <- :wat::core::String])
+
+(:wat::core::defn :wat::query::mk [] -> :wat::query::Fault
+  (:wat::query::Fault :message "boom" :location (:wat::kernel::here)))
+
+(:wat::core::defn :wat::query::already-located [] -> :wat::query::Fault
+  (:wat::query::Fault :message "ok" :location (:wat::kernel::here)))

@@ -1,0 +1,2 @@
+spec (:wat::query::Fault :message "boom" :location (:wat::kernel::here))) :: adds `:location (:wat::kernel::here)` to every
+spec-before (:wat::query::Fault :message "boom")) :: adds `:location (:wat::kernel::here)` to every

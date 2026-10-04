@@ -26,8 +26,12 @@
 ;; ─── the error lift — :wat::sqlite'::Fault -> :wat::query::Fault (message only — the concrete
 ;; default `Reason` satisfier; a structured `:wat::sqlite'::Reason` is a later stone) — the
 ;; satisfier's mechanism, so it lives in :wat::query with the contract ──────────────────────────
+;;
+;; Excursus 003 strike F: `:location` is PROPAGATED from `f`, never freshly minted here — `f`'s
+;; own span (the real sqlite `classify` call site, wat/sqlite.wat) is already the honest answer
+;; to "where did this fault originate", strictly more true than this narrowing call's own site.
 (:wat::core::defn :wat::query::lift-fault [f <- :wat::sqlite::Fault] -> :wat::query::Fault
-  (:wat::query::Fault :message (:wat::sqlite::Fault/message f)))
+  (:wat::query::Fault :message (:wat::sqlite::Fault/message f) :location (:wat::sqlite::Fault/location f)))
 
 ;; ─── per-op response builders — classify a raw sqlite Result into the op's own outcome enum.
 ;; Each `Store::<Op>Response` exposes only the error variants that op's surface declares; a sqlite
