@@ -3,13 +3,23 @@
 //! Moved from `src/runtime.rs` (block 1409–1581) in Stone 251.2c.
 //! Co-located because Function carries `closed_env: Option<Environment>`.
 
-use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
+use rustc_hash::FxHashMap;
 use crate::ast::WatAST;
 use crate::span::Span;
 use crate::types::TypeExpr;
 use crate::value::{TrackedValue, Provenance};
+
+/// Arc 2026-10 name-resolution R1 — `Environment`/`EnvBuilder`'s binding map, keyed by
+/// binder name. One type alias so a later hasher change (or back to `std`'s `RandomState`,
+/// if ever needed) is a one-line edit, not a grep-and-replace — same pattern as arc 278's
+/// `rustc_hash::FxHashMap` adoption for the rete fire path (`src/rete/alpha_tree.rs`,
+/// `src/rete/compiled_cond.rs`). FxHash is NOT persisted, hashed into an interchange format,
+/// or compared across processes (STOP-2 does not apply): it only ever backs an in-memory
+/// `HashMap`, iterated nowhere order-sensitively (`lookup` keys by exact name; nothing walks
+/// `bindings` in insertion/iteration order for output).
+pub(crate) type BindingMap = FxHashMap<String, BoundEntry>;
 
 /// Stone 255.1a — body representation for a `Function`.
 ///
@@ -159,7 +169,7 @@ pub struct BoundEntry {
 }
 
 struct EnvCell {
-    bindings: HashMap<String, BoundEntry>,
+    bindings: BindingMap,
     parent: Option<Environment>,
 }
 
@@ -167,7 +177,7 @@ impl Environment {
     pub fn new() -> Self {
         Environment {
             inner: Arc::new(EnvCell {
-                bindings: HashMap::new(),
+                bindings: BindingMap::default(),
                 parent: None,
             }),
         }
@@ -175,7 +185,7 @@ impl Environment {
 
     pub fn child(&self) -> EnvBuilder {
         EnvBuilder {
-            bindings: HashMap::new(),
+            bindings: BindingMap::default(),
             parent: Some(self.clone()),
         }
     }
@@ -230,7 +240,7 @@ impl Default for Environment {
 
 /// Builder that accumulates bindings, then freezes into an [`Environment`].
 pub struct EnvBuilder {
-    bindings: HashMap<String, BoundEntry>,
+    bindings: BindingMap,
     parent: Option<Environment>,
 }
 

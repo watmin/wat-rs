@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
 use crate::load::loader::SourceLoader;
@@ -14,6 +15,19 @@ use crate::value::{EncodingCtx, Function};
 
 /// Per-binding metadata: FQDN -> metadata-key -> raw AST value.
 pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
+
+/// Arc 2026-10 name-resolution R1 — the three eval-time name registries
+/// (`functions`, `unit_variants`, `runtime_def_values`), each keyed by full keyword-path
+/// FQDN string. One alias per map so a later hasher change is one line, not a grep (same
+/// pattern as `BindingMap` in `src/value/environment.rs` and arc 278's `FxHashMap` adoption
+/// for the rete fire path). Not persisted / hashed into an interchange format / compared
+/// across processes (STOP-2 does not apply) — in-memory lookup only; `*_iter()` callers
+/// consume names in whatever order the map holds them (never relied on today, per the
+/// brief's contract: "Iteration order of these maps cannot be relied on today, because
+/// `RandomState` reseeds every process. FxHash makes it fixed, not different-in-kind.").
+pub(crate) type FunctionMap = FxHashMap<String, Arc<Function>>;
+pub(crate) type UnitVariantMap = FxHashMap<String, EnumValue>;
+pub(crate) type RuntimeDefValueMap = FxHashMap<String, Value>;
 
 /// Keyword-path ↦ Function registry + runtime capabilities.
 ///
@@ -30,7 +44,7 @@ pub(crate) type BindingMetadata = HashMap<String, HashMap<String, WatAST>>;
 #[derive(Clone)]
 #[derive(Default)]
 pub struct SymbolTable {
-    functions: HashMap<String, Arc<Function>>,
+    functions: FunctionMap,
     // TRANSFORMS — clojure-ination (keyword-keyed)
     /// Arc 048 — pre-built [`EnumValue`]s for each registered
     /// unit-variant enum constructor. Populated by
@@ -39,7 +53,7 @@ pub struct SymbolTable {
     /// Consulted in `eval`'s keyword arm before the function-lookup
     /// fallback so a bare keyword evaluates directly to its
     /// variant value (mirrors the `:None` shortcut).
-    unit_variants: HashMap<String, EnumValue>,
+    unit_variants: UnitVariantMap,
     pub encoding_ctx: Option<Arc<EncodingCtx>>,
     pub source_loader: Option<Arc<dyn SourceLoader>>,
     macro_registry: Option<Arc<MacroRegistry>>,
@@ -105,7 +119,7 @@ pub struct SymbolTable {
     /// separation: check-time carries `(TypeExpr, Span)`; runtime carries
     /// `Value`. Populated by `register_runtime_defs` in `FrozenWorld::freeze`
     /// after all capability carriers are installed.
-    runtime_def_values: HashMap<String, Value>,
+    runtime_def_values: RuntimeDefValueMap,
     /// Arc 157 slice 1a-ii — controls compile-time / load-time `def` redef.
     /// Default `false` (opt-in). Toggled via
     /// `(:wat::config::set-redef! true)`. Type-stability check applies
