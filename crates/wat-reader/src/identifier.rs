@@ -68,7 +68,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub const BOUND_NAMESPACE: &str = "$bound";
 
 /// A name is the pair `(namespace, name)`. No string is the identity.
-/// [`Display`] is the one stringification: `"{namespace}/{name}"`, or the
+/// [`std::fmt::Display`] is the one stringification: `"{namespace}/{name}"`, or the
 /// bare `name` when the namespace is [`BOUND_NAMESPACE`].
 ///
 /// `Eq` and `Hash` are the contents of the two fields. A pointer-equality
@@ -214,7 +214,7 @@ pub struct Identifier {
     /// Print cache of the pair: the spelling [`as_str`](Self::as_str) returns.
     /// Derived once in [`bare`](Self::bare). Stone 5 deletes it. Nothing
     /// decides identity by it; [`local_spelling`](Self::local_spelling) borrows
-    /// it for a reference only because [`Display`] of that pair is this string.
+    /// it for a reference only because [`std::fmt::Display`] of that pair is this string.
     flat: std::sync::Arc<str>,
     /// Macro hygiene — orthogonal to the `(namespace, name)` pair.
     scopes: BTreeSet<ScopeId>,
@@ -338,7 +338,7 @@ impl Identifier {
     /// The spelling a local binding is known by.
     ///
     /// A binder borrows its name field (the whole spelling). A reference
-    /// borrows `flat`, the print cache, because [`Display`] of its pair is
+    /// borrows `flat`, the print cache, because [`std::fmt::Display`] of its pair is
     /// that same `namespace/name`. The branch is which pair this is, not a
     /// re-split of the cache.
     pub fn local_spelling(&self) -> &str {
