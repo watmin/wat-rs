@@ -44,15 +44,15 @@ fn a_locus_head_is_compared_as_an_identity() {
         canonical_identity(":wat::spawn::process"),
         ":wat::spawn::process"
     );
-    // The `/` join is already a rust-scheme path, so identity leaves it. The
-    // symbol's identity is the `::` join. bracket accepts both.
+    // `with-label` is a function member. `rekey_type_member_functions` stores
+    // that as `/`, so the keyword and the symbol are that one key.
     assert_eq!(
         canonical_identity(":wat::spawn::Locus/with-label"),
         ":wat::spawn::Locus/with-label"
     );
     assert_eq!(
         canonical_identity("wat.spawn.Locus/with-label"),
-        ":wat::spawn::Locus::with-label"
+        ":wat::spawn::Locus/with-label"
     );
 }
 

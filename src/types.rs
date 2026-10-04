@@ -623,6 +623,7 @@ fn reconstruct_call_path_uncached(ns: &str, name: &str, types: &TypeEnv) -> Stri
         // into `:u::Demo::Has`, which is not the registered singleton.
         let parts: Vec<&str> = ns.split('.').filter(|s| !s.is_empty()).collect();
         for i in (1..=parts.len()).rev() {
+            // rune:lint(one-variant-separator, namespace) — dotted namespace segments joined into a type key, not an enum/variant pair
             let head = format!(":{}", parts[..i].join("::"));
             let key = if i == parts.len() {
                 head

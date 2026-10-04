@@ -579,8 +579,9 @@ fn duplicate_defmacro_structurally_equivalent_is_noop() {
 fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
     // The builtin kwargs companion is the keyword spelling. A converted
     // defrecord emits the symbol spelling of that same body. Identity, so
-    // the second registration is a no-op. A member `/` is not that identity:
-    // `wat.core.Option/expect` canonicalizes to `::`, and the keyword keeps `/`.
+    // the second registration is a no-op. A lowercase member is that same
+    // identity: `wat.core.Option/expect` and `:wat::core::Option/expect` are
+    // the `/` key `rekey_type_member_functions` stores.
     let same = expand_src(
         r#"
         (:wat::core::defmacro :my::m [& call-args <- (wat.type/Vector :- [wat.type/AST])] -> wat.type/AST
@@ -604,14 +605,8 @@ fn duplicate_defmacro_symbol_spelling_is_the_same_macro() {
         "#,
     );
     assert!(
-        matches!(
-            member,
-            Err(MacroError {
-                kind: MacroErrorKind::DuplicateMacro(_),
-                ..
-            })
-        ),
-        "a member join is not the :: identity; got {:?}",
+        member.is_ok(),
+        "a lowercase member and its symbol image are one macro; got {:?}",
         member
     );
 }

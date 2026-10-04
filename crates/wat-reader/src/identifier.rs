@@ -541,7 +541,7 @@ pub fn canonical_identity(s: &str) -> String {
     } else {
         s.to_string()
     };
-    fold_member_twin(&raw)
+    fold_member_twin(&raw).unwrap_or(raw)
 }
 
 /// One key for a type-member pair.
@@ -552,9 +552,9 @@ pub fn canonical_identity(s: &str) -> String {
 /// is a type (`Type::Method`). `:wat::core::Option` stays — `core` is not a
 /// type name. A method that itself contains `/`, `.`, or `:` stays
 /// (`StdOut::write/Request`, `StdIn.read-frame::Request`).
-fn fold_member_twin(s: &str) -> String {
+fn fold_member_twin(s: &str) -> Option<String> {
     if !s.starts_with(':') || s.contains(' ') || s.contains('(') {
-        return s.to_string();
+        return None;
     }
     let (parent, method, slash) = if let Some(idx) = s.rfind("::") {
         match s.rfind('/') {
@@ -564,29 +564,29 @@ fn fold_member_twin(s: &str) -> String {
     } else if let Some((p, m)) = s.rsplit_once('/') {
         (p, m, true)
     } else {
-        return s.to_string();
+        return None;
     };
     if method.is_empty() || method.contains('/') || method.contains('.') || method.contains(':') {
-        return s.to_string();
+        return None;
     }
     let last = parent.rsplit("::").next().unwrap_or(parent);
     let last = last.strip_prefix(':').unwrap_or(last);
     let type_shaped = last.chars().next().is_some_and(|c| c.is_ascii_uppercase())
         && last.chars().all(|c| c.is_ascii_alphanumeric());
     if !type_shaped {
-        return s.to_string();
+        return None;
     }
     let method_is_type = method.chars().next().is_some_and(|c| c.is_ascii_uppercase());
     if method_is_type {
         if slash {
-            return format!("{parent}::{method}");
+            return Some(format!("{parent}::{method}"));
         }
-        return s.to_string();
+        return None;
     }
     if !slash {
-        return format!("{parent}/{method}");
+        return Some(format!("{parent}/{method}"));
     }
-    s.to_string()
+    None
 }
 
 #[cfg(test)]
