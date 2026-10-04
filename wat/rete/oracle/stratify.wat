@@ -111,7 +111,7 @@
   (wat.core/let [ch (wat.core/ast->children form)
                     hd (wat.core/if (wat.core/empty? ch)
                          ""
-                         (wat.core/ast-name (wat.core/first ch)))]
+                         (wat.rete/head-identity (wat.core/first ch)))]
     (wat.core/if (wat.core/if (wat.core/= hd ":wat::rete::and")
                       true
                       (wat.core/= hd ":wat::rete::or"))
@@ -148,7 +148,7 @@
   (wat.core/let [ch (wat.core/ast->children form)
                     hd (wat.core/if (wat.core/empty? ch)
                          ""
-                         (wat.core/ast-name (wat.core/first ch)))]
+                         (wat.rete/head-identity (wat.core/first ch)))]
     (wat.core/if (wat.core/if (wat.core/= hd ":wat::rete::and")
                       true
                       (wat.core/= hd ":wat::rete::or"))

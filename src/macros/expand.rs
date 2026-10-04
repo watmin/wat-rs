@@ -1224,10 +1224,12 @@ fn expand_make_rule_condition(
     // Every other symbol head stays on the symbol arm below: an accumulate bind
     // (`(?c :- …)`) is a symbol that is not the spelling of a keyword.
     let is_where = citems.first().is_some_and(crate::resolve::boundary::is_where_form);
-    let head_kw: Option<String> = match citems.first() {
-        Some(WatAST::Keyword(h, _)) => Some(h.clone()),
-        _ => None,
-    };
+    // Keyword payload unchanged (`spelling_key` clones it). A reference symbol
+    // is the other spelling of that head, so `(wic/Req … (wat.rete.core/cond …))`
+    // opens the same fact-pattern region `(:wic::Req … (:wat::rete::core::cond …))`
+    // does — the inline `cond` reaches `expand_form` and the macro fires.
+    // A bare `?var` (accumulate, fact-bind) is not that spelling; it stays below.
+    let head_kw: Option<String> = citems.first().and_then(crate::form_match::spelling_key);
     let mut citer = citems.into_iter();
     let mut new_c = Vec::with_capacity(citer.len().max(1));
     new_c.extend(citer.next()); // the head — a `where`, a combinator, or a fact type. DATA always.

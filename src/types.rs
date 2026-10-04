@@ -604,13 +604,37 @@ pub(crate) fn reconstruct_call_path_shared(
 }
 
 fn reconstruct_call_path_uncached(ns: &str, name: &str, types: &TypeEnv) -> String {
-    // rune:lint(one-variant-separator, namespace) — ns dots → `::`; member join is `/`
-    let ns_kw = format!(":{}", ns.replace('.', "::"));
-    if types.is_known_type(&ns_kw) {
-        format!("{ns_kw}/{name}")
-    } else {
-        crate::edn::render::ns_to_wat_path(ns, name)
+    // A capitalised name is a type (`Cache/GetResult`, `Counter/Op`,
+    // `G/Hii`), registered with `::` via `ns_to_wat_path`. Joining it with
+    // `/` because the parent is a known type is what keyed
+    // `:wat::cache::Cache/GetResult` apart from the declared
+    // `:wat::cache::Cache::GetResult`. Only a lowercase method is a member
+    // function, and that key is `/`.
+    let member_fn = name
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c == '_');
+    if member_fn {
+        // A receiver dot is either a namespace (`wat.core`) or a variant
+        // (`Demo.Has`). Try the longest `::` key first — that is today's
+        // `wat.core.Option/expect` → `:wat::core::Option/expect` — then keep a
+        // trailing dotted suffix when that key is the type (`u.Demo.Has/has` →
+        // `:u::Demo.Has/has`). Replacing every dot up front turns the variant
+        // into `:u::Demo::Has`, which is not the registered singleton.
+        let parts: Vec<&str> = ns.split('.').filter(|s| !s.is_empty()).collect();
+        for i in (1..=parts.len()).rev() {
+            let head = format!(":{}", parts[..i].join("::"));
+            let key = if i == parts.len() {
+                head
+            } else {
+                format!("{head}.{}", parts[i..].join("."))
+            };
+            if types.is_known_type(&key) {
+                return format!("{key}/{name}");
+            }
+        }
     }
+    crate::edn::render::ns_to_wat_path(ns, name)
 }
 
 /// The other join of a call path: `/method` ↔ `::method`. Not a second
@@ -9583,3 +9607,4 @@ mod tests {
         }
     }
 }
+

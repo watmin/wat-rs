@@ -1940,6 +1940,11 @@ fn register_runtime_defs_form(
             }
             let name = match &items[1] {
                 WatAST::Keyword(k, _) => k.clone(),
+                // Same twin `try_parse_fn_shape_def` already accepts. A value
+                // `def` is not an fn-shape, so this arm is the one that stores it.
+                WatAST::Symbol(s, _) if s.is_reference() => {
+                    crate::edn::render::ns_to_wat_path(s.receiver(), s.method())
+                }
                 _ => return Ok(()), // malformed; type checker already caught it
             };
             // Stone 241.6 — discriminate: if 4 items, items[2] is the

@@ -501,34 +501,90 @@ pub fn ns_to_wat_path(ns: &str, name: &str) -> String {
 /// **not** rewrite `wat.type` → `wat.core`; that namespace is real.
 ///
 /// A name that already contains `::` and starts with `:` or `(` is returned
-/// unchanged. That early return is why `:wat::cache::Cache/GetResult` stays
-/// distinct from `:wat::cache::Cache::GetResult`, and why a rendered
-/// parametric `(:wat::core::Vector :- […])` is not treated as a path.
+/// unchanged, then [`fold_member_twin`] picks the one key the registry holds.
+/// `rekey_type_member_functions` stores a function member as `Type/method`
+/// and deletes the `::` key (census: 1766 slash keys, 0 twins), so a
+/// lowercase method folds onto `/` (`:wat::cache::Lru::get` →
+/// `:wat::cache::Lru/get`). A capitalised method is a type name
+/// (`GetResult`, `Op`, `Reply`, `GetResponse`, `ReadFrameOutcome`, a variant
+/// leaf). Those are registered with `::` — the response-type law and the
+/// `::Op`/`::Reply` synthesis both build that spelling — so a `/` twin folds
+/// onto `::`. A rendered parametric `(:wat::core::Vector :- […])` is not a
+/// path. `evt.G/Hii` stays `:evt::G::Hii`: `Hii` is a type-shaped leaf.
 pub fn canonical_identity(s: &str) -> String {
     // Rust-scheme paths contain `::` — including variant paths
     // (`StdIn.read-frame::Request`, `.` is the enum/variant separator) and
     // surface-op aliases (`StdOut::write/Request`, `/` is Type/method in the
     // leaf). Do NOT clojure-round-trip: that would turn `.` into `::` and
     // `/` into `::`. Dotted-keyword `:wat.core/Option` has `/` and no `::`.
-    if s.contains("::") {
+    let raw = if s.contains("::") {
         // rune:lint(one-variant-separator, namespace) — rust-scheme path detector (`::` in a FQDN); not enum/variant
         // Rendered parametric forms `(:wat::core::Vector :- […])` contain `::`
         // but are not a path to prefix.
         if s.starts_with(':') || s.starts_with('(') {
-            return s.to_string();
+            s.to_string()
+        } else {
+            format!(":{s}")
         }
-        return format!(":{s}");
-    }
-    if !s.starts_with(':') {
+    } else if !s.starts_with(':') {
         if let Some((ns, name)) = s.split_once('/') {
-            return ns_to_wat_path(ns, name);
+            ns_to_wat_path(ns, name)
+        } else {
+            s.to_string()
+        }
+    } else if let Some(body) = s.strip_prefix(':') {
+        if let Some((ns, name)) = body.split_once('/') {
+            ns_to_wat_path(ns, name)
+        } else {
+            s.to_string()
+        }
+    } else {
+        s.to_string()
+    };
+    fold_member_twin(&raw)
+}
+
+/// One key for a type-member pair.
+///
+/// The parent segment must be a type name (leading uppercase, ASCII
+/// alphanumeric, no `.`). The method decides the join the registry holds:
+/// a lowercase method is a function (`Type/method`); a capitalised method
+/// is a type (`Type::Method`). `:wat::core::Option` stays — `core` is not a
+/// type name. A method that itself contains `/`, `.`, or `:` stays
+/// (`StdOut::write/Request`, `StdIn.read-frame::Request`).
+fn fold_member_twin(s: &str) -> String {
+    if !s.starts_with(':') || s.contains(' ') || s.contains('(') {
+        return s.to_string();
+    }
+    let (parent, method, slash) = if let Some(idx) = s.rfind("::") {
+        match s.rfind('/') {
+            Some(cut) if cut > idx + 1 => (&s[..cut], &s[cut + 1..], true),
+            _ => (&s[..idx], &s[idx + 2..], false),
+        }
+    } else if let Some((p, m)) = s.rsplit_once('/') {
+        (p, m, true)
+    } else {
+        return s.to_string();
+    };
+    if method.is_empty() || method.contains('/') || method.contains('.') || method.contains(':') {
+        return s.to_string();
+    }
+    let last = parent.rsplit("::").next().unwrap_or(parent);
+    let last = last.strip_prefix(':').unwrap_or(last);
+    let type_shaped = last.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+        && last.chars().all(|c| c.is_ascii_alphanumeric());
+    if !type_shaped {
+        return s.to_string();
+    }
+    let method_is_type = method.chars().next().is_some_and(|c| c.is_ascii_uppercase());
+    if method_is_type {
+        if slash {
+            return format!("{parent}::{method}");
         }
         return s.to_string();
     }
-    if let Some(body) = s.strip_prefix(':') {
-        if let Some((ns, name)) = body.split_once('/') {
-            return ns_to_wat_path(ns, name);
-        }
+    if !slash {
+        return format!("{parent}/{method}");
     }
     s.to_string()
 }
@@ -867,6 +923,67 @@ mod tests {
         assert_eq!(
             canonical_identity("(:wat::core::Vector :- [:wat::core::i64])"),
             "(:wat::core::Vector :- [:wat::core::i64])"
+        );
+        // A capitalised method is a type. The registry key is `::`
+        // (`GetResult`, `GetResponse`, `Op`). A lowercase method is a
+        // function member. `rekey_type_member_functions` stores that as `/`.
+        assert_eq!(
+            canonical_identity(":wat::cache::Cache/GetResult"),
+            ":wat::cache::Cache::GetResult"
+        );
+        assert_eq!(
+            canonical_identity(":wat::cache::Cache::GetResult"),
+            ":wat::cache::Cache::GetResult"
+        );
+        assert_eq!(
+            canonical_identity("wat.cache.Cache/GetResult"),
+            ":wat::cache::Cache::GetResult"
+        );
+        assert_eq!(
+            canonical_identity(":wat::cache::Cache::GetResponse"),
+            ":wat::cache::Cache::GetResponse"
+        );
+        assert_eq!(
+            canonical_identity(":wat::cache::Cache/GetResponse"),
+            ":wat::cache::Cache::GetResponse"
+        );
+        assert_eq!(
+            canonical_identity(":my::Counter/Op"),
+            ":my::Counter::Op"
+        );
+        assert_eq!(
+            canonical_identity(":my::Counter::Reply"),
+            ":my::Counter::Reply"
+        );
+        assert_eq!(
+            canonical_identity(":wat::cache::Lru::get"),
+            ":wat::cache::Lru/get"
+        );
+        assert_eq!(
+            canonical_identity(":wat::cache::Lru/get"),
+            ":wat::cache::Lru/get"
+        );
+        assert_eq!(
+            canonical_identity("wat.cache.Lru/get"),
+            ":wat::cache::Lru/get"
+        );
+        assert_eq!(
+            canonical_identity(":wat::io::IOReader::ReadFrameOutcome"),
+            ":wat::io::IOReader::ReadFrameOutcome"
+        );
+        assert_eq!(canonical_identity(":evt::G::Hi"), ":evt::G::Hi");
+        assert_eq!(canonical_identity("evt.G/Hii"), ":evt::G::Hii");
+        assert_eq!(
+            canonical_identity(":wat::core::i64::to-string"),
+            ":wat::core::i64::to-string"
+        );
+        assert_eq!(
+            canonical_identity(":wat::kernel::StdOut::write/Request"),
+            ":wat::kernel::StdOut::write/Request"
+        );
+        assert_eq!(
+            canonical_identity(":u::Demo::Has::has"),
+            ":u::Demo::Has/has"
         );
     }
 }

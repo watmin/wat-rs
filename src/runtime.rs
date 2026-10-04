@@ -1795,24 +1795,10 @@ pub(crate) fn eval_inner(
             // `wat.spawn.Locus/launch`; the macro stores that keyword, it does
             // not look the symbol up. Same join as a call head.
             if ident.is_reference() {
-                // Stone 255.88 — a `/` in the local name is a name character.
-                // `u/a/b` is `:u::a/b`. `wat.core.Option/expect` (method
-                // `expect`) still takes the member join below.
-                if ident.method().contains('/') {
-                    let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
-                    return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
-                }
-                let primary = match sym.types() {
-                    Some(types) => {
-                        crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
-                    }
-                    None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
-                };
-                let kw = if receiver_is_member_shaped(ident.receiver()) {
-                    join_the_registry_holds(primary, sym)
-                } else {
-                    primary
-                };
+                // Same keyword a call would dispatch, including the join the
+                // registry holds. Rete constraints read this function so a
+                // value and a constraint compare one identity.
+                let kw = reference_symbol_keyword(ident, sym);
                 return eval_inner(&WatAST::Keyword(kw, span.clone()), env, sym);
             }
             Err(RuntimeError::new(
@@ -1877,6 +1863,32 @@ pub fn eval(
 /// A namespace dot (`wat.core/map`) is not a member join. The type segment
 /// is the last component before the slash, and it is capitalised
 /// (`wat.core.Fault/of`, `rust.sqlite.Connection/select`).
+/// The keyword a reference symbol names in value position.
+///
+/// A `/` inside the local name is a name character (`u/a/b` → `:u::a/b`).
+/// Otherwise the path is `reconstruct_call_path` (a known type joins with
+/// `/`, a namespace with `::`), and a capitalised receiver asks which of
+/// the two joins the registry actually holds.
+pub(crate) fn reference_symbol_keyword(
+    ident: &crate::scope::Identifier,
+    sym: &SymbolTable,
+) -> String {
+    if ident.method().contains('/') {
+        return crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
+    }
+    let primary = match sym.types() {
+        Some(types) => {
+            crate::types::reconstruct_call_path(ident.receiver(), ident.method(), types)
+        }
+        None => crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method()),
+    };
+    if receiver_is_member_shaped(ident.receiver()) {
+        join_the_registry_holds(primary, sym)
+    } else {
+        primary
+    }
+}
+
 fn receiver_is_member_shaped(receiver: &str) -> bool {
     let last = receiver.rsplit(['.', ':']).next().unwrap_or("");
     last.chars().next().is_some_and(|c| c.is_uppercase())

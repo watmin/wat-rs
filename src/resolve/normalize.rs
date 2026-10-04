@@ -207,7 +207,9 @@ pub fn normalize_stored_function_bodies(
             }
         }
         let _frame = FrameGuard::push_with(keys);
-        let new = normalize_form(body, symbols, macros, &mut errors);
+        // The body root is a value. A bare `t/pi` is the keyword the `def`
+        // registered; a list is still a call, and its head stays strict.
+        let new = normalize_value_position(body, symbols, macros, &mut errors);
         drop(_frame);
         symbols.replace_wat_body(&path, new);
     }
@@ -476,9 +478,15 @@ fn normalize_value_position(
             match resolve_namespaced_symbol(ident.as_str(), span, sym, macros, false) {
                 Ok(kw) => kw,
                 Err(_) => {
-                    let namespace = wat_reader::identifier::receiver(ident.as_str());
-                    let local_name = wat_reader::identifier::method(ident.as_str());
-                    WatAST::Keyword(ns_to_wat_path(namespace, local_name), span.clone())
+                    // The same door as a constraint operand
+                    // (`reference_symbol_keyword` / `canonical_identity`).
+                    // `ns_to_wat_path` alone leaves `:kw::Req::foo` while the
+                    // member key is `:kw::Req/foo`, so a keyword constant in a
+                    // fact and the same constant in a rete test compared unequal.
+                    WatAST::Keyword(
+                        crate::edn::render::canonical_identity(ident.as_str()),
+                        span.clone(),
+                    )
                 }
             }
         }
@@ -584,7 +592,7 @@ fn normalize_matches(
     let mut iter = items.into_iter();
     out.extend(iter.next()); // matches? head, as-is
     if let Some(subject) = iter.next() {
-        out.push(normalize_form(subject, sym, macros, errors)); // subject: code
+        out.push(normalize_value_position(subject, sym, macros, errors)); // subject: value
     }
     out.extend(iter); // pattern + any extra args: data, as-is
     out
@@ -603,7 +611,7 @@ fn normalize_match(
     let mut iter = items.into_iter();
     out.extend(iter.next()); // match head, as-is
     if let Some(scrutinee) = iter.next() {
-        out.push(normalize_form(scrutinee, sym, macros, errors)); // scrutinee: code
+        out.push(normalize_value_position(scrutinee, sym, macros, errors)); // scrutinee: value
     }
     for arm in iter {
         match arm {
@@ -624,7 +632,7 @@ fn normalize_match(
                             new_arm.push(rebind_two_element_pattern(pat));
                         }
                         if let Some(body) = body {
-                            new_arm.push(normalize_form(body, sym, macros, errors));
+                            new_arm.push(normalize_value_position(body, sym, macros, errors));
                         }
                     }
                     3 => {
@@ -644,7 +652,7 @@ fn normalize_match(
                             new_arm.push(rebind_variant_fields(fields));
                         }
                         if let Some(body) = body {
-                            new_arm.push(normalize_form(body, sym, macros, errors));
+                            new_arm.push(normalize_value_position(body, sym, macros, errors));
                         }
                     }
                     _ => new_arm.extend(arm_items),
@@ -658,7 +666,7 @@ fn normalize_match(
                 let mut ai = arm_items.into_iter();
                 new_arm.extend(ai.next());
                 if let Some(body) = ai.next() {
-                    new_arm.push(normalize_form(body, sym, macros, errors));
+                    new_arm.push(normalize_value_position(body, sym, macros, errors));
                 }
                 new_arm.extend(ai);
                 out.push(WatAST::List(new_arm, arm_span));
@@ -799,7 +807,7 @@ fn normalize_make_rule_condition(
     let mut new_c = Vec::with_capacity(citer.len().max(1));
     new_c.extend(citer.next()); // where head, as-is
     for body in citer {
-        new_c.push(normalize_form(body, sym, macros, errors)); // body: code
+        new_c.push(normalize_value_position(body, sym, macros, errors)); // body: value
     }
     WatAST::List(new_c, cspan)
 }
@@ -821,11 +829,15 @@ fn normalize_quasiquote_template(
     if let WatAST::List(items, span) = node {
         if let Some(head) = items.first() {
             if is_unquote_escape(head) {
-                // Escape: argument is live code — full normalization.
-                let new_items = items
-                    .into_iter()
-                    .map(|c| normalize_form(c, sym, macros, errors))
-                    .collect();
+                // The marker head is a call. Its argument is a value: an
+                // unregistered `foo/bar` is the keyword `:foo::bar`, the
+                // same literal the keyword spelling of the template holds.
+                let mut iter = items.into_iter();
+                let mut new_items = Vec::new();
+                if let Some(h) = iter.next() {
+                    new_items.push(normalize_form(h, sym, macros, errors));
+                }
+                new_items.extend(iter.map(|c| normalize_value_position(c, sym, macros, errors)));
                 return WatAST::List(new_items, span);
             }
         }
@@ -1130,12 +1142,12 @@ fn normalize_scoped_let(
     let mut new_pairs = Vec::with_capacity(pairs.len());
     let mut pit = pairs.into_iter();
     while let (Some(pat), Some(rhs)) = (pit.next(), pit.next()) {
-        let rhs = normalize_form(rhs, sym, macros, errors);
+        let rhs = normalize_value_position(rhs, sym, macros, errors);
         new_pairs.push(rebind_let_pattern(pat));
         new_pairs.push(rhs);
     }
     let mut out = vec![head, WatAST::Vector(new_pairs, bspan)];
-    out.extend(iter.map(|c| normalize_form(c, sym, macros, errors)));
+    out.extend(iter.map(|c| normalize_value_position(c, sym, macros, errors)));
     out
 }
 
@@ -1198,7 +1210,7 @@ fn normalize_scoped_fn(
         let new = if prev_return {
             normalize_type_slot(c, sym, macros, errors)
         } else {
-            normalize_form(c, sym, macros, errors)
+            normalize_value_position(c, sym, macros, errors)
         };
         out.push(new);
         prev_return = this_return;
