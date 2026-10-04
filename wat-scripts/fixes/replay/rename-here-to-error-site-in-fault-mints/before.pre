@@ -1,0 +1,7 @@
+(:wat::core::defn :user::mk [] -> :wat::query::Fault
+  (:wat::query::Fault :message "boom" :location (:wat::kernel::here)))
+
+(:wat::core::defmacro :wat::core::Fault/of
+  [msg <- :wat::WatAST]
+  -> :wat::WatAST
+  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) ))

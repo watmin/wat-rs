@@ -18914,6 +18914,19 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
+    // :wat::kernel::error-site — excursus 003 F2. `here`'s DERIVED sibling: the
+    // location an error minted here should carry (D4's rule, exposed to wat).
+    // Same shape as `here` — nullary: [] -> :wat::core::Span.
+    env.register(
+        ":wat::kernel::error-site".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![],
+            ret: TypeExpr::Path(":wat::core::Span".into()),
+            rest_param_type: None,
+        },
+    );
+
     // Integer arithmetic — strict i64 × i64 → i64 under the
     // `:wat::core::i64` namespace. Stone 237.8b — drop '2 suffix;
     // per-Type binary primitives are strictly 2-ary Rust intrinsics;

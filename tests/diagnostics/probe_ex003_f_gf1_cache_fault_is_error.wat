@@ -4,8 +4,9 @@
 ;; Excursus 003 strike F, GF1: drives a REAL `:wat::cache::Fault` producer —
 ;; `:wat::cache::Lru/new` with a non-positive capacity — and proves the fault value
 ;; satisfies `:wat::core::Error`: accepted where `[e <- :wat::core::Error]` is declared,
-;; round-trips through `edn::write`/`edn::read`, and carries a REAL `:location` (the lift
-;; site inside wat/cache.wat), never a placeholder.
+;; round-trips through `edn::write`/`edn::read`, and carries a REAL `:location` — strike F2
+;; (GF2a): THIS FILE's own call site, derived by `:wat::kernel::error-site`, never a
+;; placeholder and never `wat/cache.wat`'s own lift-site line.
 
 (:wat::core::defn :probe::describe [e <- :wat::core::Error] -> :wat::core::String
   (:wat::core::Error/message e))

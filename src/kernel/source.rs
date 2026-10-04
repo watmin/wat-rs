@@ -1,14 +1,15 @@
 //! Kernel sub-module mirroring `src/intrinsic/kernel/source.rs` — arc 109
 //! Stone B (the seven kernel sub-modules). Four items backing the edge
-//! file's four `@Category Reflection` verbs — `eval_kernel_here` (`here`),
-//! `eval_kernel_call_site` (`call-site`), `eval_kernel_macro_call_site`
+//! file's four original `@Category Reflection` verbs — `eval_kernel_here`
+//! (`here`), `eval_kernel_call_site` (`call-site`), `eval_kernel_macro_call_site`
 //! (`macro-call-site`) — plus `bound_names`, a private helper serving the
 //! source-position family: it supplies the field names for the
 //! `:wat::spawn::Bound` record `eval_listener_prime`'s thread-tier arm
 //! constructs (now in `src/kernel/resource.rs`), read from the
 //! macro-generated `BOUND_FIELDS` const that stays in `runtime.rs` (its
 //! `wat_field_names_from!` invocation is not itself one of this stone's 34
-//! named items).
+//! named items). Excursus 003 F2 adds a fifth: `eval_kernel_error_site`
+//! (`error-site`), `here`'s derived sibling — see its own doc.
 //!
 //! Functions lifted out of `runtime.rs` — see `src/kernel/mod.rs` for the
 //! layer's scope. Bodies verbatim; only the visibility keyword changed.
@@ -38,6 +39,41 @@ pub(crate) fn eval_kernel_here(args: &[WatAST], list_span: &Span) -> Result<Valu
         .into());
     }
     Ok(value_from_span(list_span.clone()))
+}
+
+/// `(:wat::kernel::error-site) -> :wat::core::Span` — excursus 003 F2.
+///
+/// `here`'s DERIVED sibling: the location an error minted HERE should carry, by the exact
+/// same rule `RuntimeError::new` applies to every RAISED error (D4,
+/// [`crate::value::signal::derive_primary_location_and_frames`], reached through the SAME
+/// fn — not a second copy of the rule, per GF2b). This call form's own `list_span` (the
+/// same lexical fact `here` returns, including whatever a macro expansion has stamped onto
+/// it — see `wat/core.wat`'s `Fault/of`) is already `:location` when it is user source;
+/// otherwise the answer is the innermost `CALL_STACK` frame whose file is user source. When
+/// no frame is in user source (a stdlib fault minted with no user caller on the stack —
+/// D4's own G4 arm), returns `list_span` unchanged: there is nothing more local to blame.
+///
+/// A stdlib fault-mint site calls this in place of `(:wat::kernel::here)` so a RETURNED
+/// `:wat::core::Error`-conforming value locates at the user's own line, never the stdlib's
+/// (`cache::Fault`/`sqlite::Fault`/`query::Fault`/`Fault/of` — C-114's defect, in a RETURNED
+/// value this time). User code calling `error-site` directly is unaffected: in user source,
+/// `error-site` answers exactly as `here` would.
+pub(crate) fn eval_kernel_error_site(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::kernel::error-site";
+    if !args.is_empty() {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 0,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let (location, _wat_frames, _frames_elided) =
+        crate::value::signal::derive_primary_location_and_frames(list_span.clone());
+    Ok(value_from_span(location))
 }
 
 /// `(:wat::kernel::call-site)` — nullary; returns the caller's

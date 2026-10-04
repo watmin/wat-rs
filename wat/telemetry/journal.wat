@@ -131,16 +131,16 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                   (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
                 [:wat::kernel::RecvOutcome.Stopped {}
                   (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                 [:wat::kernel::RecvOutcome.Closed {}
                   (:wat::telemetry::Journal::WriteMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})])]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})])]
        (:wat::service::Outcome.Reply {:state s :reply wresp})))
 
    (write-logs [s ctx req]
@@ -175,16 +175,16 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                   (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
                 [:wat::kernel::RecvOutcome.Stopped {}
                   (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                 [:wat::kernel::RecvOutcome.Closed {}
                   (:wat::telemetry::Journal::WriteLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})])]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})])]
        (:wat::service::Outcome.Reply {:state s :reply wresp})))
 
    ;; query-metrics — scan the namespace's Metric partition over [time-lo, time-hi], hydrate each
@@ -227,16 +227,16 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                   (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
                 [:wat::kernel::RecvOutcome.Stopped {}
                   (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                 [:wat::kernel::RecvOutcome.Closed {}
                   (:wat::telemetry::Journal::QueryMetricsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})])]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})])]
        (:wat::service::Outcome.Reply {:state s :reply qresp})))
 
    ;; query-logs — the same for the Log partition.
@@ -278,16 +278,16 @@
                 ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
                   (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                 ;; (the operation cannot complete either way) with the TRUE reason: the
                 ;; store peer was alive and the substrate was asked to stop.
                 [:wat::kernel::RecvOutcome.Stopped {}
                   (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                 [:wat::kernel::RecvOutcome.Closed {}
                   (:wat::telemetry::Journal::QueryLogsResponse.Fatal
-                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})])]
+                    {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})])]
        (:wat::service::Outcome.Reply {:state s :reply qresp})))
 
    ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
@@ -346,19 +346,19 @@
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        [:wat::kernel::RecvOutcome.Lost {:cause cause}
                          (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                        ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                        ;; (the operation cannot complete either way) with the TRUE reason: the
                        ;; store peer was alive and the substrate was asked to stop.
                        [:wat::kernel::RecvOutcome.Stopped {}
                          (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                        [:wat::kernel::RecvOutcome.Closed {}
                          (:wat::telemetry::Journal::SiftLogsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})]))
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})]))
                    (:wat::telemetry::Journal::SiftLogsResponse.Fatal
                      {:err (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total" :location (:wat::kernel::here)))}))]
+                       (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total" :location (:wat::kernel::error-site)))}))]
        (:wat::service::Outcome.Reply {:state s :reply qresp})))
 
    ;; sift-metrics — the mechanical twin, over the Metric partition.
@@ -412,17 +412,17 @@
                        ;; Fatal response value and KEEP SERVING (the client-triggerable-DoS arc forbids raise).
                        [:wat::kernel::RecvOutcome.Lost {:cause cause}
                          (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here)))})]
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site)))})]
                        ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape
                        ;; (the operation cannot complete either way) with the TRUE reason: the
                        ;; store peer was alive and the substrate was asked to stop.
                        [:wat::kernel::RecvOutcome.Stopped {}
                          (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::here)))})]
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: stop requested mid-call — the store peer was ALIVE" :location (:wat::kernel::error-site)))})]
                        [:wat::kernel::RecvOutcome.Closed {}
                          (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
-                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::here)))})]))
+                           {:err (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed" :location (:wat::kernel::error-site)))})]))
                    (:wat::telemetry::Journal::SiftMetricsResponse.Fatal
                      {:err (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total" :location (:wat::kernel::here)))}))]
+                       (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total" :location (:wat::kernel::error-site)))}))]
        (:wat::service::Outcome.Reply {:state s :reply qresp})))])

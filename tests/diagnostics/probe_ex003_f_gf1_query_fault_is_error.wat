@@ -6,9 +6,12 @@
 ;; nonexistent directory) becomes a `:wat::sqlite::Fault`, which `lift-fault` narrows into a
 ;; `:wat::query::Fault`, PROPAGATING the original `:location` rather than minting a new one
 ;; at the narrowing call site. Proves the value satisfies `:wat::core::Error`: accepted where
-;; `[e <- :wat::core::Error]` is declared, round-trips through `edn::write`/`edn::read`, and
-;; its `:location` is the ORIGINAL sqlite `classify` call site (wat/sqlite.wat), not
-;; `lift-fault`'s own call site (wat/query/sqlite-store.wat).
+;; `[e <- :wat::core::Error]` is declared, round-trips through `edn::write`/`edn::read`.
+;;
+;; Strike F2 (GF2a): the ORIGINAL sqlite `classify` call site now derives a user-source
+;; `:location` (via `:wat::kernel::error-site`) rather than minting `wat/sqlite.wat`'s own
+;; line, so the location `lift-fault` propagates here is THIS FILE's own call site — never
+;; `wat/sqlite.wat`, and never `lift-fault`'s own call site (wat/query/sqlite-store.wat).
 
 (:wat::core::defn :probe::describe [e <- :wat::core::Error] -> :wat::core::String
   (:wat::core::Error/message e))

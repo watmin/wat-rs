@@ -1,0 +1,4 @@
+spec (:wat::query::Fault :message "boom" :location (:wat::kernel::error-site))) :: keyword rename, `:wat::kernel::here` -> `:wat::kernel::error-site`, over every call site in
+spec-before (:wat::query::Fault :message "boom" :location (:wat::kernel::here))) :: keyword rename, `:wat::kernel::here` -> `:wat::kernel::error-site`, over every call site in
+spec `(:wat::core::Fault :message ~msg :location (:wat::kernel::error-site) )) :: keyword rename, `:wat::kernel::here` -> `:wat::kernel::error-site`, over every call site in
+spec-before `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) )) :: keyword rename, `:wat::kernel::here` -> `:wat::kernel::error-site`, over every call site in

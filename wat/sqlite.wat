@@ -46,9 +46,11 @@
 ;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): `location` conforms this record
 ;; to :wat::core::Error ({message location}) — it IS an error (carried in the Transient/
 ;; Constraint/Fatal recovery-axis enum, surfaced or retried by the caller). The Rust side
-;; (src/rust_deps/sqlite.rs) hands back only a raw (code,diagnostic,message) tuple with no span;
-;; `classify` below is the one wat call that mints this record, so its own call site is the span
-;; in hand.
+;; (src/rust_deps/sqlite.rs) hands back only a raw (code,diagnostic,message) tuple with no span.
+;; Strike F2 (BRIEF-shape-strike-F2-one-location-rule.md): `classify` below mints `:location`
+;; via `(:wat::kernel::error-site)`, never `(:wat::kernel::here)` — `here` would carry
+;; `classify`'s OWN stdlib line (C-114's defect, in a RETURNED value); `error-site` derives the
+;; user's own calling line instead, the same rule D4 applies to a raised error.
 (:wat::core::defrecord :wat::sqlite::Fault
   [op         <- :wat::core::keyword
    code       <- :wat::core::i64
@@ -88,7 +90,7 @@
      diagnostic (:wat::core::second raw)
      message    (:wat::core::third raw)
      fault      (:wat::sqlite::Fault :op op :code code :diagnostic diagnostic :message message
-                  :location (:wat::kernel::here))]
+                  :location (:wat::kernel::error-site))]
     (:wat::core::if (:wat::core::or (:wat::core::= code 5) (:wat::core::= code 6))
       (:wat::sqlite::Error.Transient {:fault fault})
       (:wat::core::if (:wat::core::= code 19)

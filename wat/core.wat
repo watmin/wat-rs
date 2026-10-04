@@ -2180,9 +2180,16 @@
 ;; identically) so it may be passed to any [e <- :wat::core::Error] param.
 ;;
 ;; Smart constructor: :wat::core::Fault/of captures the CALL SITE location via
-;; (:wat::kernel::here) spliced into the expansion — it is a MACRO (not a fn)
-;; precisely so the (here) form fires at the caller's source coordinate, not at
-;; the constructor's own location.
+;; (:wat::kernel::error-site) spliced into the expansion — it is a MACRO (not a fn)
+;; precisely so the form fires at the caller's own source coordinate, not at the
+;; constructor's own location. Excursus 003 strike F2
+;; (BRIEF-shape-strike-F2-one-location-rule.md item 4): `error-site`, not `here` —
+;; when the caller is user code the two answer identically (a span that is already
+;; user source is error-site's first branch, byte-for-byte what `here` gives); when
+;; the caller is ITSELF stdlib (e.g. wat/spawn.wat's `message-only-failure`, which
+;; constructs a Fault/of on the stdlib's own behalf), `error-site` derives further up
+;; the live call stack to the innermost frame that IS user source, so the minted
+;; Fault still locates at a real user line rather than the stdlib call site.
 (:wat::core::defrecord :wat::core::Fault
   [message  <- :wat::core::String
    location <- :wat::core::Span
@@ -2191,7 +2198,7 @@
 (:wat::core::defmacro :wat::core::Fault/of
   [msg <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::Fault :message ~msg :location (:wat::kernel::here) ))
+  `(:wat::core::Fault :message ~msg :location (:wat::kernel::error-site) ))
 
 ;; ─── Excursus 003 strike E: :wat::core::EvalError — RETIRED ────────────────
 ;;

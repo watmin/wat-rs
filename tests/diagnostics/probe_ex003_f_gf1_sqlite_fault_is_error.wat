@@ -5,8 +5,9 @@
 ;; nonexistent directory, which `:wat::sqlite::classify` (wat/sqlite.wat) lifts into
 ;; `Error.Fatal {fault}` — and proves the fault value satisfies `:wat::core::Error`:
 ;; accepted where `[e <- :wat::core::Error]` is declared, round-trips through
-;; `edn::write`/`edn::read`, and carries a REAL `:location` (the `classify` call site in
-;; wat/sqlite.wat), never a placeholder.
+;; `edn::write`/`edn::read`, and carries a REAL `:location` — strike F2 (GF2a): THIS
+;; FILE's own call site, derived by `:wat::kernel::error-site`, never a placeholder and
+;; never `wat/sqlite.wat`'s own `classify` mint-site line.
 
 (:wat::core::defn :probe::describe [e <- :wat::core::Error] -> :wat::core::String
   (:wat::core::Error/message e))

@@ -216,6 +216,15 @@ impl RuntimeError {
 /// C-114: an `i64` overflow inside `(:wat::core::+ …)` used to locate at
 /// `wat/core.wat:66` (the stdlib's own raise line) rather than the user's own line.
 ///
+/// `pub(crate)` since excursus 003 F2: this is also the ONE derivation
+/// `:wat::kernel::error-site` exposes to wat (`src/kernel/source.rs::eval_kernel_error_site`,
+/// wired via `src/intrinsic/kernel/source.rs`) — stdlib fault-mint sites
+/// (`wat/cache.wat`, `wat/sqlite.wat`, `wat/query.wat`, `wat/telemetry/*`, `Fault/of` in
+/// `wat/core.wat`) call it in place of `(:wat::kernel::here)` so a RETURNED fault's
+/// `:location` is derived by the exact same rule as a RAISED error's — F2's "one location
+/// rule" invariant (GF2b). The wat-facing caller discards the frames/elided halves of the
+/// tuple; only RAISED errors (`RuntimeError::new`) need those.
+///
 /// Strike D folds what used to be a SEPARATE "fabricate a raise frame, prepend it"
 /// step directly into frame reconstruction: for the non-G2 case, `capped_frames_for_trace`
 /// is called WITH `span` as the raise span, so the innermost frame is correctly paired
@@ -236,7 +245,7 @@ impl RuntimeError {
 ///   `UserMainMissing` startup path is the one live producer: `wat_frames` is empty
 ///   because no `apply_function` call has run yet on this thread), `span` is kept —
 ///   there is nothing more local to point at (G4).
-fn derive_primary_location_and_frames(
+pub(crate) fn derive_primary_location_and_frames(
     span: Span,
 ) -> (Span, Vec<crate::value::frame::Frame>, usize) {
     if crate::value::frame::is_user_source_file(&span.file) {

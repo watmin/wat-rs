@@ -106,8 +106,11 @@
 ;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): `location` conforms this
 ;; record to :wat::core::Error ({message location}) — it IS an error (carried in every
 ;; `Lru/new`/`Lru/put` Result's Err). The Rust side (src/rust_deps/cache.rs) hands back
-;; only a raw (code,diagnostic,message) tuple with no span; each lift site below is the
-;; one wat call that mints this record, so its own call site is the span in hand.
+;; only a raw (code,diagnostic,message) tuple with no span. Strike F2
+;; (BRIEF-shape-strike-F2-one-location-rule.md): each lift site below mints `:location` via
+;; `(:wat::kernel::error-site)`, never `(:wat::kernel::here)` — `here` would carry the lift
+;; site's OWN stdlib line (C-114's defect, in a RETURNED value); `error-site` derives the
+;; user's own calling line instead, the same rule D4 applies to a raised error.
 (:wat::core::defrecord :wat::cache::Fault
   [code       <- :wat::core::i64
    diagnostic <- :wat::core::String
@@ -132,7 +135,7 @@
                   :code       (:wat::core::first raw)
                   :diagnostic (:wat::core::second raw)
                   :message    (:wat::core::third raw)
-                  :location   (:wat::kernel::here))})]))
+                  :location   (:wat::kernel::error-site))})]))
 
 ;; ─── put ─────────────────────────────────────────────────────────────────────────────────────
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
@@ -162,7 +165,7 @@
                   :code       (:wat::core::first raw)
                   :diagnostic (:wat::core::second raw)
                   :message    (:wat::core::third raw)
-                  :location   (:wat::kernel::here))})]))
+                  :location   (:wat::kernel::error-site))})]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss. A non-hashable `k` is a miss:

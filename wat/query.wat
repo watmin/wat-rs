@@ -84,10 +84,14 @@
 ;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): `location` conforms this record
 ;; to :wat::core::Error ({message location}) — it IS an error (the `reason` every Transient/
 ;; Constraint/Fatal recovery-axis variant carries; the caller retries, surfaces, or aborts on
-;; it). Every construction below mints `:location` at its own wat call site via
-;; `(:wat::kernel::here)` — the span in hand where each message is composed — EXCEPT
-;; `wat/query/sqlite-store.wat`'s `lift-fault`, which already holds a MORE honest span: the
-;; originating `:wat::sqlite::Fault`'s own `:location`, propagated rather than re-minted.
+;; it). Strike F2 (BRIEF-shape-strike-F2-one-location-rule.md): every construction below mints
+;; `:location` via `(:wat::kernel::error-site)`, never `(:wat::kernel::here)` — `here` would
+;; carry the stdlib's own mint-site line (C-114's defect, in a RETURNED value); `error-site`
+;; derives the SAME location D4 derives for a raised error — the caller's own line when the
+;; caller is user code, else the innermost user-source frame on the call stack — EXCEPT
+;; `wat/query/sqlite-store.wat`'s `lift-fault`, which propagates the originating
+;; `:wat::sqlite::Fault`'s own (now equally user-derived) `:location` rather than minting a
+;; fresh one.
 (:wat::core::defrecord :wat::query::Fault
   [message  <- :wat::core::String
    location <- :wat::core::Span])
@@ -502,7 +506,7 @@
                             logs)
                           :cursor next-cur})
                         (~resp-fat-kw
-                          {:err (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs" :location (:wat::kernel::here))}))]
+                          {:err (:wat::query::Fault :message "sift-rules: a Log message type is not among :defs" :location (:wat::kernel::error-site))}))]
                     ;; propagate the budget signal EXPLICITLY — never lump RequestTooLarge into Fatal (ruling A).
                     [:wat::telemetry::Journal::QueryLogsResponse.RequestTooLarge {:bytes bytes :cap cap}
                       (~resp-rtl-kw {:bytes bytes :cap cap})]
@@ -514,18 +518,18 @@
                     ;; service for every client — the exact DoS this stone closes, one tier up.
                     [:wat::telemetry::Journal::QueryLogsResponse.RequestMalformed {:path mpath :expected mexpected :got mgot}
                       (~resp-rm-kw {:path mpath :expected mexpected :got mgot})]
-                    [_ (~resp-fat-kw {:err (:wat::query::Fault :message "sift-rules: journal query-logs failed" :location (:wat::kernel::here))})])]
+                    [_ (~resp-fat-kw {:err (:wat::query::Fault :message "sift-rules: journal query-logs failed" :location (:wat::kernel::error-site))})])]
                 [:wat::kernel::RecvOutcome.Lost {:cause cause}
-                  (~resp-fat-kw {:err (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::here))})]
+                  (~resp-fat-kw {:err (:wat::query::Fault :message (:wat::kernel::LociDiedError/message cause) :location (:wat::kernel::error-site))})]
                 ;; arc 278 #73 — a stop reached this call, not a close. Same Fatal shape (the sift
                 ;; cannot complete either way) with the TRUE reason: the journal peer was alive.
                 ;; This arm is macro-generated, so it reports at the `sift-rules-defsvc` CALL SITE,
                 ;; never here — which is why it was missed on the first stdlib pass and found by a
                 ;; rider hitting STOP-1 in tests/services.
                 [:wat::kernel::RecvOutcome.Stopped {}
-                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE" :location (:wat::kernel::here))})]
+                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: stop requested mid-sift — the journal peer was ALIVE" :location (:wat::kernel::error-site))})]
                 [:wat::kernel::RecvOutcome.Closed {}
-                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: journal peer closed" :location (:wat::kernel::here))})])}))]))))
+                  (~resp-fat-kw {:err (:wat::query::Fault :message "query.wat: journal peer closed" :location (:wat::kernel::error-site))})])}))]))))
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
