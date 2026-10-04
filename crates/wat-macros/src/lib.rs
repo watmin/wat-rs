@@ -878,7 +878,16 @@ pub fn test(input: TokenStream) -> TokenStream {
             // while eliminating the parallel-load false positives.
             // Tests that genuinely need >5s still annotate explicitly
             // via `:wat::test::time-limit`.
-            const DEFAULT_TIME_LIMIT_MS: u64 = 5000;
+            //
+            // Raised from 5000ms to 20000ms 2026-10-03, a STOPGAP on the builder's ruling
+            // (docs/arc/2026/10/name-resolution/). Measured evidence:
+            // `reductions-2arity-on-empty-vector-raises` alone (NEXTEST_TEST_THREADS=1) took
+            // 1.69 / 1.90 / 1.74 / 1.78 / 1.81s across five runs, but exceeded 5000ms in a
+            // floor run where a different job held a CPU core for the whole run -- a
+            // wall-clock deadline counts OTHER processes' time too, so a busy machine reads
+            // as a hang even when the test itself is nowhere near its budget. The real fix
+            // lives on another branch; at merge, this one line takes THAT branch's side.
+            const DEFAULT_TIME_LIMIT_MS: u64 = 20000;
             let ms = site.time_limit_ms.unwrap_or(DEFAULT_TIME_LIMIT_MS);
             // Arc 138 F-NAMES-1f: include the deftest's .wat
             // file:line:col and FQDN keyword so the panic body
