@@ -1,0 +1,6 @@
+(:wat::core::defrecord :wat::doctest::Violation
+  [fqdn   <- :wat::core::keyword
+   reason <- :wat::core::String])
+
+(:wat::core::defn :wat::doctest::describe [f <- :wat::doctest::Violation] -> :wat::core::String
+  (:wat::doctest::Violation/reason f))

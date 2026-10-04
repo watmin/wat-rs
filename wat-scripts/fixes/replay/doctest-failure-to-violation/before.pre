@@ -1,0 +1,6 @@
+(:wat::core::defrecord :wat::doctest::Failure
+  [fqdn   <- :wat::core::keyword
+   reason <- :wat::core::String])
+
+(:wat::core::defn :wat::doctest::describe [f <- :wat::doctest::Failure] -> :wat::core::String
+  (:wat::doctest::Failure/reason f))

@@ -43,11 +43,18 @@
 (:wat::core::typealias :wat::sqlite::ReadConnection :rust::sqlite::ReadConnection)
 
 ;; ─── the error channel — mirrors :wat::query::Fault/Error field-for-field ─────────────────────
+;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): `location` conforms this record
+;; to :wat::core::Error ({message location}) — it IS an error (carried in the Transient/
+;; Constraint/Fatal recovery-axis enum, surfaced or retried by the caller). The Rust side
+;; (src/rust_deps/sqlite.rs) hands back only a raw (code,diagnostic,message) tuple with no span;
+;; `classify` below is the one wat call that mints this record, so its own call site is the span
+;; in hand.
 (:wat::core::defrecord :wat::sqlite::Fault
   [op         <- :wat::core::keyword
    code       <- :wat::core::i64
    diagnostic <- :wat::core::String
-   message    <- :wat::core::String])
+   message    <- :wat::core::String
+   location   <- :wat::core::Span])
 
 (:wat::core::defenum :wat::sqlite::Error :wat::enum::Pure
   :Transient  [fault <- :wat::sqlite::Fault]   ;; SQLITE_BUSY/LOCKED — retry
@@ -80,7 +87,8 @@
     [code       (:wat::core::first raw)
      diagnostic (:wat::core::second raw)
      message    (:wat::core::third raw)
-     fault      (:wat::sqlite::Fault :op op :code code :diagnostic diagnostic :message message)]
+     fault      (:wat::sqlite::Fault :op op :code code :diagnostic diagnostic :message message
+                  :location (:wat::kernel::here))]
     (:wat::core::if (:wat::core::or (:wat::core::= code 5) (:wat::core::= code 6))
       (:wat::sqlite::Error.Transient {:fault fault})
       (:wat::core::if (:wat::core::= code 19)

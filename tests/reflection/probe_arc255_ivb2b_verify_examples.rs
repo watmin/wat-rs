@@ -7,7 +7,7 @@
 //! the intrinsic is `pure ^ deterministic`; `run=false` (`@example-norun`) is
 //! SKIPPED (the guard against the self-referential seam — its own example is
 //! `@example-norun (:wat::intrinsic::examples)`). It returns the failures as a
-//! `Vector<:wat::doctest::Failure>`; empty = every doctest passed.
+//! `Vector<:wat::doctest::Violation>`; empty = every doctest passed.
 //!
 //! This is the one-liner-over-a-seam R2 named: `(verify-examples) ~= (verify
 //! (stdlib-sources))` — the surface that masks the depth.
@@ -76,7 +76,7 @@ fn verify_examples_failure_count() -> Result<usize, StartupError> {
             per-example. Check by re-reading that NOTE for a ruling before touching this."]
 fn verify_examples_reports_no_failures() {
     let n = verify_examples_failure_count()
-        .expect("(:wat::doctest::verify-examples) must eval to a Vector<Failure>");
+        .expect("(:wat::doctest::verify-examples) must eval to a Vector<Violation>");
     assert_eq!(
         n, 0,
         "every run=true intrinsic @example must pass its doctest + the pure^det cross-check; \

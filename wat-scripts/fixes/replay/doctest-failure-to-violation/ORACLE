@@ -1,0 +1,6 @@
+spec (:wat::core::defrecord :wat::doctest::Violation :: A plain PREFIX rename
+spec (:wat::core::defn :wat::doctest::describe [f <- :wat::doctest::Violation] -> :wat::core::String :: A plain PREFIX rename
+spec (:wat::doctest::Violation/reason f)) :: A plain PREFIX rename
+spec-before (:wat::core::defrecord :wat::doctest::Failure :: A plain PREFIX rename
+spec-before (:wat::core::defn :wat::doctest::describe [f <- :wat::doctest::Failure] -> :wat::core::String :: A plain PREFIX rename
+spec-before (:wat::doctest::Failure/reason f)) :: A plain PREFIX rename

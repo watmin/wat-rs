@@ -103,10 +103,16 @@
 ;; which verb refused. A three-variant enum here would claim a taxonomy this
 ;; surface does not have. ⚠ `code` is `0` at the one site that mints one: see the Rust doc for
 ;; why the column is carried anyway.
+;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): `location` conforms this
+;; record to :wat::core::Error ({message location}) — it IS an error (carried in every
+;; `Lru/new`/`Lru/put` Result's Err). The Rust side (src/rust_deps/cache.rs) hands back
+;; only a raw (code,diagnostic,message) tuple with no span; each lift site below is the
+;; one wat call that mints this record, so its own call site is the span in hand.
 (:wat::core::defrecord :wat::cache::Fault
   [code       <- :wat::core::i64
    diagnostic <- :wat::core::String
-   message    <- :wat::core::String])
+   message    <- :wat::core::String
+   location   <- :wat::core::Span])
 
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `capacity` is the hard bound on entry count; it must be positive — and a non-positive one is
@@ -125,7 +131,8 @@
         {:error (:wat::cache::Fault
                   :code       (:wat::core::first raw)
                   :diagnostic (:wat::core::second raw)
-                  :message    (:wat::core::third raw))})]))
+                  :message    (:wat::core::third raw)
+                  :location   (:wat::kernel::here))})]))
 
 ;; ─── put ─────────────────────────────────────────────────────────────────────────────────────
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
@@ -154,7 +161,8 @@
         {:error (:wat::cache::Fault
                   :code       (:wat::core::first raw)
                   :diagnostic (:wat::core::second raw)
-                  :message    (:wat::core::third raw))})]))
+                  :message    (:wat::core::third raw)
+                  :location   (:wat::kernel::here))})]))
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss. A non-hashable `k` is a miss:

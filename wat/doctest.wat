@@ -69,9 +69,9 @@
    alias-of      <- (:wat::core::Option :- [:wat::core::String])
    has-handler   <- :wat::core::bool])
 
-;; ─── Doctest failure record ───────────────────────────────────────────
+;; ─── Doctest violation record ──────────────────────────────────────────
 
-(:wat::core::defrecord :wat::doctest::Failure
+(:wat::core::defrecord :wat::doctest::Violation
   [fqdn   <- :wat::core::keyword
    reason <- :wat::core::String])
 
@@ -80,19 +80,24 @@
 ;; Folds over (:wat::intrinsic::examples) — the iv-b2-a reflection seam.
 ;; For each Example whose run=true:
 ;;   1. Cross-check: intrinsic must be pure∧deterministic (the @example
-;;      marker guarantees this; a mismatch is a Failure).
+;;      marker guarantees this; a mismatch is a Violation).
 ;;   2. Doctest: eval expr and expected via :wat::eval-ast!, compare with
-;;      :wat::core::=; a mismatch is a Failure.
+;;      :wat::core::=; a mismatch is a Violation.
 ;; run=false examples (@example-norun) are skipped.
-;; Returns (Vector :- [:wat::doctest::Failure]) — empty means all doctests passed.
+;; Returns (Vector :- [:wat::doctest::Violation]) — empty means all doctests passed.
+;;
+;; Excursus 003 strike F (AUDIT-the-shape-of-an-error.md F8): this is a domain OUTCOME,
+;; not an error — it never travels in a Result's Err, so it is named :wat::doctest::Violation
+;; (was :wat::doctest::Failure, a name claiming a conformance to :wat::core::Error this record
+;; never had), mirroring :wat::deporder::Violation's identical shape.
 
 (:wat::core::defn :wat::doctest::verify-examples
   []
-  -> (:wat::core::Vector :- [:wat::doctest::Failure])
+  -> (:wat::core::Vector :- [:wat::doctest::Violation])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::doctest::Failure])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::doctest::Violation])
                      ex  <- :wat::intrinsic::Example]
-      -> (:wat::core::Vector :- [:wat::doctest::Failure])
+      -> (:wat::core::Vector :- [:wat::doctest::Violation])
       ;; The Example values are Value::wat__Record (the seam builds the
       ;; :wat::core::Record::def representation), so the generated named accessors
       ;; :wat::intrinsic::Example/<field> work directly — no positional indexing.
@@ -103,8 +108,8 @@
                                                      (:wat::intrinsic::Example/pure ex)
                                                      (:wat::intrinsic::Example/deterministic ex)))
                                   (:wat::core::concat acc
-                                    (:wat::core::Vector :- [:wat::doctest::Failure]
-                                      (:wat::doctest::Failure
+                                    (:wat::core::Vector :- [:wat::doctest::Violation]
+                                      (:wat::doctest::Violation
                                         :fqdn (:wat::intrinsic::Example/fqdn ex)
                                         :reason "doctested @example on a non-pure∧deterministic intrinsic")))
                                   acc)
@@ -117,34 +122,34 @@
                     [:wat::core::Result.Ok {:value want}
                       (:wat::core::if (:wat::core::not (:wat::core::= got want))
                         (:wat::core::concat acc1
-                          (:wat::core::Vector :- [:wat::doctest::Failure]
-                            (:wat::doctest::Failure
+                          (:wat::core::Vector :- [:wat::doctest::Violation]
+                            (:wat::doctest::Violation
                               :fqdn fqdn
                               :reason "@example result did not match #=>")))
                         acc1)]
                     [:wat::core::Result.Err {:error err}
                       (:wat::core::concat acc1
-                        (:wat::core::Vector :- [:wat::doctest::Failure]
-                          (:wat::doctest::Failure
+                        (:wat::core::Vector :- [:wat::doctest::Violation]
+                          (:wat::doctest::Violation
                             :fqdn fqdn
                             :reason (:wat::string::concat
                                       "expected eval failed: "
                                       (:wat::kernel::Failure/message err)))))])]
                 [:wat::core::Result.Err {:error err}
                   (:wat::core::concat acc1
-                    (:wat::core::Vector :- [:wat::doctest::Failure]
-                      (:wat::doctest::Failure
+                    (:wat::core::Vector :- [:wat::doctest::Violation]
+                      (:wat::doctest::Violation
                         :fqdn fqdn
                         :reason (:wat::string::concat
                                   "expr eval failed: "
                                   (:wat::kernel::Failure/message err)))))])]
             [:wat::core::Option.None {}
               (:wat::core::concat acc1
-                (:wat::core::Vector :- [:wat::doctest::Failure]
-                  (:wat::doctest::Failure
+                (:wat::core::Vector :- [:wat::doctest::Violation]
+                  (:wat::doctest::Violation
                     :fqdn fqdn
                     :reason "run=true example missing expected")))]))
         ;; run=false: skip
         acc))
-    (:wat::core::Vector :- [:wat::doctest::Failure])
+    (:wat::core::Vector :- [:wat::doctest::Violation])
     (:wat::intrinsic::examples)))
