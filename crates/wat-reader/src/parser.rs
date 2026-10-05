@@ -1154,6 +1154,7 @@ mod tests {
         assert_eq!(crate::parse_one!(":k").unwrap(), kw(":k"));
     }
 
+    #[test]
     fn bound_namespace_lookalike_but_not_a_slash_boundary_still_works() {
         // `$boundary` shares the `$bound` PREFIX but is not the reserved
         // namespace segment (no `/` right after `$bound`) — must parse clean.

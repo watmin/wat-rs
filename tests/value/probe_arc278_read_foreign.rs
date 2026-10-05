@@ -14,7 +14,6 @@
 //!   (1) a foreign record containing a foreign variant field round-trips through read-foreign;
 //!   (2) strict `read` on the same input still errors UnknownTag.
 
-use std::sync::Arc;
 use wat::freeze::call_beside_value;
 use wat::runtime::{RuntimeErrorKind, Value};
 

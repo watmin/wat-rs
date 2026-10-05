@@ -14,7 +14,6 @@
 //! GREEN AFTER iv-b1: Bytes decorated to the full contract -> the macro parses +
 //!   carries the structured doc -> `metadata-of` emits `:added` and `:ret`.
 
-use std::sync::Arc;
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 

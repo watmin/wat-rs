@@ -21,7 +21,6 @@
 //! Run un-ignored to confirm RED; sonnet un-ignores after 255.1 lands (and then
 //! enriches these to assert the baseline KEYS, not just Some).
 
-use std::sync::Arc;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
