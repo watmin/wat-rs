@@ -132,3 +132,83 @@ The amend (`983f37362`) rules that an unqualified keyword's namespace is `$bare`
 ## What did not run
 
 No floor. No clippy. No ignore ledger. No fuzz cost. Nothing under `src/`, `crates/`, `wat/`, or `tests/` changes in this commit.
+
+## Amend 2 — a symbol is a value
+
+The amend (`f75e44ca077cbd6d1b43307a08659eb100341ce7`) accepts the STOP and rules S1. `0b2dcc1e2` is an ancestor of this score. The work is three commits on local `main`, none pushed:
+
+- `059f2af8024281cb7ef54844438c5bc9601a5e93` — `Value::Symbol` holds a `Name`. `defservice` passes names as symbols. A keyword holds a `Name`. An unqualified keyword is `{$bare, name}`. `<` is a name character. `:$bare/x` and `$bare/x` are refused.
+- `9854e3c66c7e30dfc5b52a58a348dcdc127ca68f` — a declared name written `ns/name` is namespaced. Bracket extends a keyword value as one pair. Enum-field maps and shipped def names keep the source `::` spelling through `canonical-identity`. A symbol is `Equatable`. `type-equal?` reads a symbol as the type it names.
+- `f8eaaa16e55fdf755b0a7b41f769c56a40b8cfa1` — the `$bare` refusal had been inserted between `#[test]` and `bound_namespace_lookalike_but_not_a_slash_boundary_still_works`, so that test left the suite. The attribute is back. Three probes that no longer build a keyword with `Arc::new` drop the unused import.
+
+`Value::Symbol` holds the same `Name` a keyword holds. `keyword_text` (`crates/wat-reader/src/identifier.rs:325`) prints `:k` when the namespace is `$bare`, otherwise `:{namespace}/{name}`. `symbol_text` (`:338`) prints the bare name when the namespace is `$bound` or `$bare`, otherwise `{namespace}/{name}`. `Name`'s `Display` is unchanged: it still writes `$bare/k` for an unqualified keyword. The keyword printer is the user-facing form.
+
+`from_symbol_text` (`:272`): a string that contains `::` goes through `from_keyword_body`, so the symbol and the keyword are one pair; a string with no `::` splits at the first `/`. A written `$bare` or `$bound` namespace is `None`. The Rust match in `src/intrinsic/symbol.rs` accepts one string or a namespace and a name. The checker scheme (`src/check.rs:22002`) is one `String` plus a rest `String`, result `:wat::type::symbol`. The `#[wat_intrinsic]` handler takes `&[WatAST]`, which the macro records as `Arity::Variadic` (`crates/wat-macros/src/wat_intrinsic.rs`). Callers under `wat/` pass one string. There is no `wat.core/resolve`. Resolving a symbol value is `apply`. The pre-existing `:wat::holon::Reckoner/resolve` is a different verb.
+
+`'` is quote sugar. The lexer emits `Token::Quote` (`crates/wat-reader/src/lexer.rs:487`). The parser wraps it as `:wat::core::quote` (`crates/wat-reader/src/parser.rs:450`).
+
+`wat.runtime/TypeInfo.name` is `wat.type/symbol` (`wat/runtime-typeinfo.wat:76`). `wat.process/Service.name` is `wat.type/symbol` (`wat/process.wat:83`). `compose-variant` returns `Value::symbol` (`src/reflect/verbs.rs:1980`). The checker still types that verb as `:wat::type::keyword` (`src/check.rs:3356`) and types `variant-parent-of` as `Option` of `:wat::type::keyword` (`:3308`) while the eval returns a symbol (`:1888`).
+
+`wat.fix/kw-text` runs `canonical-identity` on `":"` plus `keyword/to-string`, so a string-keyed enum map keeps the source `::` spelling `ast-name` returns (`wat/fix.wat:1551`).
+
+### Remaining `keyword/from-string` calls under `wat/`
+
+Grep of `from-string` under `wat/` this session. Six calls. None looks the result up as a function.
+
+| site | what it builds |
+|---|---|
+| `wat/telemetry/span.wat:170` | metric `:name` keyword, the duration key's printer body plus `/count`, stored on `wat.telemetry/Metric` |
+| `wat/telemetry/span.wat:171` | the same, plus `/duration` |
+| `wat/service.wat:1563` | the variant leaf keyword (pascal of the op) passed to `compose-variant` beside the service `Op` symbol |
+| `wat/service.wat:1567` | the same leaf beside the surface `Reply` symbol |
+| `wat/service.wat:2076` | the same leaf beside the protocol `Op` symbol |
+| `wat/service.wat:2079` | the same leaf beside the protocol `Reply` symbol |
+
+`compose-variant` concatenates. It does not look the leaf up. Comments that still name `keyword/from-string` in `wat/core.wat`, `wat/spawn.wat`, `wat/query.wat`, `wat/rete/compile.wat`, `wat/rete/oracle/accum-pass.wat`, and elsewhere in `wat/service.wat` are comments. `wat/bracket.wat`, `wat/fix.wat`, `wat/query.wat`, `wat/rete/compile.wat`, and `wat/rete/oracle/accum-pass.wat` build names with `wat.core/symbol`.
+
+The startup counter is gone. `kw_value_census` and `KW_FROM_STRING` are absent from the tree. The run that read 0 was before that removal and is not re-run here. `flat` stays. The text bridge stays. The reader stone was not started. `wat/kernel/services/stdio.wat` was not edited. `name-census.tsv` was not rewritten.
+
+### Floors
+
+Do not re-run `.floor/2026-10-05T06-25-09Z`. `raw.log:8396`:
+
+```
+Summary [ 422.177s] 6419 tests run: 6351 passed (28 slow), 68 failed, 24 skipped
+```
+
+Those 68 were cured in `9854e3c66`. Do not re-run `.floor/2026-10-05T07-00-54Z` either. Its `clean.log` Summary is `Summary [ 418.118s] 6420 tests run: 6420 passed (29 slow), 24 skipped`, and its test-name set against `.floor/2026-10-04T07-52-21Z` was MISSING 1: `wat-reader parser::tests::bound_namespace_lookalike_but_not_a_slash_boundary_still_works`. That is the attribute `f8eaaa16e` puts back.
+
+Acceptance floor `.floor/2026-10-05T07-14-37Z` at `f8eaaa16e55fdf755b0a7b41f769c56a40b8cfa1`. Doctests exit 0. Nextest run `5bbac7a1-474f-4dae-baf6-9ca5f7f1de3f`. The script printed:
+
+```
+[floor]     Summary [ 423.928s] 6421 tests run: 6421 passed (29 slow), 24 skipped
+[floor] exit=0. Log kept at .floor/2026-10-05T07-14-37Z/ regardless — a green run is evidence too.
+[floor] doc-link exit=0. Log kept at .floor/2026-10-05T07-14-37Z/doc-link.log
+```
+
+`FLOOR_RC=0`. The same Summary is `clean.log:6459`. In-load fuzz on that floor, not the gate: `PASS [  70.153s] (2315/6421) wat::kernel test::deftest_wat_tests_rete_fuzz_test_native_matches_oracle`.
+
+Test-name set against `.floor/2026-10-04T07-52-21Z` (`clean.log:6451` `Summary [ 422.042s] 6417 tests run: 6417 passed (28 slow), 24 skipped`), regex `^\s*(PASS|FAIL|SLOW)\s+\[[^\]]+\]\s+\(\s*\d+/\d+\)\s+(\S+)\s+(\S+)\s*$`: base 6417, this floor 6421, MISSING 0, EXTRA 4:
+
+- `wat resolve::registration::tests::printer_form_is_the_same_namespace`
+- `wat-reader parser::tests::bare_namespace_is_refused_for_the_symbol_and_the_keyword`
+- `wat::program wat_arc170_program_contracts::symbol_is_not_the_keyword_and_spellings_are_one_pair`
+- `wat::program wat_arc170_program_contracts::symbol_value_applies_on_the_other_side_of_a_process`
+
+### Cost
+
+The gate is the fuzz deftest alone, six runs, the mean of the PASS clocks. Filter `test(/deftest_wat_tests_rete_fuzz_test_native_matches_oracle/)`, `cargo nextest run --release --offline`. No limit was raised.
+
+Before, detached `0b2dcc1e2` in `/tmp/wat-25595-before`, `/tmp/kw95-fuzz-before.log`: 31.854, 31.951, 31.978, 32.062, 32.107, 32.014. Sum 191.966. Mean 31.994333333333334 s. All six `BEFORE_RC=0`.
+
+After, `f8eaaa16e`, `/tmp/kw95-fuzz-after.log`: 32.016, 32.005, 31.940, 32.046, 31.881, 31.829. Sum 191.717. Mean 31.952833333333334 s. All six `AFTER_RC=0`.
+
+31.952833333333334 ≤ 31.994333333333334.
+
+### Clippy and ignores
+
+`cargo clippy --release --all-targets -- -D warnings` on the tree that became `f8eaaa16e` finished in 14.40s. `CLIPPY_RC=0`.
+
+Ignores, `git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc`: 18. `IGNORE_RC=0`. The floor's 24 skipped is nextest's skip count, including 5 via `profile.default.default-filter`.
+
+STOP-1 did not fire (DATA empty, in the section above). STOP-2 was the ruling this amend accepts. STOP-3 did not fire: a `Name` is not rendered with `::`, no case rule was added, and one name is one key. Comparing a stored `Name` to a literal goes through the one keyword constructor.
