@@ -644,12 +644,12 @@ pub(crate) fn eval_rename_callable_name(
     // `name_from_keyword_or_fn` to return None → spurious TypeMismatch.
     // The eval path remains the fallback for non-literal callers.
     let from_val = if let WatAST::Keyword(k, _) = from {
-        Value::wat__core__keyword(Arc::new(k.clone()))
+        Value::keyword_spelled(k)
     } else {
         eval_inner(from, env, sym)?.value_owned()
     };
     let to_val = if let WatAST::Keyword(k, _) = to {
-        Value::wat__core__keyword(Arc::new(k.clone()))
+        Value::keyword_spelled(k)
     } else {
         eval_inner(to, env, sym)?.value_owned()
     };
@@ -745,7 +745,10 @@ pub(crate) fn eval_rename_callable_name(
 
     // `base` (from the WatAST Keyword) and `from_str` (from name_from_keyword_or_fn /
     // Value::wat__core__keyword) carry the leading colon; compare them directly.
-    if base != from_str.as_str() {
+    if base != from_str.as_str()
+        && crate::scope::Name::from_keyword_value(base)
+            != crate::scope::Name::from_keyword_value(&from_str)
+    {
         return Err(RuntimeError::new(
             from.span().clone(),
             RuntimeErrorKind::MalformedForm {
@@ -872,10 +875,7 @@ pub(crate) fn eval_extract_arg_names(
                     // Return the bare name as a plain keyword, e.g. `logger`
                     // -> `:logger` — the leading-colon convention every other
                     // keyword VALUE in this file follows.
-                    names.push(Value::wat__core__keyword(Arc::new(format!(
-                        ":{}",
-                        arg_name.as_str()
-                    ))));
+                    names.push(Value::keyword_bodied(arg_name.as_str()));
                 }
             }
         }
@@ -1049,7 +1049,7 @@ pub(crate) fn eval_field_names_of(
     let names: Vec<Value> = agg
         .fields
         .iter()
-        .map(|(name, _)| Value::wat__core__keyword(Arc::new(format!(":{}", name))))
+        .map(|(name, _)| Value::keyword_bodied(name))
         .collect();
     Ok(Value::Vec(Arc::new(names)))
 }
@@ -1282,7 +1282,7 @@ fn record_value(class: &str, names: Arc<Vec<String>>, fields: Vec<Value>) -> Val
 }
 
 fn kw(name: &str) -> Value {
-    Value::wat__core__keyword(Arc::new(format!(":{name}")))
+    Value::keyword_bodied(name)
 }
 
 fn type_form_value(ty: &TypeExpr, span: &Span, op: &str) -> Result<Value, EvalBreak> {
@@ -1524,7 +1524,11 @@ pub(crate) fn type_info_for_membership(
             "wat::runtime::TypeInfo",
             type_info_names(),
             vec![
-                Value::wat__core__keyword(Arc::new(type_kw.to_string())),
+                Value::symbol(
+                    crate::scope::Name::from_keyword_value(type_kw).unwrap_or_else(|| {
+                        panic!("type name is not a keyword spelling: {type_kw}")
+                    }),
+                ),
                 unit_variant(TYPE_KIND, "Builtin"),
                 type_params_vec(&[]),
                 tagged_variant(TYPE_BODY, "Builtin", vec![]),
@@ -1533,13 +1537,17 @@ pub(crate) fn type_info_for_membership(
         crate::types::TypeMembership::Marker { children } => {
             let kids: Vec<Value> = children
                 .iter()
-                .map(|c| Value::wat__core__keyword(Arc::new(c.clone())))
+                .map(|c| Value::keyword_spelled(c))
                 .collect();
             Ok(record_value(
                 "wat::runtime::TypeInfo",
                 type_info_names(),
                 vec![
-                    Value::wat__core__keyword(Arc::new(type_kw.to_string())),
+                    Value::symbol(
+                    crate::scope::Name::from_keyword_value(type_kw).unwrap_or_else(|| {
+                        panic!("type name is not a keyword spelling: {type_kw}")
+                    }),
+                ),
                     unit_variant(TYPE_KIND, "Marker"),
                     type_params_vec(&[]),
                     tagged_variant(TYPE_BODY, "Marker", vec![Value::Vec(Arc::new(kids))]),
@@ -1569,7 +1577,11 @@ pub(crate) fn type_info_value(
         "wat::runtime::TypeInfo",
         type_info_names(),
         vec![
-            Value::wat__core__keyword(Arc::new(type_kw.to_string())),
+            Value::symbol(
+                crate::scope::Name::from_keyword_value(type_kw).unwrap_or_else(|| {
+                    panic!("type name is not a keyword spelling: {type_kw}")
+                }),
+            ),
             type_kind_value(def),
             type_params_vec(type_params_of(def)),
             type_body_value(def, span, op)?,
@@ -1841,7 +1853,9 @@ pub(crate) fn eval_variant_parent_of(
     } else {
         let v = crate::runtime::eval_inner(type_kw_ast, env, sym)?.value_owned();
         match &v {
-            Value::wat__core__keyword(k) => k.as_ref().clone(),
+            Value::wat__core__keyword(k) | Value::Symbol(k) => {
+                crate::edn::render::canonical_identity(&wat_reader::identifier::keyword_text(k))
+            }
             _ => {
                 return Err(RuntimeError::new(
                     type_kw_ast.span().clone(),
@@ -1871,7 +1885,9 @@ pub(crate) fn eval_variant_parent_of(
     // never reimplement the leaf/parent split it already owns.
     let parent = types
         .variant_parent_enum(&type_kw)
-        .map(|p| Value::wat__core__keyword(Arc::new(p.to_string())));
+        .map(|p| Value::symbol(crate::scope::Name::from_keyword_value(p).unwrap_or_else(|| {
+            panic!("variant parent is not a keyword spelling: {p}")
+        })));
     Ok(Value::Option(Arc::new(parent)))
 }
 
@@ -1933,7 +1949,8 @@ pub(crate) fn eval_compose_variant(
         } else {
             let v = crate::runtime::eval_inner(ast, env, sym)?.value_owned();
             match &v {
-                Value::wat__core__keyword(k) => Ok(k.as_ref().clone()),
+                Value::wat__core__keyword(k) => Ok(wat_reader::identifier::keyword_text(k)),
+                Value::Symbol(k) => Ok(wat_reader::identifier::keyword_text(k)),
                 _ => Err(RuntimeError::new(
                     ast.span().clone(),
                     RuntimeErrorKind::TypeMismatch {
@@ -1959,5 +1976,9 @@ pub(crate) fn eval_compose_variant(
         &enum_kw,
         variant_kw.strip_prefix(':').unwrap_or(&variant_kw),
     );
-    Ok(Value::wat__core__keyword(Arc::new(composed)))
+    Ok(Value::symbol(
+        crate::scope::Name::from_keyword_value(&composed).unwrap_or_else(|| {
+            panic!("composed variant is not a keyword spelling: {composed}")
+        }),
+    ))
 }

@@ -869,8 +869,8 @@ pub(crate) fn record_get_inner(
     // Extract the bare field name from the keyword (strip leading colon).
     let key_name = match key {
         Value::wat__core__keyword(k) => {
-            let s = k.as_ref().as_str();
-            s.strip_prefix(':').unwrap_or(s).to_string()
+            let s = wat_reader::identifier::keyword_text(k);
+            s.strip_prefix(':').unwrap_or(&s).to_string()
         }
         other => {
             return Err(RuntimeError::new(
@@ -950,8 +950,8 @@ pub(crate) fn record_contains_field_q_inner(
     };
     let key_name = match key {
         Value::wat__core__keyword(k) => {
-            let s = k.as_ref().as_str();
-            s.strip_prefix(':').unwrap_or(s).to_string()
+            let s = wat_reader::identifier::keyword_text(k);
+            s.strip_prefix(':').unwrap_or(&s).to_string()
         }
         other => {
             return Err(RuntimeError::new(

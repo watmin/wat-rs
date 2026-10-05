@@ -99,7 +99,7 @@ fn record_field_map(
             let mut map: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(record_def.fields.len());
             for (i, (field_name, _)) in record_def.fields.iter().enumerate() {
-                let key = Value::wat__core__keyword(Arc::new(format!(":{}", field_name)));
+                let key = Value::keyword_bodied(field_name);
                 let val = a.fields[i].clone();
                 map.insert(key, val);
             }
@@ -230,8 +230,8 @@ pub(crate) fn record_assoc_inner(
     // Extract the bare field name from the keyword (strip leading colon per D5 / T2).
     let key_name = match key_val {
         Value::wat__core__keyword(k) => {
-            let s = k.as_ref().as_str();
-            s.strip_prefix(':').unwrap_or(s).to_string()
+            let s = wat_reader::identifier::keyword_text(&k);
+            s.strip_prefix(':').unwrap_or(&s).to_string()
         }
         other => {
             return Err(RuntimeError::new(

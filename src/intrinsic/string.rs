@@ -879,7 +879,10 @@ pub(crate) fn eval_string_interpolate(
         let key_arg = &rest[i];
         let val_arg = &rest[i + 1];
         let key_name = match eval_inner(key_arg, env, sym)?.value_owned() {
-            Value::wat__core__keyword(k) => k.strip_prefix(':').unwrap_or(k.as_str()).to_string(),
+            Value::wat__core__keyword(k) => {
+                let s = wat_reader::identifier::keyword_text(&k);
+                s.strip_prefix(':').unwrap_or(&s).to_string()
+            }
             other => {
                 return Err(RuntimeError::new(
                     key_arg.span().clone(),

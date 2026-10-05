@@ -29,7 +29,11 @@ fn metadata_of(fn_name: &str) -> HashMap<Value, Value> {
 fn get<'a>(map: &'a HashMap<Value, Value>, key: &str) -> &'a Value {
     map.iter()
         .find_map(|(k, v)| match k {
-            Value::wat__core__keyword(s) if s.as_str() == key => Some(v),
+            Value::wat__core__keyword(s)
+                if wat_reader::identifier::keyword_text(s) == key =>
+            {
+                Some(v)
+            }
             _ => None,
         })
         .unwrap_or_else(|| panic!("metadata map missing key {key}"))
@@ -37,7 +41,7 @@ fn get<'a>(map: &'a HashMap<Value, Value>, key: &str) -> &'a Value {
 
 fn has_key(map: &HashMap<Value, Value>, key: &str) -> bool {
     map.keys().any(|k| match k {
-        Value::wat__core__keyword(s) => s.as_str() == key,
+        Value::wat__core__keyword(s) => wat_reader::identifier::keyword_text(s) == key,
         _ => false,
     })
 }
@@ -46,7 +50,9 @@ fn value_to_doc_ast(v: &Value) -> WatAST {
     match v {
         Value::String(s) => WatAST::string(s.as_str()),
         Value::i64(n) => WatAST::int(*n),
-        Value::wat__core__keyword(k) => WatAST::keyword(k.as_str()),
+        Value::wat__core__keyword(k) => {
+            WatAST::keyword(wat_reader::identifier::keyword_text(k))
+        }
         Value::Enum(ev) => WatAST::keyword(wat_reader::identifier::compose_variant(
             &ev.type_path,
             &ev.variant_name,
@@ -63,7 +69,9 @@ fn metadata_map_to_watast(map: &HashMap<Value, Value>) -> WatAST {
         .iter()
         .map(|(k, v)| {
             let key = match k {
-                Value::wat__core__keyword(s) => WatAST::keyword(s.as_str()),
+                Value::wat__core__keyword(s) => {
+                    WatAST::keyword(wat_reader::identifier::keyword_text(s))
+                }
                 other => panic!("non-keyword metadata key: {other:?}"),
             };
             (key, value_to_doc_ast(v))
@@ -184,8 +192,8 @@ fn registry_lookup_carries_the_six_and_ret_is_the_pair() {
         Value::Vec(items) if items.len() == 2 => {
             match &items[0] {
                 Value::wat__core__keyword(k) => assert_eq!(
-                    k.as_str(),
-                    ":wat::rete::DerivationStep",
+                    k,
+                    &wat::Name::from_keyword_value(":wat::rete::DerivationStep").unwrap(),
                     ":ret type half"
                 ),
                 other => panic!(":ret[0] must be the type keyword; got {other:?}"),
@@ -350,7 +358,10 @@ fn both_branches_agree_key_for_key() {
 fn alias_row_carries_alias_keyword() {
     let map = metadata_of(":user::alias-metadata");
     match get(&map, ":alias") {
-        Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::i64::>"),
+        Value::wat__core__keyword(k) => assert_eq!(
+            k,
+            &wat::Name::from_keyword_value(":wat::i64::>").unwrap()
+        ),
         other => panic!(":alias must be a single keyword FQDN; got {other:?}"),
     }
     assert!(
@@ -364,7 +375,9 @@ fn alias_row_carries_alias_keyword() {
 fn deleting_examples_makes_from_metadata_refuse() {
     let mut map = metadata_of(":user::step-payload-metadata");
     map.retain(|k, _| match k {
-        Value::wat__core__keyword(s) => s.as_str() != ":examples",
+        Value::wat__core__keyword(s) => {
+            wat_reader::identifier::keyword_text(s) != ":examples"
+        }
         _ => true,
     });
     let ast = metadata_map_to_watast(&map);
@@ -378,7 +391,7 @@ fn deleting_examples_makes_from_metadata_refuse() {
 #[test]
 fn ret_as_a_bare_string_makes_from_metadata_refuse() {
     let mut map = metadata_of(":user::step-payload-metadata");
-    let key = Value::wat__core__keyword(Arc::new(":ret".to_string()));
+    let key = Value::keyword_from_spelling(":ret").unwrap();
     map.insert(key, Value::String(Arc::new("a bare description".into())));
     let ast = metadata_map_to_watast(&map);
     match wat_doc::from_metadata(&ast) {

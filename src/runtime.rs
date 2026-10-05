@@ -1774,9 +1774,17 @@ pub(crate) fn eval_inner(
             if let Some(func) = sym.get(k) {
                 return Ok(TrackedValue::from(Value::wat__core__fn(func.clone())));
             }
-            Ok(TrackedValue::from(Value::wat__core__keyword(Arc::new(
-                k.clone(),
-            ))))
+            Ok(TrackedValue::from(
+                Value::keyword_from_spelling(&key).ok_or_else(|| {
+                    RuntimeError::new(
+                        span.clone(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: k.clone(),
+                            reason: "keyword spelling is not a name".into(),
+                        },
+                    )
+                })?,
+            ))
         }
         // Stone 242.2 — Doctrine 1: bare `nil` is the value form for the nil singleton.
         // The type-check arm (check.rs `is_primitive_type_keyword_in_value_position`)
@@ -1880,6 +1888,34 @@ pub fn eval(
 fn receiver_is_member_shaped(receiver: &str) -> bool {
     let last = receiver.rsplit(['.', ':']).next().unwrap_or("");
     last.chars().next().is_some_and(|c| c.is_uppercase())
+}
+
+/// A call head the keyword printer wrote (`:ns/name`, no `::`). The
+/// registries keep `reconstruct_call_path`'s spelling. This is that
+/// spelling, asked once, on the miss path — not a second printer.
+fn call_head_the_registry_holds(head: &str, sym: &SymbolTable) -> String {
+    let entered = if head.starts_with(':') {
+        crate::scope::Name::from_keyword_value(head)
+    } else {
+        crate::scope::Name::enter(head)
+    };
+    let Some(name) = entered else {
+        return head.to_string();
+    };
+    if name.namespace() == wat_reader::identifier::BARE_NAMESPACE
+        || name.namespace() == wat_reader::identifier::BOUND_NAMESPACE
+    {
+        return head.to_string();
+    }
+    let primary = match sym.types() {
+        Some(types) => crate::types::reconstruct_call_path(name.namespace(), name.name(), types),
+        None => crate::edn::render::ns_to_wat_path(name.namespace(), name.name()),
+    };
+    if receiver_is_member_shaped(name.namespace()) {
+        join_the_registry_holds(primary, sym)
+    } else {
+        primary
+    }
 }
 
 fn join_the_registry_holds(primary: String, sym: &SymbolTable) -> String {
@@ -3303,6 +3339,16 @@ fn dispatch_keyword_head_value(
             let (peeled, args) = crate::types::peel_param_spec(args);
             let binder_peeled = peeled.is_some();
 
+            // The keyword printer (`:ns/name`) is not the spelling the
+            // surface table is keyed by. Ask the registry once, here.
+            let held_head;
+            let other = if other.contains('/') && !other.contains("::") {
+                held_head = call_head_the_registry_holds(other, sym);
+                held_head.as_str()
+            } else {
+                other
+            };
+
             if other.contains('/') {
                 let protocol_fqdn = wat_reader::identifier::receiver(other);
                 // STONE reap-the-angle-machinery (arc 109) — Stone 6b-DEP used to strip an
@@ -3905,7 +3951,7 @@ fn dispatch_keyword_head_value(
                                 // HashMap accessor: keyword key → (Option :- [V]).
                                 // Equivalent to (:wat::core::HashMap/get map :key).
                                 // Never errors on miss — missing key = None (per D5 / T7).
-                                let key = Value::wat__core__keyword(Arc::new(other.to_string()));
+                                let key = Value::keyword_spelled(other);
                                 return match map.get(&key) {
                                     Some(v) => Ok(Value::Option(Arc::new(Some(v.clone())))),
                                     None => Ok(Value::Option(Arc::new(None))),
@@ -4431,8 +4477,7 @@ fn bind_let_binding(
                     // Consistent with keyword-as-accessor fall-through and
                     // :wat::core::HashMap/get (miss = None, never an error).
                     for (var_name, bare_field, var_span) in &bindings {
-                        let key_str = format!(":{}", bare_field);
-                        let key = Value::wat__core__keyword(Arc::new(key_str));
+                        let key = Value::keyword_bodied(bare_field);
                         let opt_val = match map.get(&key) {
                             Some(v) => Value::Option(Arc::new(Some(v.clone()))),
                             None => Value::Option(Arc::new(None)),
@@ -5132,7 +5177,8 @@ pub(crate) fn eval_keyword_to_string(
     let v = eval_inner(&args[0], env, sym)?.value_owned();
     // The keyword string always starts with ':'; strip it.
     let raw: String = match &v {
-        Value::wat__core__keyword(k) => k.to_string(),
+        Value::wat__core__keyword(k) => wat_reader::identifier::keyword_text(k),
+        Value::Symbol(n) => wat_reader::identifier::keyword_text(n),
         // Arc 249 Stone 249.4a — keyword FORM-value (bound in a macro body as
         // Value::wat__WatAST(Keyword)): same stripping as the keyword-value arm.
         Value::wat__WatAST(ast) => match &**ast {
@@ -5181,7 +5227,8 @@ pub(crate) fn eval_keyword_to_string(
 /// the row's declared `ParamType::Keyword` makes unreachable.
 pub(crate) fn keyword_to_string_value(v: &Value) -> Option<Value> {
     let raw: String = match v {
-        Value::wat__core__keyword(k) => k.to_string(),
+        Value::wat__core__keyword(k) => wat_reader::identifier::keyword_text(k),
+        Value::Symbol(n) => wat_reader::identifier::keyword_text(n),
         Value::wat__WatAST(ast) => match &**ast {
             WatAST::Keyword(k, _) => k.clone(),
             WatAST::Symbol(id, _) => crate::edn::render::canonical_identity(id.as_str()),
@@ -5204,7 +5251,7 @@ pub(crate) fn keyword_from_string_value(v: &Value) -> Option<Value> {
     if angle_type_head_in_name(s) || s.starts_with(':') {
         return None;
     }
-    Some(Value::wat__core__keyword(Arc::new(format!(":{s}"))))
+    crate::scope::Name::from_keyword_body(s).map(Value::wat__core__keyword)
 }
 
 /// `(:wat::keyword::from-string s)` — construct a keyword Value from
@@ -5259,7 +5306,15 @@ pub(crate) fn eval_keyword_from_string(
     }
     // Prepend ':' to form the canonical keyword string.
     // Arc 233 Stone 233.2.j: construct TrackedValue directly (no Value::Tracked wrap).
-    let kw = Value::wat__core__keyword(Arc::new(format!(":{}", s.as_str())));
+    let kw = crate::scope::Name::from_keyword_body(s.as_str()).map(Value::wat__core__keyword).ok_or_else(|| {
+        RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::keyword::from-string".into(),
+                reason: format!("input {s:?} is not a keyword name"),
+            },
+        )
+    })?;
     Ok(TrackedValue::new(
         kw,
         Provenance::RuntimeBuilt {
@@ -5387,6 +5442,34 @@ fn eval_apply(
         );
     }
 
+    // A symbol value resolves only here. Nothing else looks a symbol up.
+    if let Value::Symbol(name) = &head_val {
+        if let Some(func) = sym.get_name(name) {
+            return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
+        }
+        if let Some(v) = sym.def_value_name(name) {
+            match v {
+                Value::wat__core__fn(f) => {
+                    return apply_function(f.clone(), combined, sym, list_span).map_err(Into::into);
+                }
+                other_val => {
+                    return Err(RuntimeError::new(
+                        list_span,
+                        RuntimeErrorKind::NotCallable {
+                            got: Box::new(ValueSnapshot::of(other_val)),
+                        },
+                    )
+                    .into());
+                }
+            }
+        }
+        return Err(RuntimeError::new(
+            list_span,
+            RuntimeErrorKind::UnknownFunction(wat_reader::identifier::symbol_text(name)),
+        )
+        .into());
+    }
+
     // Step 6 — keyword-valued head: extract name + dispatch chain.
     let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
@@ -5428,9 +5511,11 @@ fn eval_apply(
     // now TRUE for it, so the query below rejects it without a hand-written name. Removing this
     // is the reclassification's entire point, not a loosening: `apply` still refuses it (proved
     // by a probe, not assumed).
-    let is_special_form = matches!(head_kw.as_str(), ":wat::core::defn")
+    let shown = wat_reader::identifier::keyword_text(&head_kw);
+    let is_special_form = crate::scope::Name::from_keyword_value(":wat::core::defn").as_ref()
+        == Some(&head_kw)
         || crate::intrinsic::registry()
-            .lookup_entry(head_kw.as_str())
+            .lookup_entry_name(&head_kw)
             .is_some_and(|entry| entry.kind == crate::intrinsic::Kind::SpecialForm);
     if is_special_form {
         return Err(RuntimeError::new(
@@ -5440,7 +5525,7 @@ fn eval_apply(
                 reason: format!(
                     "cannot apply special form {:?} — apply only dispatches callable \
                  verbs and user-defined functions, not declaration or language forms",
-                    head_kw.as_str()
+                    shown
                 ),
             },
         )
@@ -5453,12 +5538,22 @@ fn eval_apply(
     // `canonical_callable_name`; angle syntax is unexpressible now, so it can never carry
     // a suffix — look it up directly (mirrors `def_value(head_kw.as_str())` just below,
     // which was already unstripped).
-    if let Some(func) = sym.get(head_kw.as_str()) {
+    if let Some(func) = sym.get_name(&head_kw) {
         return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
+    }
+    // A keyword value prints `:ns/name`. The function may be registered
+    // under the spelling the registry kept. Ask that spelling only on a miss.
+    if shown.contains('/') && !shown.contains("::") {
+        let held = call_head_the_registry_holds(&shown, sym);
+        if held != shown {
+            if let Some(func) = sym.get(&held) {
+                return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
+            }
+        }
     }
 
     // (b) def-bound callable value.
-    if let Some(v) = sym.def_value(head_kw.as_str()) {
+    if let Some(v) = sym.def_value_name(&head_kw) {
         match v {
             Value::wat__core__fn(f) => {
                 return apply_function(f.clone(), combined, sym, list_span).map_err(Into::into);
@@ -5477,8 +5572,10 @@ fn eval_apply(
 
     // (c) substrate arithmetic / dispatch-impl verbs (pre-evaluated path).
     // Arc 255 Stone Q — pass the call's own `list_span`, not a synthesized one.
-    if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined, &list_span) {
-        return result;
+    if let Some(entry) = crate::intrinsic::registry().lookup_entry_name(&head_kw) {
+        if let Some(result) = dispatch_substrate_impl(entry.name, &combined, &list_span) {
+            return result;
+        }
     }
 
     // (d) Registered, but with no value-level door. Stone O-iv-a — `apply` used to call
@@ -5486,13 +5583,13 @@ fn eval_apply(
     // handler takes `&[WatAST]` and evaluates its own arguments; `apply` has already
     // evaluated its arguments and holds `&[Value]`, so there is no AST left to hand it.
     if crate::intrinsic::registry()
-        .lookup_entry(head_kw.as_str())
+        .lookup_entry_name(&head_kw)
         .is_some()
     {
         return Err(RuntimeError::new(
             list_span,
             RuntimeErrorKind::NotValueDispatchable {
-                name: head_kw.as_str().to_string(),
+                name: shown,
             },
         )
         .into());
@@ -5501,7 +5598,7 @@ fn eval_apply(
     // (e) Genuinely not registered anywhere — UnknownFunction, and now it means it.
     Err(RuntimeError::new(
         list_span,
-        RuntimeErrorKind::UnknownFunction(head_kw.as_str().to_string()),
+        RuntimeErrorKind::UnknownFunction(shown),
     )
     .into())
 }
@@ -5848,6 +5945,9 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> Option<bool> {
         (Value::String(x), Value::String(y)) => Some(x == y),
         (Value::bool(x), Value::bool(y)) => Some(x == y),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x == y),
+        (Value::Symbol(x), Value::Symbol(y)) => Some(x == y),
+        (Value::Symbol(_), Value::wat__core__keyword(_)) => Some(false),
+        (Value::wat__core__keyword(_), Value::Symbol(_)) => Some(false),
         // Arc 207 — Uuid equality. `uuid::Uuid` implements `PartialEq`.
         // Two Uuid values with the same content are equal; a Uuid and a
         // String holding the same 36 chars are NOT equal (cross-type
@@ -6123,6 +6223,7 @@ pub(crate) fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering>
         (Value::String(x), Value::String(y)) => Some(x.cmp(y)),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
         (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.cmp(y)),
+        (Value::Symbol(x), Value::Symbol(y)) => Some(x.cmp(y)),
         // Arc 148 slice 3 — time ord. chrono::DateTime<Utc> implements Ord
         // (chronological); Duration is a non-negative i64 nanosecond count
         // and uses i64 ord directly.
@@ -7149,7 +7250,10 @@ pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, Eva
         )
         .into());
     }
-    Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
+    Ok(match &args[0] {
+        WatAST::Symbol(id, _) => Value::Symbol(id.pair().clone()),
+        other => Value::wat__WatAST(Arc::new(other.clone())),
+    })
 }
 
 // `eval_seq_empty`/`eval_cons` that used to live here (`:wat::stream::empty`/`cons`) moved to
@@ -7579,7 +7683,13 @@ pub fn value_to_watast(op: &str, v: Value, span: Span) -> Result<WatAST, EvalBre
         Value::String(s) => Ok(WatAST::StringLit((*s).clone(), span)),
         // Arc 244 — Value::Nil (nil) → NilLit; closes the quasiquote ~nil gap (AUDIT §3 site 9).
         Value::Nil => Ok(WatAST::NilLit(span)),
-        Value::wat__core__keyword(k) => Ok(WatAST::Keyword((*k).clone(), span)),
+        Value::wat__core__keyword(k) => {
+            Ok(WatAST::Keyword(wat_reader::identifier::keyword_text(&k), span))
+        }
+        Value::Symbol(k) => Ok(WatAST::Symbol(
+            wat_reader::identifier::Identifier::from_pair(k),
+            span,
+        )),
         Value::wat__WatAST(a) => Ok((*a).clone()),
         Value::holon__HolonAST(h) => Ok(holon_to_watast(&h)),
         other => Err(RuntimeError::new(
@@ -7687,7 +7797,7 @@ fn metadata_parse_form(src: &str, file: &str, span: &Span) -> Result<WatAST, Eva
 fn metadata_type_token_value(ty: &str, span: &Span) -> Result<Value, EvalBreak> {
     let ast = metadata_parse_form(ty, "<metadata-of type>", span)?;
     match ast {
-        WatAST::Keyword(k, _) => Ok(Value::wat__core__keyword(Arc::new(k))),
+        WatAST::Keyword(k, _) => Ok(Value::keyword_spelled(&k)),
         other => Ok(Value::wat__WatAST(Arc::new(other))),
     }
 }
@@ -7709,7 +7819,7 @@ fn emit_doc_contract(
             format!(":{name}")
         };
         arg_vals.push(metadata_vec(vec![
-            Value::wat__core__keyword(Arc::new(name_kw)),
+            Value::keyword_spelled(&name_kw),
             metadata_type_token_value(ty, span)?,
             Value::String(Arc::new(desc.clone())),
         ]));
@@ -7734,7 +7844,7 @@ fn emit_doc_contract(
         metadata_vec(
             c.see
                 .iter()
-                .map(|s| Value::wat__core__keyword(Arc::new(s.clone())))
+                .map(|s| Value::keyword_spelled(s))
                 .collect(),
         ),
     );
@@ -7749,7 +7859,7 @@ fn emit_doc_contract(
         );
     }
     if let Some(a) = &c.alias {
-        put(":alias", Value::wat__core__keyword(Arc::new(a.clone())));
+        put(":alias", Value::keyword_spelled(a));
     }
     put(
         ":ret",
@@ -7948,12 +8058,16 @@ fn eval_metadata_of(
             std::collections::HashMap::with_capacity(19);
         // iv-c: put inserts PLAIN values (no HolonAST wrapping).
         let mut put = |key: &str, val: Value| {
-            map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
+            map.insert(Value::keyword_spelled(key), val);
         };
         // :name — the FQDN as a plain keyword value.
         put(
             ":name",
-            Value::wat__core__keyword(Arc::new(entry.name.to_string())),
+            Value::symbol(
+                crate::scope::Name::from_keyword_value(entry.name).unwrap_or_else(|| {
+                    panic!("intrinsic name is not a keyword spelling: {}", entry.name)
+                }),
+            ),
         );
         // :kind / :defined-in / :layer — closed-domain Value::Enum (iv-c §5).
         put(
@@ -8052,7 +8166,7 @@ fn eval_metadata_of(
             let mut map: std::collections::HashMap<Value, Value> =
                 std::collections::HashMap::with_capacity(16);
             let mut put = |key: &str, val: Value| {
-                map.insert(Value::wat__core__keyword(Arc::new(key.to_string())), val);
+                map.insert(Value::keyword_spelled(key), val);
             };
             // :purity / :determinism / :totality / :expand-time / :category — the SAME
             // `ToEnumValue::to_enum_value` calls the registry branch makes, fed from
@@ -8106,7 +8220,7 @@ fn eval_metadata_of(
                 std::collections::HashMap::with_capacity(meta.len());
             for (k, v) in meta {
                 map.insert(
-                    Value::wat__core__keyword(Arc::new(k.clone())),
+                    Value::keyword_spelled(k),
                     Value::wat__WatAST(Arc::new(v.clone())),
                 );
             }
@@ -9599,8 +9713,7 @@ pub(crate) fn try_match_pattern(
                     Value::wat__std__HashMap(map) => {
                         let mut env = outer.clone();
                         for (var_name, bare_field) in &pairs {
-                            let key_str = format!(":{}", bare_field);
-                            let key = Value::wat__core__keyword(Arc::new(key_str));
+                            let key = Value::keyword_bodied(bare_field);
                             let opt_val = match map.get(&key) {
                                 Some(v) => Value::Option(Arc::new(Some(v.clone()))),
                                 None => Value::Option(Arc::new(None)),
@@ -16301,7 +16414,9 @@ mod tests {
         )
         .unwrap();
         match result {
-            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":outcome"),
+            Value::wat__core__keyword(k) => {
+                assert_eq!(wat_reader::identifier::keyword_text(&k), ":outcome")
+            }
             other => panic!("expected keyword, got {:?}", other),
         }
     }
@@ -21391,19 +21506,16 @@ mod tests {
             "foo"
         );
         assert_eq!(
-            // Stone 255.81 — this is a plain multi-segment KEYWORD example for
-            // `keyword/to-string`'s strip-leading-colon subject, not a type position;
-            // `:wat::core::i64`'s own text is unchanged by the cutover, so stripping its
-            // colon still yields "wat::core::i64" (my earlier blanket sweep had wrongly
-            // flipped this expectation — reverted).
+            // The keyword printer is `:{namespace}/{name}`. Stripping the
+            // colon of `:wat::core::i64` yields `wat.core/i64`.
             expect_string(eval_expr("(:wat::keyword::to-string :wat::core::i64)").unwrap()),
-            "wat::core::i64"
+            "wat.core/i64"
         );
         assert_eq!(
-            // Same revert as the i64 case just above — a plain keyword-text example,
-            // not a type position.
+            // The keyword printer is `:{ns}/{name}`. Stripping the colon
+            // leaves `ns/name`. `:wat::core::Vector` is that pair.
             expect_string(eval_expr("(:wat::keyword::to-string :wat::core::Vector)").unwrap()),
-            "wat::core::Vector"
+            "wat.core/Vector"
         );
     }
 
@@ -21411,12 +21523,16 @@ mod tests {
     fn keyword_from_string_prepends_colon() {
         let result = eval_expr(r#"(:wat::keyword::from-string "foo")"#).unwrap();
         match result {
-            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":foo"),
+            Value::wat__core__keyword(k) => {
+                assert_eq!(wat_reader::identifier::keyword_text(&k), ":foo")
+            }
             other => panic!("expected keyword; got {:?}", other),
         }
         let result2 = eval_expr(r#"(:wat::keyword::from-string "wat::type::i64")"#).unwrap();
         match result2 {
-            Value::wat__core__keyword(k) => assert_eq!(k.as_str(), ":wat::type::i64"),
+            Value::wat__core__keyword(k) => {
+                assert_eq!(wat_reader::identifier::keyword_text(&k), ":wat.type/i64")
+            }
             other => panic!("expected keyword; got {:?}", other),
         }
     }
@@ -21432,8 +21548,8 @@ mod tests {
         // keyword instead.
         let cases = [
             (":foo", "foo"),
-            (":wat::type::i64", "wat::type::i64"),
-            (":wat::kernel::Receiver", "wat::kernel::Receiver"),
+            (":wat::type::i64", "wat.type/i64"),
+            (":wat::kernel::Receiver", "wat.kernel/Receiver"),
         ];
         for (kw, expected_text) in &cases {
             // to-string strips colon
@@ -21448,7 +21564,12 @@ mod tests {
             .unwrap();
             match roundtrip {
                 Value::wat__core__keyword(k) => {
-                    assert_eq!(k.as_str(), *kw, "round-trip failed for {}", kw)
+                    assert_eq!(
+                        &k,
+                        &crate::scope::Name::from_keyword_value(kw).expect("name"),
+                        "round-trip failed for {}",
+                        kw
+                    )
                 }
                 other => panic!("expected keyword for {}; got {:?}", kw, other),
             }

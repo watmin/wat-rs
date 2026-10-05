@@ -58,7 +58,11 @@ fn metadata_of(_fqdn: &str) -> std::collections::HashMap<Value, Value> {
 fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> &'a Value {
     map.iter()
         .find_map(|(k, v)| match k {
-            Value::wat__core__keyword(s) if s.as_str() == key => Some(v),
+            Value::wat__core__keyword(s)
+                if wat_reader::identifier::keyword_text(s) == key =>
+            {
+                Some(v)
+            }
             _ => None,
         })
         .unwrap_or_else(|| panic!("metadata map missing key {key}"))

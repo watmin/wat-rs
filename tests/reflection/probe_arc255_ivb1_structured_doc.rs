@@ -26,7 +26,7 @@ fn metadata_of_has_key(key: &str) -> bool {
     match call_beside_value(file!(), ":user::to-hex-metadata").expect("metadata-of eval") {
         Value::Option(o) => match &*o {
             Some(Value::wat__std__HashMap(m)) => {
-                let k = Value::wat__core__keyword(Arc::new(key.to_string()));
+                let k = Value::keyword_from_spelling(key).unwrap();
                 m.contains_key(&k)
             }
             Some(other) => panic!("metadata-of must wrap a HashMap; got {:?}", other),

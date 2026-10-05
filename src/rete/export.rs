@@ -190,7 +190,7 @@ fn export_names() -> crate::rete::kernel::FieldNames {
 }
 
 fn kw(name: &str) -> Value {
-    Value::wat__core__keyword(Arc::new(name.to_string()))
+    Value::keyword_spelled(name)
 }
 
 fn pv(items: impl IntoIterator<Item = Value>) -> Value {
@@ -231,9 +231,9 @@ fn export_named<'a>(export: &'a Value, name: &'static str, span: &Span) -> Resul
         .ok_or_else(|| malformed(span, IMPORT_OP, format!("Export missing field `{name}`")))
 }
 
-fn expect_kw<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBreak> {
+fn expect_kw(v: &Value, op: &str, span: &Span) -> Result<String, EvalBreak> {
     match v {
-        Value::wat__core__keyword(s) => Ok(s.as_str()),
+        Value::wat__core__keyword(s) => Ok(wat_reader::identifier::keyword_text(s)),
         other => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
@@ -641,7 +641,7 @@ fn pack_cmp(k: CmpKind) -> Value {
 }
 
 fn unpack_cmp(v: &Value, span: &Span) -> Result<CmpKind, EvalBreak> {
-    match expect_kw(v, IMPORT_OP, span)? {
+    { let __kw = expect_kw(v, IMPORT_OP, span)?; match __kw.as_str() {
         ":eq" => Ok(CmpKind::Eq),
         ":neq" => Ok(CmpKind::NotEq),
         ":lt" => Ok(CmpKind::Lt),
@@ -649,7 +649,7 @@ fn unpack_cmp(v: &Value, span: &Span) -> Result<CmpKind, EvalBreak> {
         ":le" => Ok(CmpKind::Le),
         ":ge" => Ok(CmpKind::Ge),
         other => Err(malformed(span, IMPORT_OP, format!("unknown cmp {other}"))),
-    }
+    }}
 }
 
 /// `Pat` → `[:plit v]` · `[:wild]` · `[:pbind slot]` · `[:pvar "Name" pat?]` ·
@@ -692,7 +692,7 @@ fn unpack_pat(v: &Value, span: &Span, depth: u32) -> Result<Pat, EvalBreak> {
     let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty pat"))?;
-    match expect_kw(tag, IMPORT_OP, span)? {
+    { let __kw = expect_kw(tag, IMPORT_OP, span)?; match __kw.as_str() {
         ":plit" => {
             let lit = items
                 .get(1)
@@ -744,7 +744,7 @@ fn unpack_pat(v: &Value, span: &Span, depth: u32) -> Result<Pat, EvalBreak> {
             Ok(Pat::Variant { name, payload })
         }
         other => Err(malformed(span, IMPORT_OP, format!("unknown pat {other}"))),
-    }
+    }}
 }
 
 /// `Expr` → a tagged vector per variant: `:lit` `:slot` `:field` `:call` `:user` `:ctor`
@@ -849,7 +849,7 @@ fn unpack_expr(v: &Value, span: &Span, depth: u32) -> Result<Expr, EvalBreak> {
     let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty expr"))?;
-    match expect_kw(tag, IMPORT_OP, span)? {
+    { let __kw = expect_kw(tag, IMPORT_OP, span)?; match __kw.as_str() {
         ":lit" => Ok(Expr::Lit(
             items
                 .get(1)
@@ -1106,7 +1106,7 @@ fn unpack_expr(v: &Value, span: &Span, depth: u32) -> Result<Expr, EvalBreak> {
             })
         }
         other => Err(malformed(span, IMPORT_OP, format!("unknown expr {other}"))),
-    }
+    }}
 }
 
 /// `Program` → `[:prog frame_len [params…] [names…] [reads…] root]`.
@@ -1262,13 +1262,13 @@ fn pack_cond_op(op: &Op) -> Value {
 fn unpack_cond_op(v: &Value, span: &Span, depth: u32) -> Result<Op, EvalBreak> {
     let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(
+    { let __kw = expect_kw(
         items
             .first()
             .ok_or_else(|| malformed(span, IMPORT_OP, "empty cond-op"))?,
         IMPORT_OP,
         span,
-    )? {
+    )?; match __kw.as_str() {
         ":bind" => Ok(Op::Bind {
             field_idx: expect_idx(expect_at(&items, 1, span, "bind field_idx")?, span, "bind field_idx")?,
             slot: expect_idx(expect_at(&items, 2, span, "bind slot")?, span, "bind slot")?,
@@ -1312,7 +1312,7 @@ fn unpack_cond_op(v: &Value, span: &Span, depth: u32) -> Result<Op, EvalBreak> {
         }
         ":fail" => Ok(Op::Fail),
         other => Err(malformed(span, IMPORT_OP, format!("unknown cond-op {other}"))),
-    }
+    }}
 }
 
 /// `CompiledCond` → `[:cond n_slots fact_bind [keys…] [out_slots…] [seed_reads…] [ops…]]`.
@@ -1461,7 +1461,7 @@ fn pack_driver(d: &CondDriver) -> Value {
 fn unpack_driver(v: &Value, span: &Span, depth: u32) -> Result<CondDriver, EvalBreak> {
     let depth = deeper(depth, span)?;
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(expect_at(&items, 0, span, "driver tag")?, IMPORT_OP, span)? {
+    { let __kw = expect_kw(expect_at(&items, 0, span, "driver tag")?, IMPORT_OP, span)?; match __kw.as_str() {
         ":leaf" => Ok(CondDriver::Leaf(expect_i64(
             expect_at(&items, 1, span, "leaf id")?,
             IMPORT_OP,
@@ -1494,7 +1494,7 @@ fn unpack_driver(v: &Value, span: &Span, depth: u32) -> Result<CondDriver, EvalB
             span, depth
         )?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown driver {other}"))),
-    }
+    }}
 }
 
 /// `AccFold` → `[:count]` `[:sum …]` `[:min …]` `[:max …]` `[:mean …]` `[:all …]`
@@ -1522,7 +1522,7 @@ fn pack_fold(f: &AccFold) -> Value {
 /// is the single worst outcome this codec can produce.
 fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(expect_at(&items, 0, span, "fold tag")?, IMPORT_OP, span)? {
+    { let __kw = expect_kw(expect_at(&items, 0, span, "fold tag")?, IMPORT_OP, span)?; match __kw.as_str() {
         ":count" => Ok(AccFold::Count),
         ":sum" => Ok(AccFold::Sum(expect_at(&items, 1, span, "sum key")?.clone())),
         ":min" => Ok(AccFold::Min(expect_at(&items, 1, span, "min key")?.clone())),
@@ -1537,7 +1537,7 @@ fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
             program: Arc::new(unpack_prog(expect_at(&items, 2, span, "ufold program")?, span, 0)?),
         }),
         other => Err(malformed(span, IMPORT_OP, format!("unknown fold {other}"))),
-    }
+    }}
 }
 
 /// `RhsOp` → `[:rbind key]` · `[:rlit v]` · `[:rexpr prog]`.
@@ -1567,7 +1567,7 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
 /// pointing an error at where it was imported is the only location that is true.
 fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(expect_at(&items, 0, span, "rhs-op tag")?, IMPORT_OP, span)? {
+    { let __kw = expect_kw(expect_at(&items, 0, span, "rhs-op tag")?, IMPORT_OP, span)?; match __kw.as_str() {
         ":rbind" => {
             let k = items
                 .get(1)
@@ -1590,7 +1590,7 @@ fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
             span, 0, // top-level entry — fresh budget
         )?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown rhs-op {other}"))),
-    }
+    }}
 }
 
 /// `CompiledRhs` → `[:rec "Class" [names…] op…]` · `[:rcall prog]`.
@@ -1620,7 +1620,7 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
 /// vector "yields a record with fewer ops"; it does not, and the check is fifteen lines down.)
 fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)? {
+    { let __kw = expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)?; match __kw.as_str() {
         ":rec" => {
             let class: Arc<str> = expect_str(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?.into();
             let names_pv = expect_seq(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;
@@ -1648,7 +1648,7 @@ fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
         // Top-level entry — fresh budget.
         ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(expect_at(&items, 1, span, "slot 1")?, span, 0)?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown rhs {other}"))),
-    }
+    }}
 }
 
 // ── topology ─────────────────────────────────────────────────────────────────
@@ -1822,7 +1822,7 @@ type UnpackedNode = (i64, Value, Option<i64>);
 fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)?;
-    match tag {
+    match tag.as_str() {
         ":a" => {
             let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
             let class_idx = expect_i64(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;

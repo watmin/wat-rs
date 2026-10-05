@@ -70,7 +70,7 @@ fn probe_1_self_equality_string() {
 
 #[test]
 fn probe_1_self_equality_keyword() {
-    let v = Value::wat__core__keyword(Arc::new(":wat::core::i64".to_string()));
+    let v = Value::keyword_from_spelling(":wat::core::i64").unwrap();
     assert_eq!(hash_value(&v), hash_value(&v), "keyword hash must be stable");
     assert_eq!(v, v, "keyword PartialEq reflexive");
 }
@@ -126,7 +126,7 @@ fn probe_2_discriminant_tagging_bool_vs_i64() {
 #[test]
 fn probe_2_discriminant_tagging_keyword_vs_string() {
     // keyword(":foo") and String(":foo") — same payload bytes, different variants
-    let k = Value::wat__core__keyword(Arc::new(":foo".to_string()));
+    let k = Value::keyword_from_spelling(":foo").unwrap();
     let s = Value::String(Arc::new(":foo".to_string()));
     assert_ne!(
         hash_value(&k),
@@ -183,7 +183,7 @@ fn probe_4_rust_hashmap_value_to_value() {
     // Build a std::collections::HashMap<Value, Value>
     let mut map: std::collections::HashMap<Value, Value> = std::collections::HashMap::new();
     let k1 = Value::String(Arc::new("key1".to_string()));
-    let k2 = Value::wat__core__keyword(Arc::new(":key2".to_string()));
+    let k2 = Value::keyword_from_spelling(":key2").unwrap();
     map.insert(k1.clone(), Value::i64(100));
     map.insert(k2.clone(), Value::bool(true));
     assert_eq!(map.len(), 2);
@@ -262,11 +262,11 @@ fn probe_8_hashmap_value_map_semantics() {
     let mut map_a: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     map_a.insert(
-        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::keyword_from_spelling(":a").unwrap(),
         Value::i64(1),
     );
     map_a.insert(
-        Value::wat__core__keyword(Arc::new(":b".to_string())),
+        Value::keyword_from_spelling(":b").unwrap(),
         Value::i64(2),
     );
     let hmap_a = Value::wat__std__HashMap(Arc::new(map_a));
@@ -276,11 +276,11 @@ fn probe_8_hashmap_value_map_semantics() {
     let mut map_b: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     map_b.insert(
-        Value::wat__core__keyword(Arc::new(":b".to_string())),
+        Value::keyword_from_spelling(":b").unwrap(),
         Value::i64(2),
     );
     map_b.insert(
-        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::keyword_from_spelling(":a").unwrap(),
         Value::i64(1),
     );
     let hmap_b = Value::wat__std__HashMap(Arc::new(map_b));
@@ -303,7 +303,7 @@ fn probe_9_deep_nesting() {
     let mut inner_map: std::collections::HashMap<Value, Value> =
         std::collections::HashMap::new();
     inner_map.insert(
-        Value::wat__core__keyword(Arc::new(":a".to_string())),
+        Value::keyword_from_spelling(":a").unwrap(),
         Value::i64(1),
     );
     let hmap_val = Value::wat__std__HashMap(Arc::new(inner_map));

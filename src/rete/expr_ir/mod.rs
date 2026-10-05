@@ -496,7 +496,7 @@ pub(crate) fn keyword_value(k: &str, sym: &SymbolTable) -> Value {
     if let Some(ev) = sym.unit_variant(k) {
         return Value::Enum(Arc::new(ev.clone()));
     }
-    Value::wat__core__keyword(Arc::new(k.to_string()))
+    Value::keyword_spelled(k)
 }
 
 /// Lower the FUNCTION operand of a higher-order op (`foldl`, `reduce`, `mapv`, `filterv`).

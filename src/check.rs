@@ -2908,6 +2908,42 @@ fn bare_symbol_is_local(head: &WatAST, locals: &HashMap<String, TypeExpr>) -> bo
     }
 }
 
+/// The registry key a call head is stored under.
+///
+/// `:wat.spawn.Locus/launch` is the keyword printer of
+/// `{wat.spawn.Locus, launch}`. The surface member is stored as
+/// `:wat::spawn::Locus/launch`. [`reconstruct_call_path`] asks the type
+/// registry, so a type member keeps `/` and a function name joins with
+/// `::`. A head that already contains `::` is already that key.
+fn call_head_registry_key<'a>(k: &'a str, types: &crate::types::TypeEnv) -> std::borrow::Cow<'a, str> {
+    if k.contains("::") {
+        return std::borrow::Cow::Borrowed(k);
+    }
+    let printer = k.starts_with(':') && k.contains('/');
+    let symbol = !k.starts_with(':') && k.contains('/');
+    if !printer && !symbol {
+        return std::borrow::Cow::Borrowed(k);
+    }
+    let name = if printer {
+        crate::scope::Name::from_keyword_value(k)
+    } else {
+        crate::scope::Name::enter(k)
+    };
+    let Some(name) = name else {
+        return std::borrow::Cow::Borrowed(k);
+    };
+    if name.namespace() == wat_reader::identifier::BARE_NAMESPACE
+        || name.namespace() == wat_reader::identifier::BOUND_NAMESPACE
+    {
+        return std::borrow::Cow::Borrowed(k);
+    }
+    std::borrow::Cow::Owned(crate::types::reconstruct_call_path(
+        name.namespace(),
+        name.name(),
+        types,
+    ))
+}
+
 fn infer_list(
     items: &[WatAST],
     list_span: &Span,
@@ -2933,7 +2969,13 @@ fn infer_list(
     };
 
     if let Some(k_owned) = crate::form_match::spelling_key(head) {
-        let k = k_owned.as_str();
+        // A spliced name arrives as the keyword printer `:ns/name`.
+        // Surface members and schemes are stored as `:ns::Type/method`.
+        // Reconstruct once, here, so every arm below sees that key.
+        // A spelling that already contains `::` is left as written: the
+        // member slash in `:wat::spawn::Locus/launch` must stay.
+        let k_resolved = call_head_registry_key(&k_owned, env.types());
+        let k = k_resolved.as_ref();
         let head_span = head.span();
         let args = &items[1..];
         // Arc 278 #56 (S5) — Form-class rete ops route by `core_name` to the SAME inference
@@ -3172,6 +3214,56 @@ fn infer_list(
                     CheckResult::partial_with(bool_result_ty, local_errors)
                 };
             }
+            // A name token is a keyword or a symbol. `to-string` prints either.
+            // The registered scheme stays keyword so the doc row still matches;
+            // this arm is what admits a symbol value.
+            ":wat::keyword::to-string"
+            | ":wat::string::pascal->kebab-in"
+            | ":wat::string::kebab->pascal-in" => {
+                let want = if k == ":wat::keyword::to-string" { 1 } else { 2 };
+                if args.len() != want {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+                        callee: k.to_string(),
+                        expected: want,
+                        got: args.len()
+                    } });
+                }
+                if !args.is_empty() {
+                    let (arg_ty_opt, arg_errs) = infer(&args[0], env, locals, fresh, subst).into_parts();
+                    local_errors.extend(arg_errs);
+                    if let Some(arg_ty) = arg_ty_opt {
+                        if !type_is_name_token(&arg_ty, subst, env) {
+                            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: k.to_string(),
+                                param: "#1".into(),
+                                expected: ":wat::type::keyword or :wat::type::symbol".into(),
+                                got: format_type(&arg_ty),
+                            } });
+                        }
+                    }
+                }
+                if want == 2 && args.len() >= 2 {
+                    let string_ty = TypeExpr::Path(":wat::type::String".into());
+                    let (arg_ty_opt, arg_errs) = infer(&args[1], env, locals, fresh, subst).into_parts();
+                    local_errors.extend(arg_errs);
+                    if let Some(arg_ty) = arg_ty_opt {
+                        if !assignable(&arg_ty, &string_ty, subst, env) {
+                            local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                                callee: k.to_string(),
+                                param: "#2".into(),
+                                expected: ":wat::type::String".into(),
+                                got: format_type(&arg_ty),
+                            } });
+                        }
+                    }
+                }
+                let string_ty = TypeExpr::Path(":wat::type::String".into());
+                return if local_errors.is_empty() {
+                    CheckResult::ok(string_ty)
+                } else {
+                    CheckResult::partial_with(string_ty, local_errors)
+                };
+            }
             // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
             // `:wat::runtime::variant-parent-of` membership predicate. Mirrors `is-type?`
             // immediately above: the arg is type-position, NOT a value (inferring it would
@@ -3202,12 +3294,11 @@ fn infer_list(
                         infer(&args[0], env, locals, fresh, subst).into_parts();
                     local_errors.extend(arg_errs);
                     let arg_ty = arg_ty_opt.unwrap_or_else(|| fresh.fresh());
-                    let kw = TypeExpr::Path(":wat::type::keyword".into());
-                    if !assignable(&arg_ty, &kw, subst, env) {
+                    if !type_is_name_token(&arg_ty, subst, env) {
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::runtime::variant-parent-of".into(),
                             param: "#1".into(),
-                            expected: format_type(&kw),
+                            expected: ":wat::type::keyword or :wat::type::symbol".into(),
                             got: format_type(&arg_ty),
                         } });
                         return CheckResult::errs(local_errors);
@@ -3245,23 +3336,23 @@ fn infer_list(
                 // ⛔ LITERAL OR COMPUTED, on EACH arg independently — deliberately NOT
                 // `is-type?`'s literal-only gate. See `variant-parent-of`'s arm above for the
                 // full rationale; the same door, applied twice.
-                let kw = TypeExpr::Path(":wat::type::keyword".into());
                 for (idx, arg) in args.iter().enumerate() {
                     if !matches!(arg, WatAST::Keyword(_, _)) {
                         let (arg_ty_opt, arg_errs) = infer(arg, env, locals, fresh, subst).into_parts();
                         local_errors.extend(arg_errs);
                         let arg_ty = arg_ty_opt.unwrap_or_else(|| fresh.fresh());
-                        if !assignable(&arg_ty, &kw, subst, env) {
+                        if !type_is_name_token(&arg_ty, subst, env) {
                             local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::runtime::compose-variant".into(),
                                 param: format!("#{}", idx + 1),
-                                expected: format_type(&kw),
+                                expected: ":wat::type::keyword or :wat::type::symbol".into(),
                                 got: format_type(&arg_ty),
                             } });
                             return CheckResult::errs(local_errors);
                         }
                     }
                 }
+                let kw = TypeExpr::Path(":wat::type::keyword".into());
                 return if local_errors.is_empty() {
                     CheckResult::ok(kw)
                 } else {
@@ -11440,14 +11531,13 @@ fn infer_kernel_fn_forms(
     // arg 1: name — infer; must conform to :wat::core::keyword.
     let name_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     if let Some(name_ty) = &name_ty_opt {
-        let expected_name = TypeExpr::Path(":wat::type::keyword".into());
-        if !assignable(name_ty, &expected_name, subst, env) {
+        if !type_is_name_token(name_ty, subst, env) {
             local_errors.push(CheckError {
                 span: args[1].span().clone(),
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "name".into(),
-                    expected: ":wat::type::keyword".into(),
+                    expected: ":wat::type::keyword or :wat::type::symbol".into(),
                     got: format_type(name_ty),
                 },
             });
@@ -13700,10 +13790,29 @@ fn infer_equality(
         let unified = unify(&a_widened, &b_widened, &mut probe, env.types()).is_ok();
         let numeric = matches!(&a_resolved, TypeExpr::Path(p) if is_numeric_check_path(p))
             && matches!(&b_resolved, TypeExpr::Path(p) if is_numeric_check_path(p));
+        // A quoted symbol is a symbol value (`eval_quote`). Its scheme is
+        // still AST, so it does not unify with a keyword. `values_equal`
+        // of that pair is false. The comparison is the gate.
+        let quoted_symbol_vs_keyword = |form: &WatAST, other: &TypeExpr| {
+            let WatAST::List(items, _) = form else {
+                return false;
+            };
+            if items.len() != 2 {
+                return false;
+            }
+            let WatAST::Keyword(head, _) = &items[0] else {
+                return false;
+            };
+            head == ":wat::core::quote"
+                && matches!(&items[1], WatAST::Symbol(_, _))
+                && matches!(other, TypeExpr::Path(p) if p == ":wat::type::keyword")
+        };
+        let name_cross = quoted_symbol_vs_keyword(&args[0], &b_resolved)
+            || quoted_symbol_vs_keyword(&args[1], &a_resolved);
         if unified {
             *subst = probe;
         }
-        if !unified && !numeric {
+        if !unified && !numeric && !name_cross {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: op.into(),
                 param: "#2".into(),
@@ -15112,6 +15221,7 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::type::u8"
                 | "wat::type::String"
                 | "wat::type::keyword"
+                | "wat::type::symbol"
                 | "wat::uuid::UUID"
                 | "wat::type::char"
                 | "wat::type::rational"
@@ -17607,6 +17717,14 @@ fn bound_failure(
     }
     let _ = env.take_membership();
     None
+}
+
+/// A keyword and a symbol are both name tokens. Call sites that resolve a
+/// name take either; the pair is the identity, the variant is which one.
+fn type_is_name_token(ty: &TypeExpr, subst: &mut Subst, env: &CheckEnv) -> bool {
+    let kw = TypeExpr::Path(":wat::type::keyword".into());
+    let sym = TypeExpr::Path(":wat::type::symbol".into());
+    assignable(ty, &kw, subst, env) || assignable(ty, &sym, subst, env)
 }
 
 pub(crate) fn assignable(
@@ -21879,6 +21997,14 @@ fn register_builtins(env: &mut CheckEnv) {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::type::String".into())],
         type_param_bounds: vec![],
         ret: TypeExpr::Path(":wat::type::AST".into()), rest_param_type: None });
+    // One string, or a namespace and a name. Both are strings; the result is a symbol value.
+    env.register(":wat::core::symbol".into(), TypeScheme {
+        type_params: vec![],
+        params: vec![TypeExpr::Path(":wat::type::String".into())],
+        type_param_bounds: vec![],
+        ret: TypeExpr::Path(":wat::type::symbol".into()),
+        rest_param_type: Some(TypeExpr::Path(":wat::type::String".into())),
+    });
     env.register(":wat::core::keyword-node".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::type::String".into())],
         type_param_bounds: vec![],

@@ -144,6 +144,13 @@ impl<V> NameMap<V> {
         if keyword_image || display_image {
             return None;
         }
+        // The keyword printer (`:ns/name`, `:k` has no slash and hit `index`
+        // or falls through). Parse it through the one constructor. `enter`
+        // would keep the leading colon on the namespace.
+        if spelling.starts_with(':') && spelling.contains('/') && !spelling.contains("::") {
+            let name = Name::from_keyword_value(spelling)?;
+            return self.by_name.get(&name).copied();
+        }
         let name = cached_enter(spelling)?;
         self.by_name.get(&name).copied()
     }

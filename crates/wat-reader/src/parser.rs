@@ -16,7 +16,7 @@
 //! [`parse_one_with_file`] / [`parse_all_with_file`] directly.
 
 use crate::ast::WatAST;
-use crate::identifier::{Identifier, BOUND_NAMESPACE};
+use crate::identifier::{Identifier, BARE_NAMESPACE, BOUND_NAMESPACE};
 use crate::lexer::{lex, lex_with_comments, Comment, LexError, SpannedToken, Token};
 use crate::span::Span;
 use std::fmt;
@@ -86,6 +86,12 @@ pub enum ParseErrorKind {
         /// The offending spelling, verbatim, for the error message.
         spelling: String,
     },
+    /// A symbol or keyword whose namespace segment is [`crate::identifier::BARE_NAMESPACE`].
+    /// Same door as [`Self::ForgedBinderNamespace`], its own message.
+    ForgedBareNamespace {
+        /// The offending spelling, verbatim, for the error message.
+        spelling: String,
+    },
 }
 
 impl fmt::Display for ParseErrorKind {
@@ -112,6 +118,12 @@ impl fmt::Display for ParseErrorKind {
                 "`{spelling}` uses the reserved `{BOUND_NAMESPACE}` namespace — substrate-minted \
                  for local binders, user source may not write it. A local is written bare \
                  (e.g. `x`, not `{BOUND_NAMESPACE}/x`).",
+            ),
+            ParseErrorKind::ForgedBareNamespace { spelling } => write!(
+                f,
+                "`{spelling}` uses the reserved `{BARE_NAMESPACE}` namespace — the namespace of an \
+                 unqualified keyword, user source may not write it. An unqualified keyword is \
+                 written `:k`, not `:{BARE_NAMESPACE}/k`.",
             ),
         }
     }
@@ -178,6 +190,13 @@ impl wat_edn::ToEdn for ParseError {
             ParseErrorKind::Empty => ("Empty", vec![]),
             ParseErrorKind::ForgedBinderNamespace { spelling } => (
                 "ForgedBinderNamespace",
+                vec![(
+                    OwnedValue::Keyword(Keyword::new("spelling")),
+                    OwnedValue::String(Cow::Owned(spelling.clone())),
+                )],
+            ),
+            ParseErrorKind::ForgedBareNamespace { spelling } => (
+                "ForgedBareNamespace",
                 vec![(
                     OwnedValue::Keyword(Keyword::new("spelling")),
                     OwnedValue::String(Cow::Owned(spelling.clone())),
@@ -390,6 +409,16 @@ impl<'a> Cursor<'a> {
             Token::BigInt(n) => Ok(Some(WatAST::BigIntLit(n.clone(), span))),
             Token::Bool(b) => Ok(Some(WatAST::BoolLit(*b, span))),
             Token::Str(s) => Ok(Some(WatAST::StringLit(s.clone(), span))),
+            Token::Keyword(k)
+                if k.strip_prefix(':')
+                    .and_then(|body| body.strip_prefix(BARE_NAMESPACE))
+                    .is_some_and(|rest| rest.starts_with('/')) =>
+            {
+                Err(ParseError {
+                    span,
+                    kind: ParseErrorKind::ForgedBareNamespace { spelling: k.clone() },
+                })
+            }
             Token::Keyword(k) => Ok(Some(WatAST::Keyword(k.clone(), span))),
             Token::Symbol(s) if s == "nil" => Ok(Some(WatAST::NilLit(span))),
             // Arc 251 Stone 251.8a-ii — refuse a symbol whose NAMESPACE
@@ -406,6 +435,14 @@ impl<'a> Cursor<'a> {
                 Err(ParseError {
                     span,
                     kind: ParseErrorKind::ForgedBinderNamespace { spelling: s.clone() },
+                })
+            }
+            Token::Symbol(s)
+                if s.strip_prefix(BARE_NAMESPACE).is_some_and(|rest| rest.starts_with('/')) =>
+            {
+                Err(ParseError {
+                    span,
+                    kind: ParseErrorKind::ForgedBareNamespace { spelling: s.clone() },
                 })
             }
             Token::Symbol(s) => Ok(Some(WatAST::Symbol(Identifier::bare(s.clone()), span))),
@@ -1096,6 +1133,27 @@ mod tests {
     }
 
     #[test]
+    fn bare_namespace_is_refused_for_the_symbol_and_the_keyword() {
+        let sym_err = crate::parse_one!("$bare/x").unwrap_err();
+        assert!(matches!(
+            sym_err,
+            ParseError { kind: ParseErrorKind::ForgedBareNamespace { .. }, .. }
+        ));
+        assert_eq!(
+            sym_err.kind.to_string(),
+            "`$bare/x` uses the reserved `$bare` namespace — the namespace of an unqualified keyword, \
+             user source may not write it. An unqualified keyword is written `:k`, not `:$bare/k`.",
+        );
+        let kw_err = crate::parse_one!(":$bare/k").unwrap_err();
+        assert!(matches!(
+            kw_err,
+            ParseError { kind: ParseErrorKind::ForgedBareNamespace { .. }, .. }
+        ));
+        assert_eq!(crate::parse_one!("$bare").unwrap(), sym("$bare"));
+        assert_eq!(crate::parse_one!("$bare2/x").unwrap(), sym("$bare2/x"));
+        assert_eq!(crate::parse_one!(":k").unwrap(), kw(":k"));
+    }
+
     fn bound_namespace_lookalike_but_not_a_slash_boundary_still_works() {
         // `$boundary` shares the `$bound` PREFIX but is not the reserved
         // namespace segment (no `/` right after `$bound`) — must parse clean.

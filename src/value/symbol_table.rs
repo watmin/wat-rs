@@ -312,6 +312,10 @@ impl SymbolTable {
         self.runtime_def_values.get(path)
     }
 
+    pub fn def_value_name(&self, name: &crate::scope::Name) -> Option<&Value> {
+        self.runtime_def_values.get_name(name)
+    }
+
     pub fn has_def_value(&self, path: &str) -> bool {
         self.runtime_def_values.contains_key(path)
     }

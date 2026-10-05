@@ -522,7 +522,12 @@ pub(crate) fn typedef_to_define_ast(def: &crate::types::TypeDef) -> WatAST {
 /// `Some(name)` for both; `None` for any other value shape.
 pub(crate) fn name_from_keyword_or_fn(v: &Value) -> Option<String> {
     match v {
-        Value::wat__core__keyword(k) => Some((**k).clone()),
+        Value::wat__core__keyword(k) => Some(crate::edn::render::canonical_identity(
+            &wat_reader::identifier::keyword_text(k),
+        )),
+        Value::Symbol(n) => Some(crate::edn::render::canonical_identity(
+            &wat_reader::identifier::keyword_text(n),
+        )),
         Value::wat__core__fn(f) => f.name.clone(),
         _ => None,
     }

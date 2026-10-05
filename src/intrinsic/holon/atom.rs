@@ -241,14 +241,18 @@ pub(crate) fn eval_holon_from_holon(
             return Ok(TrackedValue::new(Value::Nil, prov()));
         }
         return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(s.to_string())),
+            if s.starts_with(':') {
+                Value::keyword_spelled(s)
+            } else {
+                Value::keyword_bodied(s)
+            },
             prov(),
         ));
     }
     if let Some(s) = holon.as_keyword() {
         // Keyword composition: restore leading colon for the Value round-trip.
         return Ok(TrackedValue::new(
-            Value::wat__core__keyword(Arc::new(format!(":{}", s))),
+            Value::keyword_bodied(s),
             prov(),
         ));
     }
@@ -549,7 +553,9 @@ pub(crate) fn eval_holon_leaf(
         Value::String(s) => HolonAST::string(s.as_str()),
         // Arc 230: Keyword → HolonAST::keyword() composition (Bind(Atom("Keyword"), Atom(s))).
         // keyword() strips the leading colon; same semantics as arc 221 Stone 221.4b.
-        Value::wat__core__keyword(k) => HolonAST::keyword(k.as_str()),
+        Value::wat__core__keyword(k) => {
+            HolonAST::keyword(wat_reader::identifier::keyword_text(&k).as_str())
+        }
         // Arc 230: Value::Nil (wat nil) → HolonAST::nil() composition.
         // HolonAST::nil() = Bind(Atom("Symbol"), Atom("nil")); supersedes HolonAST::Nil.
         Value::Nil => HolonAST::nil(),

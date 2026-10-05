@@ -352,7 +352,7 @@ impl SocketListener {
 fn write_crash_notice(stream: &UnixStream) {
     use std::os::fd::AsRawFd;
     let fd = stream.as_raw_fd();
-    let mut frame = crate::kernel::peer::PEER_CRASHED_SENTINEL.as_bytes().to_vec();
+    let mut frame = crate::kernel::peer::peer_crashed_spelling().into_bytes();
     frame.push(b'\n');
     let mut off = 0;
     while off < frame.len() {

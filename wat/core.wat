@@ -537,7 +537,7 @@
                    "kwargs-lower: n-pos must be an integer literal")
      fnames     (wat.core/ast->children field-names)
      nf         (wat.core/length fnames)
-     ns-kw      (wat.keyword/from-string (wat.keyword/to-string ns))
+     ns-kw      (wat.core/symbol (wat.keyword/to-string ns))
      ;; Split call-args into positional and tail.
      ;; Arc 118.2a — was `(:wat::core::take call-args n-pos-int)` / `(:wat::core::drop …)`. Both
      ;; flipped LAZY; this is `:wat::core::kwargs-lower`, a program-body macro forwarded to from
@@ -840,7 +840,7 @@
          ;; :<name>::Kwargs — the minted bundle type. STONE-the-dormant-minter — always
          ;; the BARE name now (`name-tp` is always ""); a non-empty `binder-names-ch`
          ;; rides as a `:- [...]` sibling on `record-def` (below), not name-embedded.
-         kwargs-ty       (wat.keyword/from-string
+         kwargs-ty       (wat.core/symbol
                            (wat.string/interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
          kwargs-ty-str   (wat.keyword/to-string kwargs-ty)
          ;; the BARE bundle name — the CONSTRUCTOR head and the ACCESSOR prefix, both of
@@ -971,7 +971,7 @@
                                  ;; any macro-emission depth.
                                  binder-sym    fname-node
                                  ;; Accessor keyword: :<name>::Kwargs/<field-name>
-                                 accessor-kw   (wat.keyword/from-string
+                                 accessor-kw   (wat.core/symbol
                                                  (wat.string/concat kwargs-ty-base-str
                                                    (wat.string/interpolate "/{fname-str}" :fname-str fname-str)))
                                  ;; Accessor call: (:<name>::Kwargs/<field> __kwargs__)
@@ -2141,9 +2141,9 @@
   :- wat.type/AST
   (wat.core/let
     [surf-str   (wat.keyword/to-string surf)            ;; "k5::HasX" (no leading colon)
-     core-kw    (wat.keyword/from-string
+     core-kw    (wat.core/symbol
                   (wat.string/interpolate "{surf-str}$core-record" :surf-str surf-str))
-     holon-kw   (wat.keyword/from-string
+     holon-kw   (wat.core/symbol
                   (wat.string/interpolate "{surf-str}$holon-record" :surf-str surf-str))]
     `(wat.core/do
        (wat.core/extend-type ~core-kw  ~surf ~@methods)

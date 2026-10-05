@@ -195,9 +195,9 @@
   :- wat.type/nil
   (wat.core/let
     [base-str     (wat.keyword/to-string work-fn)
-     assemble-kw  (wat.keyword/from-string
+     assemble-kw  (wat.core/symbol
                     (wat.core/format "{base-str}::assemble" :base-str base-str))
-     impl-kw      (wat.keyword/from-string
+     impl-kw      (wat.core/symbol
                     (wat.core/format "{base-str}$impl" :base-str base-str))]
     (wat.core/match (wat.kernel/recv self)
       [wat.kernel/RecvOutcome.Message {:msg m}
@@ -379,10 +379,10 @@
   ([work-fn :- wat.type/keyword] :- (wat.type/Vector :- [wat.type/AST])
     (wat.core/let
       [base-str      (wat.keyword/to-string work-fn)
-       impl-kw       (wat.keyword/from-string (wat.core/format "{base-str}$impl" :base-str base-str))
+       impl-kw       (wat.core/symbol (wat.core/format "{base-str}$impl" :base-str base-str))
        kwargs-ty-str (wat.core/format "{base-str}::Kwargs" :base-str base-str)
-       kwargs-ty     (wat.keyword/from-string kwargs-ty-str)
-       work-name     (wat.keyword/from-string "user::bracket::work-fn")
+       kwargs-ty     (wat.core/symbol kwargs-ty-str)
+       work-name     (wat.core/symbol "user::bracket::work-fn")
        forms         (wat.kernel/fn-forms impl-kw work-name)
        nforms        (wat.core/length forms)
        ;; The $impl fn-def-node — the SECOND-TO-LAST shipped form (fn-forms, given a
@@ -517,7 +517,7 @@
   ;; both clauses share the one call site above.
   ([work-fn :- W] :- (wat.type/Vector :- [wat.type/AST])
     (wat.core/let
-      [work-name (wat.keyword/from-string "user::bracket::work-fn")
+      [work-name (wat.core/symbol "user::bracket::work-fn")
        forms     (wat.kernel/fn-forms work-fn work-name)
        ;; ── derive the concrete arg/return type keywords off the reified work-fn ──
        def-node  (wat.core.Option/expect (wat.core/last forms) "spawn-runner: fn-forms produced no define")

@@ -56,11 +56,15 @@ pub(crate) fn from_holon_item(
         if s == "nil" {
             return Ok(Value::Nil);
         }
-        return Ok(Value::wat__core__keyword(Arc::new(s.to_string())));
+        return Ok(if s.starts_with(':') {
+            Value::keyword_spelled(s)
+        } else {
+            Value::keyword_bodied(s)
+        });
     }
-    // Keyword composition → keyword Value with leading colon restored.
+    // Keyword composition → keyword Value. The stored holon text has no colon.
     if let Some(s) = item.as_keyword() {
-        return Ok(Value::wat__core__keyword(Arc::new(format!(":{}", s))));
+        return Ok(Value::keyword_bodied(s));
     }
     match item {
         // Arc 221 Stone 221.2 — HolonAST::Char leaf → Value::wat__core__Char.
@@ -383,7 +387,9 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         // the colon at the boundary per Stone 221.3 doctrine (stored content has
         // no leading colon). Pre-arc-221 used HolonAST::symbol(k.as_str()) which
         // violated the honest-primitive discipline; retired here.
-        Value::wat__core__keyword(k) => HolonAST::keyword(&k),
+        Value::wat__core__keyword(k) => {
+            HolonAST::keyword(wat_reader::identifier::keyword_text(&k).as_str())
+        }
         // Arc 230: Value::Nil (wat's nil) → HolonAST::nil() composition.
         // Arc 221 minted HolonAST::Nil; arc 230 supersedes with Bind composition.
         // HolonAST::nil() = Bind(Atom(String("Symbol")), Atom(String("nil"))).

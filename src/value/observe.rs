@@ -199,7 +199,8 @@ pub(crate) fn render_value(v: &Value, depth: usize) -> String {
         Value::u8(n) => n.to_string(),
         Value::f64(x) => x.to_string(),
         Value::String(s) => format!("\"{}\"", s),
-        Value::wat__core__keyword(k) => (**k).clone(),
+        Value::wat__core__keyword(k) => wat_reader::identifier::keyword_text(k),
+        Value::Symbol(n) => wat_reader::identifier::symbol_text(n),
         // Arc 300 stone B — a genuine ratio always has den>=2 (a den==1
         // literal already reduced to an Integer at lex time) — no `"/1"` case.
         Value::wat__core__Rational(r) => format!("{}/{}", r.numer(), r.denom()),

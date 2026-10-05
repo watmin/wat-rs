@@ -80,6 +80,6 @@
 ;; label (ALIVS ARGVIT — the consumer found the flaw). Bracket is UNAFFECTED: `map-worker`
 ;; is positional, so its origin is the real caller (proven by the same probes).
 (wat.core/defrecord wat.process/Service
-  [name :- wat.type/keyword
+  [name :- wat.type/symbol
    file :- wat.type/String
    line :- wat.type/i64])

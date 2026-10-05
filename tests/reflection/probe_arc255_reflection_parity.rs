@@ -62,7 +62,7 @@ fn metadata_of_map(_name_kw: &str) -> std::collections::HashMap<Value, Value> {
 
 /// Fetch a baseline value by its keyword key (stored WITH the leading colon).
 fn get<'a>(map: &'a std::collections::HashMap<Value, Value>, key: &str) -> Option<&'a Value> {
-    map.get(&Value::wat__core__keyword(Arc::new(key.to_string())))
+    map.get(&Value::keyword_from_spelling(key).unwrap())
 }
 
 // Arc 255 Stone P3 (2026-08-28): re-measured — it PASSES. The intrinsic registry's
@@ -137,7 +137,7 @@ fn dump_bytes_to_hex_metadata() {
     let mut keys: Vec<String> = map
         .keys()
         .map(|k| match k {
-            Value::wat__core__keyword(s) => s.as_ref().clone(),
+            Value::wat__core__keyword(s) => wat_reader::identifier::keyword_text(s),
             other => format!("{:?}", other),
         })
         .collect();
@@ -147,7 +147,7 @@ fn dump_bytes_to_hex_metadata() {
         let v = get(&map, k).unwrap();
         // iv-c: values are now plain wat Values (not HolonAST-wrapped).
         let rendered = match v {
-            Value::wat__core__keyword(s) => s.as_ref().clone(),
+            Value::wat__core__keyword(s) => wat_reader::identifier::keyword_text(s),
             Value::i64(n) => n.to_string(),
             Value::bool(b) => b.to_string(),
             Value::String(s) => format!("{:?}", s.as_ref()),

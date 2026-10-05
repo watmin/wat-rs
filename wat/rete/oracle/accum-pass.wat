@@ -145,7 +145,7 @@
                          ;; got wat::WatAST". Round-trip through its name string instead, same
                          ;; `ast-name` + colon-strip + `keyword::from-string` idiom `wat/bracket.wat`
                          ;; and this file's own `var` extraction already use.
-                         acc-kw     (wat.keyword/from-string
+                         acc-kw     (wat.core/symbol
                                       (wat.core/if (wat.core/= (wat.string/subs acc-nm 0 1) ":")
                                         (wat.string/subs acc-nm 1 (wat.string/length acc-nm))
                                         acc-nm))

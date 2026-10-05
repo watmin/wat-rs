@@ -253,7 +253,16 @@ pub struct Peer {
 /// Reserved under `:wat::kernel::` — never constructible from user wat source
 /// (the namespace is off-limits to user code by existing convention), so no
 /// legitimate reply payload can collide with it.
-pub(crate) const PEER_CRASHED_SENTINEL: &str = ":wat::kernel::__peer_crashed__";
+pub(crate) fn peer_crashed_name() -> crate::scope::Name {
+    crate::scope::Name {
+        namespace: std::sync::Arc::from("wat.kernel"),
+        name: std::sync::Arc::from("__peer_crashed__"),
+    }
+}
+
+pub(crate) fn peer_crashed_spelling() -> String {
+    wat_reader::identifier::keyword_text(&peer_crashed_name())
+}
 
 /// Outcome of [`Peer::try_send`] / [`Peer::try_send_wire`] — Arc 278 Phase
 /// 3a (`BRIEF-send-wall-3a-try-send-outcome.md`). Distinguishes "the write
@@ -396,16 +405,16 @@ impl Peer {
     }
 
     /// Recognize the reserved `PeerCrashed` sentinel keyword value
-    /// (thread-tier wire form — see [`PEER_CRASHED_SENTINEL`]'s doc).
+    /// (thread-tier wire form — see [`peer_crashed_name`]).
     fn is_peer_crashed_sentinel(value: &crate::value::Value) -> bool {
         matches!(
             value,
-            crate::value::Value::wat__core__keyword(k) if k.as_str() == PEER_CRASHED_SENTINEL
+            crate::value::Value::wat__core__keyword(k) if k == &peer_crashed_name()
         )
     }
 
     /// Best-effort: notify this peer that the far side crashed abnormally.
-    /// Sends the reserved [`PEER_CRASHED_SENTINEL`] on the peer's EXISTING
+    /// Sends the reserved [`peer_crashed_name`] on the peer's EXISTING
     /// data channel via the tier's `try_send` — genuinely non-blocking (see
     /// `CommSender::try_send`'s doc). NEVER blocks, waits for an ack, or
     /// retries: a channel that's full or already gone is silently skipped —
@@ -417,13 +426,11 @@ impl Peer {
     pub(crate) fn notify_peer_crashed_best_effort(&self) {
         match &self.tx {
             PeerTx::Thread(tx) => {
-                let sentinel = crate::value::Value::wat__core__keyword(std::sync::Arc::new(
-                    PEER_CRASHED_SENTINEL.to_string(),
-                ));
+                let sentinel = crate::value::Value::wat__core__keyword(peer_crashed_name());
                 let _ = tx.try_send(sentinel);
             }
             PeerTx::Socket(tx) => {
-                let _ = tx.try_send(PEER_CRASHED_SENTINEL.to_string());
+                let _ = tx.try_send(peer_crashed_spelling());
             }
         }
     }
@@ -457,7 +464,7 @@ impl Peer {
             .downcast_ref::<crate::comms::process::Receiver<crate::value::Value>>()
             .expect("recv_wire called on non-socket-tier peer (thread::Receiver does not impl from_wire via pipe)")
             .recv_wire_raw()?;
-        if wire == PEER_CRASHED_SENTINEL {
+        if wire == peer_crashed_spelling() {
             return Err(RecvError::PeerCrashed);
         }
         Ok(wire)

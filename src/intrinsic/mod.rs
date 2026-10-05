@@ -528,6 +528,10 @@ pub(crate) struct IntrinsicEntry {
 /// via `lookup`, `metadata-of` reads the baseline via `lookup_entry`.
 pub(crate) struct IntrinsicRegistry {
     entries: std::collections::HashMap<&'static str, IntrinsicEntry>,
+    /// The same entries, keyed by the pair [`Name::from_keyword_value`] gives
+    /// their registered spelling. Lookup of a keyword or symbol value uses
+    /// this. The string map stays the text bridge.
+    by_name: std::collections::HashMap<crate::scope::Name, &'static str>,
     /// Stone 255-builtin-registry (the membership facet) — names with MEMBERSHIP but no
     /// full `IntrinsicEntry`: the `RETE_OPS` (`src/rete/vocabulary.rs`) rete-surface verbs,
     /// whose own `ReteOp` row cannot honestly fill a full contract — `category` has no
@@ -548,6 +552,7 @@ impl IntrinsicRegistry {
     fn new() -> Self {
         IntrinsicRegistry {
             entries: std::collections::HashMap::new(),
+            by_name: std::collections::HashMap::new(),
             membership_names: std::collections::HashSet::new(),
         }
     }
@@ -561,6 +566,9 @@ impl IntrinsicRegistry {
     /// `inventory::iter` submission streams before either collapses into this map.
     fn register(&mut self, entry: IntrinsicEntry) {
         debug_assert!(!self.entries.contains_key(entry.name), "duplicate intrinsic registration: {}", entry.name);
+        if let Some(name) = crate::scope::Name::from_keyword_value(entry.name) {
+            self.by_name.insert(name, entry.name);
+        }
         self.entries.insert(entry.name, entry);
     }
 
@@ -585,6 +593,12 @@ impl IntrinsicRegistry {
     /// `TypeEnv::get` preserves against `builtin_names`.
     pub(crate) fn lookup_entry(&self, name: &str) -> Option<&IntrinsicEntry> {
         self.entries.get(name)
+    }
+
+    /// [`Self::lookup_entry`] by the pair, not a second spelling.
+    pub(crate) fn lookup_entry_name(&self, name: &crate::scope::Name) -> Option<&IntrinsicEntry> {
+        let key = self.by_name.get(name)?;
+        self.entries.get(key)
     }
 
     /// Answers MEMBERSHIP: does `name` refer to a real verb at all, whether or not the
@@ -851,6 +865,7 @@ mod i64;
 mod io;
 mod kernel;
 mod keyword;
+mod symbol;
 mod linkedlist;
 mod list;
 mod macro_error;

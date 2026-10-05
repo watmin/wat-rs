@@ -409,13 +409,8 @@ pub fn eval_edn_read_foreign(
 /// keyword refers to. A wat keyword value carries its leading `:` (and possibly
 /// a `::`-namespace); foreign field keys are the bare name (as read off the
 /// wire via `Keyword::name()`), so strip the `:` and take the last `::`-segment.
-fn foreign_key_name(kw: &str) -> String {
-    let body = kw.strip_prefix(':').unwrap_or(kw);
-    // rune:lint(one-variant-separator, namespace) — bare leaf off a foreign-record keyword's namespace path
-    match body.rsplit_once("::") {
-        Some((_, last)) => last.to_string(),
-        None => body.to_string(),
-    }
+fn foreign_key_name(kw: &crate::scope::Name) -> String {
+    kw.name().to_string()
 }
 
 /// `(:wat::edn::ForeignRecord/get fr :key)` → `:wat::core::Option<wat::core::Value>`.
@@ -500,7 +495,7 @@ pub fn eval_foreign_variant_variant(
     let v = require_one_arg(OP, args, env, sym, list_span)?;
     match &v {
         Value::ForeignVariant(fv) => {
-            Ok(Value::wat__core__keyword(Arc::new(format!(":{}", fv.variant))))
+            Ok(Value::keyword_bodied(&fv.variant))
         }
         other => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
@@ -1397,11 +1392,11 @@ pub fn eval_ast_span(
     #[allow(clippy::mutable_key_type)]
     let mut map: std::collections::HashMap<Value, Value> = std::collections::HashMap::new();
     map.insert(
-        Value::wat__core__keyword(std::sync::Arc::new(":line".to_string())),
+        Value::keyword_spelled(":line"),
         Value::i64(span.line),
     );
     map.insert(
-        Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
+        Value::keyword_spelled(":col"),
         Value::i64(span.col),
     );
     Ok(crate::value::TrackedValue::new(
@@ -1433,11 +1428,11 @@ pub fn eval_ast_end_span(
     let end_line = span.end.as_ref().map(|p| p.line).unwrap_or(span.line);
     let end_col  = span.end.as_ref().map(|p| p.col).unwrap_or(span.col);
     map.insert(
-        Value::wat__core__keyword(std::sync::Arc::new(":line".to_string())),
+        Value::keyword_spelled(":line"),
         Value::i64(end_line),
     );
     map.insert(
-        Value::wat__core__keyword(std::sync::Arc::new(":col".to_string())),
+        Value::keyword_spelled(":col"),
         Value::i64(end_col),
     );
     Ok(crate::value::TrackedValue::new(
@@ -2378,15 +2373,31 @@ fn edn_to_value_caps(
         // Stone 242.1: renamed from :wat::core::Char to :wat::core::char.
         Edn::Char(c) => Ok(Value::wat__core__Char(*c)),
         Edn::Keyword(k) => {
-            let s = match k.namespace() {
-                // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
-                Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
-                None => format!(":{}", k.name()),
+            let name = match k.namespace() {
+                Some(ns) => crate::scope::Name::from_ns_and_name(ns, k.name()),
+                None => Some(crate::scope::Name::bare_keyword(k.name())),
             };
-            Ok(Value::wat__core__keyword(Arc::new(s)))
+            match name {
+                Some(n) => Ok(Value::wat__core__keyword(n)),
+                None => Err(EdnReadError {
+                    span: crate::rust_caller_span!(),
+                    kind: EdnReadErrorKind::Other("EDN keyword is not a wat keyword pair".into()),
+                }),
+            }
         }
-        // arc 138: no span — edn_to_value walks an OwnedValue tree (already-parsed EDN); no WatAST available
-        Edn::Symbol(_) => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("EDN Symbol — wat has no symbol value type".into()) }),
+        Edn::Symbol(sym) => {
+            let name = match sym.namespace() {
+                Some(ns) => crate::scope::Name::from_ns_and_name(ns, sym.name()),
+                None => crate::scope::Name::from_symbol_text(sym.name()),
+            };
+            match name {
+                Some(n) => Ok(Value::Symbol(n)),
+                None => Err(EdnReadError {
+                    span: crate::rust_caller_span!(),
+                    kind: EdnReadErrorKind::Other("EDN symbol is not a wat symbol pair".into()),
+                }),
+            }
+        }
         Edn::BigInt(_) | Edn::BigDec(_) => Err(EdnReadError { span: crate::rust_caller_span!(), kind: EdnReadErrorKind::Other("EDN BigInt / BigDecimal — wat numeric tower is i64 + f64 only".into()) }),
         // Arc 220 Stone 220.4 — EDN list `(...)` → `Value::wat__core__List` (preserves
         // the parens-vs-brackets distinction for faithful Clojure round-trips).
@@ -2668,12 +2679,14 @@ fn edn_to_typed_value_inner(
             },
             ":wat::type::keyword" => match edn {
                 Edn::Keyword(k) => {
-                    let s = match k.namespace() {
-                        // rune:lint(one-variant-separator, edn) — rebuilds a wat keyword from an EDN keyword's dotted namespace
-                        Some(ns) => format!(":{}::{}", ns.replace('.', "::"), k.name()),
-                        None => format!(":{}", k.name()),
+                    let name = match k.namespace() {
+                        Some(ns) => crate::scope::Name::from_ns_and_name(ns, k.name()),
+                        None => Some(crate::scope::Name::bare_keyword(k.name())),
                     };
-                    Ok(Value::wat__core__keyword(Arc::new(s)))
+                    let Some(name) = name else {
+                        return Err(mismatch(target, edn));
+                    };
+                    Ok(Value::wat__core__keyword(name))
                 }
                 other => Err(mismatch(target, other)),
             },
@@ -3366,7 +3379,12 @@ pub fn value_to_json_natural(
         )),
         Value::Duration(ns) => OwnedValue::Integer(*ns),
         Value::wat__core__keyword(k) => {
-            OwnedValue::String(Cow::Owned(strip_keyword_colon(k)))
+            let shown = wat_reader::identifier::keyword_text(k);
+            let body = shown.strip_prefix(':').unwrap_or(&shown);
+            OwnedValue::String(Cow::Owned(body.replace('/', ".")))
+        }
+        Value::Symbol(k) => {
+            OwnedValue::String(Cow::Owned(wat_reader::identifier::symbol_text(k)))
         }
         Value::Aggregate(sv) if sv.nature == crate::types::Nature::Struct => {
             // Arc 296 G-2 — names are carried on the value; no registry lookup, no fallback.
@@ -3447,16 +3465,6 @@ fn type_path_to_namespace(type_path: &str) -> String {
         .unwrap_or(type_path)
         // rune:lint(one-variant-separator, edn) — converts the whole wat type path's `::` into `.` for EDN's dotted namespace
         .replace("::", ".")
-}
-
-fn strip_keyword_colon(k: &str) -> String {
-    // Wat keywords are stored with leading `:` and `::` separators.
-    // For natural JSON we want a plain string.
-    let stripped = k.strip_prefix(':').unwrap_or(k);
-    // Convert `::` separators to `.` so JSON readers see a familiar
-    // dotted-namespace form (e.g. `:wat::time::Instant` → `wat.time.Instant`).
-    // rune:lint(one-variant-separator, edn) — translates a general wat keyword's `::` namespace into `.` for natural-JSON rendering
-    stripped.replace("::", ".")
 }
 
 /// Arc 296 H-2 — read one named field of a map-bodied variant (`#tag {:key v}`).
@@ -4607,7 +4615,8 @@ pub fn value_to_edn_with(
         Value::u8(n) => OwnedValue::Integer(*n as i64),
         Value::f64(x) => OwnedValue::Float(*x),
         Value::String(s) => OwnedValue::String(std::borrow::Cow::Owned((**s).clone())),
-        Value::wat__core__keyword(k) => keyword_from_wat_path(k),
+        Value::wat__core__keyword(k) => keyword_edn_from_name(k),
+        Value::Symbol(n) => symbol_edn_from_name(n),
 
         // ── Option / Result ──────────────────────────────────────
         // Arc 296 H-2 — a variant is a tagged map. `#wat.core/Option.Some {:value v}`
@@ -4957,6 +4966,33 @@ pub fn value_to_edn_with(
 /// refused by `Keyword::try_ns` and carried verbatim via
 /// [`crate::edn::bridge::verbatim_keyword`] — never folded into a
 /// different, readable-looking keyword whose decode would guess.
+pub(crate) fn keyword_edn_from_name(n: &crate::scope::Name) -> OwnedValue {
+    use wat_reader::identifier::{keyword_text, BARE_NAMESPACE};
+    let built = if n.namespace() == BARE_NAMESPACE {
+        Keyword::try_new(n.name()).ok()
+    } else {
+        Keyword::try_ns(n.namespace(), n.name()).ok()
+    };
+    match built {
+        Some(kw) => OwnedValue::Keyword(kw),
+        None => crate::edn::bridge::verbatim_keyword(&keyword_text(n)),
+    }
+}
+
+pub(crate) fn symbol_edn_from_name(n: &crate::scope::Name) -> OwnedValue {
+    use wat_edn::Symbol;
+    use wat_reader::identifier::{symbol_text, BARE_NAMESPACE, BOUND_NAMESPACE};
+    let built = if n.namespace() == BARE_NAMESPACE || n.namespace() == BOUND_NAMESPACE {
+        Symbol::try_new(n.name()).ok()
+    } else {
+        Symbol::try_ns(n.namespace(), n.name()).ok()
+    };
+    match built {
+        Some(sym) => OwnedValue::Symbol(sym),
+        None => crate::edn::bridge::verbatim_keyword(&symbol_text(n)),
+    }
+}
+
 pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
     let stripped = k.strip_prefix(':').unwrap_or(k);
     // rune:lint(one-variant-separator, namespace) — checks whether a general wat keyword path has any namespace segments

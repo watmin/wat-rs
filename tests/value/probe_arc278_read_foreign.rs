@@ -29,7 +29,7 @@ fn read_foreign_reconstructs_nested_foreign_variant() {
         .expect("read-foreign navigation should return the nested variant name");
     assert_eq!(
         v,
-        Value::wat__core__keyword(Arc::new(":Click".to_string())),
+        Value::keyword_from_spelling(":Click").unwrap(),
         "read-foreign should navigate #some.unknown/Rec {{:kind #some.unknown/Kind.Click {{:n 42}}}} \
          down to the nested ForeignVariant and yield its variant keyword :Click"
     );

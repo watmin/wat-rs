@@ -15,6 +15,17 @@ use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 
+fn rule_namespace_holds(fun: &crate::scope::Name, gate: &crate::scope::Name) -> bool {
+    use wat_reader::identifier::{BARE_NAMESPACE, BOUND_NAMESPACE};
+    let want = if gate.namespace() == BARE_NAMESPACE || gate.namespace() == BOUND_NAMESPACE {
+        gate.name().to_string()
+    } else {
+        format!("{}.{}", gate.namespace(), gate.name())
+    };
+    let ns = fun.namespace();
+    ns == want || ns.starts_with(&format!("{want}."))
+}
+
 /// `(:wat::rete::collect-rules ns) -> (:wat::core::PersistentVector :- [:wat::rete::Rule])`
 ///
 /// Selects every zero-arg fn in namespace `ns` whose declared return type is `:wat::rete::Rule`, sorts by
@@ -71,10 +82,12 @@ pub(crate) fn eval_collect_rules(
             }).into());
         }
     };
-    // Namespace boundary: "weather::" — the trailing "::" guards against ":weatherfoo::".
-    // Colon-robust: strip a leading ':' from both the namespace and each fn-name key before comparing.
-    let ns_bare = ns.strip_prefix(':').unwrap_or(&ns);
-    let prefix = format!("{ns_bare}::");
+    // A function is in this namespace when its pair's namespace is the
+    // keyword's name (`:weather` → namespace `weather`) or, for a
+    // namespaced keyword (`:wat::rete` → `{wat, rete}`), `wat.rete` and
+    // anything under it. The trailing separator used to be `::` on the
+    // spelling so `:weather` would not match `:weatherfoo`.
+    let gate = ns;
 
     // Select zero-arg fns in the namespace whose return type is the `defrule` marker `:wat::rete::Rule`.
     let mut names: Vec<String> = sym
@@ -83,8 +96,8 @@ pub(crate) fn eval_collect_rules(
             // `:cnt::node` and `cnt/node` are one name; `:wat::rete::Rule` and
             // `wat.rete/Rule` are one return type (the converted `defrule` emits
             // the symbol).
-            let bare = crate::edn::render::fact_class_key(name);
-            bare.starts_with(&prefix)
+            let in_ns = crate::scope::Name::enter(name).is_some_and(|fun| rule_namespace_holds(&fun, &gate));
+            in_ns
                 && f.param_types.is_empty()
                 && matches!(&f.ret_type, crate::types::TypeExpr::Path(p)
                     if crate::edn::render::canonical_identity(p) == ":wat::rete::Rule")

@@ -83,7 +83,7 @@ pub(crate) fn eval_intrinsic_examples(
     let mut tuples: Vec<Value> = Vec::new();
 
     for entry in crate::intrinsic::registry().all_entries() {
-        let fqdn_kw = Value::wat__core__keyword(Arc::new(entry.name.to_string()));
+        let fqdn_kw = Value::keyword_spelled(entry.name);
         // Arc 255.1c site 2 — read the entry we already hold instead of a prefix
         // guess: `entry.purity`/`entry.determinism` are declared fields in the
         // same struct, not re-derived from the FQDN.
@@ -202,7 +202,7 @@ pub(crate) fn eval_intrinsic_rows(
     let mut rows: Vec<Value> = Vec::new();
 
     for entry in crate::intrinsic::registry().all_entries() {
-        let name_kw = Value::wat__core__keyword(Arc::new(entry.name.to_string()));
+        let name_kw = Value::keyword_spelled(entry.name);
         let kind_val = crate::intrinsic::ToEnumValue::to_enum_value(&entry.kind);
         // Same sentinel `metadata-of`'s intrinsic branch uses (runtime.rs).
         let arity_val = match entry.arity {
@@ -411,7 +411,12 @@ fn extract_fqdn(
         _ => {
             let v = crate::runtime::eval_inner(arg, env, sym)?.value_owned();
             match &v {
-                Value::wat__core__keyword(k) => Ok((**k).clone()),
+                Value::wat__core__keyword(k) => Ok(crate::edn::render::canonical_identity(
+                    &wat_reader::identifier::keyword_text(k),
+                )),
+                Value::Symbol(k) => Ok(crate::edn::render::canonical_identity(
+                    &wat_reader::identifier::keyword_text(k),
+                )),
                 Value::wat__WatAST(ast) => match ast.as_ref() {
                     WatAST::Keyword(k, _) => Ok(k.clone()),
                     _ => Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {

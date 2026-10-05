@@ -549,13 +549,23 @@ pub fn eval_kernel_fn_forms(
     // Value arriving through computation also resolves.
     let fn_value = match eval(&args[0], env, sym)?.value_owned() {
         v @ Value::wat__core__fn(_) => v,
-        Value::wat__core__keyword(k) => match sym.get(&k) {
+        Value::wat__core__keyword(k) => match sym.get_name(&k) {
             Some(func) => Value::wat__core__fn(func.clone()),
             None => {
                 return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "a keyword naming a registered fn (or a fn value)",
+                    expected: "a name of a registered fn (or a fn value)",
                     got: Box::new(ValueSnapshot::of(&Value::wat__core__keyword(k))),
+                }));
+            }
+        },
+        Value::Symbol(k) => match sym.get_name(&k) {
+            Some(func) => Value::wat__core__fn(func.clone()),
+            None => {
+                return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "a name of a registered fn (or a fn value)",
+                    got: Box::new(ValueSnapshot::of(&Value::symbol(k))),
                 }));
             }
         },
@@ -571,7 +581,9 @@ pub fn eval_kernel_fn_forms(
     // arg 1: the bind name — a keyword (carries its leading ':', same
     // convention as every other keyword Value in the runtime).
     let name: String = match eval(&args[1], env, sym)?.value_owned() {
-        Value::wat__core__keyword(k) => (*k).clone(),
+        Value::wat__core__keyword(k) | Value::Symbol(k) => {
+            wat_reader::identifier::keyword_text(&k)
+        }
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
@@ -2016,14 +2028,15 @@ fn encode_value_with_path(
         // immediately above, one type over): re-encodes directly as a `BigIntLit`.
         Value::wat__core__BigInt(n) => Ok(WatAST::BigIntLit((**n).clone(), span)),
         Value::wat__core__keyword(k) => {
-            // A wat-level keyword value is constructed via
-            // `(:wat::core::keyword "literal-text")` — but the simpler
-            // surface is to emit the bare keyword token. Emit literal
-            // keyword token; eval's keyword arm produces the same value
-            // for a stand-alone keyword that doesn't resolve to a
-            // function.
-            Ok(WatAST::Keyword((**k).clone(), span))
+            Ok(WatAST::Keyword(wat_reader::identifier::keyword_text(k), span))
         }
+        Value::Symbol(n) => Ok(WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::quote".into(), span.clone()),
+                WatAST::Symbol(crate::scope::Identifier::from_pair(n.clone()), span.clone()),
+            ],
+            span,
+        )),
         // Arc 207 — Uuid is portable: encode as a `Uuid/from-string` call
         // on the canonical 8-4-4-4-12 hyphenated form. Round-trips cleanly.
         Value::wat__uuid__Uuid(u) => Ok(WatAST::List(

@@ -242,6 +242,7 @@ pub(in crate::function) fn val_type_path(val: &Value) -> &'static str {
         Value::String(_) => ":wat::type::String",
         Value::Nil => ":wat::type::nil",
         Value::wat__core__keyword(_) => ":wat::type::keyword",
+        Value::Symbol(_) => ":wat::type::symbol",
         Value::wat__core__fn(_) => ":wat::core::fn",
         Value::wat__core__clauses(_) => ":wat::core::clauses",
         Value::wat__WatAST(_) => ":wat::type::AST",

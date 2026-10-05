@@ -202,7 +202,7 @@ fn cross_type_hash_list_vector_same_contents_same_hash() {
         ll
     }));
     let mut map: HashMap<Value, Value> = HashMap::new();
-    map.insert(vec_key, Value::wat__core__keyword(Arc::new(":found".to_string())));
+    map.insert(vec_key, Value::keyword_from_spelling(":found").unwrap());
 
     // List key should find the Vec-keyed entry
     let result = map.get(&list_key);

@@ -3774,6 +3774,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::type::bigint",
         ":wat::type::rational",
         ":wat::type::keyword",
+        ":wat::type::symbol",
         // AST leaves — `wat-tests/holon/Reject.wat:31` (`HolonAST` param+return),
         // `tests/resolve/probe_arc251_decl_migrator.wat:4` `[kw <- wat.type/AST] -> wat.type/AST`.
         ":wat::holon::HolonAST",
@@ -9480,6 +9481,7 @@ mod tests {
             ":wat::type::bigint",
             ":wat::type::rational",
             ":wat::type::keyword",
+            ":wat::type::symbol",
             ":wat::holon::HolonAST",
             ":wat::type::AST",
             ":wat::type::Value",
@@ -9574,6 +9576,7 @@ mod tests {
             ":wat::type::String",
             ":wat::type::u8",
             ":wat::type::keyword",
+            ":wat::type::symbol",
             ":wat::type::Vector",
             ":wat::type::HashMap",
             ":wat::type::HashSet",

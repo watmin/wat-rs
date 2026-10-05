@@ -73,7 +73,7 @@
 ;; THE row. `type-params` is on the row (every TypeDef carries them), not
 ;; buried in a kind-specific body. `body` is the rest.
 (wat.core/defrecord wat.runtime/TypeInfo
-  [name :- wat.type/keyword
+  [name :- wat.type/symbol
    kind :- wat.runtime/TypeKind
    type-params :- (wat.type/Vector :- [wat.type/String])
    body :- wat.runtime/TypeBody])

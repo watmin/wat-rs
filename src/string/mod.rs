@@ -158,7 +158,11 @@ pub(crate) fn keyword_value_to_registry_key(
 ) -> Result<String, RuntimeError> {
     let v = eval(arg, env, sym)?.value_owned();
     match v {
-        Value::wat__core__keyword(ref k) => Ok((**k).clone()),
+        Value::wat__core__keyword(ref k) | Value::Symbol(ref k) => {
+            Ok(crate::edn::render::canonical_identity(
+                &wat_reader::identifier::keyword_text(k),
+            ))
+        }
         Value::wat__WatAST(ref ast) => {
             if let WatAST::Keyword(k, _) = ast.as_ref() {
                 Ok(k.clone())

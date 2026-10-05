@@ -81,6 +81,11 @@ pub struct CheckEnv<'a> {
     /// string map stays the authority for an exact key; this index is only
     /// the miss path. A name `Name::enter` refuses is not indexed.
     scheme_by_name: HashMap<crate::scope::Name, String>,
+    /// First spelling of a `def`-bound value. The keyword printer
+    /// `:ns/name` and the registered `:ns::name` are one [`Name`].
+    defined_by_name: HashMap<crate::scope::Name, String>,
+    /// Same index for corpus-seeded consts (`MAX-REQUEST-BYTES`).
+    corpus_by_name: HashMap<crate::scope::Name, String>,
     /// Stone 255.51 — bounds of the function bodies currently being checked,
     /// innermost last. A path `:T` is assignable to its bound.
     pub(crate) param_bounds: std::cell::RefCell<Vec<HashMap<String, TypeExpr>>>,
@@ -294,9 +299,11 @@ impl<'a> CheckEnv<'a> {
                         crate::runtime::Value::bool(_) => Some(":wat::type::bool"),
                         crate::runtime::Value::String(_) => Some(":wat::type::String"),
                         crate::runtime::Value::wat__core__keyword(_) => Some(":wat::type::keyword"),
+                        crate::runtime::Value::Symbol(_) => Some(":wat::type::symbol"),
                         _ => None,
                     };
                     if let Some(ty_path) = scalar_ty {
+                        note_value_name(&mut env.corpus_by_name, name);
                         env.corpus_values.insert(name.clone(), TypeExpr::Path(ty_path.into()));
                     }
                 }
@@ -335,6 +342,8 @@ impl<'a> CheckEnv<'a> {
         CheckEnv {
             schemes: HashMap::new(),
             scheme_by_name: HashMap::new(),
+            defined_by_name: HashMap::new(),
+            corpus_by_name: HashMap::new(),
             param_bounds: std::cell::RefCell::new(Vec::new()),
             pending_bounds: std::cell::RefCell::new(Vec::new()),
             membership_miss: std::cell::RefCell::new(None),
@@ -424,6 +433,13 @@ impl<'a> CheckEnv<'a> {
     }
 }
 
+fn note_value_name(index: &mut HashMap<crate::scope::Name, String>, spelling: &str) {
+    let Some(entered) = crate::scope::Name::enter(spelling) else {
+        return;
+    };
+    index.entry(entered).or_insert_with(|| spelling.to_string());
+}
+
 fn schemes_same(a: &crate::check::TypeScheme, b: &crate::check::TypeScheme) -> bool {
     a.type_params == b.type_params
         && a.params.len() == b.params.len()
@@ -483,7 +499,20 @@ impl<'a> CheckEnv<'a> {
         // Stone A0 — per-file `defined_values` wins; `corpus_values` (seeded
         // once in `from_symbols` from the live `runtime_def_values`) is the
         // fallback for a stdlib value-const this file never `def`s itself.
-        self.defined_values.get(name).or_else(|| self.corpus_values.get(name))
+        if let Some(ty) = self.defined_values.get(name).or_else(|| self.corpus_values.get(name)) {
+            return Some(ty);
+        }
+        // `:wat.cache.Cache/GET-MAX-REQUEST-BYTES` and
+        // `:wat::cache::Cache::GET-MAX-REQUEST-BYTES` are one name. The
+        // const was registered under the rust-scheme spelling.
+        let want = crate::scope::Name::enter(name)?;
+        if let Some(kept) = self.defined_by_name.get(&want) {
+            if let Some(ty) = self.defined_values.get(kept) {
+                return Some(ty);
+            }
+        }
+        let kept = self.corpus_by_name.get(&want)?;
+        self.corpus_values.get(kept)
     }
 
     /// Arc 157 — look up the span of a prior `def` binding. Used to
@@ -497,6 +526,7 @@ impl<'a> CheckEnv<'a> {
     /// Subsequent forms in `check_program`'s sequential loop will see
     /// this name in `get_defined_value_type`.
     pub fn register_defined_value(&mut self, name: String, ty: TypeExpr, span: Span) {
+        note_value_name(&mut self.defined_by_name, &name);
         self.defined_values.insert(name.clone(), ty);
         self.defined_value_spans.insert(name, span);
     }

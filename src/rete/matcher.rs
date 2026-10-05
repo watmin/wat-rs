@@ -839,7 +839,23 @@ pub(crate) fn value_to_ast_literal(v: Value) -> Option<WatAST> {
         Value::f64(x) => Some(WatAST::FloatLit(x, crate::rust_caller_span!())),
         Value::bool(b) => Some(WatAST::BoolLit(b, crate::rust_caller_span!())),
         Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
-        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
+        Value::wat__core__keyword(k) => Some(WatAST::Keyword(
+            wat_reader::identifier::keyword_text(&k),
+            crate::rust_caller_span!(),
+        )),
+        Value::Symbol(k) => Some(WatAST::List(
+            vec![
+                WatAST::Symbol(
+                    wat_reader::identifier::Identifier::bare("quote"),
+                    crate::rust_caller_span!(),
+                ),
+                WatAST::Symbol(
+                    wat_reader::identifier::Identifier::from_pair(k),
+                    crate::rust_caller_span!(),
+                ),
+            ],
+            crate::rust_caller_span!(),
+        )),
         Value::Nil => Some(WatAST::NilLit(crate::rust_caller_span!())),
         // An enum UNIT variant's literal spelling is the keyword path the author wrote —
         // `:d6::Grade::Hi` — and `expr_ir::keyword_value` reads that keyword straight back to this
@@ -913,7 +929,8 @@ pub(crate) fn compare_values(a: &Value, b: &Value) -> Option<std::cmp::Ordering>
         }
         (Value::String(x), Value::String(y)) => Some(x.as_ref().cmp(y.as_ref())),
         (Value::bool(x), Value::bool(y)) => Some(x.cmp(y)),
-        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.as_ref().cmp(y.as_ref())),
+        (Value::wat__core__keyword(x), Value::wat__core__keyword(y)) => Some(x.cmp(y)),
+        (Value::Symbol(x), Value::Symbol(y)) => Some(x.cmp(y)),
         // Incompatible types: ordering undefined → None (Clara no-error).
         _ => None,
     }

@@ -439,7 +439,7 @@ fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
     match v {
         Value::Vec(items) => {
             let mut xs = items.as_ref().clone();
-            if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":call")
+            if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if wat_reader::identifier::keyword_text(k) == ":call")
                 && xs.len() >= 2
             {
                 xs[1] = Value::i64(op);
@@ -707,7 +707,7 @@ fn export_field<'a>(exp: &'a Value, field: &str) -> &'a Value {
 const BOUND: usize = 300;
 
 fn kw(name: &str) -> Value {
-    Value::wat__core__keyword(Arc::new(name.to_string()))
+    Value::keyword_from_spelling(name).unwrap_or_else(|| panic!("refused keyword {name}"))
 }
 
 fn vec_of(items: Vec<Value>) -> Value {
@@ -726,7 +726,7 @@ fn poke_first_prog_root(v: &mut Value, f: &mut dyn FnMut(Value) -> Value) -> boo
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => return false,
     };
-    if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":prog")
+    if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if wat_reader::identifier::keyword_text(k) == ":prog")
         && xs.len() >= 6
     {
         let root = xs[5].clone();

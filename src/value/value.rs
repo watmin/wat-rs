@@ -56,9 +56,12 @@ pub enum Value {
     Vec(Arc<Vec<Value>>),
     /// The nil value. One inhabitant. EDN `nil`. Not a tuple.
     Nil,
-    /// Keyword literal — leading `:` included. Wat-source type
-    /// `:wat::core::keyword`.
-    wat__core__keyword(Arc<String>),
+    /// Keyword literal. The pair, not the spelling. Unqualified is `$bare`.
+    /// Wat-source type `:wat::type::keyword`.
+    wat__core__keyword(crate::scope::Name),
+    /// Symbol value. The same pair a keyword holds. Not equal to that keyword.
+    /// Prints `ns/name`, or the bare name when unqualified. Pure data.
+    Symbol(crate::scope::Name),
     /// A callable — `define`-registered function or `fn` closure.
     /// Per 058-029: `define` = `fn` + startup-time symbol-table
     /// registration. Static type is `:fn(A,B,...)->R`; the variant
@@ -607,6 +610,7 @@ impl PartialEq for Value {
             (Value::f64(a), Value::f64(b)) => a.to_bits() == b.to_bits(),
             (Value::String(a), Value::String(b)) => a == b,
             (Value::wat__core__keyword(a), Value::wat__core__keyword(b)) => a == b,
+            (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::holon__HolonAST(a), Value::holon__HolonAST(b)) => a == b,
             (Value::wat__WatAST(a), Value::wat__WatAST(b)) => a == b,
             (Value::wat__uuid__Uuid(a), Value::wat__uuid__Uuid(b)) => a == b,
@@ -779,6 +783,7 @@ impl std::hash::Hash for Value {
             Value::f64(x) => x.to_bits().hash(state),
             Value::String(s) => s.hash(state),
             Value::wat__core__keyword(k) => k.hash(state),
+            Value::Symbol(k) => k.hash(state),
             Value::holon__HolonAST(h) => h.hash(state),
             Value::wat__WatAST(ast) => ast.hash(state),
             Value::wat__uuid__Uuid(u) => u.hash(state),
@@ -1061,6 +1066,7 @@ fn value_is_shallow(v: &Value) -> bool {
         | Value::String(_)
         | Value::Nil
         | Value::wat__core__keyword(_)
+        | Value::Symbol(_)
         | Value::wat__core__Char(_)
         | Value::wat__uuid__Uuid(_)
         | Value::Instant(_)
@@ -1450,6 +1456,11 @@ value_key_eligibility_table! {
         key_eligibility: KeyEligibility::Hashable,
         gate: [ TypeExpr::Path(":wat::type::keyword".to_string()) ]
     },
+    Value::Symbol(_) => {
+        type_name: "wat::type::symbol",
+        key_eligibility: KeyEligibility::Hashable,
+        gate: [ TypeExpr::Path(":wat::type::symbol".to_string()) ]
+    },
     Value::holon__HolonAST(_) => {
         type_name: "wat::holon::HolonAST",
         key_eligibility: KeyEligibility::Hashable,
@@ -1788,6 +1799,31 @@ value_key_eligibility_table! {
 }
 
 impl Value {
+    /// The one keyword constructor from a source spelling (`:k`, `:a::b::c`, `:a.b/c`).
+    pub fn keyword_from_spelling(spelling: &str) -> Option<Self> {
+        crate::scope::Name::from_keyword_value(spelling).map(Value::wat__core__keyword)
+    }
+
+    /// A spelling this stone already accepted as a keyword. A refusal is a
+    /// bug at the call site, not a second way to build a keyword.
+    pub(crate) fn keyword_spelled(spelling: &str) -> Self {
+        Self::keyword_from_spelling(spelling)
+            .unwrap_or_else(|| panic!("refused keyword spelling: {spelling}"))
+    }
+
+    /// `keyword/from-string`'s body, or a field name, with no colon added at
+    /// the call site.
+    pub(crate) fn keyword_bodied(body: &str) -> Self {
+        crate::scope::Name::from_keyword_body(body)
+            .map(Value::wat__core__keyword)
+            .unwrap_or_else(|| panic!("refused keyword body: {body}"))
+    }
+
+    /// The one symbol constructor from the pair.
+    pub fn symbol(name: crate::scope::Name) -> Self {
+        Value::Symbol(name)
+    }
+
     /// The **declared** type FQDN for this value — the single authority for
     /// "what named type is this value an instance of?" (arc 237 Stone
     /// 237.5.fix-nominal-identity).
@@ -1843,6 +1879,7 @@ impl Value {
             Value::Vec(_) => self.type_name().to_string(),
             Value::Nil => self.type_name().to_string(),
             Value::wat__core__keyword(_) => self.type_name().to_string(),
+            Value::Symbol(_) => self.type_name().to_string(),
             Value::wat__core__fn(_) => self.type_name().to_string(),
             Value::wat__WatAST(_) => self.type_name().to_string(),
             Value::wat__kernel__Sender(_) => self.type_name().to_string(),

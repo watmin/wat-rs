@@ -67,6 +67,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// doubled-colon form to match `is_reserved_prefix`'s stripping).
 pub const BOUND_NAMESPACE: &str = "$bound";
 
+/// The namespace of an unqualified keyword (`:k`). A keyword is not a binding,
+/// so this is never [`BOUND_NAMESPACE`]. Nobody writes it in source.
+pub const BARE_NAMESPACE: &str = "$bare";
+
 /// A name is the pair `(namespace, name)`. No string is the identity.
 /// [`std::fmt::Display`] is the one stringification: `"{namespace}/{name}"`, or the
 /// bare `name` when the namespace is [`BOUND_NAMESPACE`].
@@ -133,6 +137,14 @@ impl Name {
         }
     }
 
+    /// An unqualified keyword's pair: namespace [`BARE_NAMESPACE`].
+    pub fn bare_keyword(name: impl Into<std::sync::Arc<str>>) -> Self {
+        Self {
+            namespace: std::sync::Arc::from(BARE_NAMESPACE),
+            name: name.into(),
+        }
+    }
+
     pub fn namespace(&self) -> &str {
         &self.namespace
     }
@@ -182,7 +194,7 @@ impl Name {
     /// A keyword [`Self::from_keyword`] accepts is that pair. A rust-scheme path
     /// with no leading colon (`wat::core::foo`) is the keyword `:{path}`.
     /// Anything else — a clojure symbol, a binder, a value keyword — is
-    /// [`Identifier::bare`]'s pair. A rendered parametric form (`(`, `<`, or a
+    /// [`Identifier::bare`]'s pair. A rendered parametric form (`(`, or a
     /// `:-` binder that is not a `::` leaf beginning with `-`) is not a name:
     /// this returns `None` and the caller keeps the text. `:wat::core::->` is a name.
     pub fn enter(spelling: &str) -> Option<Self> {
@@ -200,7 +212,90 @@ impl Name {
                 return Some(name);
             }
         }
+        // The keyword printer `:ns/name` has no `::`, so `from_keyword`
+        // declines it. `Identifier::bare` would keep the leading colon in
+        // the namespace (`{:a.b, c}`), a different pair from `:a::b/c`.
+        // A slash-less keyword (`:k`, `:else`) stays the bare fallback:
+        // its pair is not a name path.
+        if spelling.starts_with(':') && spelling.contains('/') {
+            if let Some(name) = Self::from_keyword_value(spelling) {
+                return Some(name);
+            }
+        }
         Some(Identifier::bare(spelling).pair().clone())
+    }
+
+    /// A keyword value's pair. `:a::b::c`, `:a::b/c`, and `:a.b/c` are one pair.
+    /// `:k` is `{`[`BARE_NAMESPACE`]`, k}`. A written `$bare` or `$bound`
+    /// namespace, or a rendered form marked by `(`, is `None`.
+    pub fn from_keyword_value(kw: &str) -> Option<Self> {
+        let body = kw.strip_prefix(':')?;
+        Self::from_keyword_body(body)
+    }
+
+    /// `from_keyword_value` without the leading colon. `keyword/from-string`
+    /// is handed this body.
+    pub fn from_keyword_body(body: &str) -> Option<Self> {
+        if body.is_empty() || written_reserved_namespace(body) {
+            return None;
+        }
+        let mut spelled = String::with_capacity(body.len() + 1);
+        spelled.push(':');
+        spelled.push_str(body);
+        if is_rendered_type_text(&spelled) {
+            return None;
+        }
+        if let Some(name) = Self::from_keyword(&spelled) {
+            return Some(name);
+        }
+        if let Some((ns, name)) = body.split_once('/') {
+            if ns.is_empty()
+                || name.is_empty()
+                || ns == BARE_NAMESPACE
+                || ns == BOUND_NAMESPACE
+            {
+                return None;
+            }
+            return Some(Name {
+                namespace: std::sync::Arc::from(ns),
+                name: std::sync::Arc::from(name),
+            });
+        }
+        Some(Name::bare_keyword(body))
+    }
+
+    /// A symbol value's pair, from the text `wat.core/symbol` is given.
+    /// A `::` spelling is the keyword body of that name (one pair with the
+    /// keyword). A spelling with no `::` splits at the first `/`
+    /// ([`Identifier::bare`]). A written `$bare` or `$bound` namespace is
+    /// `None`.
+    pub fn from_symbol_text(text: &str) -> Option<Self> {
+        if text.is_empty() || written_reserved_namespace(text) {
+            return None;
+        }
+        // A `::` spelling is the keyword body of that name, so the symbol
+        // and the keyword are one pair. A slash spelling splits at the
+        // first `/` (`Identifier::bare`). `$bare` and `$bound` stay refused.
+        if text.contains("::") {
+            return Self::from_keyword_body(text);
+        }
+        Some(Identifier::bare(text).pair().clone())
+    }
+
+    /// The pair a two-argument symbol constructor names. `$bare` and `$bound`
+    /// are not namespaces a caller writes.
+    pub fn from_ns_and_name(namespace: &str, name: &str) -> Option<Self> {
+        if namespace.is_empty()
+            || name.is_empty()
+            || namespace == BARE_NAMESPACE
+            || namespace == BOUND_NAMESPACE
+        {
+            return None;
+        }
+        Some(Name {
+            namespace: std::sync::Arc::from(namespace),
+            name: std::sync::Arc::from(name),
+        })
     }
 
     /// Two spellings of one name. Equal text is the fast path; otherwise the pairs.
@@ -216,8 +311,40 @@ impl Name {
     }
 }
 
+fn written_reserved_namespace(body: &str) -> bool {
+    for ns in [BARE_NAMESPACE, BOUND_NAMESPACE] {
+        if body.strip_prefix(ns).is_some_and(|rest| rest.starts_with('/')) {
+            return true;
+        }
+    }
+    false
+}
+
+/// The one keyword printer. `:k` when the namespace is [`BARE_NAMESPACE`],
+/// otherwise `:{namespace}/{name}`.
+pub fn keyword_text(name: &Name) -> String {
+    if name.namespace.as_ref() == BARE_NAMESPACE {
+        let mut s = String::with_capacity(name.name.len() + 1);
+        s.push(':');
+        s.push_str(&name.name);
+        s
+    } else {
+        format!(":{}/{}", name.namespace, name.name)
+    }
+}
+
+/// The one symbol printer. The bare name when the namespace is
+/// [`BOUND_NAMESPACE`] or [`BARE_NAMESPACE`], otherwise `{namespace}/{name}`.
+pub fn symbol_text(name: &Name) -> String {
+    if name.namespace.as_ref() == BOUND_NAMESPACE || name.namespace.as_ref() == BARE_NAMESPACE {
+        name.name.to_string()
+    } else {
+        format!("{}/{}", name.namespace, name.name)
+    }
+}
+
 fn is_rendered_type_text(spelling: &str) -> bool {
-    if spelling.contains('(') || spelling.contains('<') {
+    if spelling.contains('(') {
         return true;
     }
     // `:-` is the binder separator in a rendered type. A leaf that begins with
@@ -361,6 +488,16 @@ impl Identifier {
             },
             None => Name::bound(std::sync::Arc::clone(&flat)),
         };
+        Identifier {
+            pair,
+            flat,
+            scopes: BTreeSet::new(),
+        }
+    }
+
+    /// A symbol whose pair is already known. `flat` is [`symbol_text`] of that pair.
+    pub fn from_pair(pair: Name) -> Self {
+        let flat: std::sync::Arc<str> = symbol_text(&pair).into();
         Identifier {
             pair,
             flat,
@@ -845,6 +982,7 @@ mod tests {
         assert_eq!(from_colons.to_string(), "a.b/c");
         assert_eq!(Name::enter(":a::b::c").as_ref(), Some(bare.pair()));
         assert_eq!(Name::enter("a.b/c").as_ref(), Some(bare.pair()));
+        assert_eq!(Name::enter(":a.b/c").as_ref(), Some(bare.pair()));
         assert_eq!(Name::enter("(:a::b :- [:T])"), None);
         let threading = Name::from_keyword(":wat::core::->").expect("threading macro");
         assert_eq!(Name::enter(":wat::core::->").as_ref(), Some(&threading));
@@ -855,6 +993,21 @@ mod tests {
         );
         assert!(Name::from_keyword(":else").is_none());
         assert!(Name::from_keyword(":k").is_none());
+        let bare_kw = Name::from_keyword_value(":k").expect("unqualified keyword");
+        assert_eq!(bare_kw.namespace(), BARE_NAMESPACE);
+        assert_eq!(bare_kw.name(), "k");
+        assert_eq!(keyword_text(&bare_kw), ":k");
+        assert_ne!(bare_kw, *Identifier::bare("k").pair());
+        let colon = Name::from_keyword_value(":a::b::c").expect("colon keyword");
+        let member = Name::from_keyword_value(":a::b/c").expect("member keyword");
+        let slash = Name::from_keyword_value(":a.b/c").expect("slash keyword");
+        assert_eq!(colon, member);
+        assert_eq!(member, slash);
+        assert_eq!(keyword_text(&slash), ":a.b/c");
+        assert!(Name::from_keyword_value(":$bare/k").is_none());
+        assert!(Name::from_keyword_value(":$bound/k").is_none());
+        assert!(Name::from_keyword_value(":fn(wat::core::i64)->wat::core::i64").is_none());
+        assert!(Name::enter(":wat::core::<").is_some());
 
         let scoped = bare.add_scope(fresh_scope());
         assert_ne!(scoped, bare);

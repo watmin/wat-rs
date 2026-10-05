@@ -1543,11 +1543,11 @@
       (wat.core/get parts (wat.i64/- (wat.core/length parts) 1))
       "variant leaf")))
 
-(wat.core/defn wat.fix/kw-text [k :- wat.type/keyword] :- wat.type/String
+(wat.core/defn wat.fix/kw-text [k :- wat.type/symbol] :- wat.type/String
   (wat.string/concat ":" (wat.keyword/to-string k)))
 
-(wat.core/defn wat.fix/name->kw [s :- wat.type/String] :- wat.type/keyword
-  (wat.keyword/from-string (wat.fix/rename-strip-colon s)))
+(wat.core/defn wat.fix/name->kw [s :- wat.type/String] :- wat.type/symbol
+  (wat.core/symbol (wat.fix/rename-strip-colon s)))
 
 (wat.core/defn wat.fix/cause-tag [cause :- wat.type/String] :- wat.type/String
   (wat.core/let [head (wat.core/first (wat.string/split cause "{"))

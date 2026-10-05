@@ -209,6 +209,51 @@ fn t6_spawn_process_factory_with_capture_round_trips() {
 // apply_function (zero args); the recv'd value must be i64 4.
 
 #[test]
+fn symbol_is_not_the_keyword_and_spellings_are_one_pair() {
+    let world = freeze_ok("tests/program/wat_stone_25595_symbol_value.wat");
+    for name in [
+        ":my::test::symbol-is-not-the-keyword",
+        ":my::test::keyword-spellings-are-one-pair",
+    ] {
+        let func = world
+            .symbols()
+            .get(name)
+            .unwrap_or_else(|| panic!("{name} defined"));
+        let result = wat::runtime::apply_function(
+            func.clone(),
+            Vec::new(),
+            world.symbols(),
+            wat::rust_caller_span!(),
+        )
+        .unwrap_or_else(|e| panic!("{name} eval: {e}"));
+        match &result {
+            wat::runtime::Value::bool(true) => {}
+            other => panic!("{name} expected true; got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn symbol_value_applies_on_the_other_side_of_a_process() {
+    let world = freeze_ok("tests/program/wat_stone_25595_symbol_crosses_process.wat");
+    let func = world
+        .symbols()
+        .get(":my::test::symbol-applies-across-a-process")
+        .expect("symbol process probe defined");
+    let result = wat::runtime::apply_function(
+        func.clone(),
+        Vec::new(),
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("child apply of the shipped symbol");
+    match &result {
+        wat::runtime::Value::i64(n) => assert_eq!(*n, 3, "apply of user.probe/inc to 2"),
+        other => panic!("expected i64 3; got {other:?}"),
+    }
+}
+
+#[test]
 fn t17_run_hermetic_layer1_passing_assertion() {
     // Arc 278 IPC de-prime — migrated off :wat::test::run-hermetic onto the primed
     // peer wire. The child's :user::main computes 2+2 and println's it; the parent

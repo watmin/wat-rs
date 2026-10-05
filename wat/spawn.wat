@@ -413,10 +413,10 @@
   [(launch :- [S R St Sh Lu]
      [self          :- (wat.spawn/Locus :- [T])
       ship          :- Sh
-      init          :- wat.type/keyword
-      serve         :- wat.type/keyword
+      init          :- wat.type/symbol
+      serve         :- wat.type/symbol
       service-forms :- (wat.type/Vector :- [wat.type/AST])
-      lu-addr-kw    :- wat.type/keyword
+      lu-addr-kw    :- wat.type/symbol
       ;; arc 278 startup-crash parity: lu-mk-kw is the CONSTRUCTOR twin of
       ;; lu-addr-kw (which extracts the addr FROM the lineage-up value). It builds
       ;; the lineage-up value FROM the address — for defservice, Status::Started.
@@ -425,7 +425,7 @@
       ;; runs, making an :init crash surface over the crash-aware launch handshake
       ;; instead of deadlocking the owner's connect'. Process ignores it (its
       ;; child-main-form owns the ctor).
-      lu-mk-kw      :- wat.type/keyword] :- (wat.spawn/Launched :- [S R Sh Lu T]))
+      lu-mk-kw      :- wat.type/symbol] :- (wat.spawn/Launched :- [S R Sh Lu T]))
    ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `[I :-> O]`): the thread/non-dial
    ;; tiers pass a 1-param `[I :-> O]`, the process DIAL tier a 2-param `[(Peer' :- [S R]) I :-> O]`.
    ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~[I :-> O] locally)

@@ -95,7 +95,7 @@ fn rewrite_sum_keys(folds: &[Value], key: Value) -> (Vec<Value>, usize) {
                 return pair.clone();
             }
             let inner = seq_values(&items[1]);
-            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":sum");
+            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if wat_reader::identifier::keyword_text(k) == ":sum");
             if !is_sum || inner.len() < 2 {
                 return pair.clone();
             }
@@ -153,7 +153,7 @@ fn seq_values(v: &Value) -> Vec<Value> {
 /// The key nothing binds — reaches the `None` arm of `Bindings::get` (and, on the packed path,
 /// the slot-keys arm).
 fn unbound_key() -> Value {
-    Value::wat__core__keyword(Arc::new("?no-condition-binds-this".into()))
+    Value::keyword_from_spelling(":no-condition-binds-this").unwrap()
 }
 
 /// `?tag` IS bound by the `:from` cond — to a String. Reaches the `Some(non-i64)` arm.
@@ -387,13 +387,13 @@ fn rewrite_sum_folds_to(folds: &[Value], tag: &str, key: Value) -> (Vec<Value>, 
                 return pair.clone();
             }
             let inner = seq_values(&items[1]);
-            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":sum");
+            let is_sum = matches!(inner.first(), Some(Value::wat__core__keyword(k)) if wat_reader::identifier::keyword_text(k) == ":sum");
             if !is_sum || inner.len() < 2 {
                 return pair.clone();
             }
             n += 1;
             let mut fixed = inner.clone();
-            fixed[0] = Value::wat__core__keyword(Arc::new(tag.into()));
+            fixed[0] = Value::keyword_from_spelling(tag).unwrap();
             fixed[1] = key.clone();
             Value::Vec(Arc::new(vec![items[0].clone(), Value::Vec(Arc::new(fixed))]))
         })
