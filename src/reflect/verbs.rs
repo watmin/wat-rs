@@ -1796,7 +1796,7 @@ pub(crate) fn eval_is_type(
     Ok(Value::bool(known))
 }
 
-/// `(:wat::runtime::variant-parent-of :Ns::Enum::Variant) -> (:wat::core::Option :- [:wat::core::keyword])`
+/// `(:wat::runtime::variant-parent-of :Ns::Enum::Variant) -> (:wat::core::Option :- [:wat::type::symbol])`
 ///
 /// Arc 255 (`DESIGN-the-substrate-can-be-ASKED-what-a-variant-is`) — step ① of three. The
 /// substrate can be ASKED whether a name is a registered enum variant, and of which enum,
@@ -1822,7 +1822,7 @@ pub(crate) fn eval_is_type(
 /// @ExpandTime    Legal
 /// @Category      Reflection
 /// @arg     type_kw_ast :wat::type::keyword the candidate variant name to ask about (a literal keyword in type position)
-/// @ret     (:wat::core::Option :- [:wat::type::keyword]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
+/// @ret     (:wat::core::Option :- [:wat::type::symbol]) `Some` carrying the parent enum's canonical name iff `name` is a registered variant, `None` otherwise
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::core::Option::Some) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Option
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of :wat::cache::Cache::GetRequest) [:wat::core::Option::Some {:value _} true] [:wat::core::Option::None {} false]) #=> false
 /// @example (:wat::core::match (:wat::runtime::variant-parent-of (:wat::keyword::from-string "wat::core::Result.Ok")) [:wat::core::Option::Some {:value parent} parent] [:wat::core::Option::None {} :usr::not-a-variant]) #=> :wat::core::Result
@@ -1892,7 +1892,7 @@ pub(crate) fn eval_variant_parent_of(
     Ok(Value::Option(Arc::new(parent)))
 }
 
-/// `(:wat::runtime::compose-variant <enum-keyword> <variant-keyword>) -> :wat::core::keyword`
+/// `(:wat::runtime::compose-variant <enum-keyword> <variant-keyword>) -> :wat::type::symbol`
 ///
 /// Arc 255 (`DESIGN-the-composition-door-gets-a-wat-surface`) — the composition sibling of
 /// `variant-parent-of`. That verb let wat ASK what a variant's parent enum is; this verb lets
@@ -1923,7 +1923,7 @@ pub(crate) fn eval_variant_parent_of(
 /// @Category      Reflection
 /// @arg     enum_kw_ast :wat::type::keyword the enum's namespaced path (a literal keyword, or an expression yielding one)
 /// @arg     variant_kw_ast :wat::type::keyword the bare variant leaf (a literal keyword, or an expression yielding one)
-/// @ret     :wat::type::keyword the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
+/// @ret     :wat::type::symbol the composed variant name, `enum_path.variant_leaf` (`wat_reader::identifier::compose_variant`)
 /// @example (:wat::runtime::compose-variant :wat::cache::Lru :Hit) #=> :wat::cache::Lru.Hit
 /// @example (:wat::runtime::compose-variant (:wat::keyword::from-string "wat::cache::Lru") :Hit) #=> wat::cache::Lru.Hit
 /// @see     :wat::runtime::variant-parent-of

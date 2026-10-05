@@ -3305,14 +3305,14 @@ fn infer_list(
                         return CheckResult::errs(local_errors);
                     }
                 }
-                let opt_kw_ty = TypeExpr::Parametric {
+                let opt_sym_ty = TypeExpr::Parametric {
                     head: "wat::core::Option".into(),
-                    args: vec![TypeExpr::Path(":wat::type::keyword".into())],
+                    args: vec![TypeExpr::Path(":wat::type::symbol".into())],
                 };
                 return if local_errors.is_empty() {
-                    CheckResult::ok(opt_kw_ty)
+                    CheckResult::ok(opt_sym_ty)
                 } else {
-                    CheckResult::partial_with(opt_kw_ty, local_errors)
+                    CheckResult::partial_with(opt_sym_ty, local_errors)
                 };
             }
             // Arc 255 (`DESIGN-the-composition-door-gets-a-wat-surface`) —
@@ -3353,11 +3353,11 @@ fn infer_list(
                         }
                     }
                 }
-                let kw = TypeExpr::Path(":wat::type::keyword".into());
+                let sym = TypeExpr::Path(":wat::type::symbol".into());
                 return if local_errors.is_empty() {
-                    CheckResult::ok(kw)
+                    CheckResult::ok(sym)
                 } else {
-                    CheckResult::partial_with(kw, local_errors)
+                    CheckResult::partial_with(sym, local_errors)
                 };
             }
             // Arc 237 Stone 237.5 — `:wat::core::conforms?` inference.
@@ -23828,7 +23828,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 255 (variant-parent-of, step ① of the-substrate-can-be-ASKED) —
     // `:wat::runtime::variant-parent-of` membership predicate, the `is-type?` sibling.
     //
-    // :wat::runtime::variant-parent-of :: :wat::core::keyword -> (:wat::core::Option :- [:wat::core::keyword])
+    // :wat::runtime::variant-parent-of :: :wat::core::keyword -> (:wat::core::Option :- [:wat::type::symbol])
     //
     // The infer_list special-case (above, beside is-type?) is load-bearing: it skips
     // inference so Doctrine 1 does not fire on a variant/defrecord keyword in type
@@ -23841,7 +23841,7 @@ fn register_builtins(env: &mut CheckEnv) {
             params: vec![TypeExpr::Path(":wat::type::keyword".into())],
             ret: TypeExpr::Parametric {
                 head: "wat::core::Option".into(),
-                args: vec![TypeExpr::Path(":wat::type::keyword".into())],
+                args: vec![TypeExpr::Path(":wat::type::symbol".into())],
             },
             rest_param_type: None,
         },
@@ -23851,7 +23851,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::runtime::compose-variant` membership predicate, the composition sibling of
     // `variant-parent-of` immediately above.
     //
-    // :wat::runtime::compose-variant :: :wat::core::keyword, :wat::core::keyword -> :wat::core::keyword
+    // :wat::runtime::compose-variant :: :wat::core::keyword, :wat::core::keyword -> :wat::type::symbol
     //
     // The infer_list special-case (above, beside variant-parent-of) is load-bearing: it skips
     // inference on both args so Doctrine 1 does not fire on a literal keyword in type position.
@@ -23865,7 +23865,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::type::keyword".into()),
                 TypeExpr::Path(":wat::type::keyword".into()),
             ],
-            ret: TypeExpr::Path(":wat::type::keyword".into()),
+            ret: TypeExpr::Path(":wat::type::symbol".into()),
             rest_param_type: None,
         },
     );
