@@ -582,7 +582,10 @@ pub fn eval_kernel_fn_forms(
     // convention as every other keyword Value in the runtime).
     let name: String = match eval(&args[1], env, sym)?.value_owned() {
         Value::wat__core__keyword(k) | Value::Symbol(k) => {
-            wat_reader::identifier::keyword_text(&k)
+            // The shipped `def` name is source the child reads back. The
+            // printer body is not that spelling: canonical-identity restores
+            // the `::` form `keyword-node` builds, one pair with the printer.
+            crate::edn::render::canonical_identity(&wat_reader::identifier::keyword_text(&k))
         }
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {

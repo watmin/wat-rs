@@ -128,7 +128,7 @@ fn probe_6_apply_rejects_special_form_head() {
                 e.kind(),
                 RuntimeErrorKind::MalformedForm { head, reason }
                     if head == ":wat::core::apply"
-                    && reason == "cannot apply special form \":wat::core::defn\" — apply only dispatches callable verbs and user-defined functions, not declaration or language forms"
+                    && reason == "cannot apply special form \":wat.core/defn\" — apply only dispatches callable verbs and user-defined functions, not declaration or language forms"
             )
         ),
         "apply of special-form head (:defn) must error at runtime with RuntimeErrorKind::MalformedForm{{head: \":wat::core::apply\"}}; got {:?}",

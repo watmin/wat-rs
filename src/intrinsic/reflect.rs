@@ -982,26 +982,34 @@ pub(crate) fn eval_type_equal(
     let _ = span;
 
     let a_v = crate::runtime::eval_inner(a, env, sym)?.value_owned();
-    let a_ast: &WatAST = match &a_v {
-        Value::wat__WatAST(ast) => ast.as_ref(),
-        other => {
+    let a_owned;
+    let a_ast: &WatAST = match type_equal_operand(&a_v, a.span()) {
+        Some(ast) => {
+            a_owned = ast;
+            &a_owned
+        }
+        None => {
             return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::type::AST",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&a_v)),
                 })
             .into());
         }
     };
 
     let b_v = crate::runtime::eval_inner(b, env, sym)?.value_owned();
-    let b_ast: &WatAST = match &b_v {
-        Value::wat__WatAST(ast) => ast.as_ref(),
-        other => {
+    let b_owned;
+    let b_ast: &WatAST = match type_equal_operand(&b_v, b.span()) {
+        Some(ast) => {
+            b_owned = ast;
+            &b_owned
+        }
+        None => {
             return Err(RuntimeError::new(b.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::type::AST",
-                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                    got: Box::new(crate::runtime::ValueSnapshot::of(&b_v)),
                 })
             .into());
         }
@@ -1045,6 +1053,20 @@ pub(crate) fn eval_type_equal(
     })?;
 
     Ok(Value::bool(a_ty == b_ty))
+}
+
+/// A type operand is an AST node, or a symbol value naming that node.
+/// Quote of a symbol is the symbol value (stone 255.95). `type-equal?`
+/// reads the type that symbol names. It does not call the symbol.
+fn type_equal_operand(v: &Value, span: &crate::span::Span) -> Option<WatAST> {
+    match v {
+        Value::wat__WatAST(ast) => Some((**ast).clone()),
+        Value::Symbol(name) => Some(WatAST::Symbol(
+            wat_reader::identifier::Identifier::from_pair(name.clone()),
+            span.clone(),
+        )),
+        _ => None,
+    }
 }
 
 /// `(:wat::core::type v) -> :wat::core::String` — arc 234 Stone 234.0, homed arc 255 Stone

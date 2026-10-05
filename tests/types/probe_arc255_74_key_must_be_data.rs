@@ -32,7 +32,7 @@
 //!
 //! Three more live as this stone's permanent NEGATIVE fixtures under `wat-scripts/probes/`
 //! (`.wat.bad` — excluded from `every_wat_scripts_file_loads`'s `*.wat` glob by extension, per
-//! `wat-scripts/fmt/fixtures/spelling-dotted.wat.bad`'s existing convention) rather than
+//! the `.wat.bad` extension convention) rather than
 //! `tests/types/`, because they are the exact scratch probes 255.73's orchestrator isolated
 //! the original bug with, promoted to recorded fixtures:
 //!

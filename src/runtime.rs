@@ -3342,6 +3342,7 @@ fn dispatch_keyword_head_value(
             // The keyword printer (`:ns/name`) is not the spelling the
             // surface table is keyed by. Ask the registry once, here.
             let held_head;
+            // rune:lint(one-variant-separator, namespace) — `/` with no `::` is the printer of a namespace, not an enum/variant split.
             let other = if other.contains('/') && !other.contains("::") {
                 held_head = call_head_the_registry_holds(other, sym);
                 held_head.as_str()
@@ -5543,6 +5544,7 @@ fn eval_apply(
     }
     // A keyword value prints `:ns/name`. The function may be registered
     // under the spelling the registry kept. Ask that spelling only on a miss.
+    // rune:lint(one-variant-separator, namespace) — `/` with no `::` is the printer of a namespace, not an enum/variant split.
     if shown.contains('/') && !shown.contains("::") {
         let held = call_head_the_registry_holds(&shown, sym);
         if held != shown {

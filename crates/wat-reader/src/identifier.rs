@@ -354,7 +354,13 @@ fn is_rendered_type_text(spelling: &str) -> bool {
     let mut i = 0;
     while i + 1 < bytes.len() {
         if bytes[i] == b':' && bytes[i + 1] == b'-' {
-            let after_double_colon = i > 0 && bytes[i - 1] == b':';
+            // `:-Mark` is the keyword whose name is `-Mark` (the colon is the
+            // sigil). A binder `:-` sits after another token.
+            if i == 0 {
+                i += 1;
+                continue;
+            }
+            let after_double_colon = bytes[i - 1] == b':';
             if !after_double_colon {
                 return true;
             }

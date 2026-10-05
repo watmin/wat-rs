@@ -3,10 +3,10 @@
 ;; NEGATIVE: the generic consumer given a THREAD locus cannot be claimed Wire.
 (:wat::core::defn :probe::launch :- [T] [l <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 T])
   (:wat::spawn::Locus/launch l 0
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::serve")
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::serve")
     (:wat::core::forms)
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::mk-lu")))
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::mk-lu")))
 (:wat::core::defn :probe::via-thread [] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 :wat::kernel::Transport.Wire])
   (:probe::launch (:wat::spawn::thread)))

@@ -29,7 +29,7 @@ fn the_emitted_lost_arm_reaps_and_does_not_raise() {
     assert_eq!(rc, 0, "stderr:\n{stderr}\nstdout:\n{stdout}");
     assert_eq!(
         stdout.trim(),
-        r#""ServiceEvent.Lost {:idx idx :cause _cause} (:p32.echo/serve self l (wat.seq/remove-at selectables idx) next-id state)] [wat.spawn/""#,
+        r#""ServiceEvent.Lost {:idx idx :cause _cause} (p32.echo/serve self l (wat.seq/remove-at selectables idx) next-id state)] [wat.spawn/""#,
         "stderr:\n{stderr}"
     );
 }

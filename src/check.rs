@@ -2916,6 +2916,7 @@ fn bare_symbol_is_local(head: &WatAST, locals: &HashMap<String, TypeExpr>) -> bo
 /// registry, so a type member keeps `/` and a function name joins with
 /// `::`. A head that already contains `::` is already that key.
 fn call_head_registry_key<'a>(k: &'a str, types: &crate::types::TypeEnv) -> std::borrow::Cow<'a, str> {
+    // rune:lint(one-variant-separator, namespace) — `::` here is the registry spelling of a namespace, not an enum/variant separator.
     if k.contains("::") {
         return std::borrow::Cow::Borrowed(k);
     }
@@ -13803,9 +13804,9 @@ fn infer_equality(
             let WatAST::Keyword(head, _) = &items[0] else {
                 return false;
             };
-            head == ":wat::core::quote"
+            crate::scope::Name::same_entered_name(head, ":wat::core::quote")
                 && matches!(&items[1], WatAST::Symbol(_, _))
-                && matches!(other, TypeExpr::Path(p) if p == ":wat::type::keyword")
+                && matches!(other, TypeExpr::Path(p) if crate::scope::Name::same_entered_name(p, ":wat::type::keyword"))
         };
         let name_cross = quoted_symbol_vs_keyword(&args[0], &b_resolved)
             || quoted_symbol_vs_keyword(&args[1], &a_resolved);

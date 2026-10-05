@@ -188,6 +188,26 @@
 ;; Dispatch is the same first-match-wins keyword-vs-W defclause as
 ;; process-work-forms: a kwargs work-fn arrives as a bare keyword; a
 ;; plain work-fn is a [I :-> O]. Plain: Setup stays a raise.
+;;
+;; A keyword value prints `ns/name`. Appending `::segment` to that text
+;; parses the slash into the namespace. The next segment is a new pair:
+;; namespace is the old namespace, a dot, and the old name.
+(wat.core/defn wat.bracket/symbol-with-segment
+  [base    :- wat.type/keyword
+   segment :- wat.type/String]
+  :- wat.type/symbol
+  (wat.core/let
+    [printed (wat.keyword/to-string base)
+     parts   (wat.string/split printed "/")
+     ;; `get` returns Option. `str` of that Option is the EDN of the Option,
+     ;; which is not the namespace.
+     ns      (wat.core.Option/expect (wat.core/get parts 0) "symbol-with-segment namespace")
+     leaf    (wat.core.Option/expect (wat.core/get parts 1) "symbol-with-segment name")]
+    (wat.core/symbol
+      (wat.string/concat ns
+        (wat.string/concat "."
+          (wat.string/concat leaf
+            (wat.string/concat "/" segment)))))))
 (wat.core/defn wat.bracket/thread-kwargs-runner :- [D K I O]
   [self    :- (wat.kernel/Peer :- [(wat.type/Tuple :- [wat.type/i64 O]) (wat.bracket/PoolMsg :- [D I])])
    work-fn :- wat.type/keyword
@@ -195,8 +215,7 @@
   :- wat.type/nil
   (wat.core/let
     [base-str     (wat.keyword/to-string work-fn)
-     assemble-kw  (wat.core/symbol
-                    (wat.core/format "{base-str}::assemble" :base-str base-str))
+     assemble-kw  (wat.bracket/symbol-with-segment work-fn "assemble")
      impl-kw      (wat.core/symbol
                     (wat.core/format "{base-str}$impl" :base-str base-str))]
     (wat.core/match (wat.kernel/recv self)
@@ -380,8 +399,8 @@
     (wat.core/let
       [base-str      (wat.keyword/to-string work-fn)
        impl-kw       (wat.core/symbol (wat.core/format "{base-str}$impl" :base-str base-str))
-       kwargs-ty-str (wat.core/format "{base-str}::Kwargs" :base-str base-str)
-       kwargs-ty     (wat.core/symbol kwargs-ty-str)
+       kwargs-ty     (wat.bracket/symbol-with-segment work-fn "Kwargs")
+       kwargs-ty-str (wat.keyword/to-string kwargs-ty)
        work-name     (wat.core/symbol "user::bracket::work-fn")
        forms         (wat.kernel/fn-forms impl-kw work-name)
        nforms        (wat.core/length forms)
@@ -413,7 +432,7 @@
        _n-check      (wat.core/if (wat.core/= (wat.core/length fnames) n)
                         nil
                        (wat.kernel/assertion-failed! :message "bracket process-work-forms: field-names-of/field-types-of length mismatch"))
-       coords-ty-str (wat.core/format "{base-str}::Coords" :base-str base-str)
+       coords-ty-str (wat.keyword/to-string (wat.bracket/symbol-with-segment work-fn "Coords"))
        coords-ty-kw  (wat.core/keyword-node (wat.string/concat ":" coords-ty-str))
        ;; Arc 109 ③ — angle brackets are ILLEGAL for types; sp-out/sp-in/runner-self-kw/
        ;; ctx-ty-kw used to round-trip `item-ty`/`ret-ty` through `ast-name` + string
@@ -443,9 +462,10 @@
          (wat.core/fn [acc :- (wat.type/Vector :- [wat.type/AST]) i :- wat.type/i64] :- (wat.type/Vector :- [wat.type/AST])
            (wat.core/let
              [fname-str   (wat.keyword/to-string (wat.core.Option/expect (wat.core/get fnames i) "process-work-forms(kwargs): fnames index"))
+              dotted      (wat.string/join "." (wat.string/split coords-ty-str "/"))
               accessor-kw (wat.core/keyword-node
                             (wat.string/concat ":"
-                              (wat.string/concat coords-ty-str
+                              (wat.string/concat dotted
                                 (wat.string/concat "/" fname-str))))
               ft          (wat.core.Option/expect (wat.core/get ftypes i) "process-work-forms(kwargs): ftypes index")
               is-peer     (wat.core/if (wat.core/= (wat.core/ast-kind ft) "list")

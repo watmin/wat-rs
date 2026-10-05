@@ -428,7 +428,8 @@ pub(crate) fn eval_return_type_of(
                 RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
-                        "unknown type: `{k}` (return-type-of: no such registered type)"
+                        "unknown type: `{}` (return-type-of: no such registered type)",
+                        wat_reader::identifier::keyword_text(&k)
                     ),
                 },
             )

@@ -7,8 +7,8 @@
   (:wat::spawn::Locus/launch
     (:wat::spawn::Locus/with-label (:wat::spawn::process) (:probe::Tag :s "x"))
     0
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::serve")
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::serve")
     (:wat::core::forms)
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::mk-lu")))
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::mk-lu")))

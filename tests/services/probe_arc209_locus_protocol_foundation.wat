@@ -26,11 +26,11 @@
 ;; Launched has 5 type params [S R Sh Lu T]; S R Sh Lu are i64 here, T comes from the locus.
 (:wat::core::defn :user::start-it :- [T] [h <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 T])
   (:wat::spawn::Locus/launch h 0
-    (:wat::keyword::from-string "my::svc::init")
-    (:wat::keyword::from-string "my::svc::serve")
+    (:wat::core::symbol "my::svc::init")
+    (:wat::core::symbol "my::svc::serve")
     (:wat::core::forms)
-    (:wat::keyword::from-string "my::svc::init")
-    (:wat::keyword::from-string "my::svc::mk-lu")))
+    (:wat::core::symbol "my::svc::init")
+    (:wat::core::symbol "my::svc::mk-lu")))
 
 ;; Drive it with a concrete (thread): reaching `true` means the whole locus-agnostic launch wired and
 ;; ran without crashing (listener' accepted :Locus, launch dispatched, apply invoked serve, peer spawned).

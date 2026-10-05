@@ -3,8 +3,8 @@
 ;; POSITIVE: a PROCESS locus yields a Wire Launched (concrete receiver, T inferred from its binding).
 (:wat::core::defn :probe::launch-process [l <- :wat::spawn::ProcessOpts] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 :wat::kernel::Transport.Wire])
   (:wat::spawn::Locus/launch l 0
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::serve")
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::serve")
     (:wat::core::forms)
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::mk-lu")))
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::mk-lu")))

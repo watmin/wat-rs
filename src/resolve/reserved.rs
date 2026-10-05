@@ -41,9 +41,26 @@ pub const RESERVED_PREFIXES: &[&str] = &[
 /// it as the "this path is language-owned, don't treat it as user-definable" gate.
 pub fn is_reserved_prefix(keyword: &str) -> bool {
     let stripped = keyword.strip_prefix(':').unwrap_or(keyword);
-    RESERVED_PREFIXES
+    if RESERVED_PREFIXES
         .iter()
         .any(|p| stripped.starts_with(p.strip_prefix(':').unwrap_or(p)))
+    {
+        return true;
+    }
+    // `:wat.core/x` is the printer of `:wat::core::x`. The `::` prefixes above do not
+    // see it. The pair's namespace is the same reserved root.
+    if keyword.starts_with(':') && keyword.contains('/') && !keyword.contains("::") {
+        if let Some(name) = wat_reader::identifier::Name::from_keyword_value(keyword) {
+            let ns = name.namespace();
+            return ns == "wat"
+                || ns.starts_with("wat.")
+                || ns == "rust"
+                || ns.starts_with("rust.")
+                || ns == "$bound"
+                || ns.starts_with("$bound.");
+        }
+    }
+    false
 }
 
 /// Human-readable comma-joined list of reserved prefixes, for use in

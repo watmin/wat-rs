@@ -1,5 +1,5 @@
 #wat.runtime/NotCallable {
-  :message "not callable: expected Function, got wat::type::keyword `:ns::nonexistent-verb` (built by :wat::keyword::from-string at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:3:13)"
+  :message "not callable: expected Function, got wat::type::keyword `:ns/nonexistent-verb` (built by :wat::keyword::from-string at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:3:13)"
   :location #wat.core/Span {
     :file "src/runtime.rs"
     :line 0
@@ -9,7 +9,7 @@
   :causes []
   :got {
     :type "wat::type::keyword"
-    :rendered ":ns::nonexistent-verb"
+    :rendered ":ns/nonexistent-verb"
     :provenance #wat.kernel/RuntimeBuilt {
       :producer ":wat::keyword::from-string"
       :call-span #wat.core/Span {

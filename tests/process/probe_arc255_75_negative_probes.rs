@@ -162,7 +162,7 @@ fn fnforms_keyword_err_is_refused() {
         "the error must name fn-forms as the offending op: {stderr}"
     );
     assert!(
-        needle_count(&stderr, ":no::such::fn") >= 1,
+        needle_count(&stderr, ":no.such/fn") >= 1,
         "the error must name the bogus keyword: {stderr}"
     );
     assert_eq!(

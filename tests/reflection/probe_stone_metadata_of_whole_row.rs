@@ -59,9 +59,23 @@ fn value_to_doc_ast(v: &Value) -> WatAST {
         )),
         Value::Vec(items) => WatAST::vector(items.iter().map(value_to_doc_ast).collect()),
         Value::wat__WatAST(a) => (**a).clone(),
+        Value::Symbol(n) => WatAST::symbol(wat_reader::identifier::Identifier::from_pair(n.clone())),
         Value::Nil => WatAST::nil(),
         other => panic!("unexpected metadata-of value for from_metadata: {other:?}"),
     }
+}
+
+/// A type token from metadata is the keyword printer. The rust doc keeps the
+/// source `::` spelling. Both parse to one `Name`, or the strings must match.
+fn assert_same_name_token(got: &str, expected: &str, what: &str) {
+    let same = match (
+        wat::Name::from_keyword_value(got),
+        wat::Name::from_keyword_value(expected),
+    ) {
+        (Some(a), Some(b)) => a == b,
+        _ => got == expected,
+    };
+    assert!(same, "{what}: {got} vs {expected}");
 }
 
 fn metadata_map_to_watast(map: &HashMap<Value, Value>) -> WatAST {
@@ -212,7 +226,14 @@ fn registry_lookup_carries_the_six_and_ret_is_the_pair() {
 
     // Row 7 — existing readers' shapes unchanged.
     assert!(matches!(get(&map, ":arity"), Value::i64(_)), ":arity stays i64");
-    assert!(matches!(get(&map, ":name"), Value::wat__core__keyword(_)), ":name stays keyword");
+    match get(&map, ":name") {
+        Value::Symbol(n) => assert_eq!(
+            n,
+            &wat::Name::from_keyword_value(":wat::rete::step-payload").unwrap(),
+            ":name is the symbol of the looked-up function"
+        ),
+        other => panic!(":name is a symbol; got {other:?}"),
+    }
     match get(&map, ":purity") {
         Value::Enum(ev) => assert_eq!(ev.type_path, ":wat::runtime::Purity"),
         other => panic!(":purity must stay Enum; got {other:?}"),
@@ -242,12 +263,25 @@ fn from_metadata_of_the_lookup_equals_the_entry_doc() {
 
     assert_eq!(got.prose, expected.prose, ":doc");
     assert_eq!(got.added, expected.added, ":added");
-    assert_eq!(got.ret_type, expected.ret_type, ":ret type");
+    assert_same_name_token(&got.ret_type, &expected.ret_type, ":ret type");
     assert_eq!(got.ret, expected.ret, ":ret description");
-    assert_eq!(got.args, expected.args, ":args");
-    assert_eq!(got.see, expected.see, ":see");
+    assert_eq!(got.args.len(), expected.args.len(), ":args");
+    for (g, e) in got.args.iter().zip(expected.args.iter()) {
+        assert_eq!(g.name, e.name, ":arg name");
+        assert_same_name_token(&g.ty, &e.ty, ":arg type");
+        assert_eq!(g.desc, e.desc, ":arg desc");
+        assert_eq!(g.is_rest, e.is_rest, ":arg rest");
+    }
+    assert_eq!(got.see.len(), expected.see.len(), ":see");
+    for (g, e) in got.see.iter().zip(expected.see.iter()) {
+        assert_same_name_token(g, e, ":see");
+    }
     assert_eq!(got.deprecated, expected.deprecated, ":deprecated");
-    assert_eq!(got.alias, expected.alias, ":alias");
+    match (&got.alias, &expected.alias) {
+        (Some(g), Some(e)) => assert_same_name_token(g, e, ":alias"),
+        (None, None) => {}
+        _ => assert_eq!(got.alias, expected.alias, ":alias"),
+    }
     assert_eq!(got.purity, expected.purity);
     assert_eq!(got.determinism, expected.determinism);
     assert_eq!(got.totality, expected.totality);

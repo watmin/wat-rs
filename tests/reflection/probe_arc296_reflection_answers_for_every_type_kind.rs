@@ -81,7 +81,7 @@ fn reflection_answers_for_all_six_kinds_and_variant_field_order() {
     // field-names-of Rec (not retired), Option type-params.
     assert_eq!(
         out,
-        "\"Aggregate\"\n\"Enum\"\n\"Newtype\"\n\"Alias\"\n\"Union\"\n\"Surface\"\n\":left\"\n\":right\"\n\"Record\"\n\":alpha\"\n\"T\"\n\"Builtin\"\n\"Builtin\"\n\"Builtin\"\n\"Marker\"\n\":probe::Rec\""
+        "\"Aggregate\"\n\"Enum\"\n\"Newtype\"\n\"Alias\"\n\"Union\"\n\"Surface\"\n\":left\"\n\":right\"\n\"Record\"\n\":alpha\"\n\"T\"\n\"Builtin\"\n\"Builtin\"\n\"Builtin\"\n\"Marker\"\n\":probe/Rec\""
     );
 }
 

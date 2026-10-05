@@ -55,10 +55,17 @@ fn framing_floor_of_pinned_numbers_hold_across_the_uuid_rename() {
     invoke_user_main(&world, Vec::new()).expect("main");
     let _ = take_ambient_stdio();
     let lines = drain_lines(&stdout_capture);
+    // Tag cost is `string/length` of `keyword/to-string` of the type keyword.
+    // `:probe::FFFloorI64` is the pair {probe, FFFloorI64}. The old body
+    // `probe::FFFloorI64` is 17 chars; the printer body `probe/FFFloorI64` is 16.
+    // Field `:v` stays length 1. Fixed costs stay 20, 24, 36, 5.
+    // Uuid and Bool names are one character longer than I64 and F64, so each
+    // total drops by exactly that one tag character: 38/42/55/24 → 37/41/54/23.
+    // The EDN tag of a record is `#ns/Name`, the same printer body.
     assert_eq!(
         lines,
-        vec!["38", "42", "55", "24"],
-        "framing-floor-of's pinned numbers (i64, f64, Uuid, bool, in that order) must be \
-         IDENTICAL before and after the uuid-type-goes-home rename + the type-equal? trap cure"
+        vec!["37", "41", "54", "23"],
+        "framing-floor-of tag cost is the printer body of the type keyword \
+         (one shorter than the :: spelling); fixed costs and the :v key are unchanged"
     );
 }

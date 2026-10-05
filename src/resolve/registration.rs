@@ -103,11 +103,23 @@ pub enum Registration {
 /// and those are lexical — they never reach this gate.
 ///
 /// NOT "starts with ':' and contains '::'": parametric heads drop the leading colon
-/// (`wat::kernel::Peer`), recorded in arc 170's 24t seam. The test is containment.
+/// (`wat::kernel::Peer`), recorded in arc 170's 24t seam. A keyword value prints
+/// `:namespace/name` (no `::`). That spelling is the same pair, and it is namespaced
+/// when the pair's namespace is neither `$bare` nor `$bound`.
 pub fn is_namespaced(name: &str) -> bool {
-    // rune:lint(one-variant-separator, namespace) — the containment test IS the definition of
-    // "namespaced" for a top-level declared name; no enum or variant is involved.
-    name.contains("::")
+    // rune:lint(one-variant-separator, namespace) — `::` containment is one spelling of a
+    // namespaced declaration. The slash printer is the other. Neither splits an enum
+    // from a variant.
+    if name.contains("::") {
+        return true;
+    }
+    if name.starts_with(':') && name.contains('/') {
+        if let Some(parsed) = wat_reader::identifier::Name::from_keyword_value(name) {
+            return parsed.namespace() != wat_reader::identifier::BARE_NAMESPACE
+                && parsed.namespace() != wat_reader::identifier::BOUND_NAMESPACE;
+        }
+    }
+    false
 }
 
 /// Arc 296 stone H-1 — true if the NAME half (the segment after the LAST `::`) contains
@@ -118,9 +130,16 @@ pub fn is_namespaced(name: &str) -> bool {
 /// (dots appear later, only in the wire tag built by `tag_from_type_path`), so this is a
 /// pure ban, not a parse of an already-dotted form.
 fn has_dotted_name(name: &str) -> bool {
-    // rune:lint(one-variant-separator, namespace) — isolates the name half (after the last
-    // `::`) of a namespaced declaration to check for an illegal embedded dot; a namespace/leaf
-    // split on the declared name itself, not a decompose of an enum's variant.
+    // rune:lint(one-variant-separator, namespace) — isolates the name half of a namespaced
+    // declaration to check for an illegal embedded dot. A `::` spelling takes the segment
+    // after the last `::`. A slash printer takes the pair's name. A dot in the namespace
+    // half is the dotted namespace, not a variant.
+    if name.starts_with(':') && name.contains('/') && !name.contains("::") {
+        if let Some(parsed) = wat_reader::identifier::Name::from_keyword_value(name) {
+            return parsed.name().contains('.');
+        }
+    }
+    // rune:lint(one-variant-separator, namespace) — the segment after the last `::` is the declared name, not an enum/variant split.
     wat_reader::identifier::leaf(name).contains('.')
 }
 
@@ -353,6 +372,14 @@ mod tests {
     #[test]
     fn namespaced_user_name_inserts() {
         assert_eq!(gate(":my::ok", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
+    }
+
+    #[test]
+    fn printer_form_is_the_same_namespace() {
+        assert_eq!(gate(":user.bracket/work-fn", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":demo/go", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Insert);
+        assert_eq!(gate(":wat.core/x", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::Reserved);
+        assert_eq!(gate(":my.ns/Shape.Circle", NameOrigin::Declared, Privilege::User, Existing::Absent), Registration::DottedName);
     }
 
     #[test]

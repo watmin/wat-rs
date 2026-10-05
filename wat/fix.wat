@@ -1544,7 +1544,12 @@
       "variant leaf")))
 
 (wat.core/defn wat.fix/kw-text [k :- wat.type/symbol] :- wat.type/String
-  (wat.string/concat ":" (wat.keyword/to-string k)))
+  ;; String-keyed enum maps compare against `ast-name`, which is the source
+  ;; `::` spelling. `keyword/to-string` of a symbol value is the printer body
+  ;; (`wat.rete/InsertOutcome`). canonical-identity is the text bridge back
+  ;; to `:wat::rete::InsertOutcome`.
+  (wat.core/canonical-identity
+    (wat.string/concat ":" (wat.keyword/to-string k))))
 
 (wat.core/defn wat.fix/name->kw [s :- wat.type/String] :- wat.type/symbol
   (wat.core/symbol (wat.fix/rename-strip-colon s)))

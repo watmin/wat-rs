@@ -61,7 +61,7 @@ fn return_type_of_unknown_type_raises_not_echoes() {
             let msg = format!("{}", e.kind());
             assert_eq!(
                 msg,
-                "malformed :wat::runtime::return-type-of form: unknown type: `:s::Nope'` (return-type-of: no such registered type)",
+                "malformed :wat::runtime::return-type-of form: unknown type: `:s/Nope'` (return-type-of: no such registered type)",
                 "the raised error must name the unknown type keyword; got: {msg}"
             );
         }

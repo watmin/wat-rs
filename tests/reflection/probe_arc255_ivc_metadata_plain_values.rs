@@ -94,10 +94,14 @@ fn metadata_of_emits_plain_values_and_enums_not_holon_ast() {
     assert_enum(get(&map, ":determinism"), ":wat::runtime::Determinism", "Deterministic");
 
     // The baseline scalars are PLAIN wat values (not holon-AST-wrapped).
-    assert!(
-        matches!(get(&map, ":name"), Value::wat__core__keyword(_)),
-        ":name must be a plain keyword"
-    );
+    match get(&map, ":name") {
+        Value::Symbol(n) => assert_eq!(
+            n,
+            &wat::Name::from_keyword_value(":wat::bytes::to-hex").unwrap(),
+            ":name is the symbol of the looked-up function"
+        ),
+        other => panic!(":name is a symbol; got {other:?}"),
+    }
     assert!(matches!(get(&map, ":arity"), Value::i64(_)), ":arity must be a plain i64");
     assert!(matches!(get(&map, ":doc"), Value::String(_)), ":doc must be a plain String");
 

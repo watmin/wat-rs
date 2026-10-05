@@ -4,11 +4,11 @@
 ;; from whichever locus it is given — Wire from a process, Shared from a thread.
 (:wat::core::defn :probe::launch :- [T] [l <- (:wat::spawn::Locus :- [T])] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 T])
   (:wat::spawn::Locus/launch l 0
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::serve")
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::serve")
     (:wat::core::forms)
-    (:wat::keyword::from-string "p::init")
-    (:wat::keyword::from-string "p::mk-lu")))
+    (:wat::core::symbol "p::init")
+    (:wat::core::symbol "p::mk-lu")))
 (:wat::core::defn :probe::via-process [] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 :wat::kernel::Transport.Wire])
   (:probe::launch (:wat::spawn::process)))
 (:wat::core::defn :probe::via-thread [] -> (:wat::spawn::Launched :- [wat.type/i64 wat.type/i64 wat.type/i64 wat.type/i64 :wat::kernel::Transport.Shared])
