@@ -212,3 +212,80 @@ After, `f8eaaa16e`, `/tmp/kw95-fuzz-after.log`: 32.016, 32.005, 31.940, 32.046, 
 Ignores, `git grep -hcE '^\s*#\[ignore' -- 'src/*.rs' 'tests/*.rs' | paste -sd+ | bc`: 18. `IGNORE_RC=0`. The floor's 24 skipped is nextest's skip count, including 5 via `profile.default.default-filter`.
 
 STOP-1 did not fire (DATA empty, in the section above). STOP-2 was the ruling this amend accepts. STOP-3 did not fire: a `Name` is not rendered with `::`, no case rule was added, and one name is one key. Comparing a stored `Name` to a literal goes through the one keyword constructor.
+
+## Amend 3 — the checker says what runs
+
+Drawn against the score above (`13db3a39a`). The parent of this work is `0b893252d` (the amend markdown). The cure is `3bbb742c5c4b31133dc878195af9e9cdf1a1ac7c`. Not pushed.
+
+### The class
+
+A verb this stone moved from a keyword value to a symbol, and what the checker states for it.
+
+| verb | eval returns | checker before this amend | after |
+|---|---|---|---|
+| `:wat::runtime::compose-variant` | `Value::symbol` (`src/reflect/verbs.rs:1980`) | infer `src/check.rs:3356` and the TypeScheme at `:23868` both `:wat::type::keyword` | both `:wat::type::symbol`. `@ret` matches the scheme. Arguments stay keyword. |
+| `:wat::runtime::variant-parent-of` | `Option` of `Value::symbol` (`src/reflect/verbs.rs:1889`) | infer `:3310` and the TypeScheme at `:23844` both `Option` of `:wat::type::keyword` | both `Option` of `:wat::type::symbol`. `@ret` matches the scheme. The argument stays keyword. |
+| `wat.runtime/TypeInfo.name`, reached by `type-of` and by `declared-types` | `Value::symbol` at `src/reflect/verbs.rs:1528`, `:1547`, and `:1581` | the field is `wat.type/symbol` (`wat/runtime-typeinfo.wat:76`); the record is registered from that file | agrees. The gate's `consume-type-name` passed before the cure and after it. |
+| `:wat::runtime::metadata-of`'s `:name` | `Value::symbol` (`src/runtime.rs:8068`), intrinsic branch only | no TypeScheme and no `infer_list` arm. The comment at `:8065` still says "plain keyword value" | no scheme was added. A missing scheme is not a scheme that says keyword. |
+| `wat.process/Service.name` | the field type is `wat.type/symbol` (`wat/process.wat:83`) | the checker reads that defrecord | agrees. The comment at `:54` still says the name is a keyword. |
+| `wat.core/symbol` | `Value::symbol` | the scheme at `src/check.rs:22006` is already `:wat::type::symbol` | not a mismatch. |
+
+`field-names-of` (`src/check.rs:4084`) and `extract-arg-names` (`:3999`) still return vectors of keywords at the checker and at eval. They were not flipped. `src/closure_extract.rs:568` builds a symbol only as an error snapshot.
+
+`@example` lines on the two verbs still show a keyword result (`:wat::cache::Lru.Hit`, `:wat::core::Option`). Eval already returned a symbol on the green floor before this amend, and this floor is green with those lines left as written.
+
+### The gate, red first
+
+A `defn` parameter annotation is stored and not re-checked at run time. `value_matches_type_by_name` (`src/function/subsume.rs:78`) runs for `defclause` dispatch (`src/function/eval.rs:209`). The consumer is a `defclause` whose parameter is the type the checker stated.
+
+`decompose_variant` splits on `.` (`crates/wat-reader/src/identifier.rs:800`). The literal `:wat::core::Option::Some` has no `.`, so `variant-parent-of` answers `None`. The registered spelling is `:wat::core::Option.Some`.
+
+On the tree at `0b893252d`, nextest `6644662e-0764-4a93-92da-744165fe82db`, `REDPROOF_RC=100`. `type_info_name_matches_the_stated_field_type` passed. The other two failed at the keyword clause:
+
+```
+compose-variant consumer: #wat.runtime/NoMatchingClause {:message "no clause of :user::take-keyword matched (1 args); called with (wat::type::symbol `wat.core/Option.Some`); clause 0 skipped (arg 0: expected wat.type/keyword, got :wat::type::symbol)" :location #wat.core/Span {:file "tests/reflection/probe_arc255_95_checker_says_what_runs.wat" :line 14 :col 3 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 15 :col 63}}} :causes [] :name ":user::take-keyword" :called-arity 1 :called-args [{:type "wat::type::symbol" :rendered "wat.core/Option.Some" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 1 :declared-arg-types ["wat.type/keyword"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected "wat.type/keyword" :got ":wat::type::symbol"}}]}
+```
+
+```
+variant-parent consumer: #wat.runtime/NoMatchingClause {:message "no clause of :user::take-keyword matched (1 args); called with (wat::type::symbol `wat.core/Option`); clause 0 skipped (arg 0: expected wat.type/keyword, got :wat::type::symbol)" :location #wat.core/Span {:file "tests/reflection/probe_arc255_95_checker_says_what_runs.wat" :line 19 :col 3 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 22 :col 35}}} :causes [] :name ":user::take-keyword" :called-arity 1 :called-args [{:type "wat::type::symbol" :rendered "wat.core/Option" :provenance nil}] :attempted-clauses [#wat.kernel/ClauseAttempt {:clause-index 0 :declared-arity 1 :declared-arg-types ["wat.type/keyword"] :failure-reason #wat.kernel/ArgTypeMismatch {:position 0 :expected "wat.type/keyword" :got ":wat::type::symbol"}}]}
+```
+
+The cure points both doors and both `@ret` strings at `wat.type/symbol`, and points the same consumers at that stated type. Isolated re-run `849e1748-8eae-45c4-9b6f-361970ea5bb9`: 4 passed (`CURE_RC=0`), including `doc_arg_ret_types_match_checker_scheme`.
+
+### Floors
+
+Do not re-run `.floor/2026-10-05T07-53-11Z`. `clean.log:6476`:
+
+```
+Summary [ 413.581s] 6424 tests run: 6423 passed (28 slow), 1 failed, 24 skipped
+```
+
+`FLOOR_RC=100`. One arm, `refusals_teach_the_dot_separator::variant_parent_of_example_teaches_dot`, panicked at `tests/diagnostics/refusals_teach_the_dot_separator.rs:23`:
+
+```
+check.rs:2877: remedied input tests/diagnostics/refusals_teach_the_dot_separator_s3_variant_parent_of.wat refused: #wat.check/CheckErrors {:message "1 type-check error" :location nil :causes [] :errors [#wat.check/ReturnTypeMismatch {:message ":u::f: body produces (:wat::core::Option :- [:wat::type::symbol]); signature declares (:wat::core::Option :- [wat.type/keyword])" :location #wat.core/Span {:file "tests/diagnostics/refusals_teach_the_dot_separator_s3_variant_parent_of.wat" :line 3 :col 3 :end #wat.core/Option.Some {:value #wat.core/Pos {:line 3 :col 45}}} :causes [] :function ":u::f" :expected "(:wat::core::Option :- [wat.type/keyword])" :got "(:wat::core::Option :- [:wat::type::symbol])" :remedies []}]}
+```
+
+That signature now declares `Option` of `wat.type/symbol`. The whole block is `.floor/2026-10-05T07-53-11Z/ARM.txt`.
+
+Acceptance floor `.floor/2026-10-05T08-02-01Z` on the tree that became `3bbb742c5`. Doctests exit 0. Nextest run `fa5d190b-3117-433e-8a43-b4f05966798a`. `clean.log:6459`:
+
+```
+Summary [ 419.687s] 6424 tests run: 6424 passed (29 slow), 24 skipped
+```
+
+`FLOOR_RC=0`. Doc-link exit 0. `doc-link-judge.log` is 0 bytes. The baseline this amend names, read from `.floor/2026-10-05T07-34-12Z/clean.log:6455`, is `Summary [ 407.230s] 6421 tests run: 6421 passed (28 slow), 24 skipped`.
+
+Test-name set against that baseline, same regex as the section above: base 6421, this floor 6424, MISSING 0, EXTRA 3:
+
+- `wat::reflection probe_arc255_95_checker_says_what_runs::compose_variant_result_matches_the_stated_type`
+- `wat::reflection probe_arc255_95_checker_says_what_runs::type_info_name_matches_the_stated_field_type`
+- `wat::reflection probe_arc255_95_checker_says_what_runs::variant_parent_matches_the_stated_type`
+
+### Clippy and ignores
+
+`cargo clippy --release --all-targets -- -D warnings` finished in 12.51s. `CLIPPY_RC=0`.
+
+Ignores, the same `git grep` as the section above: 18. `IGNORES_RC=0`. The floor's 24 skipped is nextest's skip count, including 5 via `profile.default.default-filter`.
+
+STOP-3 did not fire. `flat` stays. The text bridge stays. The reader stone was not started. `wat/kernel/services/stdio.wat` was not edited. `name-census.tsv` was not rewritten.
