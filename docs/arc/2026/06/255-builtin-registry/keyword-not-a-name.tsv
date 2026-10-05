@@ -1,0 +1,260 @@
+kind	population	a	b	c	d
+files	corpus	2198			
+files	other	32			
+files	stdlib	65			
+files	rust	1297			
+rust-literals-tried	rust	1324			
+denominator	corpus	116052			
+denominator	other	861			
+denominator	rust	5671			
+denominator	stdlib	1359			
+position	corpus	call-head	73007	5796	
+position	corpus	declaration-name	11753	8104	
+position	corpus	map-key	2	1	
+position	corpus	map-value	12	7	
+position	corpus	match-variant	10206	387	
+position	corpus	quote	2280	626	
+position	corpus	reference	2162	926	
+position	corpus	rete	53	23	
+position	corpus	set	1	1	
+position	corpus	type	16576	2603	
+position	other	call-head	418	106	
+position	other	declaration-name	141	108	
+position	other	match-variant	86	25	
+position	other	reference	8	4	
+position	other	rete	1	1	
+position	other	type	207	77	
+position	rust	call-head	3392	425	
+position	rust	declaration-name	535	353	
+position	rust	match-variant	600	39	
+position	rust	quote	186	55	
+position	rust	reference	205	52	
+position	rust	rete	12	5	
+position	rust	type	741	244	
+position	stdlib	call-head	236	2	
+position	stdlib	quote	1104	3	
+position	stdlib	type	19	2	
+top-file	corpus	call-head	tests/cli/mode_parity__deep_freeze_recursion.wat	3005	
+top-file	corpus	call-head	wat-scripts/fixes/positional-ctor-to-map.wat	733	
+top-file	corpus	call-head	wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat	712	
+top-file	corpus	call-head	wat-tests/gen.wat	665	
+top-file	corpus	call-head	wat-scripts/scratch-pad/255-stone-h-1b-atom-wrong-arity.wat	542	
+top-file	corpus	call-head	wat-scripts/scratch-pad/255-stone-h-1b-atom-success-calls.wat	488	
+top-file	corpus	call-head	wat-scripts/fixes/one-param-spec.wat	421	
+top-file	corpus	call-head	wat-scripts/scratch-pad/census-one-param-spec.wat	400	
+top-file	corpus	declaration-name	tests/cli/mode_parity__deep_freeze_recursion.wat	1003	
+top-file	corpus	declaration-name	wat-tests/gen.wat	81	
+top-file	corpus	declaration-name	tests/types/probe_arc227_stone2_defrecord.wat	68	
+top-file	corpus	declaration-name	wat-scripts/fixes/positional-ctor-to-map.wat	56	
+top-file	corpus	declaration-name	tests/rete/probe_arc251_8d_make_rule_quote_boundary.wat	48	
+top-file	corpus	declaration-name	wat-scripts/fixes/match-arm-to-bracket-map-pattern.wat	48	
+top-file	corpus	declaration-name	wat-tests/rete/differential-fuzz-scalars.wat	48	
+top-file	corpus	declaration-name	wat-tests/core/core-arithmetic.wat	45	
+top-file	corpus	map-key	tests/types/probe_arc255_74_key_must_be_data__hashmap_call_arg_fn_key.wat	1	
+top-file	corpus	map-key	tests/types/probe_arc255_74_key_must_be_data__map_literal_fn_key.wat	1	
+top-file	corpus	map-value	wat-scripts/scratch-pad/255-probe-a-declaration-cannot-be-stored-unvalidated.wat	5	
+top-file	corpus	map-value	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat	5	
+top-file	corpus	map-value	tests/diagnostics/refusals_teach_the_dot_separator_s6_keyword_subpattern.wat	1	
+top-file	corpus	map-value	tests/function/recursive_patterns_t3.wat	1	
+top-file	corpus	match-variant	wat-scripts/perf/grid/where-exists.wat	122	
+top-file	corpus	match-variant	wat-scripts/scratch-pad/255-stone-h-1b-atom-wrong-arity.wat	120	
+top-file	corpus	match-variant	wat-scripts/scratch-pad/255-stone-h-1b-atom-success-calls.wat	108	
+top-file	corpus	match-variant	wat-scripts/perf/grid/where-or-conditions.wat	98	
+top-file	corpus	match-variant	tests/rete/probe_arc300_2_fix_defrule.wat	91	
+top-file	corpus	match-variant	tests/rete/probe_arc251_8d_make_rule_quote_boundary.wat	80	
+top-file	corpus	match-variant	wat-scripts/scratch-pad/probe-optA-retag.wat	74	
+top-file	corpus	match-variant	wat-scripts/scratch-pad/probe-selectables-homogeneity.wat	74	
+top-file	corpus	quote	wat-scripts/scratch-pad/255-stone-h-1b-atom-success-calls.wat	168	
+top-file	corpus	quote	wat-scripts/scratch-pad/255-stone-o-iv-c-1-holon-sweep-apply.wat	96	
+top-file	corpus	quote	wat-scripts/scratch-pad/255-stone-o-iv-c-2-atom-sweep-apply.wat	95	
+top-file	corpus	quote	wat-scripts/scratch-pad/255-stone-o-iv-b-collections-sweep-apply.wat	77	
+top-file	corpus	quote	wat-tests/rete/differential-fuzz-scalars.wat	61	
+top-file	corpus	quote	wat-scripts/scratch-pad/255-stone-h-1b-atom-wrong-arity.wat	60	
+top-file	corpus	quote	wat-scripts/scratch-pad/probe-arc278-rules-cross-the-wire.wat	53	
+top-file	corpus	quote	wat-scripts/scratch-pad/probe-arc278-rules-ship-as-declared-payload.wat	53	
+top-file	corpus	reference	wat-scripts/scratch-pad/255-stone-h-1b-atom-metadata-arity.wat	60	
+top-file	corpus	reference	wat-scripts/scratch-pad/probe-reland8-type-of-campaign-enums.wat	58	
+top-file	corpus	reference	wat-tests/gen.wat	40	
+top-file	corpus	reference	tests/services/probe_arc278_sift_rules_arena.wat	39	
+top-file	corpus	reference	wat-scripts/scratch-pad/255-stone-h-1a-holon-metadata-arity.wat	35	
+top-file	corpus	reference	tests/rete/probe_arc278_vsa_where_native_differential.wat	22	
+top-file	corpus	reference	wat-tests/holon/eval-coincident.wat	20	
+top-file	corpus	reference	tests/wat_lang/wat_arc144_special_forms.wat	19	
+top-file	corpus	rete	wat-tests/rete/differential-fuzz-scalars.wat	7	
+top-file	corpus	rete	tests/rete/probe_arc278_enum_variant_typo_keyword.wat	6	
+top-file	corpus	rete	tests/rete/probe_arc278_match_arm_body_ok.wat	3	
+top-file	corpus	rete	tests/rete/probe_arc278_match_arm_then_core_bare.wat	3	
+top-file	corpus	rete	tests/rete/probe_arc278_match_arm_then_rete_bare.wat	3	
+top-file	corpus	rete	tests/rete/probe_arc278_match_arm_then_wrapped.wat	3	
+top-file	corpus	rete	tests/rete/probe_arc278_enum_variant_typo.wat	2	
+top-file	corpus	rete	tests/rete/probe_arc278_enum_variant_typo_bad.wat	2	
+top-file	corpus	set	tests/types/probe_arc255_74_key_must_be_data__set_literal_fn.wat	1	
+top-file	corpus	type	wat-scripts/fmt/rules/kwargs.wat	1072	
+top-file	corpus	type	tests/collection/bundle_capacity_over_panic.wat	502	
+top-file	corpus	type	tests/collection/bundle_capacity_try_propagate.wat	403	
+top-file	corpus	type	tests/collection/bundle_capacity_accessors.wat	401	
+top-file	corpus	type	tests/collection/bundle_capacity_over_error.wat	319	
+top-file	corpus	type	wat-scripts/fmt/rules/siblings.wat	160	
+top-file	corpus	type	tests/services/probe_arc278_sift_arena.wat	154	
+top-file	corpus	type	wat-scripts/perf/grid/where-record.wat	137	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_left_idx_latch.wat	58	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/probes/red-acc-refire-native-vs-oracle.wat	45	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_explain_order.wat	40	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_retract_multiplicity.wat	34	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/probes/red-send-cause-is-not-matchable.wat	27	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/strike-explain-drops-a-constraint/d6-explain-drops-enum-constraint.wat	24	
+top-file	other	call-head	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-acc-wrapped.wat	20	
+top-file	other	call-head	docs/arc/2026/06/255-builtin-registry/probes-255.61/convert-doc-fragments.wat	19	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_left_idx_latch.wat	23	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/probes/red-acc-refire-native-vs-oracle.wat	18	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_explain_order.wat	17	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_retract_multiplicity.wat	9	
+top-file	other	declaration-name	docs/arc/2026/06/277-wat-lint-fix-fmt/probes/277-width-fixpoint-probe.wat	5	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-acc-wrapped.wat	5	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-then-match.wat	5	
+top-file	other	declaration-name	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-when-match.wat	5	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/probes/red-send-cause-is-not-matchable.wat	11	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/probes/red-acc-refire-native-vs-oracle.wat	10	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_explain_order.wat	10	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_left_idx_latch.wat	10	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-acc-head.wat	7	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-acc-wrapped.wat	7	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/strike-explain-drops-a-constraint/d6-explain-drops-enum-constraint.wat	7	
+top-file	other	match-variant	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_retract_multiplicity.wat	7	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-then-match.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-when-match.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/probes/enum-holds-record.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/probes/red-owner-signals-child.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/probes/surface-field-dispatch.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/strike-explain-drops-a-constraint/d6-explain-drops-enum-constraint.wat	1	
+top-file	other	reference	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_phantom_p3_kernel_forced.wat	1	
+top-file	other	reference	examples/console-demo/wat/main.wat	1	
+top-file	other	rete	docs/arc/2026/06/278-rules-engine/strike-explain-drops-a-constraint/d6-explain-drops-enum-constraint.wat	1	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_left_idx_latch.wat	43	
+top-file	other	type	docs/arc/2026/06/277-wat-lint-fix-fmt/probes/277-width-fixpoint-probe.wat	41	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_explain_order.wat	34	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/probes/red-acc-refire-native-vs-oracle.wat	32	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/vigilia-2026-09-05/probes/probe_vig_retract_multiplicity.wat	23	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-when-match.wat	7	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/harness-experiri/experiri-then-match.wat	6	
+top-file	other	type	docs/arc/2026/06/278-rules-engine/strike-explain-drops-a-constraint/d6-explain-drops-enum-constraint.wat	6	
+top-file	rust	call-head	src/runtime.rs	797	
+top-file	rust	call-head	src/rete/reachability.rs	416	
+top-file	rust	call-head	src/rete/kernel/tests/rank_and_instrument.rs	193	
+top-file	rust	call-head	src/rete/kernel/tests/mod.rs	176	
+top-file	rust	call-head	src/rete/kernel/tests/pass_semantics.rs	159	
+top-file	rust	call-head	src/macros/tests.rs	128	
+top-file	rust	call-head	src/check.rs	121	
+top-file	rust	call-head	src/rete/kernel/tests/right_index_counter_invariant.rs	105	
+top-file	rust	declaration-name	src/rete/reachability.rs	68	
+top-file	rust	declaration-name	src/check.rs	47	
+top-file	rust	declaration-name	src/macros/tests.rs	47	
+top-file	rust	declaration-name	src/rete/kernel/tests/rank_and_instrument.rs	43	
+top-file	rust	declaration-name	src/rete/kernel/tests/mod.rs	36	
+top-file	rust	declaration-name	src/rete/kernel/tests/right_index_counter_invariant.rs	36	
+top-file	rust	declaration-name	src/rete/validate/mod.rs	33	
+top-file	rust	declaration-name	src/rete/kernel/tests/pass_semantics.rs	23	
+top-file	rust	match-variant	src/rete/reachability.rs	104	
+top-file	rust	match-variant	src/runtime.rs	84	
+top-file	rust	match-variant	src/rete/kernel/tests/rank_and_instrument.rs	71	
+top-file	rust	match-variant	src/rete/kernel/tests/pass_semantics.rs	61	
+top-file	rust	match-variant	src/rete/kernel/tests/mod.rs	46	
+top-file	rust	match-variant	src/rete/kernel/tests/fanout_cost.rs	37	
+top-file	rust	match-variant	src/rete/kernel/tests/right_index_counter_invariant.rs	21	
+top-file	rust	match-variant	src/rete/kernel/tests/node_share_cost.rs	20	
+top-file	rust	quote	src/macros/tests.rs	97	
+top-file	rust	quote	src/runtime.rs	30	
+top-file	rust	quote	src/rete/kernel/tests/mod.rs	21	
+top-file	rust	quote	src/check.rs	10	
+top-file	rust	quote	src/rete/kernel/tests/pass_semantics.rs	8	
+top-file	rust	quote	tests/rete/probe_arc278_P6_delta_asymmetric_join.rs	5	
+top-file	rust	quote	src/rete/validate/mod.rs	4	
+top-file	rust	quote	src/macros/parse.rs	3	
+top-file	rust	reference	src/load/loader.rs	43	
+top-file	rust	reference	src/runtime.rs	42	
+top-file	rust	reference	src/types.rs	18	
+top-file	rust	reference	src/check.rs	17	
+top-file	rust	reference	crates/wat-macros/src/discover.rs	14	
+top-file	rust	reference	src/rete/kernel/tests/mod.rs	12	
+top-file	rust	reference	src/rete/kernel/tests/rank_and_instrument.rs	10	
+top-file	rust	reference	src/freeze.rs	8	
+top-file	rust	rete	src/rete/kernel/tests/arm_lease.rs	7	
+top-file	rust	rete	src/rete/reachability.rs	4	
+top-file	rust	rete	src/codemod_driver.rs	1	
+top-file	rust	type	src/rete/kernel/tests/rank_and_instrument.rs	83	
+top-file	rust	type	src/rete/reachability.rs	80	
+top-file	rust	type	src/rete/kernel/tests/right_index_counter_invariant.rs	61	
+top-file	rust	type	src/types.rs	55	
+top-file	rust	type	src/rete/kernel/tests/mod.rs	51	
+top-file	rust	type	src/types/surface.rs	44	
+top-file	rust	type	src/rete/kernel/tests/pass_semantics.rs	42	
+top-file	rust	type	src/rete/validate/mod.rs	32	
+top-file	stdlib	call-head	wat/service.wat	129	
+top-file	stdlib	call-head	wat/core.wat	43	
+top-file	stdlib	call-head	wat/kernel/assertion.wat	9	
+top-file	stdlib	call-head	wat/bracket.wat	8	
+top-file	stdlib	call-head	wat/query.wat	8	
+top-file	stdlib	call-head	wat/rete/syntax.wat	8	
+top-file	stdlib	call-head	wat/test.wat	5	
+top-file	stdlib	call-head	wat/telemetry.wat	4	
+top-file	stdlib	quote	wat/service.wat	675	
+top-file	stdlib	quote	wat/core.wat	147	
+top-file	stdlib	quote	wat/bracket.wat	71	
+top-file	stdlib	quote	wat/query.wat	69	
+top-file	stdlib	quote	wat/telemetry/span.wat	31	
+top-file	stdlib	quote	wat/rete/syntax.wat	22	
+top-file	stdlib	quote	wat/kernel/assertion.wat	21	
+top-file	stdlib	quote	wat/Record.wat	20	
+top-file	stdlib	type	wat/bracket.wat	13	
+top-file	stdlib	type	wat/service.wat	3	
+top-file	stdlib	type	wat/telemetry.wat	2	
+top-file	stdlib	type	wat/core.wat	1	
+ruling	corpus	DATA	:fn(wat::core::i64)->wat::core::i64	reference,type	3	tests/function/fn_rename_mixed_legacy.wat:4:20	from_keyword=true	enter=false
+ruling	corpus	MIXED	:probe::inc	declaration-name,map-key,reference,set,type	16	tests/services/probe_mapv_side_effect_once.wat:46:19	from_keyword=true	enter=true
+ruling	corpus	MIXED	:u::E.B	map-value,match-variant	2	tests/diagnostics/refusals_teach_the_dot_separator_s6_keyword_subpattern.wat:5:27	from_keyword=true	enter=true
+ruling	corpus	DATA	:wat::core::<	call-head,quote,type	174	wat-scripts/scratch-pad/255-19-start-impl-locus-param.wat:20:91	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::core::<=	call-head,type	37	wat-scripts/scratch-pad/probe-118B4-forces-per-element-by-walk-shape.wat:65:24	from_keyword=true	enter=false
+ruling	corpus	MIXED	:wat::core::Option.None	call-head,map-value,match-variant,quote,reference,rete,type	508	wat-scripts/fmt/run-tables.wat:19:6	from_keyword=true	enter=true
+ruling	corpus	DATA	:wat::f64::<	call-head	5	wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat:34:29	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::f64::<=	call-head,type	3	wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat:35:29	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::i64::<	call-head,type	33	wat-scripts/scratch-pad/probe-reland10-journal-then-fire.wat:58:27	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::i64::<=	call-head	20	wat-scripts/fmt/run-width.wat:59:20	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::rete::f64::<	call-head,quote,type	4	wat-scripts/scratch-pad/probe-brief-f64-surface-is-a-stub.wat:36:29	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::rete::f64::<=	call-head,quote	2	wat-scripts/scratch-pad/probe-brief-f64-surface-is-a-stub.wat:35:29	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::rete::i64::<	call-head,quote,type	89	wat-scripts/fmt/fixtures/doc-example.wat:1:293	from_keyword=true	enter=false
+ruling	corpus	DATA	:wat::rete::i64::<=	quote,type	2	wat-scripts/perf/grid/where-numeric.wat:140:38	from_keyword=true	enter=false
+ruling	corpus	MIXED	:wat::runtime::Category.Transform	map-value,reference	4	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat:31:14	from_keyword=true	enter=true
+ruling	corpus	MIXED	:wat::runtime::Determinism.Deterministic	map-value,reference	4	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat:28:17	from_keyword=true	enter=true
+ruling	corpus	MIXED	:wat::runtime::ExpandTime.Legal	map-value,reference	4	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat:30:17	from_keyword=true	enter=true
+ruling	corpus	MIXED	:wat::runtime::Purity.Pure	map-value,reference	4	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat:27:12	from_keyword=true	enter=true
+ruling	corpus	MIXED	:wat::runtime::Totality.Total	map-value,match-variant,reference	6	wat-scripts/scratch-pad/probe-255-defn-metadata-map.wat:29:14	from_keyword=true	enter=true
+ruling	rust	DATA	:wat::core::<	call-head	2	src/edn/render.rs:5699:2	from_keyword=true	enter=false
+ruling	rust	DATA	:wat::i64::<	call-head	4	src/runtime.rs:15766:2	from_keyword=true	enter=false
+ruling	rust	DATA	:wat::rete::i64::<	call-head,type	5	src/rete/validate/mod.rs:1748:49	from_keyword=true	enter=false
+name-spellings	corpus	11113			
+name-spellings	other	238			
+name-spellings	rust	848			
+name-spellings	stdlib	4			
+stdlib-name	stdlib	:wat::core::quasiquote	call-head,quote,type	251	
+stdlib-name	stdlib	:wat::core::quote	call-head	5	
+stdlib-name	stdlib	:wat::core::unquote	quote	983	
+stdlib-name	stdlib	:wat::core::unquote-splicing	quote,type	120	
+data-spellings	corpus	11			
+data-spellings	rust	3			
+mixed-spellings	corpus	8			
+parse-fail-count	all	0			
+intrinsic	src/intrinsic/holon/atom.rs	244	eval_holon_from_holon	wat_intrinsic	new(…)
+intrinsic	src/intrinsic/holon/atom.rs	251	eval_holon_from_holon	wat_intrinsic	new(…)
+intrinsic	src/intrinsic/reflect.rs	205	eval_intrinsic_rows	wat_intrinsic	new(…)
+intrinsic	src/intrinsic/reflect.rs	86	eval_intrinsic_examples	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	1052	eval_field_names_of	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	1285	kw	helper	new(…)
+intrinsic	src/reflect/verbs.rs	1527	type_info_for_membership	helper	new(…)
+intrinsic	src/reflect/verbs.rs	1536	type_info_for_membership	helper	new(…)
+intrinsic	src/reflect/verbs.rs	1542	type_info_for_membership	helper	new(…)
+intrinsic	src/reflect/verbs.rs	1572	type_info_value	helper	new(…)
+intrinsic	src/reflect/verbs.rs	1874	eval_variant_parent_of	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	1962	eval_compose_variant	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	647	eval_rename_callable_name	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	652	eval_rename_callable_name	wat_intrinsic	new(…)
+intrinsic	src/reflect/verbs.rs	875	eval_extract_arg_names	wat_intrinsic	new(…)
